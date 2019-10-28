@@ -14,7 +14,7 @@ UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, cv::Mat _desc)
 UVR_SLAM::MapPoint::~MapPoint(){}
 
 int UVR_SLAM::MapPoint::GetMapPointID() {
-	std::unique_lock<std::mutex> lockMP(mMutexMPID);
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	return mnMapPointID;
 }
 
@@ -57,6 +57,11 @@ std::map<UVR_SLAM::Frame*, int> UVR_SLAM::MapPoint::GetConnedtedFrames() {
 	return std::map<UVR_SLAM::Frame*, int>(mmpFrames.begin(), mmpFrames.end());
 }
 
+int UVR_SLAM::MapPoint::GetNumConnectedFrames() {
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
+	return mnConnectedFrames;
+}
+
 void UVR_SLAM::MapPoint::AddFrame(UVR_SLAM::Frame* pF, int idx) {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	auto res = mmpFrames.find(pF);
@@ -87,22 +92,25 @@ void UVR_SLAM::MapPoint::Delete() {
 	//...std::cout << "Delete=" << mmpF;
 }
 void UVR_SLAM::MapPoint::SetDescriptor(cv::Mat _desc){
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	desc = _desc.clone();
 }
 cv::Mat UVR_SLAM::MapPoint::GetDescriptor(){
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	return desc;
 }
 bool UVR_SLAM::MapPoint::isSeen(){
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	return mbSeen;
 }
 
 void UVR_SLAM::MapPoint::SetFrameWindowIndex(int nIdx){
-	std::unique_lock<std::mutex> lockMP(mMutexFrameWindowIndex);
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	mnFrameWindowIndex = nIdx;
 }
 
 int UVR_SLAM::MapPoint::GetFrameWindowIndex(){
-	std::unique_lock<std::mutex> lockMP(mMutexFrameWindowIndex);
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	return mnFrameWindowIndex;
 }
 

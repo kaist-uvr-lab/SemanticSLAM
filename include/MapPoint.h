@@ -37,6 +37,7 @@ namespace UVR_SLAM {
 		int GetFrameWindowIndex();
 		int GetMapPointID();
 		std::map<Frame*, int> GetConnedtedFrames();
+		int GetNumConnectedFrames();
 
 		void SetDelete(bool b);
 		bool isDeleted();
@@ -47,13 +48,8 @@ namespace UVR_SLAM {
 
 	private:
 		bool mbDelete;
-		std::mutex mMutexMPID;
 		int mnMapPointID;
-
-		std::mutex mMutexObjectType; //mnObjectType
 		ObjectType mObjectType;
-		
-		std::mutex mMutexFrameWindowIndex;
 		int mnFrameWindowIndex;
 
 		float mfDepth;

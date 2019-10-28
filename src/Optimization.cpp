@@ -267,7 +267,8 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 
 	std::vector<UVR_SLAM::Frame*> mvpFrames;
 	std::vector<UVR_SLAM::MapPoint*> mvpMPs;
-	
+	std::vector<int> mvLocalMPIndex;
+
 	for (auto iter = pWindow->GetBeginIterator(); iter != pWindow->GetEndIterator(); iter++) {
 		Frame* pF = *iter;
 		FrameVertex* mpVertex = new FrameVertex(pF->GetRotation(), pF->GetTranslation(), nPoseJacobianSize);
@@ -329,6 +330,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		mpOptimizer->AddVertex(mpVertex, false);
 		mvpMapPointVertices.push_back(mpVertex);
 		mvpMPs.push_back(pMP);
+		mvLocalMPIndex.push_back(i);
 	}
 
 	std::cout << "LocalBA::FixedFrame::" << nFixedFrames << std::endl;
@@ -417,22 +419,25 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 			UVR_SLAM::MapPoint* pMP = std::get<0>(tempData);
 			UVR_SLAM::Frame* pF = std::get<1>(tempData);
 			int feature_idx = std::get<2>(tempData);
-
 			pMP->RemoveFrame(pF);
-
-			//new or < 3이면 전부 삭제
 		}
 	}
-	std::cout << "Update Parameter::1" << std::endl;
 	for (int i = 0; i < mvpFrames.size(); i++) {
 		mvpFrameVertices[i]->RestoreData();
 		mvpFrames[i]->SetPose(mvpFrameVertices[i]->Rmat, mvpFrameVertices[i]->Tmat);
 	}
-	std::cout << "Update Parameter::2" << std::endl;
 	for (int i = 0; i <  mvpMPs.size(); i++) {
+		/*if (mvpMPs[i]->GetNumConnectedFrames < 3 || (mvpMPs[i]->isNewMP() && mvpMPs[i]->GetNumConnectedFrames < 2))
+		{
+			int idx = mvLocalMPIndex[i];
+			UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint[idx];
+			pMP->SetDelete(true);
+			pWindow->SetMapPoint(nullptr, idx);
+			continue;
+		}*/
 		mvpMapPointVertices[i]->RestoreData();
-			//mvpMPs[i]->SetW
 		mvpMPs[i]->SetWorldPos(mvpMapPointVertices[i]->Xw);
+		std::cout <<"Connected MPs = "<< mvpMPs[i]->GetNumConnectedFrames() << std::endl;
 	}
 	std::cout << "Update Parameter::End" << std::endl;
 }
