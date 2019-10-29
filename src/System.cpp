@@ -5,6 +5,11 @@
 #include <LocalMapper.h>
 
 UVR_SLAM::System::System() {}
+UVR_SLAM::System::System(std::string strFilePath) {
+	LoadParameter(strFilePath);
+	LoadVocabulary();
+	Init();
+}
 UVR_SLAM::System::System(int nWidth, int nHeight, cv::Mat _K, cv::Mat _K2, cv::Mat _D, int _nFeatures, float _fScaleFactor, int _nLevels, int _fIniThFAST, int _fMinThFAST, std::string _strVOCPath):
 	mnWidth(nWidth), mnHeight(nHeight), mK(_K), mKforPL(_K2), mD(_D),
 	mnFeatures(_nFeatures), mfScaleFactor(_fScaleFactor), mnLevels(_nLevels), mfIniThFAST(_fIniThFAST), mfMinThFAST(_fMinThFAST), strVOCPath(_strVOCPath)
@@ -13,6 +18,34 @@ UVR_SLAM::System::System(int nWidth, int nHeight, cv::Mat _K, cv::Mat _K2, cv::M
 	Init();
 }
 UVR_SLAM::System::~System() {}
+
+void UVR_SLAM::System::LoadParameter(std::string strPath) {
+	FileStorage fs(strPath, FileStorage::READ);
+	fs["K"] >> mK;
+	fs["D"] >> mD;
+
+	fs["nFeatures"] >> mnFeatures;
+	fs["fScaleFactor"] >> mfScaleFactor;
+	fs["nLevels"] >> mnLevels;
+	fs["fIniThFAST"] >> mfIniThFAST;
+	fs["fMinThFAST"] >> mfMinThFAST;
+	fs["WIDTH"] >> mnWidth;
+	fs["HEIGHT"] >> mnHeight;
+	fs["VocPath"] >> strVOCPath;
+	//fs["DirPath"] >> strDirPath; 데이터와 관련이 있는거여서 별도로 분리
+
+	std::cout << mK << ", " << mD << std::endl;
+
+	float fx = mK.at<float>(0, 0);
+	float fy = mK.at<float>(1, 1);
+	float cx = mK.at<float>(0, 2);
+	float cy = mK.at<float>(1, 2);
+
+	//Pluker Line Coordinate에 이용함.
+	//mK2 = (cv::Mat_<float>(3, 3) << fx, 0, 0, 0, fy, 0, -fy*cx, -fx*cy, fx*fy);
+
+	fs.release();
+}
 
 bool UVR_SLAM::System::LoadVocabulary() {
 	fvoc = new fbow::Vocabulary();
