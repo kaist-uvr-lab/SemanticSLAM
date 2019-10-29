@@ -60,8 +60,10 @@ namespace UVR_SLAM {
 	public:
 
 		System();
+		System(std::string strFilePath);
 		System(int nWidth, int nHeight, cv::Mat _K,cv::Mat _K2, cv::Mat _D, int _nFeatures, float _fScaleFactor, int _nLevels, int _fIniThFAST, int _fMinThFAST, std::string _strVOCPath);
 		virtual ~System();
+		void LoadParameter(std::string strPath);
 		bool LoadVocabulary();
 		void Init();
 
