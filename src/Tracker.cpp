@@ -134,6 +134,8 @@ void UVR_SLAM::Tracker::CalcVisibleCount(UVR_SLAM::Frame* pF) {
 		UVR_SLAM::MapPoint* pMP = pF->GetMapPoint(i);
 		if (!pMP)
 			continue;
+		if (pMP->isDeleted())
+			continue;
 		pMP->mnVisibleCount++;
 	}
 }
@@ -143,6 +145,8 @@ void UVR_SLAM::Tracker::CalcMatchingCount(UVR_SLAM::Frame* pF) {
 			continue;
 		UVR_SLAM::MapPoint* pMP = pF->GetMapPoint(i);
 		if (!pMP)
+			continue;
+		if (pMP->isDeleted())
 			continue;
 		pMP->mnMatchingCount++;
 	}

@@ -30,13 +30,14 @@ void UVR_SLAM::LocalMapper::Run() {
 			//여기부터 다시 검증이 필요
 			CreateMapPoints(mpTargetFrame, mpPrevKeyFrame);
 
+			mpFrameWindow->SetLocalMap();
 			////BA
-			Optimization::LocalBundleAdjustment(mpFrameWindow, 2, 5, true);
+			Optimization::LocalBundleAdjustment(mpFrameWindow, mvpDeletedMPs, 2, 5, true);
 			
 			//Delete MPs
-			DeleteMPs();
+			mpTargetFrame->UpdateMPs();
+			//DeleteMPs();
 
-			mpFrameWindow->SetLocalMap();
 			SetBoolDoingProcess(false);
 			std::cout << "Create KeyFrame::End!!!!" << std::endl;
 		}//if
@@ -98,16 +99,13 @@ void UVR_SLAM::LocalMapper::UpdateMPs() {
 	int nUpdated = 0;
 	for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
 		UVR_SLAM::MapPoint* pMP = mpTargetFrame->GetMapPoint(i);
-		if (pMP) {
-			if (pMP->isDeleted()) {
-				mpTargetFrame->RemoveMP(i);
-			}
-		}
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted())
+			continue;
 		if (mpTargetFrame->GetBoolInlier(i)) {
-			if (pMP){
-				nUpdated++;
-				pMP->AddFrame(mpTargetFrame, i);
-			}
+			nUpdated++;
+			pMP->AddFrame(mpTargetFrame, i);
 		}
 	}
 	std::cout << "Update MPs::" << nUpdated << std::endl;

@@ -51,6 +51,7 @@ namespace UVR_SLAM {
 		cv::Mat GetTranslation();
 		void AddMP(UVR_SLAM::MapPoint* pMP, int idx);
 		void RemoveMP(int idx);
+		void UpdateMPs();
 		UVR_SLAM::MapPoint* GetMapPoint(int idx);
 		void SetMapPoint(UVR_SLAM::MapPoint* pMP, int idx);
 		bool GetBoolInlier(int idx);

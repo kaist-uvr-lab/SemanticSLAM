@@ -273,6 +273,17 @@ cv::Mat UVR_SLAM::Frame::GetCameraCenter() {
 	std::unique_lock<std::mutex> lockMP(mMutexPose);
 	return -R.t()*t;
 }
+
+void UVR_SLAM::Frame::UpdateMPs() {
+	for (int i = 0; i < mvKeyPoints.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = GetMapPoint(i);
+		if (pMP) {
+			if (pMP->isDeleted()) {
+				RemoveMP(i);
+			}
+		}
+	}
+}
 /////////////////////////////////
 fbow::fBow UVR_SLAM::Frame::GetBowVec() {
 	return mBowVec;

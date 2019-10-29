@@ -137,6 +137,8 @@ void UVR_SLAM::FrameWindow::SetLocalMap() {
 			UVR_SLAM::MapPoint *pMP = pF->GetMapPoint(i);
 			if (!pMP)
 				continue;
+			if (pMP->isDeleted())
+				continue;
 			auto findres = mspLocalMPs.find(pMP);
 			if (findres == mspLocalMPs.end()) {
 				pMP->SetFrameWindowIndex(mvpLocalMPs.size());

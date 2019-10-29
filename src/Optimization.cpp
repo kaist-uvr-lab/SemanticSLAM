@@ -37,10 +37,16 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 		if (!bMatch)
 			continue;
 
-		mvIndexes.push_back(i);
 		int idx1 = match.queryIdx; //framewindow
 		int idx2 = match.trainIdx; //frame
-		UVR_SLAM::PoseOptimizationEdge* pEdge1 = new UVR_SLAM::PoseOptimizationEdge(pF->GetMapPoint(idx2)->GetWorldPos(),nResidualSize);
+
+		UVR_SLAM::MapPoint* pMP = pF->GetMapPoint(idx2);
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted())
+			continue;
+		mvIndexes.push_back(i);
+		UVR_SLAM::PoseOptimizationEdge* pEdge1 = new UVR_SLAM::PoseOptimizationEdge(pMP->GetWorldPos(),nResidualSize);
 		Eigen::Vector2d temp = Eigen::Vector2d();
 		cv::Point2f pt1 = pF->mvKeyPoints[idx2].pt;
 		temp(0) = pt1.x;
@@ -238,7 +244,7 @@ int UVR_SLAM::Optimization::InitOptimization(UVR_SLAM::InitialData* data, std::v
 	return nRes;
 }
 
-void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindow, int trial1, int trial2, bool bShowStatus) {
+void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindow, std::vector<UVR_SLAM::MapPoint*>& vpDeleteMPs, int trial1, int trial2, bool bShowStatus) {
 	//fixed frame
 	//connected kf = 3
 	//check newmp
@@ -427,17 +433,20 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		mvpFrames[i]->SetPose(mvpFrameVertices[i]->Rmat, mvpFrameVertices[i]->Tmat);
 	}
 	for (int i = 0; i <  mvpMPs.size(); i++) {
-		/*if (mvpMPs[i]->GetNumConnectedFrames < 3 || (mvpMPs[i]->isNewMP() && mvpMPs[i]->GetNumConnectedFrames < 2))
+		if (mvpMPs[i]->GetNumConnectedFrames() < 3 || (mvpMPs[i]->isNewMP() && mvpMPs[i]->GetNumConnectedFrames() < 2))
 		{
 			int idx = mvLocalMPIndex[i];
-			UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint[idx];
+			UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint(idx);
 			pMP->SetDelete(true);
+			pMP->Delete();
 			pWindow->SetMapPoint(nullptr, idx);
+			pWindow->SetBoolInlier(false, idx);
+			vpDeleteMPs.push_back(pMP);
 			continue;
-		}*/
+		}
 		mvpMapPointVertices[i]->RestoreData();
 		mvpMPs[i]->SetWorldPos(mvpMapPointVertices[i]->Xw);
-		std::cout <<"Connected MPs = "<< mvpMPs[i]->GetNumConnectedFrames() << std::endl;
+		//std::cout <<"Connected MPs = "<< mvpMPs[i]->GetNumConnectedFrames() << std::endl;
 	}
 	std::cout << "Update Parameter::End" << std::endl;
 }
