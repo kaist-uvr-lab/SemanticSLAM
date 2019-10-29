@@ -25,17 +25,22 @@ void UVR_SLAM::LocalMapper::Run() {
 			////이전 프레임에서 생성된 맵포인트 중 삭제
 			//프레임 윈도우 내의 로컬 맵 포인트 중 new인 애들만 수행
 			NewMapPointMaginalization(nFrameCount);
+			//프레임 내에서 삭제 되는 녀석과 업데이트 되는 녀석의 분리가 필요함.
 			UpdateMPs();
 			////새로운 맵포인트 생성
 			//여기부터 다시 검증이 필요
 			CreateMapPoints(mpTargetFrame, mpPrevKeyFrame);
 
 			////BA
+			//BA에서는 최근 생성된 맵포인트까지 반영을 해야 함.
 			Optimization::LocalBundleAdjustment(mpFrameWindow, 2, 5, true);
 			
 			//Delete MPs
 			DeleteMPs();
 
+
+			//이 시점에서는 로컬맵이 완성이 되고 삭제되는 일이 없음.
+			//뮤텍스로 여기에서 한번 막으면 달라지는 것은?
 			mpFrameWindow->SetLocalMap();
 			SetBoolDoingProcess(false);
 			std::cout << "Create KeyFrame::End!!!!" << std::endl;

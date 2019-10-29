@@ -427,17 +427,19 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		mvpFrames[i]->SetPose(mvpFrameVertices[i]->Rmat, mvpFrameVertices[i]->Tmat);
 	}
 	for (int i = 0; i <  mvpMPs.size(); i++) {
-		/*if (mvpMPs[i]->GetNumConnectedFrames < 3 || (mvpMPs[i]->isNewMP() && mvpMPs[i]->GetNumConnectedFrames < 2))
+		if (mvpMPs[i]->GetNumConnectedFrames() < 3 || (mvpMPs[i]->isNewMP() && mvpMPs[i]->GetNumConnectedFrames() < 2))
 		{
 			int idx = mvLocalMPIndex[i];
-			UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint[idx];
+			UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint(idx);
 			pMP->SetDelete(true);
+			pMP->Delete();
 			pWindow->SetMapPoint(nullptr, idx);
+			pWindow->SetBoolInlier(false, idx);
 			continue;
-		}*/
+		}
 		mvpMapPointVertices[i]->RestoreData();
 		mvpMPs[i]->SetWorldPos(mvpMapPointVertices[i]->Xw);
-		std::cout <<"Connected MPs = "<< mvpMPs[i]->GetNumConnectedFrames() << std::endl;
+		//std::cout <<"Connected MPs = "<< mvpMPs[i]->GetNumConnectedFrames() << std::endl;
 	}
 	std::cout << "Update Parameter::End" << std::endl;
 }
