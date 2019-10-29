@@ -4,7 +4,7 @@
 #include <IndoorLayoutEstimator.h>
 #include <LocalMapper.h>
 
-UVR_SLAM::System::System() {}
+UVR_SLAM::System::System(){}
 UVR_SLAM::System::System(std::string strFilePath){
 	LoadParameter(strFilePath);
 	LoadVocabulary();
@@ -123,7 +123,14 @@ void UVR_SLAM::System::Init() {
 	/*namedWindow("Output::Trajectory");
 	moveWindow("Output::Trajectory", -1650+ mnWidth + mnWidth, 20);*/
 	
+	//Visualization
+	mVisualized2DMap = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
+	mVisTrajectory   = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
+	mVisMapPoints    = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
+	mVisMidPt = cv::Point2f(mnHeight, mnHeight);
+	mVisPrevPt = mVisMidPt;
 
+	//Opencv Image Window
 	int nAdditional1 = 355;
 	namedWindow("Output::Trajectory");
 	moveWindow("Output::Trajectory", -1650 + nAdditional1 + mnWidth + mnWidth + mnWidth, 0);
@@ -179,19 +186,38 @@ void UVR_SLAM::System::Reset() {
 }
 
 
-cv::Mat mVisualized2DMap = cv::Mat::ones(720, 720, CV_8UC1)*255;
-cv::Point2f midPt = cv::Point(360, 360);
-cv::Point2f prevPt = midPt;
+//이것들 전부다 private로 변경.
+//trajecotoryMap, MPsMap;
 void UVR_SLAM::System::VisualizeTranslation() {
 	if (mbInitialized) {
+		//trajactory
 		int mnScale = 200;
 		cv::Mat t = mpCurrFrame->GetTranslation();
 		cv::Point2f pt = cv::Point2f(t.at<float>(0)* 200, t.at<float>(1)* 200);
-		pt += midPt;
-		cv::line(mVisualized2DMap, prevPt, pt, cv::Scalar(0, 0, 255), 1);
-		//std::cout << "POSE=" << pt << ", " << prevPt <<"::"<<t<< std::endl;
-		prevPt = pt;
+		pt += mVisMidPt;
+		cv::line(mVisTrajectory, mVisPrevPt, pt, cv::Scalar(0, 0, 255), 1);
+		mVisPrevPt = pt;
+
+		cv::Scalar color1 = cv::Scalar(0, 0, 255);
+		cv::Scalar color2 = cv::Scalar(-255, -255, -255);
+
+		cv::Mat tempVisMPs = mVisMapPoints.clone();
 		
+		for (int i = 0; i < mpFrameWindow->LocalMapSize; i++) {
+			UVR_SLAM::MapPoint* pMP = mpFrameWindow->GetMapPoint(i);
+			if (!pMP)
+				continue;
+			if (pMP->isDeleted())
+				continue;
+			cv::Mat x3D = pMP->GetWorldPos();
+			cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * 200, x3D.at<float>(1) * 200);
+			tpt += mVisMidPt;
+			if (mpFrameWindow->GetBoolInlier(i))
+				cv::circle(tempVisMPs, tpt, 2, color1, -1);
+			else
+				cv::circle(tempVisMPs, tpt, 2, color2, -1);
+		}
+		mVisualized2DMap = (mVisTrajectory + tempVisMPs)/2;
 	}
 	cv::imshow("Output::Trajectory", mVisualized2DMap);
 	cv::waitKey(1);
