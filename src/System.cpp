@@ -32,6 +32,7 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	fs["WIDTH"] >> mnWidth;
 	fs["HEIGHT"] >> mnHeight;
 	fs["VocPath"] >> strVOCPath;
+	fs["nVisScale"] >> mnVisScale;
 	//fs["DirPath"] >> strDirPath; 데이터와 관련이 있는거여서 별도로 분리
 
 	float fx = mK.at<float>(0, 0);
@@ -60,6 +61,31 @@ bool UVR_SLAM::System::LoadVocabulary() {
 	std::cout << "number of words=" << voc_words.rows << std::endl;
 	return true;
 	
+}
+
+cv::Point2f sPt = cv::Point2f(0, 0);
+cv::Point2f ePt = cv::Point2f(0, 0);
+cv::Point2f mPt = cv::Point2f(0, 0);
+cv::Mat M = cv::Mat::zeros(0,0, CV_64FC1);
+
+void CallBackFunc(int event, int x, int y, int flags, void* userdata)
+{
+	if (event == EVENT_LBUTTONDOWN)
+	{
+		std::cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << std::endl;
+		sPt = cv::Point2f(x, y);
+	}
+	else if (event == EVENT_LBUTTONUP)
+	{
+		std::cout << "Left button of the mouse is released - position (" << x << ", " << y << ")" << std::endl;
+		ePt = cv::Point2f(x, y);
+		mPt = ePt - sPt;
+		M = cv::Mat::zeros(2, 3, CV_64FC1);
+		M.at<double>(0, 0) = 1.0;
+		M.at<double>(1, 1) = 1.0;
+		M.at<double>(0, 2) = mPt.x;
+		M.at<double>(1, 2) = mPt.y;
+	}
 }
 
 void UVR_SLAM::System::Init() {
@@ -127,6 +153,7 @@ void UVR_SLAM::System::Init() {
 	mVisualized2DMap = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
 	mVisTrajectory   = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
 	mVisMapPoints    = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
+	mVisPoseGraph	 = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
 	mVisMidPt = cv::Point2f(mnHeight, mnHeight);
 	mVisPrevPt = mVisMidPt;
 
@@ -140,7 +167,7 @@ void UVR_SLAM::System::Init() {
 	moveWindow("Initialization::Frame::2", -1650 + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 30+mnHeight);
 	namedWindow("LocalMapping::CreateMPs");
 	moveWindow("LocalMapping::CreateMPs", -1650 + nAdditional1 + mnWidth+ mnWidth + mnWidth + mnWidth, 0);
-
+	cv::setMouseCallback("Output::Trajectory", CallBackFunc, NULL);
 }
 
 void UVR_SLAM::System::SetCurrFrame(cv::Mat img) {
@@ -189,20 +216,48 @@ void UVR_SLAM::System::Reset() {
 //이것들 전부다 private로 변경.
 //trajecotoryMap, MPsMap;
 void UVR_SLAM::System::VisualizeTranslation() {
+	
+	cv::Mat tempVis = mVisPoseGraph.clone();
 	if (mbInitialized) {
 		//trajactory
-		int mnScale = 200;
-		cv::Mat t = mpCurrFrame->GetTranslation();
-		cv::Point2f pt = cv::Point2f(t.at<float>(0)* 200, t.at<float>(1)* 200);
-		pt += mVisMidPt;
-		cv::line(mVisTrajectory, mVisPrevPt, pt, cv::Scalar(0, 0, 255), 1);
-		mVisPrevPt = pt;
-
-		cv::Scalar color1 = cv::Scalar(0, 0, 255);
-		cv::Scalar color2 = cv::Scalar(-255, -255, -255);
-
-		cv::Mat tempVisMPs = mVisMapPoints.clone();
 		
+		//update pt
+		mVisMidPt += mPt;
+		mPt = cv::Point2f(0, 0);
+		
+		cv::Scalar color1 = cv::Scalar(0, 0, 255);
+		cv::Scalar color2 = cv::Scalar(0, 255, 0);
+		cv::Scalar color3 = cv::Scalar(0, 0, 0);
+
+		if (mpFrameWindow->GetQueueSize() > 0) {
+			std::cout << "Queue Size = " << mpFrameWindow->GetQueueSize() << std::endl;
+			//cv::Mat tempPoseGraph = mVisPoseGraph.clone();
+
+			if (M.rows > 0) {
+				cv::warpAffine(mVisPoseGraph, mVisPoseGraph, M, mVisPoseGraph.size(), cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(255,255,255));
+				M = cv::Mat::zeros(0, 0, CV_64FC1);
+			}
+
+			UVR_SLAM::Frame* pF = mpFrameWindow->GetQueueLastFrame();
+			for (int i = 0; i < pF->mvKeyPoints.size(); i++) {
+				if (!pF->GetBoolInlier(i))
+					continue;
+				UVR_SLAM::MapPoint* pMP = pF->GetMapPoint(i);
+				if (!pMP)
+					continue;
+				if (pMP->isDeleted())
+					continue;
+				cv::Mat x3D = pMP->GetWorldPos();
+				cv::Point2f tpt2 = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
+				tpt2 += mVisMidPt;
+				cv::circle(mVisPoseGraph, tpt2, 2, color3, -1);
+				
+			}
+		}
+
+		
+
+		//map points
 		for (int i = 0; i < mpFrameWindow->LocalMapSize; i++) {
 			UVR_SLAM::MapPoint* pMP = mpFrameWindow->GetMapPoint(i);
 			if (!pMP)
@@ -210,15 +265,26 @@ void UVR_SLAM::System::VisualizeTranslation() {
 			if (pMP->isDeleted())
 				continue;
 			cv::Mat x3D = pMP->GetWorldPos();
-			cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * 200, x3D.at<float>(1) * 200);
+			cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
 			tpt += mVisMidPt;
 			if (mpFrameWindow->GetBoolInlier(i))
-				cv::circle(tempVisMPs, tpt, 2, color1, -1);
+				cv::circle(tempVis, tpt, 2, color1, -1);
 			else
-				cv::circle(tempVisMPs, tpt, 2, color2, -1);
+				cv::circle(tempVis, tpt, 2, color2, -1);
 		}
-		mVisualized2DMap = (mVisTrajectory + tempVisMPs)/2;
+		
+		//trajectory
+		auto mvpWindowFrames = mpFrameWindow->GetAllFrames();
+		for (int i = 0; i < mvpWindowFrames.size() - 1; i++) {
+			cv::Mat t2 = mvpWindowFrames[i + 1]->GetTranslation();
+			cv::Mat t1 = mvpWindowFrames[i]->GetTranslation();
+			cv::Point2f pt1 = cv::Point2f(t1.at<float>(0)* mnVisScale, t1.at<float>(2)* mnVisScale);
+			cv::Point2f pt2 = cv::Point2f(t2.at<float>(0)* mnVisScale, t2.at<float>(2)* mnVisScale);
+			pt1 += mVisMidPt;
+			pt2 += mVisMidPt;
+			cv::line(tempVis, pt1, pt2, cv::Scalar(255, 0, 0), 2);
+		}
 	}
-	cv::imshow("Output::Trajectory", mVisualized2DMap);
+	cv::imshow("Output::Trajectory", tempVis);
 	cv::waitKey(1);
 }

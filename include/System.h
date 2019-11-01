@@ -96,9 +96,9 @@ namespace UVR_SLAM {
 		//std::thread *mptTracker;
 	private:
 		//시각화 용도
-		cv::Mat mVisualized2DMap, mVisTrajectory, mVisMapPoints;
+		cv::Mat mVisualized2DMap, mVisTrajectory, mVisMapPoints, mVisPoseGraph;
 		cv::Point2f mVisMidPt, mVisPrevPt;
-
+		int mnVisScale;
 	private:
 		//외부에서 불러온 파라메터
 		int mnFeatures;
