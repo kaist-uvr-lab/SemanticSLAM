@@ -9,8 +9,9 @@
 #include <PoseGraphOptimization.h>
 #include <MatrixOperator.h>
 
-int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR_SLAM::Frame* pF, int trial1, int trial2) {
-	std::cout << "PoseOptimization::Start" << std::endl;
+int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR_SLAM::Frame* pF, bool bStatus, int trial1, int trial2) {
+	if(bStatus)
+		std::cout << "PoseOptimization::Start" << std::endl;
 	cv::Mat mK;
 	pF->mK.convertTo(mK, CV_64FC1);
 	double fx = mK.at<double>(0, 0);
@@ -65,7 +66,7 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 
 	int nInlier = 0;
 	for (int trial = 0; trial < trial1; trial++) {
-		mpOptimizer->Optimize(trial2, 0);
+		mpOptimizer->Optimize(trial2, 0, bStatus);
 		nInlier = 0;
 		for (int edgeIdx = 0; edgeIdx < mvpEdges.size(); edgeIdx++) {
 			cv::DMatch match = pWindow->mvPairMatchingInfo[mvIndexes[edgeIdx]].first;
@@ -97,7 +98,8 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 	mpVertex1->RestoreData();
 	pF->SetPose(mpVertex1->Rmat, mpVertex1->Tmat);
 	pWindow->SetPose(mpVertex1->Rmat, mpVertex1->Tmat);
-	std::cout << "PoseOptimization::End" << std::endl;
+	if(bStatus)
+		std::cout << "PoseOptimization::End" << std::endl;
 	return nInlier;
 }
 int UVR_SLAM::Optimization::InitOptimization(UVR_SLAM::InitialData* data, std::vector<cv::DMatch> Matches, UVR_SLAM::Frame* pInitFrame1, UVR_SLAM::Frame* pInitFrame2, cv::Mat K, bool& bInit, int trial1, int trial2) {

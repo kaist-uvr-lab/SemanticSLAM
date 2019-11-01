@@ -55,12 +55,12 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr, bool & bInit) {
 		
 		mpMatcher->FeatureMatchingForInitialPoseTracking(pPrev, pCurr, mpFrameWindow);
 		
-		Optimization::PoseOptimization(mpFrameWindow, pCurr,4,5);
+		Optimization::PoseOptimization(mpFrameWindow, pCurr,false,4,5);
 		mpMatcher->FeatureMatchingForPoseTrackingByProjection(mpFrameWindow, pCurr,10.0);
 
 		//visible
 		CalcVisibleCount(pCurr);
-		int nMatching =  Optimization::PoseOptimization(mpFrameWindow, pCurr,10,2);
+		int nMatching =  Optimization::PoseOptimization(mpFrameWindow, pCurr, false,10,2);
 		//matching
 		CalcMatchingCount(pCurr);
 		mpFrameWindow->IncrementFrameCount();

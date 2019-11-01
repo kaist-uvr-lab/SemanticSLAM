@@ -140,7 +140,7 @@ int UVR_SLAM::Matcher::FeatureMatchingForPoseTrackingByProjection(UVR_SLAM::Fram
 			pF->SetObjectType(otype, bestIdx);
 		}
 	}//pMP
-	std::cout << "Tracker::MatchingByProjection::" << nmatches << std::endl;
+	//std::cout << "Tracker::MatchingByProjection::" << nmatches << std::endl;
 	return nmatches;
 }
 
@@ -239,7 +239,7 @@ int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::Frame* pP
 			count++;
 		}
 	}
-	std::cout << "Matching::" << count << ", " << Nf1 << ", " << Nf2 << std::endl;
+	//std::cout << "Matching::" << count << ", " << Nf1 << ", " << Nf2 << std::endl;
 	return count;
 }
 
