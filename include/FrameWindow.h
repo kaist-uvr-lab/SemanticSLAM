@@ -3,6 +3,7 @@
 #pragma once
 
 #include <deque>
+#include <queue>
 #include <mutex>
 #include <Frame.h>
 
@@ -18,6 +19,7 @@ namespace UVR_SLAM {
 		void SetSystem(System* pSystem);
 	public:
 		size_t size();
+		std::vector<Frame*> GetAllFrames();
 		std::deque<Frame*>::iterator GetBeginIterator();
 		std::deque<Frame*>::iterator GetEndIterator();
 		bool isEmpty();
@@ -72,9 +74,19 @@ namespace UVR_SLAM {
 		int mnWindowSize;
 		std::deque<Frame*> mpDeque;
 
+
+
 		std::vector<UVR_SLAM::MapPoint*> mvpLocalMPs;
 		std::set<UVR_SLAM::MapPoint*>    mspLocalMPs; //local map을 구성할 때 이용
 		std::vector<bool> mvbLocalMPInliers;
+
+		//포즈 그래프 최적화를 위한 Queue와 관련된 자료들
+	public:
+		int GetQueueSize();
+		Frame* GetQueueLastFrame();
+	private:
+		std::queue<Frame*> mpQueue; //Window에서 나온 프레임을 추가함. 포즈 그래프 옵티마이제이션에 이용. 나중에 별도의 클래스에 빼낼 것임.
+		int mnQueueSize;
 	};
 }
 

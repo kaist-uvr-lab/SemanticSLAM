@@ -2,8 +2,8 @@
 #include <System.h>
 #include <MapPoint.h>
 
-UVR_SLAM::FrameWindow::FrameWindow():mnWindowSize(10), LocalMapSize(0), mnFrameCount(0), mnLastSemanticFrame(-1){}
-UVR_SLAM::FrameWindow::FrameWindow(int _size) : mnWindowSize(_size), LocalMapSize(0), mnFrameCount(0), mnLastSemanticFrame(-1){}
+UVR_SLAM::FrameWindow::FrameWindow():mnWindowSize(10), LocalMapSize(0), mnFrameCount(0), mnLastSemanticFrame(-1),mnQueueSize(0){}
+UVR_SLAM::FrameWindow::FrameWindow(int _size) : mnWindowSize(_size), LocalMapSize(0), mnFrameCount(0), mnLastSemanticFrame(-1), mnQueueSize(0) {}
 UVR_SLAM::FrameWindow::~FrameWindow() {}
 
 
@@ -24,6 +24,21 @@ std::deque<UVR_SLAM::Frame*>::iterator UVR_SLAM::FrameWindow::GetEndIterator() {
 	std::unique_lock<std::mutex>(mMutexDeque);
 	return mpDeque.end();
 }
+////////////////////////////////////////////////////////////////////////
+int UVR_SLAM::FrameWindow::GetQueueSize(){
+	std::unique_lock<std::mutex>(mMutexDeque);
+	return mnQueueSize;
+}
+UVR_SLAM::Frame* UVR_SLAM::FrameWindow::GetQueueLastFrame(){
+	std::unique_lock<std::mutex>(mMutexDeque);
+	return mpQueue.back();
+}
+////////////////////////////////////////////////////////////////////////
+std::vector<UVR_SLAM::Frame*> UVR_SLAM::FrameWindow::GetAllFrames() {
+	std::unique_lock<std::mutex>(mMutexDeque);
+	return std::vector<UVR_SLAM::Frame*>(mpDeque.begin(), mpDeque.end());
+}
+
 bool UVR_SLAM::FrameWindow::isEmpty() {
 	std::unique_lock<std::mutex>(mMutexDeque);
 	return mpDeque.empty();
@@ -36,8 +51,12 @@ void UVR_SLAM::FrameWindow::push_back(UVR_SLAM::Frame* pFrame) {
 
 	std::unique_lock<std::mutex>(mMutexDeque);
 	if (mpDeque.size() == mnWindowSize){
+		UVR_SLAM::Frame* pLast = mpDeque.back();
 		mpDeque.pop_front();
 		mnLastSemanticFrame--;
+		//윈도우에서 벗어난 큐를 다른 곳에 넣는 과정
+		 mpQueue.push(pLast);
+		mnQueueSize++;
 	}
 	mpDeque.push_back(pFrame);
 }
