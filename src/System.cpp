@@ -237,10 +237,8 @@ void UVR_SLAM::System::VisualizeTranslation() {
 		cv::Scalar color2 = cv::Scalar(0, 255, 0);
 		cv::Scalar color3 = cv::Scalar(0, 0, 0);
 
-		if (mpFrameWindow->GetQueueSize() > 0) {
-			std::cout << "Queue Size = " << mpFrameWindow->GetQueueSize() << std::endl;
-			//cv::Mat tempPoseGraph = mVisPoseGraph.clone();
-
+		/*if (mpFrameWindow->GetQueueSize() > 0) {
+			
 			if (M.rows > 0) {
 				cv::warpAffine(mVisPoseGraph, mVisPoseGraph, M, mVisPoseGraph.size(), cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(255,255,255));
 				M = cv::Mat::zeros(0, 0, CV_64FC1);
@@ -261,9 +259,7 @@ void UVR_SLAM::System::VisualizeTranslation() {
 				cv::circle(mVisPoseGraph, tpt2, 2, color3, -1);
 				
 			}
-		}
-
-		
+		}*/
 
 		//map points
 		for (int i = 0; i < mpFrameWindow->LocalMapSize; i++) {
