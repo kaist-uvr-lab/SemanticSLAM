@@ -47,16 +47,17 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr, bool & bInit) {
 		//}
 			
 		//FeatureMatchingWithSemanticFrames
-
 		mpFrameWindow->mvPairMatchingInfo.clear();
 		mpFrameWindow->SetVectorInlier(mpFrameWindow->LocalMapSize, false);
 
 		//mpMatcher->FeatureMatchingForInitialPoseTracking(mpFrameWindow, pFrame);
 		
-		mpMatcher->FeatureMatchingForInitialPoseTracking(pPrev, pCurr, mpFrameWindow);
-		
-		Optimization::PoseOptimization(mpFrameWindow, pCurr,false,4,5);
-		mpMatcher->FeatureMatchingForPoseTrackingByProjection(mpFrameWindow, pCurr,10.0);
+		int nInitMatching = mpMatcher->FeatureMatchingForInitialPoseTracking(pPrev, pCurr, mpFrameWindow);
+		//std::cout << "Matching Init : " << nInitMatching << std::endl;
+
+		Optimization::PoseOptimization(mpFrameWindow, pCurr, false,4,5);
+		int nProjection = mpMatcher->FeatureMatchingForPoseTrackingByProjection(mpFrameWindow, pCurr,10.0);
+		//std::cout << "Matching projection : " << nProjection << std::endl;
 
 		//visible
 		CalcVisibleCount(pCurr);
@@ -65,15 +66,15 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr, bool & bInit) {
 		CalcMatchingCount(pCurr);
 		mpFrameWindow->IncrementFrameCount();
 
+
 		bool bBow =  mpFrameWindow->CalcFrameDistanceWithBOW(pCurr);
-		
 		if (mpFrameWindow->GetFrameCount() > 10 &&(nMatching < 50 || bBow)) {
 			if (!mpLocalMapper->isDoingProcess()) {
 				mpLocalMapper->SetBoolDoingProcess(true);
 				mpLocalMapper->SetTargetFrame(pCurr);
 			}
 		}
-		
+
 		//일단 테스트
 
 		cv::Mat vis = pCurr->GetOriginalImage();
@@ -101,7 +102,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr, bool & bInit) {
 			}
 			
 		}
-
 		cv::imshow("Output::Tracking", vis);
 
 		//시각화

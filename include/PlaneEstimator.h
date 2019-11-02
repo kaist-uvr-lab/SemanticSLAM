@@ -1,23 +1,21 @@
-
-#ifndef UVR_SLAM_INDOOR_LAYOUT_ESTIMATOR_H
-#define UVR_SLAM_INDOOR_LAYOUT_ESTIMATOR_H
+#ifndef UVR_SLAM_PLANE_ESTIMATOR_H
+#define UVR_SLAM_PLANE_ESTIMATOR_H
 #pragma once
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <mutex>
-#include <Frame.h>
-#include <JSONConverter.h>
 
 namespace UVR_SLAM {
 
 	class System;
+	class Frame;
 	class FrameWindow;
-	class IndoorLayoutEstimator {
+	class PlaneEstimator {
 	public:
-		IndoorLayoutEstimator();
-		IndoorLayoutEstimator(int nWidth, int nHeight);
-		virtual ~IndoorLayoutEstimator();
+		PlaneEstimator();
+		PlaneEstimator(int w, int h);
+		virtual ~PlaneEstimator();
 	public:
 		void Run();
 		void SetSystem(System* pSystem);
@@ -25,14 +23,8 @@ namespace UVR_SLAM {
 		void SetTargetFrame(Frame* pFrame);
 		void SetBoolDoingProcess(bool b);
 		bool isDoingProcess();
-	public:
-		void ObjectLabeling();
-		void SetSegmentationMask(cv::Mat segmented);
 	private:
-		//std::vector<cv::Vec3b> mVecLabelColors;
-		std::vector<cv::Mat> mVecLabelMasks;
 		int mnWidth, mnHeight;
-	private:
 		System* mpSystem;
 		std::mutex mMutexDoingProcess;
 		bool mbDoingProcess;
@@ -40,5 +32,4 @@ namespace UVR_SLAM {
 		FrameWindow* mpFrameWindow;
 	};
 }
-
 #endif

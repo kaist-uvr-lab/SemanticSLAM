@@ -4,6 +4,7 @@
 #include <MapPoint.h>
 #include <Matcher.h>
 #include <Optimization.h>
+#include <PlaneEstimator.h>
 
 UVR_SLAM::LocalMapper::LocalMapper(){}
 UVR_SLAM::LocalMapper::LocalMapper(int w, int h):mnWidth(w), mnHeight(h){}
@@ -38,6 +39,12 @@ void UVR_SLAM::LocalMapper::Run() {
 			//Delete MPs
 			DeleteMPs();
 
+			//평면 검출 쓰레드에 추가
+			if (!mpPlaneEstimator->isDoingProcess()) {
+				std::cout << "Add Frame to Plane Estimator" << std::endl;
+				mpPlaneEstimator->SetBoolDoingProcess(true);
+				mpPlaneEstimator->SetTargetFrame(mpTargetFrame);
+			}
 
 			//이 시점에서는 로컬맵이 완성이 되고 삭제되는 일이 없음.
 			//뮤텍스로 여기에서 한번 막으면 달라지는 것은?
@@ -50,6 +57,10 @@ void UVR_SLAM::LocalMapper::Run() {
 
 void UVR_SLAM::LocalMapper::SetMatcher(UVR_SLAM::Matcher* pMatcher) {
 	mpMatcher = pMatcher;
+}
+
+void UVR_SLAM::LocalMapper::SetPlaneEstimator(PlaneEstimator* pPlaneEstimator) {
+	mpPlaneEstimator = pPlaneEstimator;
 }
 
 void UVR_SLAM::LocalMapper::SetFrameWindow(UVR_SLAM::FrameWindow* pFrameWindow) {

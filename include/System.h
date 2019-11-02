@@ -53,9 +53,10 @@ namespace fbow {
 
 namespace UVR_SLAM {
 	class Tracker;
-	class IndoorLayoutEstimator;
 	class FrameWindow;
+	class IndoorLayoutEstimator;
 	class LocalMapper;
+	class PlaneEstimator;
 	class System {
 	public:
 
@@ -91,6 +92,9 @@ namespace UVR_SLAM {
 
 		LocalMapper* mpLocalMapper;
 		std::thread *mptLocalMapper;
+
+		PlaneEstimator* mpPlaneEstimator;
+		std::thread *mptPlaneEstimator;
 
 		Tracker* mpTracker;
 		//std::thread *mptTracker;

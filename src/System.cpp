@@ -3,6 +3,7 @@
 #include <Initializer.h>
 #include <IndoorLayoutEstimator.h>
 #include <LocalMapper.h>
+#include <PlaneEstimator.h>
 
 UVR_SLAM::System::System(){}
 UVR_SLAM::System::System(std::string strFilePath){
@@ -121,6 +122,21 @@ void UVR_SLAM::System::Init() {
 	mpLocalMapper->SetMatcher(mpMatcher);
 	mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);
 
+	//loop closing thread
+
+	//layout estimating thread
+	mpLayoutEstimator = new UVR_SLAM::IndoorLayoutEstimator(mnWidth, mnHeight);
+	mpLayoutEstimator->SetSystem(this);
+	mpLayoutEstimator->SetFrameWindow(mpFrameWindow);
+	mptLayoutEstimator = new std::thread(&UVR_SLAM::IndoorLayoutEstimator::Run, mpLayoutEstimator);
+
+	//PlaneEstimator
+	mpPlaneEstimator = new UVR_SLAM::PlaneEstimator(mnWidth, mnHeight);
+	mpPlaneEstimator->SetSystem(this);
+	mpPlaneEstimator->SetFrameWindow(mpFrameWindow);
+	mptPlaneEstimator = new std::thread(&UVR_SLAM::PlaneEstimator::Run, mpPlaneEstimator);
+	mpLocalMapper->SetPlaneEstimator(mpPlaneEstimator);
+
 	//tracker thread
 	mpTracker = new UVR_SLAM::Tracker(mnWidth, mnHeight, mK);
 	//mptTracker = new std::thread(&UVR_SLAM::Tracker::Run, mpTracker);
@@ -129,14 +145,6 @@ void UVR_SLAM::System::Init() {
 	mpTracker->SetFrameWindow(mpFrameWindow);
 	mpTracker->SetLocalMapper(mpLocalMapper);
 	mpTracker->SetSystem(this);
-
-	//loop closing thread
-
-	//layout estimating thread
-	mpLayoutEstimator = new UVR_SLAM::IndoorLayoutEstimator(mnWidth, mnHeight);
-	mpLayoutEstimator->SetSystem(this);
-	mpLayoutEstimator->SetFrameWindow(mpFrameWindow);
-	mptLayoutEstimator = new std::thread(&UVR_SLAM::IndoorLayoutEstimator::Run, mpLayoutEstimator);
 
 	namedWindow("Output::Segmentation");
 	moveWindow("Output::Segmentation", -1650, 20);
