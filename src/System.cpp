@@ -35,6 +35,9 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	fs["HEIGHT"] >> mnHeight;
 	fs["VocPath"] >> strVOCPath;
 	fs["nVisScale"] >> mnVisScale;
+	fs["IP"] >> ip;
+	fs["port"] >> port;
+	std::cout << ip << "::" << port << std::endl;
 	//fs["DirPath"] >> strDirPath; 데이터와 관련이 있는거여서 별도로 분리
 
 	float fx = mK.at<float>(0, 0);
@@ -105,7 +108,7 @@ void UVR_SLAM::System::Init() {
 	mptPlaneEstimator = new std::thread(&UVR_SLAM::PlaneEstimator::Run, mpPlaneEstimator);
 
 	//layout estimating thread
-	mpLayoutEstimator = new UVR_SLAM::IndoorLayoutEstimator(mnWidth, mnHeight);
+	mpLayoutEstimator = new UVR_SLAM::IndoorLayoutEstimator(ip, port, mnWidth, mnHeight);
 	mpLayoutEstimator->SetSystem(this);
 	mpLayoutEstimator->SetFrameWindow(mpFrameWindow);
 	mptLayoutEstimator = new std::thread(&UVR_SLAM::IndoorLayoutEstimator::Run, mpLayoutEstimator);

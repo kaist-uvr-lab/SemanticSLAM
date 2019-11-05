@@ -52,9 +52,10 @@ public:
 		return ss.str();
 	}
 	static cv::Mat ConvertStringToImage(const char* data, int N);
-	static bool RequestPOST(cv::Mat img, cv::Mat& dst, int mnFrameID);
+	static bool RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& dst, int mnFrameID);
 public:
 	const static char* headers[];
+private:
 };
 
 

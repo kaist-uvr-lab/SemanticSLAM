@@ -11,7 +11,7 @@ UVR_SLAM::IndoorLayoutEstimator::IndoorLayoutEstimator():mbDoingProcess(false){
 	mVecLabelColors.push_back(COLOR_CEILING);
 	mVecLabelColors.push_back(COLOR_NONE);*/
 }
-UVR_SLAM::IndoorLayoutEstimator::IndoorLayoutEstimator(int w, int h): mbDoingProcess(false), mnWidth(w), mnHeight(h){
+UVR_SLAM::IndoorLayoutEstimator::IndoorLayoutEstimator(std::string _ip, int _port, int w, int h): ip(_ip), port(_port),mbDoingProcess(false), mnWidth(w), mnHeight(h){
 	UVR_SLAM::ObjectColors::Init();
 	/*mVecLabelColors.push_back(COLOR_FLOOR);
 	mVecLabelColors.push_back(COLOR_WALL);
@@ -46,7 +46,7 @@ void UVR_SLAM::IndoorLayoutEstimator::Run() {
 			cv::Mat colorimg, segmented;
 			cvtColor(mpTargetFrame->GetOriginalImage(), colorimg, CV_RGBA2BGR);
 			colorimg.convertTo(colorimg, CV_8UC3);
-			JSONConverter::RequestPOST(colorimg, segmented, mpTargetFrame->GetFrameID());
+			JSONConverter::RequestPOST(ip, port, colorimg, segmented, mpTargetFrame->GetFrameID());
 			cv::resize(segmented, segmented, cv::Size(mnWidth, mnHeight));
 			SetSegmentationMask(segmented);
 			ObjectLabeling();

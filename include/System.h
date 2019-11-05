@@ -117,6 +117,8 @@ namespace UVR_SLAM {
 		cv::Mat mK, mKforPL, mD;
 		bool mbInitialized;
 		int mnVisScale;
+		std::string ip;
+		int port;
 	};
 }
 

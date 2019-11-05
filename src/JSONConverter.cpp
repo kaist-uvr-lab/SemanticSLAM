@@ -75,7 +75,7 @@ void JSONConverter::Init() {
 	
 }
 
-bool JSONConverter::RequestPOST(cv::Mat img, cv::Mat& dst,int mnFrameID) {
+bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& dst,int mnFrameID) {
 	
 	std::string strJSON = ConvertImageToJSONStr(mnFrameID, img);
 	
@@ -93,7 +93,7 @@ bool JSONConverter::RequestPOST(cv::Mat img, cv::Mat& dst,int mnFrameID) {
 	//}
 
 	
-	happyhttp::Connection* mpConnection = new happyhttp::Connection("143.248.94.189", 35005);
+	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
 
 	mpConnection->setcallbacks(OnBegin, OnData, OnComplete, 0);
 	

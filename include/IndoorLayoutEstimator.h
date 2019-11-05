@@ -16,7 +16,7 @@ namespace UVR_SLAM {
 	class IndoorLayoutEstimator {
 	public:
 		IndoorLayoutEstimator();
-		IndoorLayoutEstimator(int nWidth, int nHeight);
+		IndoorLayoutEstimator(std::string _ip, int _port, int nWidth, int nHeight);
 		virtual ~IndoorLayoutEstimator();
 	public:
 		void Run();
@@ -38,6 +38,8 @@ namespace UVR_SLAM {
 		bool mbDoingProcess;
 		Frame* mpTargetFrame;
 		FrameWindow* mpFrameWindow;
+		std::string ip;
+		int port;
 	};
 }
 
