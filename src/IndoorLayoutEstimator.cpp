@@ -56,6 +56,10 @@ void UVR_SLAM::IndoorLayoutEstimator::Run() {
 			cv::Mat maskSegmentation = mVecLabelMasks[0].clone() + mVecLabelMasks[1].clone() / 255 * 50 + mVecLabelMasks[2].clone() / 255 * 150;
 			cv::imshow("Output::SegmentationMask", maskSegmentation);
 			cv::imshow("Output::Segmentation", colorimg);
+
+			cv::imwrite("../../bin/segmentation/res/seg.jpg", colorimg);
+			cv::imwrite("../../bin/segmentation/res/mask.jpg", maskSegmentation);
+
 			/*cv::imshow("Output::LABEL::FLOOR"   , mVecLabelMasks[0]);
 			cv::imshow("Output::LABEL::WALL"    , mVecLabelMasks[1]);
 			cv::imshow("Output::LABEL::CEILING" , mVecLabelMasks[2]);*/
@@ -66,25 +70,26 @@ void UVR_SLAM::IndoorLayoutEstimator::Run() {
 
 
 			//피쳐 레이블링 결과 확인
-			/*cv::Mat test = mpTargetFrame->undistorted.clone();
+			cv::Mat test = mpTargetFrame->undistorted.clone();
 			for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
-			UVR_SLAM::ObjectType type = mpTargetFrame->GetObjectType(i);
-			if(type != OBJECT_NONE)
-			circle(test, mpTargetFrame->mvKeyPoints[i].pt, 3, ObjectColors::mvObjectLabelColors[type], 1);
-			UVR_SLAM::MapPoint* pMP = mpTargetFrame->GetMapPoint(i);
-			if (pMP) {
-			if (pMP->isDeleted())
-			continue;
-			UVR_SLAM::ObjectType type2 = pMP->GetObjectType();
-			if (type2 != OBJECT_NONE)
-			circle(test, mpTargetFrame->mvKeyPoints[i].pt, 1, ObjectColors::mvObjectLabelColors[type2], -1);
+				UVR_SLAM::ObjectType type = mpTargetFrame->GetObjectType(i);
+				if(type != OBJECT_NONE)
+				circle(test, mpTargetFrame->mvKeyPoints[i].pt, 3, ObjectColors::mvObjectLabelColors[type], 1);
+				UVR_SLAM::MapPoint* pMP = mpTargetFrame->GetMapPoint(i);
+				if (pMP) {
+				if (pMP->isDeleted())
+				continue;
+				UVR_SLAM::ObjectType type2 = pMP->GetObjectType();
+				if (type2 != OBJECT_NONE)
+				circle(test, mpTargetFrame->mvKeyPoints[i].pt, 1, ObjectColors::mvObjectLabelColors[type2], -1);
+				}
 			}
-			}
-			imshow("segmendted feature", test);
+			//imshow("segmendted feature", test);
 
-			std::stringstream ss;
+			/*std::stringstream ss;
 			ss << "../../bin/segmentation/res_keypoints_" << mpTargetFrame->GetFrameID() << ".jpg";
 			imwrite(ss.str(), test);*/
+			cv::imwrite("../../bin/segmentation/res/label_kp.jpg", test);
 			cv::waitKey(300);
 
 			SetBoolDoingProcess(false);

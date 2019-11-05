@@ -40,6 +40,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
 		cv::Mat F;
 		std::vector<cv::DMatch> resMatches;
 		mpInitFrame2 = pFrame;
+		if (mpInitFrame2->GetFrameID() - mpInitFrame1->GetFrameID() < 8)
+			return mbInit;
 		int count = mpMatcher->MatchingProcessForInitialization(mpInitFrame1, mpInitFrame2, F, resMatches);
 		if (count < N_matching_init_therah) {
 			delete mpInitFrame1;

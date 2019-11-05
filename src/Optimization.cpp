@@ -245,7 +245,8 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 	//connected kf = 3
 	//check newmp
 	//KF
-	std::cout << "LocalBA::Start"<< std::endl;
+	if(bShowStatus)
+		std::cout << "LocalBA::Start"<< std::endl;
 	//K
 	cv::Mat mK;
 	pWindow->GetFrame(0)->mK.convertTo(mK, CV_64FC1);
@@ -334,8 +335,8 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		mvpMPs.push_back(pMP);
 		mvLocalMPIndex.push_back(i);
 	}
-
-	std::cout << "LocalBA::FixedFrame::" << nFixedFrames << std::endl;
+	if (bShowStatus)
+		std::cout << "LocalBA::FixedFrame::" << nFixedFrames << std::endl;
 
 	//Add Edge
 	const double deltaMono = sqrt(5.991);
@@ -348,7 +349,6 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 	std::vector<bool> mvbEdges;
 	
 	//Add Edge
-	std::cout << "EDGE START" << std::endl;
 	for (int i = 0; i < mvpMapPointVertices.size(); i++) {
 		int idx = mvpMapPointVertices[i]->GetIndex();
 		UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint(idx);
@@ -388,13 +388,9 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		}
 
 	}
-	std::cout << "Edge End=" << mvbEdges.size() << std::endl;
-
 	//Optimize
 	for (int trial = 0; trial < trial1; trial++) {
-		std::cout << "Optimize=" << trial <<"::start"<< std::endl;
 		mpOptimizer->Optimize(trial2, 0, bShowStatus);
-		std::cout << "Optimize=" << trial << "::end" << std::endl;
 		for (int i = 0; i < mvpEdges.size(); i++) {
 			EdgePoseNMap* pEdge = mvpEdges[i];
 			if (mvbEdges[i]) {
@@ -411,7 +407,8 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 			}
 		}
 	}
-	std::cout << "Update Parameter::Start" << std::endl;
+	if (bShowStatus)
+		std::cout << "Update Parameter::Start" << std::endl;
 	//update parameter
 	//std::vector<
 	for (int i = 0; i < mvpEdges.size(); i++) {
@@ -443,7 +440,8 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		mvpMPs[i]->SetWorldPos(mvpMapPointVertices[i]->Xw);
 		//std::cout <<"Connected MPs = "<< mvpMPs[i]->GetNumConnectedFrames() << std::endl;
 	}
-	std::cout << "Update Parameter::End" << std::endl;
+	if (bShowStatus)
+		std::cout << "Update Parameter::End" << std::endl;
 }
 
 //double UVR_SLAM::Optimization::CalibrationGridPlaneTest(UVR_SLAM::Pose* pPose, std::vector<cv::Point2f> pts, std::vector<cv::Point3f> wPts, cv::Mat K, int mnWidth, int mnHeight) {
