@@ -186,7 +186,7 @@ int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::FrameWind
 	return count;
 }
 
-int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, UVR_SLAM::FrameWindow* pWindow) {
+int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, UVR_SLAM::FrameWindow* pWindow, std::vector<cv::DMatch>& vMatchInfos) {
 
 	std::vector<bool> vbTemp(pCurr->mvKeyPoints.size(), true);
 	std::vector< std::vector<cv::DMatch> > matches;
@@ -199,6 +199,7 @@ int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::Frame* pP
 	for (unsigned long i = 0; i < matches.size(); i++) {
 		if (matches[i][0].distance < nn_match_ratio * matches[i][1].distance) {
 			if (!pPrev->GetBoolInlier(matches[i][0].queryIdx)) {
+				//vMatchInfos.push_back(matches[i][0]);
 				continue;
 			}
 			UVR_SLAM::MapPoint* pMP = pPrev->GetMapPoint(matches[i][0].queryIdx);
@@ -227,7 +228,7 @@ int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::Frame* pP
 			cv::DMatch tempMatch;
 			tempMatch.queryIdx = pMP->GetFrameWindowIndex();
 			tempMatch.trainIdx = matches[i][0].trainIdx;
-			
+
 			//pWindow->mvMatchingInfo.push_back(tempMatch);
 			pWindow->mvPairMatchingInfo.push_back(std::make_pair(tempMatch, true));
 			pWindow->SetBoolInlier(true, tempMatch.queryIdx);
@@ -235,6 +236,9 @@ int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::Frame* pP
 			//labeling
 			auto otype = pPrev->GetObjectType(matches[i][0].queryIdx);
 			pCurr->SetObjectType(otype, matches[i][0].trainIdx);
+
+			//매칭 성능 확인용
+			vMatchInfos.push_back(matches[i][0]);
 
 			count++;
 		}

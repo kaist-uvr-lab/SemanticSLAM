@@ -18,12 +18,17 @@ namespace UVR_SLAM {
 		virtual ~Matcher();
 
 	public:
-		//Matching 관련
-		int FeatureMatchingWithSemanticFrames(Frame* pSemantic, Frame* pFrame);
-		int MatchingProcessForInitialization(Frame* init, Frame* curr, cv::Mat& F, std::vector<cv::DMatch>& resMatches);
-		int FeatureMatchingForInitialPoseTracking(FrameWindow* pWindow, Frame* pF);
-		int FeatureMatchingForInitialPoseTracking(Frame* pPrev, Frame* pCurr, UVR_SLAM::FrameWindow* pWindow);
+		//Pose Tracking 현재 이용하는 것
+		int FeatureMatchingForInitialPoseTracking(Frame* pPrev, Frame* pCurr, UVR_SLAM::FrameWindow* pWindow, std::vector<cv::DMatch>& vMatchInfos);
 		int FeatureMatchingForPoseTrackingByProjection(FrameWindow* pWindow, Frame* pF, float rr);
+
+		//초기화에 현재 이용하는 것
+		int MatchingProcessForInitialization(Frame* init, Frame* curr, cv::Mat& F, std::vector<cv::DMatch>& resMatches);
+
+		//얘네들은 확인이 필요함.
+		int FeatureMatchingWithSemanticFrames(Frame* pSemantic, Frame* pFrame);
+		int FeatureMatchingForInitialPoseTracking(FrameWindow* pWindow, Frame* pF);
+		
 	public:
 		//Epipolar geometry to create new map points
 		bool CheckEpiConstraints(cv::Mat F12, cv::Point2f pt1, cv::Point2f pt2, float sigma, float& res);

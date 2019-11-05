@@ -60,8 +60,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mpFrameWindow->SetVectorInlier(mpFrameWindow->LocalMapSize, false);
 
 		//mpMatcher->FeatureMatchingForInitialPoseTracking(mpFrameWindow, pFrame);
-		
-		int nInitMatching = mpMatcher->FeatureMatchingForInitialPoseTracking(pPrev, pCurr, mpFrameWindow);
+		std::vector<cv::DMatch> vMatchInfos;
+		int nInitMatching = mpMatcher->FeatureMatchingForInitialPoseTracking(pPrev, pCurr, mpFrameWindow, vMatchInfos);
 		//std::cout << "Matching Init : " << nInitMatching << std::endl;
 
 		Optimization::PoseOptimization(mpFrameWindow, pCurr, false,4,5);
@@ -156,6 +156,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		if (!mpVisualizer->isDoingProcess()) {
 			//mpSystem->SetVisualizeFrame(pCurr);
 			mpVisualizer->SetBoolDoingProcess(true);
+			mpVisualizer->SetFrameMatching(pPrev, pCurr, vMatchInfos);
 		}
 	}
 }

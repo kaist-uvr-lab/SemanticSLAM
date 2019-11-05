@@ -30,6 +30,19 @@ namespace UVR_SLAM {
 		int mnWidth, mnHeight;
 	public:
 		void Init();
+		void SetFrameMatching(Frame* pF1, Frame* pF2, std::vector<cv::DMatch> vMatchInfos);
+	private:
+		//SetFrameMatching에 이용할 데이터.
+		Frame* mpMatchingFrame1,*mpMatchingFrame2;
+		std::vector<cv::DMatch> mvMatchInfos;
+		bool mbFrameMatching;
+		void VisualizeFrameMatching();
+		
+	private:
+		int mnFontFace;//2
+		double mfFontScale;//1.2
+		//void PutText(cv::Mat src, std::string txt, , int x, int y);
+		//cv::putText(myImage, myText, myPoint, myFontFace, myFontScale, Scalar::all(255));
 	private:
 		cv::Mat mVisualized2DMap, mVisTrajectory, mVisMapPoints, mVisPoseGraph;
 		cv::Point2f mVisMidPt, mVisPrevPt;

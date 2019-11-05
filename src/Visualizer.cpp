@@ -3,7 +3,7 @@
 #include <Frame.h>
 
 UVR_SLAM::Visualizer::Visualizer() {}
-UVR_SLAM::Visualizer::Visualizer(int w, int h, int scale) :mnWidth(w), mnHeight(h), mnVisScale(scale) {}
+UVR_SLAM::Visualizer::Visualizer(int w, int h, int scale) :mnWidth(w), mnHeight(h), mnVisScale(scale), mnFontFace(2), mfFontScale(0.6){}
 UVR_SLAM::Visualizer::~Visualizer() {}
 
 ////////////////////////////
@@ -43,9 +43,40 @@ void UVR_SLAM::Visualizer::Init() {
 	mVisMidPt = cv::Point2f(mnHeight, mnHeight);
 	mVisPrevPt = mVisMidPt;
 
-	
+	//set image
+	int nImageWindowStartX = -1690;
+	int nImageWIndowStartY1 = 20;
+	int nImageWIndowStartY2 = 50;
+	cv::namedWindow("Output::Segmentation");
+	cv::moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1);
+	cv::namedWindow("Output::Tracking");
+	cv::moveWindow("Output::Tracking", nImageWindowStartX + mnWidth, nImageWIndowStartY1);
+	cv::namedWindow("Output::PlaneEstimation");
+	cv::moveWindow("Output::PlaneEstimation", nImageWindowStartX + mnWidth, 50 + mnHeight);
+	cv::namedWindow("Output::SegmentationMask");
+	cv::moveWindow("Output::SegmentationMask", nImageWindowStartX, 50 + mnHeight);
 	cv::namedWindow("Output::Trajectory");
-	cv::moveWindow("Output::Trajectory", -1690 + mnWidth + mnWidth, 20);
+	cv::moveWindow("Output::Trajectory", nImageWindowStartX + mnWidth + mnWidth, 20);
+
+	//cv::namedWindow("Output::Trajectory");
+	//cv::moveWindow("Output::Trajectory", nImageWindowStartX + mnWidth + mnWidth, 20);
+
+	//Opencv Image Window
+	int nAdditional1 = 355;
+	/*namedWindow("Output::Trajectory");
+	moveWindow("Output::Trajectory", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth, 0);*/
+	cv::namedWindow("Initialization::Frame::1");
+	cv::moveWindow("Initialization::Frame::1", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 0);
+	cv::namedWindow("Initialization::Frame::2");
+	cv::moveWindow("Initialization::Frame::2", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 30 + mnHeight);
+	cv::namedWindow("LocalMapping::CreateMPs");
+	cv::moveWindow("LocalMapping::CreateMPs", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 0);
+	cv::namedWindow("Output::Matching::SemanticFrame");
+	cv::moveWindow("Output::Matching::SemanticFrame", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth, 30 + mnHeight);
+
+	cv::namedWindow("Test::Matching::Frame");
+	cv::moveWindow("Test::Matching::Frame", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth*0.7, 30 + mnHeight);
+
 	cv::setMouseCallback("Output::Trajectory", CallBackFunc, NULL);
 
 }
@@ -70,6 +101,10 @@ bool UVR_SLAM::Visualizer::isDoingProcess() {
 void UVR_SLAM::Visualizer::Run() {
 	while (1) {
 		if (isDoingProcess()) {
+
+			if (mbFrameMatching) {
+				VisualizeFrameMatching();
+			}
 
 			cv::Mat tempVis = mVisPoseGraph.clone();
 			
@@ -144,3 +179,39 @@ void UVR_SLAM::Visualizer::Run() {
 }
 
 //////////////////////////////////////
+void UVR_SLAM::Visualizer::SetFrameMatching(Frame* pF1, Frame* pF2, std::vector<cv::DMatch> vMatchInfos) {
+	mpMatchingFrame1 = pF1;
+	mpMatchingFrame2 = pF2;
+	mvMatchInfos = std::vector<cv::DMatch>(vMatchInfos.begin(), vMatchInfos.end());
+	mbFrameMatching = true;
+}
+
+void UVR_SLAM::Visualizer::VisualizeFrameMatching() {
+
+	cv::Mat img1 = mpMatchingFrame1->GetOriginalImage();
+	cv::Mat img2 = mpMatchingFrame2->GetOriginalImage();
+	cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
+
+	cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
+	cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	img1.copyTo(debugging(mergeRect1));
+	img2.copyTo(debugging(mergeRect2));
+
+	for (int i = 0; i < mpMatchingFrame1->mvKeyPoints.size(); i++) {
+		cv::circle(debugging, mpMatchingFrame1->mvKeyPoints[i].pt, 1, cv::Scalar(255, 255, 0), -1);
+	}
+	for (int i = 0; i < mpMatchingFrame2->mvKeyPoints.size(); i++) {
+		cv::circle(debugging, mpMatchingFrame2->mvKeyPoints[i].pt+ ptBottom, 1, cv::Scalar(255, 255, 0), -1);
+	}
+	for (int i = 0; i < mvMatchInfos.size(); i++) {
+		cv::line(debugging, mpMatchingFrame1->mvKeyPoints[mvMatchInfos[i].queryIdx].pt, mpMatchingFrame2->mvKeyPoints[mvMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 0, 255));
+	}
+	std::stringstream ss;
+	ss << "Matching=" << mvMatchInfos.size();
+	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(img1.cols, 30), cv::Scalar::all(0), -1);
+	cv::putText(debugging, ss.str(), cv::Point2f(0,20), mnFontFace, mfFontScale, cv::Scalar::all(255));
+
+	cv::imshow("Test::Matching::Frame", debugging);
+	mbFrameMatching = false;
+}
