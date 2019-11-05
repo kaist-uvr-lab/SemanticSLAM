@@ -18,6 +18,7 @@
 #include <Matcher.h>
 #include <Tracker.h>
 
+
 namespace fbow {
 	class VocabularyCreator {
 	public:
@@ -57,6 +58,7 @@ namespace UVR_SLAM {
 	class IndoorLayoutEstimator;
 	class LocalMapper;
 	class PlaneEstimator;
+	class Visualizer;
 	class System {
 	public:
 
@@ -69,10 +71,8 @@ namespace UVR_SLAM {
 		void Init();
 
 	public:
-		void VisualizeTranslation();
 		void Reset();
 		void SetCurrFrame(cv::Mat img);
-		void SetLayoutFrame();
 		void Track();
 	private:
 		ORBextractor* mpInitORBExtractor;
@@ -96,16 +96,12 @@ namespace UVR_SLAM {
 		PlaneEstimator* mpPlaneEstimator;
 		std::thread *mptPlaneEstimator;
 
+		Visualizer* mpVisualizer;
+		std::thread* mptVisualizer;
+
 		Tracker* mpTracker;
 		//std::thread *mptTracker;
-	private:
-		//시각화 용도
-		bool mbDoingVisualization;
-		std::thread* mptVisualizer;
-		std::mutex mMutexVisualization;
-		cv::Mat mVisualized2DMap, mVisTrajectory, mVisMapPoints, mVisPoseGraph;
-		cv::Point2f mVisMidPt, mVisPrevPt;
-		int mnVisScale;
+		
 	private:
 		//외부에서 불러온 파라메터
 		int mnFeatures;
@@ -120,6 +116,7 @@ namespace UVR_SLAM {
 		FrameWindow* mpFrameWindow;
 		cv::Mat mK, mKforPL, mD;
 		bool mbInitialized;
+		int mnVisScale;
 	};
 }
 

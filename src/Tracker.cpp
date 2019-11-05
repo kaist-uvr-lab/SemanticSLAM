@@ -6,6 +6,7 @@
 #include <LocalMapper.h>
 #include <SegmentationData.h>
 #include <PlaneEstimator.h>
+#include <Visualizer.h>
 
 //std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
 
@@ -19,6 +20,9 @@ bool UVR_SLAM::Tracker::isInitialized() {
 
 void UVR_SLAM::Tracker::SetSystem(System* pSystem) {
 	mpSystem = pSystem;
+}
+void UVR_SLAM::Tracker::SetVisualizer(Visualizer* pVis) {
+	mpVisualizer = pVis;
 }
 void UVR_SLAM::Tracker::SetMatcher(UVR_SLAM::Matcher* pMatcher){	
 	mpMatcher = pMatcher;
@@ -127,6 +131,11 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr, bool & bInit) {
 		cv::imwrite("../../bin/segmentation/res/labeling.jpg", vis2);
 
 		cv::waitKey(1);
+
+		if (!mpVisualizer->isDoingProcess()) {
+			//mpSystem->SetVisualizeFrame(pCurr);
+			mpVisualizer->SetBoolDoingProcess(true);
+		}
 	}
 }
 
