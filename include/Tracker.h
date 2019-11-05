@@ -10,6 +10,7 @@
 
 namespace UVR_SLAM {
 	class FrameWindow;
+	class PlaneEstimator;
 	class LocalMapper;
 	class System;
 	class Tracker {
@@ -28,6 +29,7 @@ namespace UVR_SLAM {
 		void SetMatcher(Matcher* pMatcher);
 		void SetInitializer(Initializer* pInitializer);
 		void SetLocalMapper(LocalMapper* pLocalMapper);
+		void SetPlaneEstimator(PlaneEstimator* pEstimator);
 	private:
 		void CalcVisibleCount(UVR_SLAM::Frame* pF);
 		void CalcMatchingCount(UVR_SLAM::Frame* pF);
@@ -38,6 +40,7 @@ namespace UVR_SLAM {
 		System* mpSystem;
 		Matcher* mpMatcher;
 		Initializer* mpInitializer;
+		PlaneEstimator* mpPlaneEstimator;
 		FrameWindow* mpFrameWindow;
 		LocalMapper* mpLocalMapper;
 	};

@@ -5,6 +5,7 @@
 #include <Initializer.h>
 #include <LocalMapper.h>
 #include <SegmentationData.h>
+#include <PlaneEstimator.h>
 
 //std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
 
@@ -30,6 +31,9 @@ void UVR_SLAM::Tracker::SetFrameWindow(UVR_SLAM::FrameWindow* pWindow) {
 }
 void UVR_SLAM::Tracker::SetLocalMapper(UVR_SLAM::LocalMapper* pLocalMapper) {
 	mpLocalMapper = pLocalMapper;
+}
+void UVR_SLAM::Tracker::SetPlaneEstimator(UVR_SLAM::PlaneEstimator* pEstimator) {
+	mpPlaneEstimator = pEstimator;
 }
 
 void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr, bool & bInit) {
@@ -74,6 +78,12 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr, bool & bInit) {
 				mpLocalMapper->SetTargetFrame(pCurr);
 			}
 		}
+		else {
+			if (!mpPlaneEstimator->isDoingProcess()) {
+				mpPlaneEstimator->SetBoolDoingProcess(true, 2);
+				mpPlaneEstimator->SetTargetFrame(pCurr);
+			}
+		}
 
 		//일단 테스트
 
@@ -112,6 +122,10 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr, bool & bInit) {
 				circle(vis2, pCurr->mvKeyPoints[i].pt, 2, ObjectColors::mvObjectLabelColors[type], -1);
 		}
 		cv::imshow("Output::Matching::SemanticFrame", vis2);
+
+		cv::imwrite("../../bin/segmentation/res/tracking.jpg", vis);
+		cv::imwrite("../../bin/segmentation/res/labeling.jpg", vis2);
+
 		cv::waitKey(1);
 	}
 }

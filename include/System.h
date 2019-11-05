@@ -100,6 +100,9 @@ namespace UVR_SLAM {
 		//std::thread *mptTracker;
 	private:
 		//시각화 용도
+		bool mbDoingVisualization;
+		std::thread* mptVisualizer;
+		std::mutex mMutexVisualization;
 		cv::Mat mVisualized2DMap, mVisTrajectory, mVisMapPoints, mVisPoseGraph;
 		cv::Point2f mVisMidPt, mVisPrevPt;
 		int mnVisScale;
