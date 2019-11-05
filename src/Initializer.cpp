@@ -20,6 +20,8 @@ void UVR_SLAM::Initializer::Init() {
 	mbInit = false;
 }
 
+
+
 void UVR_SLAM::Initializer::SetMatcher(UVR_SLAM::Matcher* pMatcher) {
 	mpMatcher = pMatcher;
 }

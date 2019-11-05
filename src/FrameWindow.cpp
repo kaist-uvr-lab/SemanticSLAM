@@ -38,6 +38,10 @@ std::vector<UVR_SLAM::Frame*> UVR_SLAM::FrameWindow::GetAllFrames() {
 	std::unique_lock<std::mutex>(mMutexDeque);
 	return std::vector<UVR_SLAM::Frame*>(mpDeque.begin(), mpDeque.end());
 }
+void UVR_SLAM::FrameWindow::clear() {
+	std::unique_lock<std::mutex>(mMutexDeque);
+	mpDeque.clear();
+}
 
 bool UVR_SLAM::FrameWindow::isEmpty() {
 	std::unique_lock<std::mutex>(mMutexDeque);

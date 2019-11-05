@@ -139,31 +139,7 @@ void UVR_SLAM::System::Init() {
 	//set visualizer
 	mpTracker->SetVisualizer(mpVisualizer);
 
-	//set image
-	int nImageWindowStartX = -1690;
-	int nImageWIndowStartY1 = 20;
-	int nImageWIndowStartY2 = 50;
-	cv::namedWindow("Output::Segmentation");
-	cv::moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1);
-	cv::namedWindow("Output::Tracking");
-	cv::moveWindow("Output::Tracking", nImageWindowStartX + mnWidth, nImageWIndowStartY1);
-	cv::namedWindow("Output::PlaneEstimation");
-	cv::moveWindow("Output::PlaneEstimation", nImageWindowStartX + mnWidth, 50 + mnHeight);
-	cv::namedWindow("Output::SegmentationMask");
-	cv::moveWindow("Output::SegmentationMask", nImageWindowStartX, 50 + mnHeight);
-	//cv::namedWindow("Output::Trajectory");
-	//cv::moveWindow("Output::Trajectory", nImageWindowStartX + mnWidth + mnWidth, 20);
-
-	//Opencv Image Window
-	int nAdditional1 = 355;
-	/*namedWindow("Output::Trajectory");
-	moveWindow("Output::Trajectory", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth, 0);*/
-	cv::namedWindow("Initialization::Frame::1");
-	cv::moveWindow("Initialization::Frame::1", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 0);
-	cv::namedWindow("Initialization::Frame::2");
-	cv::moveWindow("Initialization::Frame::2", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 30 + mnHeight);
-	cv::namedWindow("LocalMapping::CreateMPs");
-	cv::moveWindow("LocalMapping::CreateMPs", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 0);
+	
 }
 
 void UVR_SLAM::System::SetCurrFrame(cv::Mat img) {
@@ -187,15 +163,19 @@ int Ntrial = 10;
 
 void UVR_SLAM::System::Track() {
 	//std::cout << "Track::Start\n";
-	mpTracker->Tracking(mpPrevFrame , mpCurrFrame, mbInitialized);
+	mpTracker->Tracking(mpPrevFrame , mpCurrFrame);
 	//std::cout << "Track::End\n";
 }
 
 void UVR_SLAM::System::Reset() {
 	mbInitialized = false;
 	mpInitializer->Init();
+	mpFrameWindow->clear();
 }
 
+void UVR_SLAM::System::SetBoolInit(bool b) {
+	mbInitialized = b;
+}
 
 //이것들 전부다 private로 변경.
 //trajecotoryMap, MPsMap;

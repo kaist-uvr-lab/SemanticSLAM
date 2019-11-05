@@ -19,6 +19,7 @@ namespace UVR_SLAM {
 		void SetSystem(System* pSystem);
 	public:
 		size_t size();
+		void clear();
 		std::vector<Frame*> GetAllFrames();
 		std::deque<Frame*>::iterator GetBeginIterator();
 		std::deque<Frame*>::iterator GetEndIterator();

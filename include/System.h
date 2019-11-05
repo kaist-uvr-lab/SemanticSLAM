@@ -71,9 +71,11 @@ namespace UVR_SLAM {
 		void Init();
 
 	public:
+		void SetBoolInit(bool b);
 		void Reset();
 		void SetCurrFrame(cv::Mat img);
 		void Track();
+
 	private:
 		ORBextractor* mpInitORBExtractor;
 		ORBextractor* mpPoseORBExtractor;

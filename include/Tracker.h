@@ -22,7 +22,7 @@ namespace UVR_SLAM {
 		virtual ~Tracker();
 	public:
 		//void Run();
-		void Tracking(Frame* pPrev, Frame* pCurr, bool & bInit);
+		void Tracking(Frame* pPrev, Frame* pCurr);
 		bool isInitialized();
 	public:
 		void SetSystem(System*);
@@ -38,7 +38,9 @@ namespace UVR_SLAM {
 	private:
 		int mnWidth, mnHeight;
 		cv::Mat mK;
-		bool mbInit;
+		bool mbInitializing;
+		bool mbFirstFrameAfterInit;
+		bool mbInitilized;
 		System* mpSystem;
 		Matcher* mpMatcher;
 		Initializer* mpInitializer;

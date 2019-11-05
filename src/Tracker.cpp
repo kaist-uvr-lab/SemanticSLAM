@@ -11,11 +11,11 @@
 //std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
 
 UVR_SLAM::Tracker::Tracker() {}
-UVR_SLAM::Tracker::Tracker(int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K){}
+UVR_SLAM::Tracker::Tracker(int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false){}
 UVR_SLAM::Tracker::~Tracker() {}
 
 bool UVR_SLAM::Tracker::isInitialized() {
-	return mbInit;
+	return mbInitilized;
 }
 
 void UVR_SLAM::Tracker::SetSystem(System* pSystem) {
@@ -40,10 +40,11 @@ void UVR_SLAM::Tracker::SetPlaneEstimator(UVR_SLAM::PlaneEstimator* pEstimator) 
 	mpPlaneEstimator = pEstimator;
 }
 
-void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr, bool & bInit) {
-	if(!bInit){
-		bInit = mpInitializer->Initialize(pCurr, mnWidth, mnHeight);
-		mbInit = bInit;
+void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
+	if(!mbInitializing){
+		mbInitializing = mpInitializer->Initialize(pCurr, mnWidth, mnHeight);
+		//mbInit = bInit;
+		mbFirstFrameAfterInit = mbInitializing;
 	}
 	else {
 		
@@ -70,6 +71,24 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr, bool & bInit) {
 		//visible
 		CalcVisibleCount(pCurr);
 		int nMatching =  Optimization::PoseOptimization(mpFrameWindow, pCurr, false,10,2);
+
+
+		//슬램 초기화 최종 판단
+		if (mbFirstFrameAfterInit) {
+			mbFirstFrameAfterInit = false;
+			if (nMatching < 80) {
+				//매칭 실패
+				mbInitializing = false;
+				mpSystem->Reset();
+				std::cout << "Fail Initilization" << std::endl;
+				return;
+			}
+			else {
+				mpSystem->SetBoolInit(true);
+				mbInitilized = true;
+			}
+		}
+
 		//matching
 		CalcMatchingCount(pCurr);
 		mpFrameWindow->IncrementFrameCount();
@@ -127,7 +146,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr, bool & bInit) {
 		}
 		cv::imshow("Output::Matching::SemanticFrame", vis2);
 
-		cv::imwrite("../../bin/segmentation/res/tracking.jpg", vis);
+		std::stringstream ss;
+		ss << "../../bin/segmentation/res/img/img_" << pCurr->GetFrameID() << ".jpg";
+		cv::imwrite(ss.str(), vis);
 		cv::imwrite("../../bin/segmentation/res/labeling.jpg", vis2);
 
 		cv::waitKey(1);
