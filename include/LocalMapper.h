@@ -10,6 +10,7 @@ namespace UVR_SLAM {
 	class Frame;
 	class FrameWindow;
 	class PlaneEstimator;
+	class IndoorLayoutEstimator;
 	class Matcher;
 	class MapPoint;
 	class LocalMapper {
@@ -20,6 +21,7 @@ namespace UVR_SLAM {
 	public:
 		void Run();
 		void SetPlaneEstimator(PlaneEstimator* pPlaneEstimator);
+		void SetLayoutEstimator(IndoorLayoutEstimator* pEstimator);
 		void SetFrameWindow(FrameWindow* pFrameWindow);
 		void SetTargetFrame(Frame* pFrame);
 		void SetMatcher(Matcher* pMatcher);
@@ -37,6 +39,7 @@ namespace UVR_SLAM {
 		bool CheckScaleConsistency(cv::Mat x3D, cv::Mat Ow1, cv::Mat Ow2, float fRatioFactor, float fScaleFactor1, float fScaleFactor2);
 	private:
 		std::vector<MapPoint*> mvpDeletedMPs;
+		IndoorLayoutEstimator* mpLayoutEstimator;
 		PlaneEstimator* mpPlaneEstimator;
 		FrameWindow* mpFrameWindow;
 		Frame* mpTargetFrame;

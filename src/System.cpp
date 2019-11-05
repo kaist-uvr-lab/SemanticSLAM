@@ -42,7 +42,7 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	float cy = mK.at<float>(1, 2);
 	
 	//Pluker Line Coordinate에 이용함.
-	//mK2 = (cv::Mat_<float>(3, 3) << fx, 0, 0, 0, fy, 0, -fy*cx, -fx*cy, fx*fy);
+	mKforPL = (cv::Mat_<float>(3, 3) << fx, 0, 0, 0, fy, 0, -fy*cx, -fx*cy, fx*fy);
 
 	fs.release();
 }
@@ -116,13 +116,11 @@ void UVR_SLAM::System::Init() {
 	mpInitializer->SetMatcher(mpMatcher);
 	mpInitializer->SetFrameWindow(mpFrameWindow);
 
-	//local mapping thread
-	mpLocalMapper = new UVR_SLAM::LocalMapper(mnWidth, mnHeight);
-	mpLocalMapper->SetFrameWindow(mpFrameWindow);
-	mpLocalMapper->SetMatcher(mpMatcher);
-	mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);
-
-	//loop closing thread
+	//PlaneEstimator
+	mpPlaneEstimator = new UVR_SLAM::PlaneEstimator(mK, mKforPL, mnWidth, mnHeight);
+	mpPlaneEstimator->SetSystem(this);
+	mpPlaneEstimator->SetFrameWindow(mpFrameWindow);
+	mptPlaneEstimator = new std::thread(&UVR_SLAM::PlaneEstimator::Run, mpPlaneEstimator);
 
 	//layout estimating thread
 	mpLayoutEstimator = new UVR_SLAM::IndoorLayoutEstimator(mnWidth, mnHeight);
@@ -130,12 +128,17 @@ void UVR_SLAM::System::Init() {
 	mpLayoutEstimator->SetFrameWindow(mpFrameWindow);
 	mptLayoutEstimator = new std::thread(&UVR_SLAM::IndoorLayoutEstimator::Run, mpLayoutEstimator);
 
-	//PlaneEstimator
-	mpPlaneEstimator = new UVR_SLAM::PlaneEstimator(mnWidth, mnHeight);
-	mpPlaneEstimator->SetSystem(this);
-	mpPlaneEstimator->SetFrameWindow(mpFrameWindow);
-	mptPlaneEstimator = new std::thread(&UVR_SLAM::PlaneEstimator::Run, mpPlaneEstimator);
+	//local mapping thread
+	mpLocalMapper = new UVR_SLAM::LocalMapper(mnWidth, mnHeight);
+	mpLocalMapper->SetFrameWindow(mpFrameWindow);
+	mpLocalMapper->SetMatcher(mpMatcher);
 	mpLocalMapper->SetPlaneEstimator(mpPlaneEstimator);
+	mpLocalMapper->SetLayoutEstimator(mpLayoutEstimator);
+	mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);
+
+	//loop closing thread
+
+	
 
 	//tracker thread
 	mpTracker = new UVR_SLAM::Tracker(mnWidth, mnHeight, mK);
@@ -144,18 +147,22 @@ void UVR_SLAM::System::Init() {
 	mpTracker->SetInitializer(mpInitializer);
 	mpTracker->SetFrameWindow(mpFrameWindow);
 	mpTracker->SetLocalMapper(mpLocalMapper);
+	mpTracker->SetPlaneEstimator(mpPlaneEstimator);
 	mpTracker->SetSystem(this);
 
+	int nImageWindowStartX = -1690;
+	int nImageWIndowStartY1 = 20;
+	int nImageWIndowStartY2 = 50;
 	namedWindow("Output::Segmentation");
-	moveWindow("Output::Segmentation", -1650, 20);
+	moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1);
 	namedWindow("Output::Tracking");
-	moveWindow("Output::Tracking", -1650+mnWidth, 20);
-	namedWindow("Output::Matching::SemanticFrame");
-	moveWindow("Output::Matching::SemanticFrame", -1650 + mnWidth, 50 + mnHeight);
+	moveWindow("Output::Tracking", nImageWindowStartX +mnWidth, nImageWIndowStartY1);
+	namedWindow("Output::PlaneEstimation");
+	moveWindow("Output::PlaneEstimation", nImageWindowStartX + mnWidth, 50 + mnHeight);
 	namedWindow("Output::SegmentationMask");
-	moveWindow("Output::SegmentationMask", -1650, 50 + mnHeight);
-	/*namedWindow("Output::Trajectory");
-	moveWindow("Output::Trajectory", -1650+ mnWidth + mnWidth, 20);*/
+	moveWindow("Output::SegmentationMask", nImageWindowStartX, 50 + mnHeight);
+	namedWindow("Output::Trajectory");
+	moveWindow("Output::Trajectory", nImageWindowStartX + mnWidth + mnWidth, 20);
 	
 	//Visualization
 	mVisualized2DMap = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
@@ -167,14 +174,14 @@ void UVR_SLAM::System::Init() {
 
 	//Opencv Image Window
 	int nAdditional1 = 355;
-	namedWindow("Output::Trajectory");
-	moveWindow("Output::Trajectory", -1650 + nAdditional1 + mnWidth + mnWidth + mnWidth, 0);
+	/*namedWindow("Output::Trajectory");
+	moveWindow("Output::Trajectory", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth, 0);*/
 	namedWindow("Initialization::Frame::1");
-	moveWindow("Initialization::Frame::1", -1650 + nAdditional1 + mnWidth+ mnWidth+ mnWidth+ mnWidth,0);
+	moveWindow("Initialization::Frame::1", nImageWindowStartX + nAdditional1 + mnWidth+ mnWidth+ mnWidth+ mnWidth,0);
 	namedWindow("Initialization::Frame::2");
-	moveWindow("Initialization::Frame::2", -1650 + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 30+mnHeight);
+	moveWindow("Initialization::Frame::2", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 30+mnHeight);
 	namedWindow("LocalMapping::CreateMPs");
-	moveWindow("LocalMapping::CreateMPs", -1650 + nAdditional1 + mnWidth+ mnWidth + mnWidth + mnWidth, 0);
+	moveWindow("LocalMapping::CreateMPs", nImageWindowStartX + nAdditional1 + mnWidth+ mnWidth + mnWidth + mnWidth, 0);
 	cv::setMouseCallback("Output::Trajectory", CallBackFunc, NULL);
 }
 

@@ -5,6 +5,7 @@
 #include <Matcher.h>
 #include <Optimization.h>
 #include <PlaneEstimator.h>
+#include <IndoorLayoutEstimator.h>
 
 UVR_SLAM::LocalMapper::LocalMapper(){}
 UVR_SLAM::LocalMapper::LocalMapper(int w, int h):mnWidth(w), mnHeight(h){}
@@ -34,15 +35,20 @@ void UVR_SLAM::LocalMapper::Run() {
 
 			////BA
 			//BA에서는 최근 생성된 맵포인트까지 반영을 해야 함.
-			Optimization::LocalBundleAdjustment(mpFrameWindow, 2, 5, true);
+			Optimization::LocalBundleAdjustment(mpFrameWindow, 2, 5, false);
 			
 			//Delete MPs
-			DeleteMPs();
+			//DeleteMPs();
 
 			//평면 검출 쓰레드에 추가
-			if (!mpPlaneEstimator->isDoingProcess()) {
-				std::cout << "Add Frame to Plane Estimator" << std::endl;
-				mpPlaneEstimator->SetBoolDoingProcess(true);
+
+			if (!mpLayoutEstimator->isDoingProcess()) {
+				mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
+				mpLayoutEstimator->SetBoolDoingProcess(true);
+				mpLayoutEstimator->SetTargetFrame(mpTargetFrame);
+				
+			}else if (!mpPlaneEstimator->isDoingProcess()) {
+				mpPlaneEstimator->SetBoolDoingProcess(true, 1);
 				mpPlaneEstimator->SetTargetFrame(mpTargetFrame);
 			}
 
@@ -57,6 +63,10 @@ void UVR_SLAM::LocalMapper::Run() {
 
 void UVR_SLAM::LocalMapper::SetMatcher(UVR_SLAM::Matcher* pMatcher) {
 	mpMatcher = pMatcher;
+}
+
+void UVR_SLAM::LocalMapper::SetLayoutEstimator(IndoorLayoutEstimator* pEstimator) {
+	mpLayoutEstimator = pEstimator;
 }
 
 void UVR_SLAM::LocalMapper::SetPlaneEstimator(PlaneEstimator* pPlaneEstimator) {
