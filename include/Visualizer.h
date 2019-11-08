@@ -36,7 +36,10 @@ namespace UVR_SLAM {
 		Frame* mpMatchingFrame1,*mpMatchingFrame2;
 		std::vector<cv::DMatch> mvMatchInfos;
 		bool mbFrameMatching;
+		bool mbTracking; //같이 수행되어도 됨
 		void VisualizeFrameMatching();
+		void VisualizeTracking();
+	private:
 		
 	private:
 		int mnFontFace;//2

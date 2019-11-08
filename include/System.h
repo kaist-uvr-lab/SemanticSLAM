@@ -55,7 +55,7 @@ namespace fbow {
 namespace UVR_SLAM {
 	class Tracker;
 	class FrameWindow;
-	class IndoorLayoutEstimator;
+	class SemanticSegmentator;
 	class LocalMapper;
 	class PlaneEstimator;
 	class Visualizer;
@@ -89,7 +89,7 @@ namespace UVR_SLAM {
 		Matcher* mpMatcher;
 		Initializer* mpInitializer;
 
-		IndoorLayoutEstimator* mpLayoutEstimator;
+		SemanticSegmentator* mpSegmentator;
 		std::thread *mptLayoutEstimator;
 
 		LocalMapper* mpLocalMapper;
@@ -113,6 +113,7 @@ namespace UVR_SLAM {
 		int mfMinThFAST;
 		int mnWidth, mnHeight;
 	public:
+		std::mutex mMutexTracking;
 		std::string strVOCPath;
 		fbow::Vocabulary* fvoc;
 		FrameWindow* mpFrameWindow;

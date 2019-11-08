@@ -1,6 +1,6 @@
 
-#ifndef UVR_SLAM_INDOOR_LAYOUT_ESTIMATOR_H
-#define UVR_SLAM_INDOOR_LAYOUT_ESTIMATOR_H
+#ifndef UVR_SLAM_SEMANTIC_SEGMENTATOR_H
+#define UVR_SLAM_SEMANTIC_SEGMENTATOR_H
 #pragma once
 
 #include <opencv2/opencv.hpp>
@@ -13,15 +13,17 @@ namespace UVR_SLAM {
 
 	class System;
 	class FrameWindow;
-	class IndoorLayoutEstimator {
+	class PlaneEstimator;
+	class SemanticSegmentator {
 	public:
-		IndoorLayoutEstimator();
-		IndoorLayoutEstimator(std::string _ip, int _port, int nWidth, int nHeight);
-		virtual ~IndoorLayoutEstimator();
+		SemanticSegmentator();
+		SemanticSegmentator(std::string _ip, int _port, int nWidth, int nHeight);
+		virtual ~SemanticSegmentator();
 	public:
 		void Run();
 		void SetSystem(System* pSystem);
 		void SetFrameWindow(FrameWindow* pFrameWindow);
+		void SetPlaneEstimator(PlaneEstimator* pEstimator);
 		void SetTargetFrame(Frame* pFrame);
 		void SetBoolDoingProcess(bool b);
 		bool isDoingProcess();
@@ -38,6 +40,7 @@ namespace UVR_SLAM {
 		bool mbDoingProcess;
 		Frame* mpTargetFrame;
 		FrameWindow* mpFrameWindow;
+		PlaneEstimator* mpPlaneEstimator;
 		std::string ip;
 		int port;
 	};

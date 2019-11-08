@@ -24,7 +24,8 @@ namespace UVR_SLAM {
 	
 	const unsigned char FLAG_KEY_FRAME = 0x1;
 	const unsigned char FLAG_SEGMENTED_FRAME = 0x2;
-	const unsigned char FLAG_INIT_FRAME = 0x4;
+	const unsigned char FLAG_LAYOUT_FRAME = 0x4;
+	const unsigned char FLAG_INIT_FRAME = 0x8;
 
 	//class MapPoint;
 	class ORBextractor;
@@ -44,7 +45,7 @@ namespace UVR_SLAM {
 		cv::Mat GetFrame();
 		cv::Mat GetOriginalImage();
 		void SetFrameType(int n);
-		int GetFrameType();
+		unsigned char GetFrameType();
 		void SetPose(cv::Mat _R, cv::Mat _t);
 		void GetPose(cv::Mat&_R, cv::Mat& _t);
 		cv::Mat GetRotation();
@@ -58,14 +59,15 @@ namespace UVR_SLAM {
 		void SetObjectType(UVR_SLAM::ObjectType type, int idx);
 		ObjectType GetObjectType(int idx);
 		int GetNumInliers();
-		unsigned char GetType();
 		void TurnOnFlag(unsigned char opt);
 		void TurnOffFlag(unsigned char opt);
-		bool CheckType(unsigned char opt);
+		bool CheckFrameType(unsigned char opt);
 		int GetFrameID();
 		bool CheckBaseLine(Frame* pF1, Frame* pF2);
 		bool ComputeSceneMedianDepth(float& fMedianDepth);
 		cv::Mat GetCameraCenter();
+		void SetInliers(int nInliers);
+		int GetInliers();
 	public:
 		
 		std::vector<bool> mvbMPInliers;
@@ -80,20 +82,19 @@ namespace UVR_SLAM {
 		void SetFrameID();
 	private:
 		int mnFrameID;
-		std::mutex mMutexID;
+		std::mutex mMutexFrame;
 
 		std::vector<ObjectType> mvObjectTypes; //모든 키포인트에 대해서 미리 정의된 레이블인지 재할당
-		std::mutex mMutexObjectTypes;
-
 		std::vector<UVR_SLAM::MapPoint*> mvpMPs;
 		cv::Mat matFrame, matOri;
-
 		cv::Mat R, t;
 		int mnInliers;
 		unsigned char mnType;
 
+		/*std::mutex mMutexObjectTypes;
+		std::mutex mMutexID;
 		std::mutex mMutexMPs, mMutexBoolInliers, mMutexNumInliers, mMutexPose, mMutexType;
-		std::mutex mMutexImage;
+		std::mutex mMutexImage;*/
 	public:
 		//from ORB_SLAM2
 		cv::Mat mDistCoef, mK;

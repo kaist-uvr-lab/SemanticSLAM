@@ -25,14 +25,16 @@ namespace UVR_SLAM {
 	public:
 		static std::vector<cv::Vec3b> mvObjectLabelColors;
 		static void Init() {
-			/*mvObjectLabelColors.push_back(COLOR_FLOOR);
+			//Indoor
+			mvObjectLabelColors.push_back(COLOR_FLOOR);
 			mvObjectLabelColors.push_back(COLOR_WALL);
 			mvObjectLabelColors.push_back(COLOR_CEILING);
-			mvObjectLabelColors.push_back(COLOR_NONE);*/
-			mvObjectLabelColors.push_back(COLOR_OUTDOOR_ROAD);
+			mvObjectLabelColors.push_back(COLOR_NONE);
+			//Outdoor
+			/*mvObjectLabelColors.push_back(COLOR_OUTDOOR_ROAD);
 			mvObjectLabelColors.push_back(COLOR_OUTDOOR_BUILDING);
 			mvObjectLabelColors.push_back(COLOR_OUTDOOR_SKY);
-			mvObjectLabelColors.push_back(COLOR_OUTDOOR_NONE);
+			mvObjectLabelColors.push_back(COLOR_OUTDOOR_NONE);*/
 		}
 	};
 

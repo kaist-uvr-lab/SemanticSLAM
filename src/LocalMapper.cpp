@@ -5,7 +5,7 @@
 #include <Matcher.h>
 #include <Optimization.h>
 #include <PlaneEstimator.h>
-#include <IndoorLayoutEstimator.h>
+#include <SemanticSegmentator.h>
 
 UVR_SLAM::LocalMapper::LocalMapper(){}
 UVR_SLAM::LocalMapper::LocalMapper(int w, int h):mnWidth(w), mnHeight(h){}
@@ -42,13 +42,13 @@ void UVR_SLAM::LocalMapper::Run() {
 
 			//평면 검출 쓰레드에 추가
 
-			if (!mpLayoutEstimator->isDoingProcess()) {
+			if (!mpSegmentator->isDoingProcess()) {
 				mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
-				mpLayoutEstimator->SetBoolDoingProcess(true);
-				mpLayoutEstimator->SetTargetFrame(mpTargetFrame);
+				mpSegmentator->SetBoolDoingProcess(true);
+				mpSegmentator->SetTargetFrame(mpTargetFrame);
 				
 			}else if (!mpPlaneEstimator->isDoingProcess()) {
-				mpPlaneEstimator->SetBoolDoingProcess(true, 1);
+				mpPlaneEstimator->SetBoolDoingProcess(true, 2);
 				mpPlaneEstimator->SetTargetFrame(mpTargetFrame);
 			}
 
@@ -58,6 +58,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			SetBoolDoingProcess(false);
 			std::cout << "Create KeyFrame::End!!!!" << std::endl;
 		}//if
+
 	}//while
 }
 
@@ -65,8 +66,8 @@ void UVR_SLAM::LocalMapper::SetMatcher(UVR_SLAM::Matcher* pMatcher) {
 	mpMatcher = pMatcher;
 }
 
-void UVR_SLAM::LocalMapper::SetLayoutEstimator(IndoorLayoutEstimator* pEstimator) {
-	mpLayoutEstimator = pEstimator;
+void UVR_SLAM::LocalMapper::SetLayoutEstimator(SemanticSegmentator* pEstimator) {
+	mpSegmentator = pEstimator;
 }
 
 void UVR_SLAM::LocalMapper::SetPlaneEstimator(PlaneEstimator* pPlaneEstimator) {
@@ -96,24 +97,41 @@ void UVR_SLAM::LocalMapper::NewMapPointMaginalization(int nFrameCount) {
 	std::cout << "Maginalization::Start" << std::endl;
 	mvpDeletedMPs.clear();
 	int nMarginalized = 0;
-	for (int i = 0; i < mpFrameWindow->LocalMapSize; i++) {
+	for (int i = 0; i < mpFrameWindow->GetLocalMapSize(); i++) {
 		UVR_SLAM::MapPoint* pMP = mpFrameWindow->GetMapPoint(i);
 		if (!pMP)
 			continue;
 		if (!pMP->isNewMP())
 			continue;
 		pMP->SetNewMP(false);
-		//if (!mpFrameWindow->GetBoolInlier(i))
-		float ratio1 = ((float)pMP->mnMatchingCount) / pMP->mnVisibleCount;
-		float ratio2 = ((float)pMP->mnVisibleCount) / nFrameCount;
-		if (ratio1 < 0.5 || ratio2 < 0.5) {
-			mpFrameWindow->SetMapPoint(nullptr, i);
-			mpFrameWindow->SetBoolInlier(false, i);
-			pMP->SetDelete(true);
-			pMP->Delete();
-			mvpDeletedMPs.push_back(pMP);
-			nMarginalized++;
+		if (pMP->GetMapPointType() == MapPointType::NORMAL_MP) {
+			//if (!mpFrameWindow->GetBoolInlier(i))
+			float ratio1 = ((float)pMP->mnMatchingCount) / pMP->mnVisibleCount;
+			float ratio2 = ((float)pMP->mnVisibleCount) / nFrameCount;
+			if (ratio1 < 0.5) {
+				mpFrameWindow->SetMapPoint(nullptr, i);
+				mpFrameWindow->SetBoolInlier(false, i);
+				pMP->SetDelete(true);
+				pMP->Delete();
+				mvpDeletedMPs.push_back(pMP);
+				nMarginalized++;
+			}
 		}
+		else {
+			if (pMP->mnMatchingCount == 0) {
+				mpFrameWindow->SetMapPoint(nullptr, i);
+				mpFrameWindow->SetBoolInlier(false, i);
+				pMP->SetDelete(true);
+				pMP->Delete();
+				mvpDeletedMPs.push_back(pMP);
+				nMarginalized++;
+			}
+			//평면으로 생성한 맵포인트의 마지날 라이제이션
+
+		}
+		
+		/*if (pMP->GetMapPointType() == MapPointType::PLANE_MP)
+			std::cout << "Plane MP = " << pMP->mnMatchingCount << ", " << pMP->mnVisibleCount << std::endl;*/
 		/*if(pMP->mnVisibleCount > nFrameCount || pMP->mnVisibleCount < nFrameCount*0.5 || ratio < 0.5)
 			std::cout <<"ID="<<pMP->GetMapPointID()<< "::Count=" << nFrameCount << ", " << pMP->mnMatchingCount << ", " << pMP->mnVisibleCount << std::endl;*/
 	}
@@ -198,6 +216,9 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(UVR_SLAM::Frame* pCurrKF, UVR_SLAM::F
 
 	cv::RNG rng(12345);
 
+	//두 키프레임 사이의 매칭 정보 초기화
+	mpFrameWindow->mvMatchInfos.clear();
+
 	for (int i = 0; i < pCurrKF->mvKeyPoints.size(); i++) {
 		if (pCurrKF->GetBoolInlier(i))
 			continue;
@@ -236,6 +257,12 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(UVR_SLAM::Frame* pCurrKF, UVR_SLAM::F
 				pMP2->AddFrame(pCurrKF, i);
 				//mvpNewMPs.push_back(pMP2);
 				//mDescNewMPs.push_back(pMP2->GetDescriptor());
+
+				//매칭 정보 추가
+				cv::DMatch tempMatch;
+				tempMatch.queryIdx = i;
+				tempMatch.trainIdx = matchIDX;
+				mpFrameWindow->mvMatchInfos.push_back(tempMatch);
 
 				cv::Scalar color(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
 				//cv::line(debugging, pLastKF->mvKeyPoints[matchIDX].pt, pCurrKF->mvKeyPoints[i].pt + cv::Point2f(lastImg.cols, 0), cv::Scalar(255, 0, 255), 1);

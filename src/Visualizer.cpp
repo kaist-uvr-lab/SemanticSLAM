@@ -104,6 +104,7 @@ void UVR_SLAM::Visualizer::Run() {
 
 			if (mbFrameMatching) {
 				VisualizeFrameMatching();
+				//VisualizeTracking();
 			}
 
 			cv::Mat tempVis = mVisPoseGraph.clone();
@@ -143,7 +144,7 @@ void UVR_SLAM::Visualizer::Run() {
 			}*/
 
 			//map points
-			for (int i = 0; i < mpFrameWindow->LocalMapSize; i++) {
+			for (int i = 0; i < mpFrameWindow->GetLocalMapSize(); i++) {
 				UVR_SLAM::MapPoint* pMP = mpFrameWindow->GetMapPoint(i);
 				if (!pMP)
 					continue;
@@ -153,9 +154,9 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
 				tpt += mVisMidPt;
 				if (mpFrameWindow->GetBoolInlier(i))
-					cv::circle(tempVis, tpt, 2, color1, -1);
+					cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
 				else
-					cv::circle(tempVis, tpt, 2, color2, -1);
+					cv::circle(tempVis, tpt, 1, color2, 1);
 			}
 
 			//trajectory
@@ -167,7 +168,7 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::Point2f pt2 = cv::Point2f(t2.at<float>(0)* mnVisScale, t2.at<float>(2)* mnVisScale);
 				pt1 += mVisMidPt;
 				pt2 += mVisMidPt;
-				cv::line(tempVis, pt1, pt2, cv::Scalar(255, 0, 0), 2);
+				cv::line(tempVis, pt1, pt2, cv::Scalar(0, 0, 0), 2);
 			}
 			
 			cv::imshow("Output::Trajectory", tempVis);
@@ -186,7 +187,65 @@ void UVR_SLAM::Visualizer::SetFrameMatching(Frame* pF1, Frame* pF2, std::vector<
 	mbFrameMatching = true;
 }
 
+void UVR_SLAM::Visualizer::VisualizeTracking() {
+	//일단 테스트
+
+	
+	cv::Mat vis = mpMatchingFrame2->GetOriginalImage();
+	//cvtColor(vis, vis, CV_RGBA2BGR);
+	vis.convertTo(vis, CV_8UC3);
+
+	for (int i = 0; i < mpMatchingFrame2->mvKeyPoints.size(); i++) {
+		if (!mpMatchingFrame2->GetBoolInlier(i))
+			continue;
+		UVR_SLAM::MapPoint* pMP = mpMatchingFrame2->GetMapPoint(i);
+		cv::circle(vis, mpMatchingFrame2->mvKeyPoints[i].pt, 1, cv::Scalar(255, 0, 255), -1);
+		if (pMP) {
+			if (pMP->isDeleted()) {
+				mpMatchingFrame2->SetBoolInlier(false, i);
+				continue;
+			}
+			cv::Point2f p2D;
+			cv::Mat pCam;
+			pMP->Projection(p2D, pCam, mpMatchingFrame2->GetRotation(), mpMatchingFrame2->GetTranslation(), mpMatchingFrame2->mK, mnWidth, mnHeight);
+			UVR_SLAM::ObjectType type = pMP->GetObjectType();
+			cv::line(vis, p2D, mpMatchingFrame2->mvKeyPoints[i].pt, cv::Scalar(255, 255, 0), 1);
+			if (type != OBJECT_NONE)
+				circle(vis, p2D, 3, UVR_SLAM::ObjectColors::mvObjectLabelColors[type], -1);
+			if (pMP->GetPlaneID() > 0) {
+				circle(vis, p2D, 4, cv::Scalar(255, 0, 255), -1);
+			}
+
+		}
+
+	}
+
+	cv::Mat vis2 = mpMatchingFrame2->GetOriginalImage();
+	for (int i = 0; i < mpMatchingFrame2->mvKeyPoints.size(); i++) {
+		UVR_SLAM::ObjectType type = mpMatchingFrame2->GetObjectType(i);
+		if (type != OBJECT_NONE)
+			circle(vis2, mpMatchingFrame2->mvKeyPoints[i].pt, 2, ObjectColors::mvObjectLabelColors[type], -1);
+	}
+	cv::imshow("Output::Tracking", vis);
+	cv::imshow("Output::Matching::SemanticFrame", vis2);
+	cv::waitKey(1);
+
+	std::stringstream ss;
+	ss << "../../bin/segmentation/res/img/img_" << mpMatchingFrame2->GetFrameID() << ".jpg";
+	cv::imwrite(ss.str(), vis);
+	cv::imwrite("../../bin/segmentation/res/labeling.jpg", vis2);
+}
+
 void UVR_SLAM::Visualizer::VisualizeFrameMatching() {
+
+	int nLastSIdx = mpFrameWindow->GetLastSemanticFrameIndex();
+	int nLastKIdx = mpFrameWindow->size()-1;
+	int nLastSFrameIdx = 0;
+	int nLastKFrameIdx = 0;
+	if(nLastSIdx >=0)
+		nLastSFrameIdx = mpFrameWindow->GetFrame(nLastSIdx)->GetFrameID();
+	if (nLastKIdx >= 0)
+		nLastKFrameIdx = mpFrameWindow->GetFrame(nLastKIdx)->GetFrameID();
 
 	cv::Mat img1 = mpMatchingFrame1->GetOriginalImage();
 	cv::Mat img2 = mpMatchingFrame2->GetOriginalImage();
@@ -198,17 +257,20 @@ void UVR_SLAM::Visualizer::VisualizeFrameMatching() {
 	img1.copyTo(debugging(mergeRect1));
 	img2.copyTo(debugging(mergeRect2));
 
-	for (int i = 0; i < mpMatchingFrame1->mvKeyPoints.size(); i++) {
+	/*for (int i = 0; i < mpMatchingFrame1->mvKeyPoints.size(); i++) {
 		cv::circle(debugging, mpMatchingFrame1->mvKeyPoints[i].pt, 1, cv::Scalar(255, 255, 0), -1);
 	}
 	for (int i = 0; i < mpMatchingFrame2->mvKeyPoints.size(); i++) {
 		cv::circle(debugging, mpMatchingFrame2->mvKeyPoints[i].pt+ ptBottom, 1, cv::Scalar(255, 255, 0), -1);
-	}
+	}*/
 	for (int i = 0; i < mvMatchInfos.size(); i++) {
-		cv::line(debugging, mpMatchingFrame1->mvKeyPoints[mvMatchInfos[i].queryIdx].pt, mpMatchingFrame2->mvKeyPoints[mvMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 0, 255));
+		if(mpMatchingFrame2->GetBoolInlier(mvMatchInfos[i].trainIdx))
+			cv::line(debugging, mpMatchingFrame1->mvKeyPoints[mvMatchInfos[i].queryIdx].pt, mpMatchingFrame2->mvKeyPoints[mvMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 0, 255));
+		else
+			cv::line(debugging, mpMatchingFrame1->mvKeyPoints[mvMatchInfos[i].queryIdx].pt, mpMatchingFrame2->mvKeyPoints[mvMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 255, 0));
 	}
 	std::stringstream ss;
-	ss << "Matching=" << mvMatchInfos.size();
+	ss <<"FID = "<< mpMatchingFrame2->GetFrameID()<<", KID = "<<nLastKFrameIdx<<", SID = "<<nLastSFrameIdx<<" ||"<< "Matching = " << mvMatchInfos.size()<<" || MPs = "<<mpMatchingFrame2->GetInliers();
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(img1.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0,20), mnFontFace, mfFontScale, cv::Scalar::all(255));
 

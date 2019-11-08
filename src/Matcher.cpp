@@ -53,7 +53,7 @@ int UVR_SLAM::Matcher::FeatureMatchingForPoseTrackingByProjection(UVR_SLAM::Fram
 	//pWindow->mvMatchingInfo.clear();
 	//pWindow->SetVectorInlier(pWindow->LocalMapSize, false);
 
-	for (int i = 0; i < pWindow->LocalMapSize; i++) {
+	for (int i = 0; i < pWindow->GetLocalMapSize(); i++) {
 		UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint(i);
 		if (!pMP)
 			continue;
@@ -147,7 +147,7 @@ int UVR_SLAM::Matcher::FeatureMatchingForPoseTrackingByProjection(UVR_SLAM::Fram
 //포즈  찾을 때 초기 매칭
 int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::FrameWindow* pWindow, UVR_SLAM::Frame* pF) {
 	
-	std::vector<bool> vbTemp(pWindow->LocalMapSize, true);
+	std::vector<bool> vbTemp(pWindow->GetLocalMapSize(), true);
 	std::vector< std::vector<cv::DMatch> > matches;
 	matcher->knnMatch(pF->matDescriptor, pWindow->descLocalMap, matches, 2);
 

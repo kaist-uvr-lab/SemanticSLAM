@@ -9,6 +9,12 @@
 #include <SegmentationData.h>
 
 namespace UVR_SLAM {
+
+	const enum MapPointType {
+		NORMAL_MP,
+		PLANE_MP
+	};
+
 	class Frame;
 	class FrameWindow;
 	class MapPoint {
@@ -16,6 +22,7 @@ namespace UVR_SLAM {
 		//초기 포즈 만들 때는 double형으로 형변환
 		MapPoint();
 		MapPoint(cv::Mat _p3D, cv::Mat _desc);
+		MapPoint(cv::Mat _p3D, cv::Mat _desc, MapPointType ntype);
 		virtual ~MapPoint();
 	public:
 		void SetWorldPos(cv::Mat X);
@@ -32,9 +39,12 @@ namespace UVR_SLAM {
 
 		void SetObjectType(ObjectType nType);
 		ObjectType  GetObjectType();
+		MapPointType GetMapPointType();
 
 		void SetFrameWindowIndex(int nIdx);
 		int GetFrameWindowIndex();
+		void SetPlaneID(int nid);
+		int GetPlaneID();
 		int GetMapPointID();
 		std::map<Frame*, int> GetConnedtedFrames();
 		int GetNumConnectedFrames();
@@ -47,8 +57,11 @@ namespace UVR_SLAM {
 		int mnMatchingCount;
 
 	private:
+		std::mutex mMutexMP;
 		bool mbDelete;
 		int mnMapPointID;
+		int mnPlaneID;
+		MapPointType mnType;
 		ObjectType mObjectType;
 		int mnFrameWindowIndex;
 
@@ -57,7 +70,7 @@ namespace UVR_SLAM {
 		bool mbNewMP;
 		cv::Mat p3D;
 		int mnConnectedFrames;
-		std::mutex mMutexMP;
+		
 		cv::Mat desc;
 		std::map<UVR_SLAM::Frame*, int> mmpFrames;
 	};

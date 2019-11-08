@@ -282,7 +282,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 	}
 	
 	//Add map point
-	for (int i = 0; i < pWindow->LocalMapSize; i++) {
+	for (int i = 0; i < pWindow->GetLocalMapSize(); i++) {
 
 		UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint(i);
 		if (!pMP)
@@ -322,7 +322,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		mpOptimizer->AddVertex(mpFVertex);
 	}
 
-	for (int i = 0; i < pWindow->LocalMapSize; i++) {
+	for (int i = 0; i < pWindow->GetLocalMapSize(); i++) {
 
 		UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint(i);
 		if (!pMP)
@@ -426,8 +426,13 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		mvpFrames[i]->SetPose(mvpFrameVertices[i]->Rmat, mvpFrameVertices[i]->Tmat);
 	}
 	for (int i = 0; i <  mvpMPs.size(); i++) {
-		if (mvpMPs[i]->GetNumConnectedFrames() < 3 || (mvpMPs[i]->isNewMP() && mvpMPs[i]->GetNumConnectedFrames() < 2))
-		{
+		int nConnectedThresh = 3;
+		if (mvpMPs[i]->GetMapPointType() == UVR_SLAM::MapPointType::PLANE_MP)
+			nConnectedThresh = 1;
+		else if (mvpMPs[i]->isNewMP())
+			nConnectedThresh = 2;
+		if (mvpMPs[i]->GetNumConnectedFrames() < nConnectedThresh) {
+
 			int idx = mvLocalMPIndex[i];
 			UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint(idx);
 			pMP->SetDelete(true);
@@ -436,6 +441,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 			pWindow->SetBoolInlier(false, idx);
 			continue;
 		}
+		
 		mvpMapPointVertices[i]->RestoreData();
 		mvpMPs[i]->SetWorldPos(mvpMapPointVertices[i]->Xw);
 		//std::cout <<"Connected MPs = "<< mvpMPs[i]->GetNumConnectedFrames() << std::endl;

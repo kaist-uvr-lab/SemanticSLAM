@@ -1,7 +1,7 @@
 #include <System.h>
 #include <FrameWindow.h>
 #include <Initializer.h>
-#include <IndoorLayoutEstimator.h>
+#include <SemanticSegmentator.h>
 #include <LocalMapper.h>
 #include <PlaneEstimator.h>
 #include <Visualizer.h>
@@ -108,17 +108,18 @@ void UVR_SLAM::System::Init() {
 	mptPlaneEstimator = new std::thread(&UVR_SLAM::PlaneEstimator::Run, mpPlaneEstimator);
 
 	//layout estimating thread
-	mpLayoutEstimator = new UVR_SLAM::IndoorLayoutEstimator(ip, port, mnWidth, mnHeight);
-	mpLayoutEstimator->SetSystem(this);
-	mpLayoutEstimator->SetFrameWindow(mpFrameWindow);
-	mptLayoutEstimator = new std::thread(&UVR_SLAM::IndoorLayoutEstimator::Run, mpLayoutEstimator);
+	mpSegmentator = new UVR_SLAM::SemanticSegmentator(ip, port, mnWidth, mnHeight);
+	mpSegmentator->SetSystem(this);
+	mpSegmentator->SetFrameWindow(mpFrameWindow);
+	mpSegmentator->SetPlaneEstimator(mpPlaneEstimator);
+	mptLayoutEstimator = new std::thread(&UVR_SLAM::SemanticSegmentator::Run, mpSegmentator);
 
 	//local mapping thread
 	mpLocalMapper = new UVR_SLAM::LocalMapper(mnWidth, mnHeight);
 	mpLocalMapper->SetFrameWindow(mpFrameWindow);
 	mpLocalMapper->SetMatcher(mpMatcher);
 	mpLocalMapper->SetPlaneEstimator(mpPlaneEstimator);
-	mpLocalMapper->SetLayoutEstimator(mpLayoutEstimator);
+	mpLocalMapper->SetLayoutEstimator(mpSegmentator);
 	mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);
 
 	//loop closing thread
@@ -137,8 +138,9 @@ void UVR_SLAM::System::Init() {
 
 	
 	//set visualizer
+	mpTracker->SetSegmentator(mpSegmentator);
 	mpTracker->SetVisualizer(mpVisualizer);
-
+	mpPlaneEstimator->SetInitializer(mpInitializer);
 	
 }
 

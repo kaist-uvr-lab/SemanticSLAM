@@ -37,9 +37,11 @@ namespace UVR_SLAM {
 		void GetPose(cv::Mat &_R, cv::Mat& _t);
 		cv::Mat GetRotation();
 		cv::Mat GetTranslation();
-		bool CalcFrameDistanceWithBOW(UVR_SLAM::Frame* pF);
-		UVR_SLAM::MapPoint* GetMapPoint(int idx);
+		bool CalcFrameDistanceWithBOW(Frame* pF);
+		MapPoint* GetMapPoint(int idx);
+		void AddMapPoint(MapPoint* pMP);
 		void SetMapPoint(MapPoint* pMP, int idx);
+		int GetLocalMapSize();
 		void SetBoolInlier(bool b,int idx);
 		bool GetBoolInlier(int idx);
 		void SetVectorInlier(int size, bool b);
@@ -50,33 +52,35 @@ namespace UVR_SLAM {
 
 		void SetLastSemanticFrameIndex();
 		int GetLastSemanticFrameIndex();
+
 		//void AddFrame(UVR_SLAM::Frame* pFrame);
 		//void RemoveFrame(UVR_SLAM::Frame* pFrame);
 	public:
-		int LocalMapSize;
+		
 		//std::vector<cv::DMatch> mvMatchingInfo;
 		//std::vector<
-		std::vector<std::pair<cv::DMatch, bool>> mvPairMatchingInfo;
+		std::vector<std::pair<cv::DMatch, bool>> mvPairMatchingInfo; //타겟 프레임과 로컬 맵 사이의 매칭 정보를 기록.
+		std::vector<cv::DMatch> mvMatchInfos; //create mp시 두 프레임 사이의 매칭 정보를 기록. query가 최근 키프레임, train이 이전 키프레임
 		cv::Mat descLocalMap;
 	private:
 		
 	private:
-
+		int LocalMapSize;
 		int mnFrameCount;
 		std::mutex mMutexFrameCount;
 		int mnLastSemanticFrame; 
-		
+		int mnLastLayoutFrame; //윈도우 내에서 마지막 레이아웃 프레임의 인덱스를 나타냄. 아직 사용 안함.
+
 		System* mpSystem;
 		std::mutex mMutexPose;
 		std::mutex mMutexDeque;
 		std::mutex mMutexLocaMPs;
-		std::mutex mMutexBoolInliers;
+		
 		cv::Mat R, t;
 		int mnWindowSize;
 		std::deque<Frame*> mpDeque;
 
-
-
+		
 		std::vector<UVR_SLAM::MapPoint*> mvpLocalMPs;
 		std::set<UVR_SLAM::MapPoint*>    mspLocalMPs; //local map을 구성할 때 이용
 		std::vector<bool> mvbLocalMPInliers;

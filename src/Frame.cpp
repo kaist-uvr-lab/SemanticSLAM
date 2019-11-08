@@ -48,15 +48,17 @@ void UVR_SLAM::Frame::SetFrameType(int n) {
 	mnType = n;
 }
 
-int UVR_SLAM::Frame::GetFrameType() {
-	//0 : 단순 트래킹
-	//1 : 초기화 이용
-	//2 : 키프레임
-	return mnType;
-}
-
 void UVR_SLAM::Frame::SetFrameID() {
 	mnFrameID = ++nFrameID;
+}
+
+void UVR_SLAM::Frame::SetInliers(int nInliers){
+	std::unique_lock<std::mutex>(mMutexFrame);
+	mnInliers = nInliers;
+}
+int UVR_SLAM::Frame::GetInliers() {
+	std::unique_lock<std::mutex>(mMutexFrame);
+	return mnInliers;
 }
 
 void UVR_SLAM::Frame::close() {
@@ -140,15 +142,15 @@ bool CheckKeyPointOverlap(cv::Mat& overlap, cv::Point2f pt) {
 /////////////////////////////////
 
 int UVR_SLAM::Frame::GetFrameID() {
-	std::unique_lock<std::mutex> lockMP(mMutexID);
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	return mnFrameID;
 }
 cv::Mat UVR_SLAM::Frame::GetFrame() {
-	std::unique_lock<std::mutex> lockMP(mMutexImage);
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	return matFrame.clone();
 }
 cv::Mat UVR_SLAM::Frame::GetOriginalImage() {
-	std::unique_lock<std::mutex> lockMP(mMutexImage);
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	return matOri.clone();
 }
 
@@ -164,44 +166,44 @@ void UVR_SLAM::Frame::RemoveMP(int idx) {
 }
 
 void UVR_SLAM::Frame::SetObjectType(UVR_SLAM::ObjectType type, int idx){
-	std::unique_lock<std::mutex> lockMP(mMutexObjectTypes);
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	mvObjectTypes[idx] = type;
 }
 UVR_SLAM::ObjectType UVR_SLAM::Frame::GetObjectType(int idx){
-	std::unique_lock<std::mutex> lockMP(mMutexObjectTypes);
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	return mvObjectTypes[idx];
 }
 
 UVR_SLAM::MapPoint* UVR_SLAM::Frame::GetMapPoint(int idx) {
-	std::unique_lock<std::mutex> lockMP(mMutexMPs);
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	return mvpMPs[idx];
 }
 void UVR_SLAM::Frame::SetMapPoint(UVR_SLAM::MapPoint* pMP, int idx) {
-	std::unique_lock<std::mutex> lockMP(mMutexMPs);
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	mvpMPs[idx] = pMP;
 }
 bool UVR_SLAM::Frame::GetBoolInlier(int idx) {
-	std::unique_lock<std::mutex> lockMP(mMutexBoolInliers);
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	return mvbMPInliers[idx];
 }
 void UVR_SLAM::Frame::SetBoolInlier(bool flag, int idx) {
-	std::unique_lock<std::mutex> lockMP(mMutexBoolInliers);
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	mvbMPInliers[idx] = flag;
 }
 void UVR_SLAM::Frame::Increase(){
-	std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	mnInliers++;
 }
 void UVR_SLAM::Frame::Decrease(){
-	std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	mnInliers--;
 }
 int UVR_SLAM::Frame::GetNumInliers() {
-	std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	return mnInliers;
 }
 
-unsigned char UVR_SLAM::Frame::GetType() {
+unsigned char UVR_SLAM::Frame::GetFrameType() {
 	std::unique_lock<std::mutex>(mMutexType);
 	return mnType;
 }
@@ -215,7 +217,7 @@ void UVR_SLAM::Frame::TurnOffFlag(unsigned char opt){
 	mnType &= ~opt;
 }
 
-bool UVR_SLAM::Frame::CheckType(unsigned char opt) {
+bool UVR_SLAM::Frame::CheckFrameType(unsigned char opt) {
 	std::unique_lock<std::mutex>(mMutexType);
 	unsigned char flag = mnType & opt;
 	//std::cout << "flag=" <<(int)flag <<", "<<(int)mnType<< std::endl<<std::endl<<std::endl<<std::endl;
@@ -270,7 +272,7 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(float& fMedianDepth)
 	return true;
 }
 cv::Mat UVR_SLAM::Frame::GetCameraCenter() {
-	std::unique_lock<std::mutex> lockMP(mMutexPose);
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	return -R.t()*t;
 }
 /////////////////////////////////

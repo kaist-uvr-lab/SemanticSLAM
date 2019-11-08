@@ -117,7 +117,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
 			
 			mpFrameWindow->SetPose(vCandidates[resIDX]->R, vCandidates[resIDX]->t);
 			mpFrameWindow->SetLocalMap();
-			mpFrameWindow->SetVectorInlier(mpFrameWindow->LocalMapSize, false);
+			mpFrameWindow->SetVectorInlier(mpFrameWindow->GetLocalMapSize(), false);
 
 			mbInit = true;
 

@@ -6,16 +6,34 @@
 static int nMapPointID = 0;
 
 UVR_SLAM::MapPoint::MapPoint()
-	:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisibleCount(0), mnMatchingCount(0), mnConnectedFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE)
+	:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisibleCount(0), mnMatchingCount(0), mnConnectedFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
 {}
 UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, cv::Mat _desc)
-:p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisibleCount(0), mnMatchingCount(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE)
+:p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisibleCount(0), mnMatchingCount(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
+{}
+UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, cv::Mat _desc, MapPointType ntype)
+	: p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisibleCount(0), mnMatchingCount(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
 {}
 UVR_SLAM::MapPoint::~MapPoint(){}
 
 int UVR_SLAM::MapPoint::GetMapPointID() {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	return mnMapPointID;
+}
+
+void UVR_SLAM::MapPoint::SetPlaneID(int nid) {
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
+	mnPlaneID = nid;
+}
+
+int UVR_SLAM::MapPoint::GetPlaneID() {
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
+	return mnPlaneID;
+}
+
+UVR_SLAM::MapPointType UVR_SLAM::MapPoint::GetMapPointType() {
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
+	return mnType;
 }
 
 cv::Mat UVR_SLAM::MapPoint::GetWorldPos() {

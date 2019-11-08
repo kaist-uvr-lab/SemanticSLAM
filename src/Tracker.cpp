@@ -4,6 +4,7 @@
 #include <Matcher.h>
 #include <Initializer.h>
 #include <LocalMapper.h>
+#include <SemanticSegmentator.h>
 #include <SegmentationData.h>
 #include <PlaneEstimator.h>
 #include <Visualizer.h>
@@ -23,6 +24,9 @@ void UVR_SLAM::Tracker::SetSystem(System* pSystem) {
 }
 void UVR_SLAM::Tracker::SetVisualizer(Visualizer* pVis) {
 	mpVisualizer = pVis;
+}
+void UVR_SLAM::Tracker::SetSegmentator(SemanticSegmentator* pSegmentator) {
+	mpSegmentator = pSegmentator;
 }
 void UVR_SLAM::Tracker::SetMatcher(UVR_SLAM::Matcher* pMatcher){	
 	mpMatcher = pMatcher;
@@ -47,7 +51,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mbFirstFrameAfterInit = mbInitializing;
 	}
 	else {
-		
+		std::unique_lock<std::mutex>(mpSystem->mMutexTracking);
 		////시맨틱 프레임과 매칭
 		//int nLastFrameIndex = mpFrameWindow->GetLastSemanticFrameIndex();
 		//if (nLastFrameIndex >= 0) {
@@ -57,7 +61,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			
 		//FeatureMatchingWithSemanticFrames
 		mpFrameWindow->mvPairMatchingInfo.clear();
-		mpFrameWindow->SetVectorInlier(mpFrameWindow->LocalMapSize, false);
+		mpFrameWindow->SetVectorInlier(mpFrameWindow->GetLocalMapSize(), false);
 
 		//mpMatcher->FeatureMatchingForInitialPoseTracking(mpFrameWindow, pFrame);
 		std::vector<cv::DMatch> vMatchInfos;
@@ -70,8 +74,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 		//visible
 		CalcVisibleCount(pCurr);
-		int nMatching =  Optimization::PoseOptimization(mpFrameWindow, pCurr, false,10,2);
-
+		int nMatching =  Optimization::PoseOptimization(mpFrameWindow, pCurr, false,4,5);
+		pCurr->SetInliers(nMatching);
 
 		//슬램 초기화 최종 판단
 		if (mbFirstFrameAfterInit) {
@@ -86,6 +90,14 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			else {
 				mpSystem->SetBoolInit(true);
 				mbInitilized = true;
+
+				if (!mpSegmentator->isDoingProcess()) {
+					UVR_SLAM::Frame* pFirst = mpFrameWindow->GetFrame(0);
+					pFirst->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
+					mpSegmentator->SetBoolDoingProcess(true);
+					mpSegmentator->SetTargetFrame(pFirst);
+				}
+
 			}
 		}
 
@@ -103,7 +115,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		}
 		else {
 			if (!mpPlaneEstimator->isDoingProcess()) {
-				mpPlaneEstimator->SetBoolDoingProcess(true, 2);
+				mpPlaneEstimator->SetBoolDoingProcess(true, 1);
 				mpPlaneEstimator->SetTargetFrame(pCurr);
 			}
 		}
@@ -115,42 +127,48 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		vis.convertTo(vis, CV_8UC3);
 
 		for (int i = 0; i < pCurr->mvKeyPoints.size(); i++) {
-			if (!pCurr->GetBoolInlier(i))
-				continue;
 			UVR_SLAM::MapPoint* pMP = pCurr->GetMapPoint(i);
-			cv::circle(vis, pCurr->mvKeyPoints[i].pt, 1, cv::Scalar(255, 0, 255), -1);
-			if (pMP) {
-				if (pMP->isDeleted()){
-					pCurr->SetBoolInlier(false, i);
-					continue;
-				}
-				cv::Point2f p2D;
-				cv::Mat pCam;
-				pMP->Projection(p2D, pCam, pCurr->GetRotation(), pCurr->GetTranslation(), mK, mnWidth, mnHeight);
+			if (!pMP)
+				continue;
+			if (pMP->isDeleted()) {
+				pCurr->SetBoolInlier(false, i);
+				continue;
+			}
+			cv::Point2f p2D;
+			cv::Mat pCam;
+			pMP->Projection(p2D, pCam, pCurr->GetRotation(), pCurr->GetTranslation(), mK, mnWidth, mnHeight);
+
+			if (!pCurr->GetBoolInlier(i)){
+				//if (pMP->GetPlaneID() > 0) {
+				//	//circle(vis, p2D, 4, cv::Scalar(255, 0, 255), 2);
+				//}
+			}
+			else {
+				cv::circle(vis, pCurr->mvKeyPoints[i].pt, 1, cv::Scalar(255, 0, 255), -1);
 				UVR_SLAM::ObjectType type = pMP->GetObjectType();
 				cv::line(vis, p2D, pCurr->mvKeyPoints[i].pt, cv::Scalar(255, 255, 0), 1);
 				if (type != OBJECT_NONE)
 					circle(vis, p2D, 3, UVR_SLAM::ObjectColors::mvObjectLabelColors[type], -1);
-				
+				if (pMP->GetPlaneID() > 0) {
+					circle(vis, p2D, 4, cv::Scalar(255, 0, 255), -1);
+				}
 			}
-			
 		}
 		cv::imshow("Output::Tracking", vis);
+		//std::stringstream ss;
+		//ss << "../../bin/segmentation/res/img/img_" << pCurr->GetFrameID() << ".jpg";
+		//cv::imwrite(ss.str(), vis);
+		cv::imwrite("../../bin/segmentation/res/tracking.jpg", vis);
 
-		//시각화
-		cv::Mat vis2 = pCurr->GetOriginalImage();
-		for (int i = 0; i < pCurr->mvKeyPoints.size(); i++) {
-			UVR_SLAM::ObjectType type = pCurr->GetObjectType(i);
-			if (type != OBJECT_NONE)
-				circle(vis2, pCurr->mvKeyPoints[i].pt, 2, ObjectColors::mvObjectLabelColors[type], -1);
-		}
-		cv::imshow("Output::Matching::SemanticFrame", vis2);
-
-		std::stringstream ss;
-		ss << "../../bin/segmentation/res/img/img_" << pCurr->GetFrameID() << ".jpg";
-		cv::imwrite(ss.str(), vis);
-		cv::imwrite("../../bin/segmentation/res/labeling.jpg", vis2);
-
+		////시각화
+		//cv::Mat vis2 = pCurr->GetOriginalImage();
+		//for (int i = 0; i < pCurr->mvKeyPoints.size(); i++) {
+		//	UVR_SLAM::ObjectType type = pCurr->GetObjectType(i);
+		//	if (type != OBJECT_NONE)
+		//		circle(vis2, pCurr->mvKeyPoints[i].pt, 2, ObjectColors::mvObjectLabelColors[type], -1);
+		//}
+		//cv::imshow("Output::Matching::SemanticFrame", vis2);
+		//cv::imwrite("../../bin/segmentation/res/labeling.jpg", vis2);
 		cv::waitKey(1);
 
 		if (!mpVisualizer->isDoingProcess()) {
