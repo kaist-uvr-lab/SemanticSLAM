@@ -65,7 +65,7 @@ int UVR_SLAM::Matcher::FeatureMatchingForPoseTrackingByProjection(UVR_SLAM::Fram
 
 		cv::Mat pCam;
 		cv::Point2f p2D;
-		bool bProjection = pMP->Projection(p2D, pCam, pWindow->GetRotation(), pWindow->GetTranslation(), pF->mK, mWidth, mHeight);
+		bool bProjection = pMP->Projection(p2D, pCam, pF->GetRotation(), pF->GetTranslation(), pF->mK, mWidth, mHeight);
 		if (!bProjection)
 			continue;
 		//if (!pMP->Projection(p2D, pCam, pF->GetRotation(), pF->GetTranslation(), pF->mK, mWidth, mHeight))

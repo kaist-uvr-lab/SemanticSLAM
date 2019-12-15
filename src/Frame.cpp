@@ -136,7 +136,7 @@ bool CheckKeyPointOverlap(cv::Mat& overlap, cv::Point2f pt) {
 	if (overlap.at<uchar>(pt) > 0) {
 		return false;
 	}
-	circle(overlap, pt, 2, cv::Scalar(255), -1);
+	circle(overlap, pt, 3, cv::Scalar(255), -1);
 	return true;
 }
 /////////////////////////////////
@@ -291,7 +291,7 @@ double UVR_SLAM::Frame::Score(UVR_SLAM::Frame* pF) {
 ///////////////////////////////
 void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 {
-
+	//imshow("aaaaa", matFrame);
 	mpORBextractor = _e;
 	mnScaleLevels = mpORBextractor->GetLevels();
 	mfScaleFactor = mpORBextractor->GetScaleFactor();
@@ -346,7 +346,7 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	AssignFeaturesToGrid();
 
 	//임시로 키포인트 복사
-	mvKeyPoints = mvKeyPointsUn;
+	//mvKeyPoints = mvKeyPointsUn;
 	//mvpMPs 초기화
 	cv::undistort(matOri, undistorted, mK, mDistCoef);
 	mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
@@ -438,7 +438,7 @@ void UVR_SLAM::Frame::AssignFeaturesToGrid()
 
 	for (int i = 0; i<N; i++)
 	{
-		const cv::KeyPoint &kp = mvKeyPointsUn[i];
+		const cv::KeyPoint &kp = mvKeyPoints[i];
 
 		int nGridPosX, nGridPosY;
 		if (PosInGrid(kp, nGridPosX, nGridPosY))

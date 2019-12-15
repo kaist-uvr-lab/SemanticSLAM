@@ -104,7 +104,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
 				if (vCandidates[resIDX]->vbTriangulated[i]) {
 					int idx1 = resMatches[i].queryIdx;
 					int idx2 = resMatches[i].trainIdx;
-					UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(vCandidates[resIDX]->mvX3Ds[i]* invMedianDepth, mpInitFrame2->matDescriptor.row(idx2));
+					UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(vCandidates[resIDX]->mvX3Ds[i]* invMedianDepth, mpInitFrame1, idx1, mpInitFrame2->matDescriptor.row(idx2));
 					pNewMP->AddFrame(mpInitFrame1, idx1);
 					pNewMP->AddFrame(mpInitFrame2, idx2);
 				}
@@ -118,16 +118,22 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
 			mpFrameWindow->SetPose(vCandidates[resIDX]->R, vCandidates[resIDX]->t);
 			mpFrameWindow->SetLocalMap();
 			mpFrameWindow->SetVectorInlier(mpFrameWindow->GetLocalMapSize(), false);
-
+			mvMatchInfos = std::vector<cv::DMatch>(resMatches.begin(), resMatches.end());
+			mpInitData = vCandidates[resIDX];
 			mbInit = true;
 
 			if (mbInit) {
+
+				cv::Mat tempMatches = cv::Mat::ones(mpInitFrame2->mvKeyPoints.size(), 1, CV_16SC1)*-1;
+
 				for (int i = 0; i < vCandidates[resIDX]->vbTriangulated.size(); i++) {
-					if (!vCandidates[resIDX]->vbTriangulated[i])
-						continue;
 					int idx1 = resMatches[i].queryIdx;
 					int idx2 = resMatches[i].trainIdx;
-
+					tempMatches.at<short>(idx2) = idx1;
+					if (!vCandidates[resIDX]->vbTriangulated[i]){
+						continue;
+					}
+					
 					UVR_SLAM::MapPoint* pMP = mpInitFrame1->GetMapPoint(idx1);
 					cv::Mat pCam1;
 					cv::Point2f p2D1;
@@ -143,7 +149,10 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
 					/*imshow("Initialization::Results::Frame::1", vis1);
 					imshow("Initialization::Results::Frame::2", vis2);
 					cv::waitKey(0);*/
+
+					
 				}
+				mpFrameWindow->mpDequeMatchingInfos.push_back(tempMatches.clone());
 			}
 		}
 

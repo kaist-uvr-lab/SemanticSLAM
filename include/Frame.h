@@ -70,6 +70,7 @@ namespace UVR_SLAM {
 		int GetInliers();
 	public:
 		
+		std::vector<cv::DMatch> mvMatchingInfoWithPrevKF;
 		std::vector<bool> mvbMPInliers;
 		std::vector<cv::KeyPoint> mvKeyPoints, mvKeyPointsUn, mvkInliers, mvTempKPs;
 		cv::Mat matDescriptor;

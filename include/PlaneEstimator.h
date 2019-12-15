@@ -16,6 +16,9 @@ namespace UVR_SLAM {
 	class MapPoint;
 	class PlaneInformation {
 	public:
+		PlaneInformation() :bInit(false) { }
+		virtual ~PlaneInformation(){}
+		bool bInit;
 		cv::Mat matPlaneParam;
 		int mnPlaneID;
 		ObjectType mnPlaneType; //바닥, 벽, 천장
@@ -35,9 +38,14 @@ namespace UVR_SLAM {
 		void SetBoolDoingProcess(bool b, int ptype);
 		bool isDoingProcess();
 	private:
+		double calcPlaneDistance(cv::Mat P, cv::Mat X);
+		float calcCosineSimilarity(cv::Mat p1, cv::Mat p2);
 		bool calcUnitNormalVector(cv::Mat& X);
 		void reversePlaneSign(cv::Mat& param);
+		//바닥 평면 찾을 때
 		bool PlaneInitialization(PlaneInformation* pPlane, std::set<MapPoint*> spMPs, int ransac_trial, float thresh_distance, float thresh_ratio);
+		//바닥 평면을 기준으로 벽, 천장 평면을 찾을 때
+		bool PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, cv::Mat GroundPlane, int type, std::set<UVR_SLAM::MapPoint*> spMPs, int ransac_trial, float thresh_distance, float thresh_ratio);
 		cv::Mat FlukerLineProjection(cv::Mat P1, cv::Mat P2, cv::Mat R, cv::Mat t, float& m);
 	private:
 

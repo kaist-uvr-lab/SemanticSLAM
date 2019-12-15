@@ -68,13 +68,13 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		int nInitMatching = mpMatcher->FeatureMatchingForInitialPoseTracking(pPrev, pCurr, mpFrameWindow, vMatchInfos);
 		//std::cout << "Matching Init : " << nInitMatching << std::endl;
 
-		Optimization::PoseOptimization(mpFrameWindow, pCurr, false,4,5);
+		Optimization::PoseOptimization(mpFrameWindow, pCurr, false,4,6);
 		int nProjection = mpMatcher->FeatureMatchingForPoseTrackingByProjection(mpFrameWindow, pCurr,10.0);
 		//std::cout << "Matching projection : " << nProjection << std::endl;
 
 		//visible
 		CalcVisibleCount(pCurr);
-		int nMatching =  Optimization::PoseOptimization(mpFrameWindow, pCurr, false,4,5);
+		int nMatching =  Optimization::PoseOptimization(mpFrameWindow, pCurr, false,4,11);
 		pCurr->SetInliers(nMatching);
 
 		//슬램 초기화 최종 판단
@@ -92,10 +92,10 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				mbInitilized = true;
 
 				if (!mpSegmentator->isDoingProcess()) {
+					//mpSegmentator->SetBoolDoingProcess(true);
 					UVR_SLAM::Frame* pFirst = mpFrameWindow->GetFrame(0);
 					pFirst->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
-					mpSegmentator->SetBoolDoingProcess(true);
-					mpSegmentator->SetTargetFrame(pFirst);
+					//mpSegmentator->SetTargetFrame(pFirst);
 				}
 
 			}
@@ -107,17 +107,17 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 
 		bool bBow =  mpFrameWindow->CalcFrameDistanceWithBOW(pCurr);
-		if (mpFrameWindow->GetFrameCount() > 10 &&(nMatching < 50 || bBow)) {
+		if (mpFrameWindow->GetFrameCount() > 5 &&(nMatching < 80 || bBow)) {
 			if (!mpLocalMapper->isDoingProcess()) {
 				mpLocalMapper->SetBoolDoingProcess(true);
 				mpLocalMapper->SetTargetFrame(pCurr);
 			}
 		}
 		else {
-			if (!mpPlaneEstimator->isDoingProcess()) {
+			/*if (!mpPlaneEstimator->isDoingProcess()) {
 				mpPlaneEstimator->SetBoolDoingProcess(true, 1);
 				mpPlaneEstimator->SetTargetFrame(pCurr);
-			}
+			}*/
 		}
 
 		//일단 테스트

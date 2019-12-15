@@ -17,7 +17,7 @@
 
 class JSONConverter {
 public:
-	static void Init();
+	static void Init(std::string ip, int port);
 	static std::string ConvertImageToJSONStr(int nFrameID,cv::Mat img) {
 		/*
 		auto reqJsonData = R"(
@@ -55,6 +55,7 @@ public:
 	static bool RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& dst, int mnFrameID);
 public:
 	const static char* headers[];
+	static happyhttp::Connection* mpConnection;
 private:
 };
 

@@ -35,6 +35,8 @@ namespace UVR_SLAM {
 		bool CheckCreatedPoints(cv::Mat X3D, cv::Point2f kp1, cv::Point2f kp2, cv::Mat O1, cv::Mat O2, cv::Mat R1, cv::Mat t1, cv::Mat R2, cv::Mat t2, float& cosParallax, float th2);
 	public:
 		Frame* mpInitFrame1, *mpInitFrame2;
+		std::vector<cv::DMatch> mvMatchInfos;
+		InitialData* mpInitData;
 	private:
 		FrameWindow* mpFrameWindow;
 		bool mbInit;

@@ -152,7 +152,6 @@ namespace UVR_SLAM {
 		//이 vertex에서만 이용 하는 것.
 		void SetParam();
 		void RestoreData();
-		void UpdateParam();
 		void* GetPointer();
 	public:
 

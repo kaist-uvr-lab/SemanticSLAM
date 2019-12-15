@@ -24,7 +24,7 @@ UVR_SLAM::SemanticSegmentator::~SemanticSegmentator(){}
 
 void UVR_SLAM::SemanticSegmentator::Run() {
 
-	JSONConverter::Init();
+	JSONConverter::Init(ip, port);
 
 	while (1) {
 
@@ -32,30 +32,29 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			std::cout << "SemanticSegmentator::RUN::Start" << std::endl;
 
 			//semantic frame index
-			int nLastFrameIndex = mpFrameWindow->GetLastSemanticFrameIndex();
-			mpFrameWindow->SetLastSemanticFrameIndex();
-			int nCurrFrameIndex = mpFrameWindow->GetLastSemanticFrameIndex();
+			//int nLastFrameIndex = mpFrameWindow->GetLastSemanticFrameIndex();
+			//mpFrameWindow->SetLastSemanticFrameIndex();
+			//int nCurrFrameIndex = mpFrameWindow->GetLastSemanticFrameIndex();
 
-			UVR_SLAM::Frame* prevSemanticFrame;
-			/*if (nLastFrameIndex >= 0) {
-				prevSemanticFrame = mpFrameWindow->GetFrame(nLastFrameIndex);
-				auto pType = prevSemanticFrame->GetType();
-				std::cout << "type test = " << "::" << (int)pType << std::endl << std::endl << std::endl;
-			}*/
-			std::cout << "SemanticFrame::Last=" << nLastFrameIndex << "|| Curr=" << nCurrFrameIndex << std::endl;
+			//UVR_SLAM::Frame* prevSemanticFrame;
+			//std::cout << "SemanticFrame::Last=" << nLastFrameIndex << "|| Curr=" << nCurrFrameIndex << std::endl;
 
 			cv::Mat colorimg, segmented;
 			cvtColor(mpTargetFrame->GetOriginalImage(), colorimg, CV_RGBA2BGR);
 			colorimg.convertTo(colorimg, CV_8UC3);
-			JSONConverter::RequestPOST(ip, port, colorimg, segmented, mpTargetFrame->GetFrameID());
+			std::cout << "SemanticSegmentator::RequestPOST::Start" << std::endl;
+			JSONConverter::RequestPOST(ip, port, colorimg, segmented, 0);
+			std::cout << "SemanticSegmentator::RequestPOST::End" << std::endl;
+			std::cout << mnWidth << ", " << mnHeight<<", "<< segmented.size() << std::endl;
 			cv::resize(segmented, segmented, cv::Size(mnWidth, mnHeight));
 			SetSegmentationMask(segmented);
+			std::cout << "SemanticSegmentator::ObjectLabeling::Start" << std::endl;
 			ObjectLabeling();
-
+			std::cout << "SemanticSegmentator::ObjectLabeling::End" << std::endl;
 			//PlaneEstimator
 			if (!mpPlaneEstimator->isDoingProcess()) {
-				mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
 				mpPlaneEstimator->SetBoolDoingProcess(true, 3);
+				mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
 				mpPlaneEstimator->SetTargetFrame(mpTargetFrame);
 			}
 			else {
@@ -102,9 +101,8 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			imwrite(ss.str(), test);*/
 			//cv::imwrite("../../bin/segmentation/res/label_kp.jpg", test);
 			cv::waitKey(10);
-
-			SetBoolDoingProcess(false);
 			std::cout << "SemanticSegmentator::RUN::End" << std::endl;
+			SetBoolDoingProcess(false);
 		}
 	}
 }
@@ -173,6 +171,7 @@ void UVR_SLAM::SemanticSegmentator::SetSegmentationMask(cv::Mat segmented) {
 		}
 	}
 }
+
 
 
 

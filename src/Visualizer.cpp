@@ -161,7 +161,7 @@ void UVR_SLAM::Visualizer::Run() {
 
 			//trajectory
 			auto mvpWindowFrames = mpFrameWindow->GetAllFrames();
-			for (int i = 0; i < mvpWindowFrames.size() - 1; i++) {
+			for (int i = 0; i < mvpWindowFrames.size()-1; i++) {
 				cv::Mat t2 = mvpWindowFrames[i + 1]->GetTranslation();
 				cv::Mat t1 = mvpWindowFrames[i]->GetTranslation();
 				cv::Point2f pt1 = cv::Point2f(t1.at<float>(0)* mnVisScale, t1.at<float>(2)* mnVisScale);
@@ -169,6 +169,21 @@ void UVR_SLAM::Visualizer::Run() {
 				pt1 += mVisMidPt;
 				pt2 += mVisMidPt;
 				cv::line(tempVis, pt1, pt2, cv::Scalar(0, 0, 0), 2);
+			}
+
+			int nSkipF = 3;
+			int nGF = mpFrameWindow->GetQueueSize();
+			if(nGF> nSkipF){
+				auto mvpWindowGraphFrames = mpFrameWindow->GetAllGraphFrames();
+				for (int i = 0; i < mvpWindowGraphFrames.size()- nSkipF; i+= nSkipF) {
+					cv::Mat t2 = mvpWindowGraphFrames[i + nSkipF]->GetTranslation();
+					cv::Mat t1 = mvpWindowGraphFrames[i]->GetTranslation();
+					cv::Point2f pt1 = cv::Point2f(t1.at<float>(0)* mnVisScale, t1.at<float>(2)* mnVisScale);
+					cv::Point2f pt2 = cv::Point2f(t2.at<float>(0)* mnVisScale, t2.at<float>(2)* mnVisScale);
+					pt1 += mVisMidPt;
+					pt2 += mVisMidPt;
+					cv::line(tempVis, pt1, pt2, cv::Scalar(0, 0, 0), 1);
+				}
 			}
 			
 			cv::imshow("Output::Trajectory", tempVis);
@@ -270,7 +285,7 @@ void UVR_SLAM::Visualizer::VisualizeFrameMatching() {
 			cv::line(debugging, mpMatchingFrame1->mvKeyPoints[mvMatchInfos[i].queryIdx].pt, mpMatchingFrame2->mvKeyPoints[mvMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 255, 0));
 	}
 	std::stringstream ss;
-	ss <<"FID = "<< mpMatchingFrame2->GetFrameID()<<", KID = "<<nLastKFrameIdx<<", SID = "<<nLastSFrameIdx<<" ||"<< "Matching = " << mvMatchInfos.size()<<" || MPs = "<<mpMatchingFrame2->GetInliers();
+	ss <<"Local MPs "<<mpFrameWindow->GetLocalMapSize()<<" FID = "<< mpMatchingFrame2->GetFrameID()<<", "<<nLastKFrameIdx<<", "<<nLastSFrameIdx<<" ||"<< "Matching = " << mvMatchInfos.size()<<" || MPs = "<<mpMatchingFrame2->GetInliers();
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(img1.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0,20), mnFontFace, mfFontScale, cv::Scalar::all(255));
 

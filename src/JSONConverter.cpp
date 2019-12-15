@@ -43,6 +43,7 @@ const char* JSONConverter::headers[] = {
 	"Accept", "text/plain",
 	0
 };
+happyhttp::Connection* JSONConverter::mpConnection;
 
 int count = 0;
 std::stringstream ss;
@@ -64,21 +65,21 @@ void OnData(const happyhttp::Response* r, void* userdata, const unsigned char* d
 void OnComplete(const happyhttp::Response* r, void* userdata)
 {
 	res = JSONConverter::ConvertStringToImage(ss.str().c_str(), count);
-	//printf("COMPLETE (%d bytes)\n", count);
 }
 
 
-void JSONConverter::Init() {
+void JSONConverter::Init(std::string ip, int port) {
 	//WINSOCK for RESTAPI
 	WSAData wsaData;
 	int code = WSAStartup(MAKEWORD(1, 1), &wsaData);
-	
+	mpConnection = new happyhttp::Connection(ip.c_str(), port);
+	mpConnection->setcallbacks(OnBegin, OnData, OnComplete, 0);
+
 }
 
 bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& dst,int mnFrameID) {
 	
 	std::string strJSON = ConvertImageToJSONStr(mnFrameID, img);
-	
 	//rapidjson::Document document;
 	
 
@@ -93,9 +94,8 @@ bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& 
 	//}
 
 	
-	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
-
-	mpConnection->setcallbacks(OnBegin, OnData, OnComplete, 0);
+	//happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
+	//mpConnection->setcallbacks(OnBegin, OnData, OnComplete, 0);
 	
 	mpConnection->request("POST",
 		"/api/predict",
@@ -107,6 +107,7 @@ bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& 
 	while (mpConnection->outstanding())
 		mpConnection->pump();
 	
+	mpConnection->close();
 	dst = res.clone();
 	
 	return false;

@@ -21,6 +21,7 @@ namespace UVR_SLAM {
 		size_t size();
 		void clear();
 		std::vector<Frame*> GetAllFrames();
+		std::vector<Frame*> GetAllGraphFrames();
 		std::deque<Frame*>::iterator GetBeginIterator();
 		std::deque<Frame*>::iterator GetEndIterator();
 		bool isEmpty();
@@ -62,6 +63,7 @@ namespace UVR_SLAM {
 		std::vector<std::pair<cv::DMatch, bool>> mvPairMatchingInfo; //타겟 프레임과 로컬 맵 사이의 매칭 정보를 기록.
 		std::vector<cv::DMatch> mvMatchInfos; //create mp시 두 프레임 사이의 매칭 정보를 기록. query가 최근 키프레임, train이 이전 키프레임
 		cv::Mat descLocalMap;
+		std::deque <cv::Mat> mpDequeMatchingInfos;
 	private:
 		
 	private:
@@ -79,6 +81,7 @@ namespace UVR_SLAM {
 		cv::Mat R, t;
 		int mnWindowSize;
 		std::deque<Frame*> mpDeque;
+		
 
 		
 		std::vector<UVR_SLAM::MapPoint*> mvpLocalMPs;
@@ -90,7 +93,7 @@ namespace UVR_SLAM {
 		int GetQueueSize();
 		Frame* GetQueueLastFrame();
 	private:
-		std::queue<Frame*> mpQueue; //Window에서 나온 프레임을 추가함. 포즈 그래프 옵티마이제이션에 이용. 나중에 별도의 클래스에 빼낼 것임.
+		std::deque<Frame*> mpQueue; //Window에서 나온 프레임을 추가함. 포즈 그래프 옵티마이제이션에 이용. 나중에 별도의 클래스에 빼낼 것임.
 		int mnQueueSize;
 	};
 }

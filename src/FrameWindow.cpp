@@ -38,9 +38,15 @@ std::vector<UVR_SLAM::Frame*> UVR_SLAM::FrameWindow::GetAllFrames() {
 	std::unique_lock<std::mutex>(mMutexDeque);
 	return std::vector<UVR_SLAM::Frame*>(mpDeque.begin(), mpDeque.end());
 }
+std::vector<UVR_SLAM::Frame*> UVR_SLAM::FrameWindow::GetAllGraphFrames() {
+	std::unique_lock<std::mutex>(mMutexDeque);
+	return std::vector<UVR_SLAM::Frame*>(mpQueue.begin(), mpQueue.end());
+}
 void UVR_SLAM::FrameWindow::clear() {
 	std::unique_lock<std::mutex>(mMutexDeque);
 	mpDeque.clear();
+	mpDequeMatchingInfos.clear();
+	mpQueue.clear();
 }
 
 bool UVR_SLAM::FrameWindow::isEmpty() {
@@ -57,10 +63,11 @@ void UVR_SLAM::FrameWindow::push_back(UVR_SLAM::Frame* pFrame) {
 	if (mpDeque.size() == mnWindowSize){
 		UVR_SLAM::Frame* pLast = mpDeque.back();
 		mpDeque.pop_front();
+		mpDequeMatchingInfos.pop_front();
 		mnLastSemanticFrame--;
 		mnLastLayoutFrame--;
 		//윈도우에서 벗어난 큐를 다른 곳에 넣는 과정
-		mpQueue.push(pLast);
+		mpQueue.push_back(pLast);
 		mnQueueSize++;
 	}
 	mpDeque.push_back(pFrame);
@@ -68,10 +75,12 @@ void UVR_SLAM::FrameWindow::push_back(UVR_SLAM::Frame* pFrame) {
 void UVR_SLAM::FrameWindow::pop_front() {
 	std::unique_lock<std::mutex>(mMutexDeque);
 	mpDeque.pop_front();
+	mpDequeMatchingInfos.pop_front();
 }
 void UVR_SLAM::FrameWindow::pop_back() {
 	std::unique_lock<std::mutex>(mMutexDeque);
 	mpDeque.pop_back();
+	mpDequeMatchingInfos.pop_back();
 }
 UVR_SLAM::Frame* UVR_SLAM::FrameWindow::front() {
 	std::unique_lock<std::mutex>(mMutexDeque);
@@ -189,6 +198,8 @@ void UVR_SLAM::FrameWindow::SetLocalMap() {
 		for (int i = 0; i < pF->mvKeyPoints.size(); i++) {
 			UVR_SLAM::MapPoint *pMP = pF->GetMapPoint(i);
 			if (!pMP)
+				continue;
+			if (pMP->isDeleted())
 				continue;
 			AddMapPoint(pMP);
 			/*auto findres = mspLocalMPs.find(pMP);

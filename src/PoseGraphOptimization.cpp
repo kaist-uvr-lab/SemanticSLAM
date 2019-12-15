@@ -167,9 +167,7 @@ void UVR_SLAM::MapPointVertex::RestoreData(){
 	cv::eigen2cv(param, Xw);
 	Xw.convertTo(Xw, CV_32FC1);
 }
-void UVR_SLAM::MapPointVertex::UpdateParam(){
-	param += d;
-}
+
 void* UVR_SLAM::MapPointVertex::GetPointer() {
 	return nullptr;
 }

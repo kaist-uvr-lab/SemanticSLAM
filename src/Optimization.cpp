@@ -7,6 +7,7 @@
 #include <Optimizer.h>
 //#include <PlaneBastedOptimization.h>
 #include <PoseGraphOptimization.h>
+#include <GroundPlaneInitialization.h>
 #include <MatrixOperator.h>
 
 int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR_SLAM::Frame* pF, bool bStatus, int trial1, int trial2) {
@@ -290,10 +291,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		if (pMP->isDeleted()){
 			continue;
 		}
-		/*MapPointVertex* mpVertex = new MapPointVertex(pMP->GetWorldPos(), i, nMapJacobianSize);
-		mpOptimizer->AddVertex(mpVertex, false);
-		mvpMapPointVertices.push_back(mpVertex);*/
-
+		
 		//fixed keyframe
 		auto mmpConnectedFrames = pMP->GetConnedtedFrames();
 		for (auto iter = mmpConnectedFrames.begin(); iter != mmpConnectedFrames.end(); iter++) {
@@ -302,14 +300,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 			if (findres == mmpFrames.end()) {
 				mmpFrames.insert(std::make_pair(pF, nFrame++));
 				mspFixedFrames.insert(pF);
-				nFixedFrames++;
-				/*auto findres2 = mspFixedVertices.find(pF);
-				if (findres2 == mspFixedVertices.end()) {
-				}
-				FrameVertex* mpFVertex = new FrameVertex(pF->GetRotation(), pF->GetTranslation(), nPoseJacobianSize);
-				mpFVertex->SetFixed(true);
-				mpOptimizer->AddVertex(mpFVertex);*/
-				
+				nFixedFrames++;		
 			}
 		}
 	}
@@ -393,7 +384,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		mpOptimizer->Optimize(trial2, 0, bShowStatus);
 		for (int i = 0; i < mvpEdges.size(); i++) {
 			EdgePoseNMap* pEdge = mvpEdges[i];
-			if (mvbEdges[i]) {
+			if (!mvbEdges[i]) {
 				mvpEdges[i]->CalcError();
 			}
 			double err = mvpEdges[i]->GetError();
@@ -411,6 +402,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		std::cout << "Update Parameter::Start" << std::endl;
 	//update parameter
 	//std::vector<
+	int nRemoveEdge = 0;
 	for (int i = 0; i < mvpEdges.size(); i++) {
 		
 		if (!mvbEdges[i]) {
@@ -419,12 +411,15 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 			UVR_SLAM::Frame* pF = std::get<1>(tempData);
 			int feature_idx = std::get<2>(tempData);
 			pMP->RemoveFrame(pF);
+			nRemoveEdge++;
 		}
 	}
+	std::cout << "BA::RemoveEdge::" << nRemoveEdge << std::endl;
 	for (int i = 0; i < mvpFrames.size(); i++) {
 		mvpFrameVertices[i]->RestoreData();
 		mvpFrames[i]->SetPose(mvpFrameVertices[i]->Rmat, mvpFrameVertices[i]->Tmat);
 	}
+	int nDelMPs = 0;
 	for (int i = 0; i <  mvpMPs.size(); i++) {
 		int nConnectedThresh = 3;
 		if (mvpMPs[i]->GetMapPointType() == UVR_SLAM::MapPointType::PLANE_MP)
@@ -439,6 +434,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 			pMP->Delete();
 			pWindow->SetMapPoint(nullptr, idx);
 			pWindow->SetBoolInlier(false, idx);
+			nDelMPs++;
 			continue;
 		}
 		
@@ -446,8 +442,137 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		mvpMPs[i]->SetWorldPos(mvpMapPointVertices[i]->Xw);
 		//std::cout <<"Connected MPs = "<< mvpMPs[i]->GetNumConnectedFrames() << std::endl;
 	}
+	std::cout << "BA::DeleteMP::" << nDelMPs << std::endl;
 	if (bShowStatus)
 		std::cout << "Update Parameter::End" << std::endl;
+}
+
+void UVR_SLAM::Optimization::GroundPlaneInitialize(UVR_SLAM::InitialData* data, std::vector<cv::DMatch> Matches, UVR_SLAM::Frame* pInitFrame1, UVR_SLAM::Frame* pInitFrame2, cv::Mat& P,cv::Mat K, int trial1, int trial2) {
+	cv::Mat mK;
+	K.convertTo(mK, CV_64FC1);
+	double fx = mK.at<double>(0, 0);
+	double fy = mK.at<double>(1, 1);
+
+	int nPlaneJacobianSize = 4;
+	int nResidualSize = 2;
+
+	GraphOptimizer::Optimizer* mpOptimizer = new GraphOptimizer::GNOptimizer(false);
+	PlaneInitVertex* mpVertex1 = new PlaneInitVertex(P, nPlaneJacobianSize);
+	mpOptimizer->AddVertex(mpVertex1);
+
+	const double deltaMono = sqrt(5.991);
+	const double chiMono = 5.991;
+
+	////Add MapPoints
+	//std::vector<MapPointVertex*> mvpMPVertices(0);
+	//for (int i = 0; i < <; i++) {
+	//	if (!data->vbTriangulated[i])
+	//		continue;
+	//	MapPointVertex* mpVertex = new MapPointVertex(data->mvX3Ds[i], i, nMapJacobianSize);
+	//	//std::cout << mpVertex->GetParam().rows() << std::endl;
+	//	mpOptimizer->AddVertex(mpVertex, false);
+	//	mvpMPVertices.push_back(mpVertex);
+	//}
+
+	//Add Edge
+	std::vector<PlaneInitEdge*> mvpEdges;
+	for (int i = 0; i < Matches.size(); i++) {
+
+		int qidx = Matches[i].queryIdx;
+
+		auto otype = pInitFrame1->GetObjectType(qidx);
+		if (otype != ObjectType::OBJECT_FLOOR)
+			continue;
+
+		int tidx = Matches[i].trainIdx;
+		cv::Point2f pt1 = pInitFrame1->mvKeyPoints[qidx].pt;
+		cv::Point2f pt2 = pInitFrame2->mvKeyPoints[tidx].pt;
+
+		cv::Mat Ximg = cv::Mat::ones(3, 1, CV_32FC1);
+		Ximg.at<float>(0) = pt1.x;
+		Ximg.at<float>(1) = pt1.y;
+		cv::Mat Xplane = K.inv()*Ximg;
+
+		UVR_SLAM::PlaneInitEdge* pEdge1 = new UVR_SLAM::PlaneInitEdge(Ximg,pInitFrame2->GetRotation(),pInitFrame2->GetTranslation(),nResidualSize);
+		Eigen::Vector2d temp = Eigen::Vector2d();
+		temp(0) = pt2.x;
+		temp(1) = pt2.y;
+		pEdge1->SetMeasurement(temp);
+		cv::cv2eigen(mK, pEdge1->K);
+
+		pEdge1->AddVertex(mpVertex1);
+		double info1 = 1.0;
+		pEdge1->SetInformation(cv::Mat::eye(nResidualSize, nResidualSize, CV_64FC1)*info1);
+
+		pEdge1->fx = fx;
+		pEdge1->fy = fy;
+
+		GraphOptimizer::RobustKernel* huber = new GraphOptimizer::HuberKernel();
+		huber->SetDelta(deltaMono);
+		pEdge1->mpRobustKernel = huber;
+
+		mpOptimizer->AddEdge(pEdge1);
+		mvpEdges.push_back(pEdge1);
+		
+	}
+	
+	for (int trial = 0; trial < trial1; trial++) {
+		mpOptimizer->Optimize(trial2, 0, true);
+		/*for (int i = 0; i < mvpEdges.size(); i++) {
+			std::cout << mvpEdges[i]->GetError() << std::endl;
+		}*/
+
+		/*
+		for (int i = 0; i < mvpMPVertices.size(); i++) {
+			int eidx1 = i * 2;
+			int eidx2 = eidx1 + 1;
+
+			int idx = mvpMPVertices[i]->GetIndex();
+			if (!data->vbTriangulated[idx]) {
+				mvpEdges[eidx1]->CalcError();
+				mvpEdges[eidx2]->CalcError();
+			}
+			double err1 = mvpEdges[eidx1]->GetError();
+			double err2 = mvpEdges[eidx2]->GetError();
+			if (err1 > chiMono || err2 > chiMono || !mvpEdges[eidx1]->GetDepth() || !mvpEdges[eidx2]->GetDepth()) {
+				data->vbTriangulated[idx] = false;
+				mvpEdges[eidx1]->SetLevel(1);
+				mvpEdges[eidx2]->SetLevel(1);
+			}
+			else {
+				data->vbTriangulated[idx] = true;
+				mvpEdges[eidx1]->SetLevel(0);
+				mvpEdges[eidx2]->SetLevel(0);
+			}
+		}
+		*/
+	}
+
+	//update
+	mpVertex1->RestoreData();
+	std::cout << "res = " << mpVertex1->matPlane << std::endl;
+
+	/*int nRes = 0;
+	data->SetRt(mpVertex2->Rmat, mpVertex2->Tmat);
+	for (int i = 0; i < mvpMPVertices.size(); i++) {
+		int idx = mvpMPVertices[i]->GetIndex();
+		if (data->vbTriangulated[idx]) {
+			nRes++;
+			mvpMPVertices[i]->RestoreData();
+			data->mvX3Ds[idx] = mvpMPVertices[i]->Xw.clone();
+		}
+	}
+	if (nRes > 79) {
+		bInit = true;
+	}
+	else {
+		bInit = false;
+	}
+
+	std::cout << mpVertex1->Rmat << mpVertex1->Tmat << std::endl;
+	std::cout << mpVertex2->Rmat << mpVertex2->Tmat << std::endl;
+
+	return nRes;*/
 }
 
 //double UVR_SLAM::Optimization::CalibrationGridPlaneTest(UVR_SLAM::Pose* pPose, std::vector<cv::Point2f> pts, std::vector<cv::Point3f> wPts, cv::Mat K, int mnWidth, int mnHeight) {

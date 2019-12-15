@@ -21,8 +21,8 @@ namespace UVR_SLAM {
 	public:
 		//초기 포즈 만들 때는 double형으로 형변환
 		MapPoint();
-		MapPoint(cv::Mat _p3D, cv::Mat _desc);
-		MapPoint(cv::Mat _p3D, cv::Mat _desc, MapPointType ntype);
+		MapPoint(cv::Mat _p3D, Frame* pTargetKF, int idx, cv::Mat _desc);
+		MapPoint(cv::Mat _p3D, Frame* pTargetKF, int idx, cv::Mat _desc, MapPointType ntype);
 		virtual ~MapPoint();
 	public:
 		void SetWorldPos(cv::Mat X);
@@ -55,7 +55,8 @@ namespace UVR_SLAM {
 	public:
 		int mnVisibleCount;
 		int mnMatchingCount;
-
+	private:
+		void Init(UVR_SLAM::Frame* pTargetKF, int idx);
 	private:
 		std::mutex mMutexMP;
 		bool mbDelete;
@@ -71,6 +72,9 @@ namespace UVR_SLAM {
 		cv::Mat p3D;
 		int mnConnectedFrames;
 		
+		float mfMinDistance;
+		float mfMaxDistance;
+
 		cv::Mat desc;
 		std::map<UVR_SLAM::Frame*, int> mmpFrames;
 	};

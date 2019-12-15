@@ -8,13 +8,27 @@ static int nMapPointID = 0;
 UVR_SLAM::MapPoint::MapPoint()
 	:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisibleCount(0), mnMatchingCount(0), mnConnectedFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
 {}
-UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, cv::Mat _desc)
+UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, UVR_SLAM::Frame* pTargetKF, int idx,cv::Mat _desc)
 :p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisibleCount(0), mnMatchingCount(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
-{}
-UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, cv::Mat _desc, MapPointType ntype)
+{
+	Init(pTargetKF, idx);
+}
+UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, Frame* pTargetKF, int idx, cv::Mat _desc, MapPointType ntype)
 	: p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisibleCount(0), mnMatchingCount(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
-{}
+{
+	Init(pTargetKF, idx);
+}
 UVR_SLAM::MapPoint::~MapPoint(){}
+
+void UVR_SLAM::MapPoint::Init(UVR_SLAM::Frame* pTargetKF, int idx) {
+	cv::Mat PC = p3D - pTargetKF->GetCameraCenter();
+	float dist = cv::norm(PC);
+	int level = pTargetKF->mvKeyPoints[idx].octave;
+	float levelScaleFactor = pTargetKF->mvScaleFactors[level];
+	int nLevels = pTargetKF->mnScaleLevels;
+	mfMaxDistance = dist*levelScaleFactor;
+	mfMinDistance = mfMaxDistance / pTargetKF->mvScaleFactors[nLevels - 1];
+}
 
 int UVR_SLAM::MapPoint::GetMapPointID() {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
@@ -139,13 +153,23 @@ bool UVR_SLAM::MapPoint::Projection(cv::Point2f& _P2D, cv::Mat& _Pcam, cv::Mat R
 	_P2D = cv::Point2f(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
 	mfDepth = temp.at<float>(2);
 	bool bres = false;
-	if (mfDepth > -0.001f && (_P2D.x >= 0 && _P2D.x < w && _P2D.y >= 0 && _P2D.y < h)) {
+	if (mfDepth > 0.0f && (_P2D.x >= 0 && _P2D.x < w && _P2D.y >= 0 && _P2D.y < h)) {
 		bres = true;
 	}
-	/*if (mfDepth < 0.0)
-		std::cout <<"depth error  = "<< mfDepth << std::endl;*/
-	/*if (!(_P2D.x >= 0 && _P2D.x < w && _P2D.y >= 0 && _P2D.y < h))
-		std::cout << "as;dlfja;sldjfasl;djfaskl;fjasd" << std::endl;*/
+	else {
+		mbSeen = false;
+		return false;
+	}
+	
+	// Check distance is in the scale invariance region of the MapPoint
+	float minDistance = 0.8*mfMinDistance;
+	float maxDistance = 1.2*mfMaxDistance;
+
+	cv::Mat mOw = -R.t()*t;
+	cv::Mat PO = p3D - mOw;
+	float dist = cv::norm(PO);
+	if (dist<minDistance || dist>maxDistance)
+		bres = false;
 	mbSeen = bres;
 	return bres;
 }
