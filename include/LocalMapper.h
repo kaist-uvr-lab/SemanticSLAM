@@ -23,13 +23,19 @@ namespace UVR_SLAM {
 		void SetPlaneEstimator(PlaneEstimator* pPlaneEstimator);
 		void SetLayoutEstimator(SemanticSegmentator* pEstimator);
 		void SetFrameWindow(FrameWindow* pFrameWindow);
-		void SetTargetFrame(Frame* pFrame);
 		void SetMatcher(Matcher* pMatcher);
-		void SetBoolDoingProcess(bool b);
+		////////////////
+		void InsertKeyFrame(UVR_SLAM::Frame *pKF);
+		//void InterruptLocalMapping();
+		bool CheckNewKeyFrames();
+		void ProcessNewKeyFrame();
 		bool isDoingProcess();
+		void CalculateKFConnections();
 	private:
+		void FuseMapPoints();
+		int CreateMapPoints();
 		int CreateMapPoints(Frame* pCurrKF, Frame* pLastKF);
-		void NewMapPointMaginalization(int nFrameCount);
+		void NewMapPointMaginalization();
 		void UpdateMPs();
 		void DeleteMPs();
 	private:
@@ -37,15 +43,23 @@ namespace UVR_SLAM {
 		bool CheckDepth(float depth);
 		bool CheckReprojectionError(cv::Mat x3D, cv::Mat K, cv::Point2f pt, float thresh);
 		bool CheckScaleConsistency(cv::Mat x3D, cv::Mat Ow1, cv::Mat Ow2, float fRatioFactor, float fScaleFactor1, float fScaleFactor2);
+		void SetDoingProcess(bool flag);
 	private:
+
+		//queue¿Í mvpNewMPs Ãß°¡
+		std::queue<UVR_SLAM::Frame*> mKFQueue;
+		std::list<UVR_SLAM::MapPoint*> mlpNewMPs;
+		std::mutex mMutexNewKFs;
+		bool mbStopBA;
+		std::mutex mMutexDoingProcess;
+		bool mbDoingProcess;
+
 		std::vector<MapPoint*> mvpDeletedMPs;
 		SemanticSegmentator* mpSegmentator;
 		PlaneEstimator* mpPlaneEstimator;
 		FrameWindow* mpFrameWindow;
-		Frame* mpTargetFrame;
+		Frame* mpTargetFrame, *mpPrevKeyFrame;
 		Matcher* mpMatcher;
-		std::mutex mMutexDoingProcess;
-		bool mbDoingProcess;
 		int mnWidth, mnHeight;
 	};
 }

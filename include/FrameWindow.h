@@ -21,6 +21,7 @@ namespace UVR_SLAM {
 		size_t size();
 		void clear();
 		std::vector<Frame*> GetAllFrames();
+		std::set<UVR_SLAM::Frame*> GetAllFrameSets();
 		std::deque<Frame*>::iterator GetBeginIterator();
 		std::deque<Frame*>::iterator GetEndIterator();
 		bool isEmpty();
@@ -45,10 +46,11 @@ namespace UVR_SLAM {
 		void SetBoolInlier(bool b,int idx);
 		bool GetBoolInlier(int idx);
 		void SetVectorInlier(int size, bool b);
+		int TrackedMapPoints(int minObservation);
 		void SetLocalMap();
-		void IncrementFrameCount();
-		void SetFrameCount(int nCount);
-		int GetFrameCount();
+		
+		void SetLastFrameID(int id);
+		int  GetLastFrameID();
 
 		void SetLastSemanticFrameIndex();
 		int GetLastSemanticFrameIndex();
@@ -66,10 +68,11 @@ namespace UVR_SLAM {
 		
 	private:
 		int LocalMapSize;
-		int mnFrameCount;
-		std::mutex mMutexFrameCount;
 		int mnLastSemanticFrame; 
 		int mnLastLayoutFrame; //윈도우 내에서 마지막 레이아웃 프레임의 인덱스를 나타냄. 아직 사용 안함.
+
+		int mnLastFrameID;
+		std::mutex mMutexLastFrameID;
 
 		System* mpSystem;
 		std::mutex mMutexPose;

@@ -100,24 +100,32 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
 			mpInitFrame1->SetPose(vCandidates[resIDX]->R0, vCandidates[resIDX]->t0);
 			mpInitFrame2->SetPose(vCandidates[resIDX]->R, vCandidates[resIDX]->t*invMedianDepth);
 
+			
+			//queue에 두개 넣기
+			//키프레임으로 설정
+			mpInitFrame1->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+			mpInitFrame2->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+			//윈도우에 두 개의 키프레임 넣기
+			mpFrameWindow->push_back(mpInitFrame1);
+			mpFrameWindow->push_back(mpInitFrame2);
+			
+			//맵포인트 생성 및 키프레임과 연결
 			for (int i = 0; i < vCandidates[resIDX]->mvX3Ds.size(); i++) {
 				if (vCandidates[resIDX]->vbTriangulated[i]) {
 					int idx1 = resMatches[i].queryIdx;
 					int idx2 = resMatches[i].trainIdx;
-					UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(vCandidates[resIDX]->mvX3Ds[i]* invMedianDepth, mpInitFrame2->matDescriptor.row(idx2));
+					UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(vCandidates[resIDX]->mvX3Ds[i] * invMedianDepth, mpInitFrame2->matDescriptor.row(idx2));
 					pNewMP->AddFrame(mpInitFrame1, idx1);
 					pNewMP->AddFrame(mpInitFrame2, idx2);
+					pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
 				}
 			}
-			//queue에 두개 넣기
-			mpInitFrame1->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-			mpInitFrame2->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-			mpFrameWindow->push_back(mpInitFrame1);
-			mpFrameWindow->push_back(mpInitFrame2);
-			
+
+			//윈도우 로컬맵, 포즈 설정
 			mpFrameWindow->SetPose(vCandidates[resIDX]->R, vCandidates[resIDX]->t);
 			mpFrameWindow->SetLocalMap();
 			mpFrameWindow->SetVectorInlier(mpFrameWindow->GetLocalMapSize(), false);
+			mpFrameWindow->SetLastFrameID(mpInitFrame2->GetFrameID());
 
 			mbInit = true;
 

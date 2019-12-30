@@ -29,11 +29,17 @@ namespace UVR_SLAM {
 		cv::Mat GetWorldPos();
 		void SetNewMP(bool _b);
 		bool isNewMP();
+		bool isInFrame(Frame* pF);
 		void AddFrame(UVR_SLAM::Frame* pF, int idx); //index in frame
 		void RemoveFrame(UVR_SLAM::Frame* pKF);
 		void Delete();
 		void SetDescriptor(cv::Mat _desc);
 		cv::Mat GetDescriptor();
+		void IncreaseVisible(int n = 1);
+		void IncreaseFound(int n = 1);
+		float GetFVRatio();
+		void Fuse(MapPoint* pMP);
+
 		bool Projection(cv::Point2f& _P2D, cv::Mat& _Pcam, cv::Mat R, cv::Mat t, cv::Mat K, int w, int h);
 		bool isSeen();
 
@@ -53,13 +59,12 @@ namespace UVR_SLAM {
 		bool isDeleted();
 		
 	public:
-		int mnVisibleCount;
-		int mnMatchingCount;
+		int mnMapPointID;
+		int mnFirstKeyFrameID;
 
 	private:
 		std::mutex mMutexMP;
 		bool mbDelete;
-		int mnMapPointID;
 		int mnPlaneID;
 		MapPointType mnType;
 		ObjectType mObjectType;
@@ -73,6 +78,10 @@ namespace UVR_SLAM {
 		
 		cv::Mat desc;
 		std::map<UVR_SLAM::Frame*, int> mmpFrames;
+
+		std::mutex mMutexFeatures;
+		int mnVisible;
+		int mnFound;
 	};
 }
 

@@ -2,8 +2,8 @@
 #include <System.h>
 #include <MapPoint.h>
 
-UVR_SLAM::FrameWindow::FrameWindow():mnWindowSize(10), LocalMapSize(0), mnFrameCount(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1),mnQueueSize(0){}
-UVR_SLAM::FrameWindow::FrameWindow(int _size) : mnWindowSize(_size), LocalMapSize(0), mnFrameCount(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1), mnQueueSize(0) {}
+UVR_SLAM::FrameWindow::FrameWindow():mnWindowSize(10), LocalMapSize(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1),mnQueueSize(0){}
+UVR_SLAM::FrameWindow::FrameWindow(int _size) : mnWindowSize(_size), LocalMapSize(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1), mnQueueSize(0) {}
 UVR_SLAM::FrameWindow::~FrameWindow() {}
 
 
@@ -37,6 +37,10 @@ UVR_SLAM::Frame* UVR_SLAM::FrameWindow::GetQueueLastFrame(){
 std::vector<UVR_SLAM::Frame*> UVR_SLAM::FrameWindow::GetAllFrames() {
 	std::unique_lock<std::mutex>(mMutexDeque);
 	return std::vector<UVR_SLAM::Frame*>(mpDeque.begin(), mpDeque.end());
+}
+std::set<UVR_SLAM::Frame*> UVR_SLAM::FrameWindow::GetAllFrameSets() {
+	std::unique_lock<std::mutex>(mMutexDeque);
+	return std::set<UVR_SLAM::Frame*>(mpDeque.begin(), mpDeque.end());
 }
 void UVR_SLAM::FrameWindow::clear() {
 	std::unique_lock<std::mutex>(mMutexDeque);
@@ -146,17 +150,13 @@ void UVR_SLAM::FrameWindow::SetVectorInlier(int size, bool b){
 //프레임 카운트는 키프레임과 키프레임 사이의 누적된 프레임 수를 의미함.
 //이게 꼭 여기 있어야 하나?
 //트래커에 옮기는 것은 어떨까?
-void UVR_SLAM::FrameWindow::IncrementFrameCount() {
-	std::unique_lock<std::mutex> lockMP(mMutexFrameCount);
-	mnFrameCount++;
+void UVR_SLAM::FrameWindow::SetLastFrameID(int id){
+	std::unique_lock<std::mutex> lockMP(mMutexLastFrameID);
+	mnLastFrameID = id;
 }
-void UVR_SLAM::FrameWindow::SetFrameCount(int nCount) {
-	std::unique_lock<std::mutex> lockMP(mMutexFrameCount);
-	mnFrameCount = nCount;
-}
-int UVR_SLAM::FrameWindow::GetFrameCount() {
-	std::unique_lock<std::mutex> lockMP(mMutexFrameCount);
-	return mnFrameCount;
+int  UVR_SLAM::FrameWindow::GetLastFrameID(){
+	std::unique_lock<std::mutex> lockMP(mMutexLastFrameID);
+	return mnLastFrameID;
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 //마지막 프레임 같은 경우는 프레임이 추가 될 때 수행되므로 뮤텍스 디큐와 연관되는게 맞음.
@@ -201,6 +201,27 @@ void UVR_SLAM::FrameWindow::SetLocalMap() {
 		}
 	}
 	LocalMapSize = mvpLocalMPs.size();
+}
+
+int UVR_SLAM::FrameWindow::TrackedMapPoints(int minObservation) {
+	std::unique_lock<std::mutex> lock(mMutexLocaMPs);
+	
+	int nPoints = 0;
+	bool bCheckObs = minObservation>0;
+	for (int i = 0; i < mvpLocalMPs.size(); i++) {
+		MapPoint* pMP = mvpLocalMPs[i];
+		if (pMP) {
+			if (pMP->isDeleted())
+				continue;
+			if (bCheckObs) {
+				if (pMP->GetNumConnectedFrames() >= minObservation)
+					nPoints++;
+			}
+			else
+				nPoints++;
+		}
+	}
+	return nPoints;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool UVR_SLAM::FrameWindow::CalcFrameDistanceWithBOW(UVR_SLAM::Frame* pF) {

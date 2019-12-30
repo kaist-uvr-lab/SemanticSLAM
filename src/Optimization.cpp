@@ -20,7 +20,7 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 	int nPoseJacobianSize = 6;
 	int nResidualSize = 2;
 
-	GraphOptimizer::Optimizer* mpOptimizer = new GraphOptimizer::GNOptimizer();
+	GraphOptimizer::Optimizer* mpOptimizer = new GraphOptimizer::LMOptimizer();
 	FrameVertex* mpVertex1 = new FrameVertex(pWindow->GetRotation(), pWindow->GetTranslation(), nPoseJacobianSize);
 	mpOptimizer->AddVertex(mpVertex1);
 	
@@ -240,7 +240,7 @@ int UVR_SLAM::Optimization::InitOptimization(UVR_SLAM::InitialData* data, std::v
 	return nRes;
 }
 
-void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindow, int trial1, int trial2, bool bShowStatus) {
+void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindow, bool& bStopBA, int trial1, int trial2, bool bShowStatus) {
 	//fixed frame
 	//connected kf = 3
 	//check newmp
@@ -390,6 +390,8 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 	}
 	//Optimize
 	for (int trial = 0; trial < trial1; trial++) {
+		if (bStopBA)
+			break;
 		mpOptimizer->Optimize(trial2, 0, bShowStatus);
 		for (int i = 0; i < mvpEdges.size(); i++) {
 			EdgePoseNMap* pEdge = mvpEdges[i];

@@ -19,6 +19,21 @@ UVR_SLAM::SemanticSegmentator::SemanticSegmentator(std::string _ip, int _port, i
 	mVecLabelColors.push_back(COLOR_CEILING);
 	mVecLabelColors.push_back(COLOR_NONE);*/
 }
+UVR_SLAM::SemanticSegmentator::SemanticSegmentator(const std::string & strSettingPath) :mbDoingProcess(false){
+	UVR_SLAM::ObjectColors::Init();
+	cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
+	mbOn = static_cast<int>(fSettings["Segmentator.on"]) != 0;
+	ip = fSettings["Segmentator.ip"];
+	port = fSettings["Segmentator.port"];
+	mnWidth = fSettings["Image.width"];
+	mnHeight = fSettings["Image.height"];
+	fSettings.release();
+	/*mVecLabelColors.push_back(COLOR_FLOOR);
+	mVecLabelColors.push_back(COLOR_WALL);
+	mVecLabelColors.push_back(COLOR_CEILING);
+	mVecLabelColors.push_back(COLOR_NONE);*/
+}
+
 UVR_SLAM::SemanticSegmentator::~SemanticSegmentator(){}
 
 
@@ -127,6 +142,9 @@ void UVR_SLAM::SemanticSegmentator::SetBoolDoingProcess(bool b) {
 bool UVR_SLAM::SemanticSegmentator::isDoingProcess() {
 	std::unique_lock<std::mutex> lockTemp(mMutexDoingProcess);
 	return mbDoingProcess;
+}
+bool UVR_SLAM::SemanticSegmentator::isRun() {
+	return mbOn;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////

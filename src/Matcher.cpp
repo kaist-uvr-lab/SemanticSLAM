@@ -2,16 +2,122 @@
 #include <omp.h>
 #include <random>
 #include <Frame.h>
+#include <MapPoint.h>
 #include <FrameWindow.h>
 #include <MatrixOperator.h>
 
 UVR_SLAM::Matcher::Matcher(){}
 UVR_SLAM::Matcher::Matcher(cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h)
-	:mWidth(w), mHeight(h), TH_HIGH(100), mfNNratio(0.8), matcher(_matcher)
+	:mWidth(w), mHeight(h), TH_HIGH(100), TH_LOW(50), HISTO_LENGTH(30), mfNNratio(0.8), matcher(_matcher)
 {}
 UVR_SLAM::Matcher::~Matcher(){}
 
 const double nn_match_ratio = 0.8f; // Nearest-neighbour matching ratio
+
+int UVR_SLAM::Matcher::MatchingForFuse(const std::vector<UVR_SLAM::MapPoint*> &vpMapPoints, UVR_SLAM::Frame *pKF, float th) {
+	cv::Mat Rcw = pKF->GetRotation();
+	cv::Mat tcw = pKF->GetTranslation();
+
+	const float &fx = pKF->fx;
+	const float &fy = pKF->fy;
+	const float &cx = pKF->cx;
+	const float &cy = pKF->cy;
+	//const float &bf = pKF->mbf;
+
+	cv::Mat Ow = pKF->GetCameraCenter();
+	int nFused = 0;
+	const int nMPs = vpMapPoints.size();
+	for (int i = 0; i < nMPs; i++)
+	{
+		UVR_SLAM::MapPoint* pMP = vpMapPoints[i];
+
+		if (!pMP)
+			continue;
+
+		if (pMP->isDeleted() || pMP->isInFrame(pKF))
+			continue;
+
+		cv::Mat p3Dw = pMP->GetWorldPos();
+		cv::Mat p3Dc = Rcw*p3Dw + tcw;
+
+		// Depth must be positive
+		if (p3Dc.at<float>(2)<0.0f)
+			continue;
+
+		const float invz = 1 / p3Dc.at<float>(2);
+		const float x = p3Dc.at<float>(0)*invz;
+		const float y = p3Dc.at<float>(1)*invz;
+
+		const float u = fx*x + cx;
+		const float v = fy*y + cy;
+
+		// Point must be inside the image
+		if (!pKF->isInImage(u, v))
+			continue;
+
+		const std::vector<size_t> vIndices = pKF->GetFeaturesInArea(u, v, th,0,pKF->mnScaleLevels);
+
+		if (vIndices.empty())
+			continue;
+
+		// Match to the most similar keypoint in the radius
+
+		const cv::Mat dMP = pMP->GetDescriptor();
+
+		int bestDist = 256;
+		int bestIdx = -1;
+		for (std::vector<size_t>::const_iterator vit = vIndices.begin(), vend = vIndices.end(); vit != vend; vit++)
+		{
+			const size_t idx = *vit;
+
+			const cv::KeyPoint &kp = pKF->mvKeyPoints[idx];
+
+			const int &kpLevel = kp.octave;
+
+			const float &kpx = kp.pt.x;
+			const float &kpy = kp.pt.y;
+			const float ex = u - kpx;
+			const float ey = v - kpy;
+			const float e2 = ex*ex + ey*ey;
+
+			if (e2*pKF->mvInvLevelSigma2[kpLevel]>5.99)
+				continue;
+
+			const cv::Mat &dKF = pKF->matDescriptor.row(idx);
+
+			const int dist = UVR_SLAM::MatrixOperator::DescriptorDistance(dMP, dKF);
+
+			if (dist<bestDist)
+			{
+				bestDist = dist;
+				bestIdx = idx;
+			}
+		}//for matching
+
+		 // If there is already a MapPoint replace otherwise add new measurement
+		if (bestDist <= TH_LOW)
+		{
+			MapPoint* pMPinKF = pKF->GetMapPoint(bestIdx);
+			if (pMPinKF)
+			{
+				if (!pMPinKF->isDeleted())
+				{
+					if (pMPinKF->GetConnedtedFrames()>pMP->GetConnedtedFrames())
+						pMP->Fuse(pMPinKF);
+					else
+						pMPinKF->Fuse(pMP);
+				}
+			}
+			else
+			{
+				pMP->AddFrame(pKF, bestIdx);
+				pKF->AddMP(pMP, bestIdx);
+			}
+			nFused++;
+		}
+	}
+	return nFused;
+}
 
 int UVR_SLAM::Matcher::FeatureMatchingWithSemanticFrames(UVR_SLAM::Frame* pSemantic, UVR_SLAM::Frame* pFrame) {
 	std::vector<bool> vbTemp(pFrame->mvKeyPoints.size(), true);
@@ -216,12 +322,14 @@ int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::Frame* pP
 				Nf1++;
 				continue;
 			}
-			cv::Mat pCam;
+			
+			/*cv::Mat pCam;
 			cv::Point2f p2D;
 			if (!pMP->Projection(p2D, pCam, pWindow->GetRotation(), pWindow->GetTranslation(), pCurr->mK, mWidth, mHeight)) {
 				Nf2++;
 				continue;
-			}
+			}*/
+
 			pCurr->SetMapPoint(pMP, matches[i][0].trainIdx);
 			pCurr->SetBoolInlier(true, matches[i][0].trainIdx);
 
@@ -243,7 +351,7 @@ int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::Frame* pP
 			count++;
 		}
 	}
-	//std::cout << "Matching::" << count << ", " << Nf1 << ", " << Nf2 << std::endl;
+	
 	return count;
 }
 

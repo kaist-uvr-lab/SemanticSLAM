@@ -9,6 +9,7 @@
 
 namespace UVR_SLAM {
 	
+	class MapPoint;
 	class Frame;
 	class FrameWindow;
 	class Matcher {
@@ -18,6 +19,9 @@ namespace UVR_SLAM {
 		virtual ~Matcher();
 
 	public:
+		//fuse 과정에서 수행.
+		int MatchingForFuse(const std::vector<MapPoint*> &vpMapPoints, Frame *pKF, float th = 3.0f);
+
 		//Pose Tracking 현재 이용하는 것
 		int FeatureMatchingForInitialPoseTracking(Frame* pPrev, Frame* pCurr, UVR_SLAM::FrameWindow* pWindow, std::vector<cv::DMatch>& vMatchInfos);
 		int FeatureMatchingForPoseTrackingByProjection(FrameWindow* pWindow, Frame* pF, float rr);
@@ -47,6 +51,8 @@ namespace UVR_SLAM {
 		cv::Ptr<cv::DescriptorMatcher> matcher;
 		float mfNNratio; //projection maching에서 이용
 		int TH_HIGH;     //projection maching에서 이용
+		int TH_LOW;
+		int HISTO_LENGTH;
 	};
 }
 

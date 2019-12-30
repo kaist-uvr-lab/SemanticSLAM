@@ -6,13 +6,16 @@
 static int nMapPointID = 0;
 
 UVR_SLAM::MapPoint::MapPoint()
-	:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisibleCount(0), mnMatchingCount(0), mnConnectedFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
+	:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
+	, mnFirstKeyFrameID(0)
 {}
 UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, cv::Mat _desc)
-:p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisibleCount(0), mnMatchingCount(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
+:p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
+, mnFirstKeyFrameID(0)
 {}
 UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, cv::Mat _desc, MapPointType ntype)
-	: p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisibleCount(0), mnMatchingCount(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
+	: p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
+	, mnFirstKeyFrameID(0)
 {}
 UVR_SLAM::MapPoint::~MapPoint(){}
 
@@ -68,6 +71,65 @@ void UVR_SLAM::MapPoint::SetDelete(bool b) {
 bool UVR_SLAM::MapPoint::isDeleted(){
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	return mbDelete;
+}
+
+
+void UVR_SLAM::MapPoint::IncreaseVisible(int n)
+{
+	std::unique_lock<std::mutex> lock(mMutexFeatures);
+	mnVisible += n;
+}
+
+void UVR_SLAM::MapPoint::IncreaseFound(int n)
+{
+	std::unique_lock<std::mutex> lock(mMutexFeatures);
+	mnFound += n;
+}
+
+bool UVR_SLAM::MapPoint::isInFrame(UVR_SLAM::Frame* pF) {
+	std::unique_lock<std::mutex> lock(mMutexFeatures);
+	return mmpFrames.count(pF);
+}
+
+//결합되어 삭제되는 맵포인트가 실행됨
+void UVR_SLAM::MapPoint::Fuse(UVR_SLAM::MapPoint* pMP) {
+	if (this->mnMapPointID == pMP->mnMapPointID)
+		return;
+	int nvisible, nfound;
+	std::map<Frame*, int> obs;
+	{
+		std::unique_lock<std::mutex> lock(mMutexFeatures);
+		std::unique_lock<std::mutex> lock2(mMutexMP);
+		obs = mmpFrames;
+		mmpFrames.clear();
+		nvisible = mnVisible;
+		nfound = mnFound;
+		mbDelete = true;
+		//std::cout << "MapPoint::Fuse::" << obs.size() << std::endl;
+	}
+	for (std::map<Frame*, int>::iterator mit = obs.begin(), mend = obs.end(); mit != mend; mit++)
+	{
+		// Replace measurement in keyframe
+		Frame* pKF = mit->first;
+
+		if (!pMP->isInFrame(pKF))
+		{
+			pKF->SetMapPoint(pMP, mit->second);
+			pMP->AddFrame(pKF, mit->second);
+		}
+		else
+		{
+			pKF->SetMapPoint(nullptr, mit->second);
+			//pKF->EraseMapPointMatch(mit->second);
+		}
+	}
+	pMP->IncreaseFound(nfound);
+	pMP->IncreaseVisible(nvisible);
+}
+
+float UVR_SLAM::MapPoint::GetFVRatio() {
+	std::unique_lock<std::mutex> lock(mMutexFeatures);
+	return ((float)mnFound) / mnVisible;
 }
 
 std::map<UVR_SLAM::Frame*, int> UVR_SLAM::MapPoint::GetConnedtedFrames() {

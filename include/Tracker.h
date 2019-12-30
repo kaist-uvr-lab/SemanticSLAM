@@ -20,6 +20,7 @@ namespace UVR_SLAM {
 
 		Tracker();
 		Tracker(int w, int h, cv::Mat _K);
+		Tracker(std::string strPath);
 		virtual ~Tracker();
 	public:
 		//void Run();
@@ -35,15 +36,19 @@ namespace UVR_SLAM {
 		void SetPlaneEstimator(PlaneEstimator* pEstimator);
 		void SetVisualizer(Visualizer* pVis);
 	private:
+		bool CheckNeedKeyFrame(Frame* pCurr);
 		void CalcVisibleCount(UVR_SLAM::Frame* pF);
 		void CalcMatchingCount(UVR_SLAM::Frame* pF);
 	private:
+		int mnMaxFrames, mnMinFrames;
 		int mnWidth, mnHeight;
+		int mnMatching;
 		cv::Mat mK;
 		bool mbInitializing;
 		bool mbFirstFrameAfterInit;
 		bool mbInitilized;
 		System* mpSystem;
+		Frame* mpRefKF;
 		Matcher* mpMatcher;
 		Initializer* mpInitializer;
 		SemanticSegmentator* mpSegmentator;

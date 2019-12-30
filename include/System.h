@@ -104,6 +104,8 @@ namespace UVR_SLAM {
 		Tracker* mpTracker;
 		//std::thread *mptTracker;
 		
+		std::string mstrFilePath;
+
 	private:
 		//외부에서 불러온 파라메터
 		int mnFeatures;
@@ -122,6 +124,7 @@ namespace UVR_SLAM {
 		int mnVisScale;
 		std::string ip;
 		int port;
+		static int nKeyFrameID;
 	};
 }
 

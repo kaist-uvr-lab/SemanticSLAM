@@ -13,6 +13,29 @@
 
 UVR_SLAM::Tracker::Tracker() {}
 UVR_SLAM::Tracker::Tracker(int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false){}
+UVR_SLAM::Tracker::Tracker(std::string strPath) : mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false) {
+	FileStorage fs(strPath, FileStorage::READ);
+
+	float fx = fs["Camera.fx"];
+	float fy = fs["Camera.fy"];
+	float cx = fs["Camera.cx"];
+	float cy = fs["Camera.cy"];
+
+	mK = cv::Mat::eye(3, 3, CV_32F);
+	mK.at<float>(0, 0) = fx;
+	mK.at<float>(1, 1) = fy;
+	mK.at<float>(0, 2) = cx;
+	mK.at<float>(1, 2) = cy;
+
+	float fps = fs["Camera.fps"];
+	mnMaxFrames = fps;
+	mnMinFrames = fps / 3;
+
+	mnWidth = fs["Image.width"];
+	mnHeight = fs["Image.height"];
+
+	fs.release();
+}
 UVR_SLAM::Tracker::~Tracker() {}
 
 bool UVR_SLAM::Tracker::isInitialized() {
@@ -44,6 +67,36 @@ void UVR_SLAM::Tracker::SetPlaneEstimator(UVR_SLAM::PlaneEstimator* pEstimator) 
 	mpPlaneEstimator = pEstimator;
 }
 
+bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr) {
+	int nMinObs = 3;
+	if (mpFrameWindow->size() <= 2)
+		nMinObs = 2;
+	int nRefMatches = mpFrameWindow->TrackedMapPoints(nMinObs);
+	float thRefRatio = 0.9f;
+
+	bool bLocalMappingIdle = !mpLocalMapper->isDoingProcess();
+
+	bool c1a = pCurr->GetFrameID() >= mpRefKF->GetFrameID() + mnMaxFrames;
+	bool c1b = pCurr->GetFrameID() >= mpRefKF->GetFrameID() + mnMinFrames && bLocalMappingIdle;
+	bool c2 = mnMatching < nRefMatches*thRefRatio && mnMatching > 20;
+
+	if ((c1a || c1b) && c2) {
+		/*if (bLocalMappingIdle)
+			return true;
+		else {
+
+			return false;
+		}*/
+		//KF 동작 중 멈추는 과정이 필요함.
+		//local mapping이 동작하는 와중에도 KF가 추가됨.
+		return true;
+	}
+	else
+		return false;
+
+	return false;
+}
+
 void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 	if(!mbInitializing){
 		mbInitializing = mpInitializer->Initialize(pCurr, mnWidth, mnHeight);
@@ -51,7 +104,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mbFirstFrameAfterInit = mbInitializing;
 	}
 	else {
-		std::unique_lock<std::mutex>(mpSystem->mMutexTracking);
+		//std::unique_lock<std::mutex>(mpSystem->mMutexTracking);
+		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 		////시맨틱 프레임과 매칭
 		//int nLastFrameIndex = mpFrameWindow->GetLastSemanticFrameIndex();
 		//if (nLastFrameIndex >= 0) {
@@ -61,6 +115,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			
 		//FeatureMatchingWithSemanticFrames
 		mpFrameWindow->mvPairMatchingInfo.clear();
+
 		mpFrameWindow->SetVectorInlier(mpFrameWindow->GetLocalMapSize(), false);
 
 		//mpMatcher->FeatureMatchingForInitialPoseTracking(mpFrameWindow, pFrame);
@@ -68,23 +123,24 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		int nInitMatching = mpMatcher->FeatureMatchingForInitialPoseTracking(pPrev, pCurr, mpFrameWindow, vMatchInfos);
 		//std::cout << "Matching Init : " << nInitMatching << std::endl;
 
-		Optimization::PoseOptimization(mpFrameWindow, pCurr, false,4,5);
+		Optimization::PoseOptimization(mpFrameWindow, pCurr, true,4,10);
 		int nProjection = mpMatcher->FeatureMatchingForPoseTrackingByProjection(mpFrameWindow, pCurr,10.0);
 		//std::cout << "Matching projection : " << nProjection << std::endl;
 
 		//visible
 		CalcVisibleCount(pCurr);
-		int nMatching =  Optimization::PoseOptimization(mpFrameWindow, pCurr, false,4,5);
-		pCurr->SetInliers(nMatching);
+		mnMatching =  Optimization::PoseOptimization(mpFrameWindow, pCurr, false,4,10);
+		pCurr->SetInliers(mnMatching);
 
 		//슬램 초기화 최종 판단
 		if (mbFirstFrameAfterInit) {
 			mbFirstFrameAfterInit = false;
-			if (nMatching < 80) {
+			if (mnMatching < 80) {
+
 				//매칭 실패
 				mbInitializing = false;
 				mpSystem->Reset();
-				std::cout << "Fail Initilization" << std::endl;
+				std::cout << "Fail Initilization = " << mnMatching << std::endl;
 				return;
 			}
 			else {
@@ -93,9 +149,11 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 				if (!mpSegmentator->isDoingProcess()) {
 					UVR_SLAM::Frame* pFirst = mpFrameWindow->GetFrame(0);
-					pFirst->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
+					UVR_SLAM::Frame* pSecond = mpFrameWindow->GetFrame(1);
+					mpRefKF = pSecond;
+					/*pFirst->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
 					mpSegmentator->SetBoolDoingProcess(true);
-					mpSegmentator->SetTargetFrame(pFirst);
+					mpSegmentator->SetTargetFrame(pFirst);*/
 				}
 
 			}
@@ -103,22 +161,28 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 		//matching
 		CalcMatchingCount(pCurr);
-		mpFrameWindow->IncrementFrameCount();
+		//시간 체크
+		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end-tracking_start).count();
+		float tttt = duration / 1000.0;
+		tttt = 1.0 /tttt;
 
+		//bool bBow =  mpFrameWindow->CalcFrameDistanceWithBOW(pCurr);
 
-		bool bBow =  mpFrameWindow->CalcFrameDistanceWithBOW(pCurr);
-		if (mpFrameWindow->GetFrameCount() > 10 &&(nMatching < 50 || bBow)) {
-			if (!mpLocalMapper->isDoingProcess()) {
-				mpLocalMapper->SetBoolDoingProcess(true);
-				mpLocalMapper->SetTargetFrame(pCurr);
-			}
+		if (CheckNeedKeyFrame(pCurr)) {
+			mpRefKF = pCurr;
+			mpLocalMapper->InsertKeyFrame(pCurr);
 		}
-		else {
+
+		/*if (mpFrameWindow->GetLastFrameID() + 10 < pCurr->GetFrameID() || (nMatching < 50)) {
+			mpLocalMapper->InsertKeyFrame(pCurr);
+		}*/
+		/*else {
 			if (!mpPlaneEstimator->isDoingProcess()) {
 				mpPlaneEstimator->SetBoolDoingProcess(true, 1);
 				mpPlaneEstimator->SetTargetFrame(pCurr);
 			}
-		}
+		}*/
 
 		//일단 테스트
 
@@ -154,11 +218,20 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				}
 			}
 		}
+		
+		
+		//속도 및 에러 출력
+		std::stringstream ss;
+		ss << "TIME : " << tttt;
+		cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
+		cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6,cv::Scalar::all(255));
 		cv::imshow("Output::Tracking", vis);
+
+		//시각화 과정
 		//std::stringstream ss;
 		//ss << "../../bin/segmentation/res/img/img_" << pCurr->GetFrameID() << ".jpg";
 		//cv::imwrite(ss.str(), vis);
-		cv::imwrite("../../bin/segmentation/res/tracking.jpg", vis);
+		//cv::imwrite("../../bin/segmentation/res/tracking.jpg", vis);
 
 		////시각화
 		//cv::Mat vis2 = pCurr->GetOriginalImage();
@@ -197,7 +270,7 @@ void UVR_SLAM::Tracker::CalcVisibleCount(UVR_SLAM::Frame* pF) {
 		UVR_SLAM::MapPoint* pMP = pF->GetMapPoint(i);
 		if (!pMP)
 			continue;
-		pMP->mnVisibleCount++;
+		pMP->IncreaseVisible();
 	}
 }
 void UVR_SLAM::Tracker::CalcMatchingCount(UVR_SLAM::Frame* pF) {
@@ -207,6 +280,6 @@ void UVR_SLAM::Tracker::CalcMatchingCount(UVR_SLAM::Frame* pF) {
 		UVR_SLAM::MapPoint* pMP = pF->GetMapPoint(i);
 		if (!pMP)
 			continue;
-		pMP->mnMatchingCount++;
+		pMP->IncreaseFound();
 	}
 }

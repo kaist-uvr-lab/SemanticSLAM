@@ -46,12 +46,14 @@ namespace UVR_SLAM {
 		cv::Mat GetOriginalImage();
 		void SetFrameType(int n);
 		unsigned char GetFrameType();
+		int GetKeyFrameID();
 		void SetPose(cv::Mat _R, cv::Mat _t);
 		void GetPose(cv::Mat&_R, cv::Mat& _t);
 		cv::Mat GetRotation();
 		cv::Mat GetTranslation();
 		void AddMP(UVR_SLAM::MapPoint* pMP, int idx);
 		void RemoveMP(int idx);
+		std::vector<UVR_SLAM::MapPoint*> GetMapPoints();
 		UVR_SLAM::MapPoint* GetMapPoint(int idx);
 		void SetMapPoint(UVR_SLAM::MapPoint* pMP, int idx);
 		bool GetBoolInlier(int idx);
@@ -59,6 +61,7 @@ namespace UVR_SLAM {
 		void SetObjectType(UVR_SLAM::ObjectType type, int idx);
 		ObjectType GetObjectType(int idx);
 		int GetNumInliers();
+		int TrackedMapPoints(int minObservation);
 		void TurnOnFlag(unsigned char opt);
 		void TurnOffFlag(unsigned char opt);
 		bool CheckFrameType(unsigned char opt);
@@ -68,6 +71,14 @@ namespace UVR_SLAM {
 		cv::Mat GetCameraCenter();
 		void SetInliers(int nInliers);
 		int GetInliers();
+
+		bool isInImage(float u, float v);
+
+		///
+		void AddKF(UVR_SLAM::Frame* pKF);
+		void RemoveKF(UVR_SLAM::Frame* pKF);
+		std::vector<UVR_SLAM::Frame*> GetConnectedKFs();
+		std::vector<UVR_SLAM::Frame*> GetConnectedKFs(int n);
 	public:
 		
 		std::vector<bool> mvbMPInliers;
@@ -80,12 +91,16 @@ namespace UVR_SLAM {
 		void Increase();
 		void Decrease();
 		void SetFrameID();
+		void SetKeyFrameID();
+		
 	private:
+		int mnKeyFrameID;
 		int mnFrameID;
 		std::mutex mMutexFrame;
 
 		std::vector<ObjectType> mvObjectTypes; //모든 키포인트에 대해서 미리 정의된 레이블인지 재할당
 		std::vector<UVR_SLAM::MapPoint*> mvpMPs;
+		std::set<UVR_SLAM::Frame*> mspConnectedKFs;
 		cv::Mat matFrame, matOri;
 		cv::Mat R, t;
 		int mnInliers;
@@ -97,6 +112,7 @@ namespace UVR_SLAM {
 		std::mutex mMutexImage;*/
 	public:
 		//from ORB_SLAM2
+		int mnFuseFrameID;
 		cv::Mat mDistCoef, mK;
 		ORBextractor* mpORBextractor;
 		static float fx;
@@ -110,7 +126,7 @@ namespace UVR_SLAM {
 		static float mnMinY;
 		static float mnMaxY;
 		static bool mbInitialComputations;
-
+		
 		int mnScaleLevels;
 		float mfScaleFactor;
 		float mfLogScaleFactor;

@@ -6,8 +6,10 @@
 #include <PlaneEstimator.h>
 #include <Visualizer.h>
 
+int UVR_SLAM::System::nKeyFrameID = 0;
+
 UVR_SLAM::System::System(){}
-UVR_SLAM::System::System(std::string strFilePath){
+UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath){
 	LoadParameter(strFilePath);
 	LoadVocabulary();
 	Init();
@@ -23,28 +25,49 @@ UVR_SLAM::System::~System() {}
 
 void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	FileStorage fs(strPath, FileStorage::READ);
-	fs["K"] >> mK;
-	fs["D"] >> mD;
 
-	fs["nFeatures"] >> mnFeatures;
-	fs["fScaleFactor"] >> mfScaleFactor;
-	fs["nLevels"] >> mnLevels;
-	fs["fIniThFAST"] >> mfIniThFAST;
-	fs["fMinThFAST"] >> mfMinThFAST;
-	fs["WIDTH"] >> mnWidth;
-	fs["HEIGHT"] >> mnHeight;
+	float fx = fs["Camera.fx"];
+	float fy = fs["Camera.fy"];
+	float cx = fs["Camera.cx"];
+	float cy = fs["Camera.cy"];
+
+	mK = cv::Mat::eye(3, 3, CV_32F);
+	mK.at<float>(0, 0) = fx;
+	mK.at<float>(1, 1) = fy;
+	mK.at<float>(0, 2) = cx;
+	mK.at<float>(1, 2) = cy;
+
+	cv::Mat DistCoef(4, 1, CV_32F);
+	DistCoef.at<float>(0) = fs["Camera.k1"];
+	DistCoef.at<float>(1) = fs["Camera.k2"];
+	DistCoef.at<float>(2) = fs["Camera.p1"];
+	DistCoef.at<float>(3) = fs["Camera.p2"];
+	const float k3 = fs["Camera.k3"];
+	if (k3 != 0)
+	{
+		DistCoef.resize(5);
+		DistCoef.at<float>(4) = k3;
+	}
+	DistCoef.copyTo(mD);
+
+	mnFeatures = fs["ORBextractor.nFeatures"];
+	mfScaleFactor = fs["ORBextractor.scaleFactor"];
+	mnLevels = fs["ORBextractor.nLevels"];
+	mfIniThFAST = fs["ORBextractor.iniThFAST"];
+	mfMinThFAST = fs["ORBextractor.minThFAST"];
+
+	mnWidth = fs["Image.width"];
+	mnHeight = fs["Image.height"];
+
+	std::cout << mK << mD << std::endl;
+
 	fs["VocPath"] >> strVOCPath;
 	fs["nVisScale"] >> mnVisScale;
-	fs["IP"] >> ip;
-	fs["port"] >> port;
-	std::cout << ip << "::" << port << std::endl;
+	//fs["IP"] >> ip;
+	//fs["port"] >> port;
+	//std::cout << ip << "::" << port << std::endl;
 	//fs["DirPath"] >> strDirPath; 데이터와 관련이 있는거여서 별도로 분리
 
-	float fx = mK.at<float>(0, 0);
-	float fy = mK.at<float>(1, 1);
-	float cx = mK.at<float>(0, 2);
-	float cy = mK.at<float>(1, 2);
-	
 	//Pluker Line Coordinate에 이용함.
 	mKforPL = (cv::Mat_<float>(3, 3) << fx, 0, 0, 0, fy, 0, -fy*cx, -fx*cy, fx*fy);
 
@@ -108,7 +131,7 @@ void UVR_SLAM::System::Init() {
 	mptPlaneEstimator = new std::thread(&UVR_SLAM::PlaneEstimator::Run, mpPlaneEstimator);
 
 	//layout estimating thread
-	mpSegmentator = new UVR_SLAM::SemanticSegmentator(ip, port, mnWidth, mnHeight);
+	mpSegmentator = new UVR_SLAM::SemanticSegmentator(mstrFilePath);
 	mpSegmentator->SetSystem(this);
 	mpSegmentator->SetFrameWindow(mpFrameWindow);
 	mpSegmentator->SetPlaneEstimator(mpPlaneEstimator);
@@ -127,7 +150,7 @@ void UVR_SLAM::System::Init() {
 	
 
 	//tracker thread
-	mpTracker = new UVR_SLAM::Tracker(mnWidth, mnHeight, mK);
+	mpTracker = new UVR_SLAM::Tracker(mstrFilePath);
 	//mptTracker = new std::thread(&UVR_SLAM::Tracker::Run, mpTracker);
 	mpTracker->SetMatcher(mpMatcher);
 	mpTracker->SetInitializer(mpInitializer);
@@ -173,6 +196,7 @@ void UVR_SLAM::System::Reset() {
 	mbInitialized = false;
 	mpInitializer->Init();
 	mpFrameWindow->clear();
+	nKeyFrameID = 0;
 }
 
 void UVR_SLAM::System::SetBoolInit(bool b) {

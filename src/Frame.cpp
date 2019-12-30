@@ -3,6 +3,7 @@
 //
 
 #include <Frame.h>
+#include <System.h>
 #include <ORBextractor.h>
 
 bool UVR_SLAM::Frame::mbInitialComputations = true;
@@ -12,7 +13,7 @@ float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeig
 
 static int nFrameID = 0;
 
-UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h):mnType(0), mnInliers(0){
+UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h):mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0){
 	matOri = _src.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
 	matFrame.convertTo(matFrame, CV_8UC1);
@@ -20,7 +21,7 @@ UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h):mnType(0), mnInliers(0){
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
 	SetFrameID();
 }
-UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h) :mnType(0), mnInliers(0) {
+UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h) :mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0) {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
@@ -30,7 +31,7 @@ UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h) :mnType(0), mnInliers(0)
 	SetFrameID();
 }
 
-UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t) :mnType(0), mnInliers(0) {
+UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t) :mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0) {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
@@ -50,6 +51,13 @@ void UVR_SLAM::Frame::SetFrameType(int n) {
 
 void UVR_SLAM::Frame::SetFrameID() {
 	mnFrameID = ++nFrameID;
+}
+
+void UVR_SLAM::Frame::SetKeyFrameID() {
+	mnKeyFrameID = ++UVR_SLAM::System::nKeyFrameID;
+}
+int UVR_SLAM::Frame::GetKeyFrameID() {
+	return mnKeyFrameID;
 }
 
 void UVR_SLAM::Frame::SetInliers(int nInliers){
@@ -174,6 +182,11 @@ UVR_SLAM::ObjectType UVR_SLAM::Frame::GetObjectType(int idx){
 	return mvObjectTypes[idx];
 }
 
+std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Frame::GetMapPoints() {
+	std::unique_lock<std::mutex> lockMP(mMutexFrame);
+	return mvpMPs;
+}
+
 UVR_SLAM::MapPoint* UVR_SLAM::Frame::GetMapPoint(int idx) {
 	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	return mvpMPs[idx];
@@ -203,6 +216,11 @@ int UVR_SLAM::Frame::GetNumInliers() {
 	return mnInliers;
 }
 
+bool UVR_SLAM::Frame::isInImage(float x, float y)
+{
+	return (x >= mnMinX && x<mnMaxX && y >= mnMinY && y<mnMaxY);
+}
+
 unsigned char UVR_SLAM::Frame::GetFrameType() {
 	std::unique_lock<std::mutex>(mMutexType);
 	return mnType;
@@ -210,6 +228,9 @@ unsigned char UVR_SLAM::Frame::GetFrameType() {
 
 void UVR_SLAM::Frame::TurnOnFlag(unsigned char opt){
 	std::unique_lock<std::mutex>(mMutexType);
+	if (opt == UVR_SLAM::FLAG_KEY_FRAME) {
+		SetKeyFrameID();
+	}
 	mnType |= opt;
 }
 void UVR_SLAM::Frame::TurnOffFlag(unsigned char opt){
@@ -222,6 +243,26 @@ bool UVR_SLAM::Frame::CheckFrameType(unsigned char opt) {
 	unsigned char flag = mnType & opt;
 	//std::cout << "flag=" <<(int)flag <<", "<<(int)mnType<< std::endl<<std::endl<<std::endl<<std::endl;
 	return flag == opt;
+}
+
+int UVR_SLAM::Frame::TrackedMapPoints(int minObservation) {
+	std::unique_lock<std::mutex> lock(mMutexFrame);
+	int nPoints = 0;
+	bool bCheckObs = minObservation>0;
+	for (int i = 0; i < mvpMPs.size(); i++) {
+		MapPoint* pMP = mvpMPs[i];
+		if (pMP) {
+			if (pMP->isDeleted())
+				continue;
+			if (bCheckObs) {
+				if (pMP->GetNumConnectedFrames() >= minObservation)
+					nPoints++;
+			}
+			else
+				nPoints++;
+		}
+	}
+	return nPoints;
 }
 
 bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2) {
@@ -274,6 +315,22 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(float& fMedianDepth)
 cv::Mat UVR_SLAM::Frame::GetCameraCenter() {
 	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	return -R.t()*t;
+}
+
+void UVR_SLAM::Frame::AddKF(UVR_SLAM::Frame* pKF){
+	mspConnectedKFs.insert(pKF);
+}
+void UVR_SLAM::Frame::RemoveKF(UVR_SLAM::Frame* pKF){
+	mspConnectedKFs.erase(pKF);
+}
+std::vector<UVR_SLAM::Frame*> UVR_SLAM::Frame::GetConnectedKFs(){
+	return std::vector<UVR_SLAM::Frame*>(mspConnectedKFs.begin(), mspConnectedKFs.end());
+}
+std::vector<UVR_SLAM::Frame*> UVR_SLAM::Frame::GetConnectedKFs(int n) {
+	auto mvpKFs = GetConnectedKFs();
+	if (mvpKFs.size() < n)
+		return mvpKFs;
+	return std::vector<UVR_SLAM::Frame*>(mvpKFs.begin(), mvpKFs.begin()+n);
 }
 /////////////////////////////////
 fbow::fBow UVR_SLAM::Frame::GetBowVec() {
