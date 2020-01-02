@@ -41,25 +41,22 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 		mvIndexes.push_back(i);
 		int idx1 = match.queryIdx; //framewindow
 		int idx2 = match.trainIdx; //frame
-		UVR_SLAM::PoseOptimizationEdge* pEdge1 = new UVR_SLAM::PoseOptimizationEdge(pF->GetMapPoint(idx2)->GetWorldPos(),nResidualSize);
+		UVR_SLAM::PoseOptimizationEdge* pEdge1 = new UVR_SLAM::PoseOptimizationEdge(pF->mvpMPs[idx2]->GetWorldPos(),nResidualSize);
 		Eigen::Vector2d temp = Eigen::Vector2d();
 		cv::Point2f pt1 = pF->mvKeyPoints[idx2].pt;
 		temp(0) = pt1.x;
 		temp(1) = pt1.y;
 		pEdge1->SetMeasurement(temp);
 		cv::cv2eigen(mK, pEdge1->K);
-
 		pEdge1->AddVertex(mpVertex1);
 		double info = (double)pF->mvInvLevelSigma2[pF->mvKeyPoints[idx2].octave];
 		//std::cout << "information::" << info2 << std::endl;
 		pEdge1->SetInformation(cv::Mat::eye(nResidualSize, nResidualSize, CV_64FC1)*info);
 		pEdge1->fx = fx;
 		pEdge1->fy = fy;
-
 		GraphOptimizer::RobustKernel* huber = new GraphOptimizer::HuberKernel();
 		huber->SetDelta(deltaMono);
 		pEdge1->mpRobustKernel = huber;
-
 		mpOptimizer->AddEdge(pEdge1);
 		mvpEdges.push_back(pEdge1);
 	}
@@ -73,19 +70,19 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 			
 			int idx1 = match.queryIdx; //framewindow
 			int idx2 = match.trainIdx; //frame
-			if (!pF->GetBoolInlier(idx2)) {
+			if (!pF->mvbMPInliers[idx2]) {
 				mvpEdges[edgeIdx]->CalcError();
 			}
 			if (mvpEdges[edgeIdx]->GetError() > chiMono || !mvpEdges[edgeIdx]->GetDepth()) {
 				mvpEdges[edgeIdx]->SetLevel(1);
-				pF->SetBoolInlier(false, idx2);
+				pF->mvbMPInliers[idx2] = false;
 				pWindow->SetBoolInlier(false, idx1);
 				pWindow->mvPairMatchingInfo[mvIndexes[edgeIdx]].second = false;
 			}
 			else
 			{
 				mvpEdges[edgeIdx]->SetLevel(0);
-				pF->SetBoolInlier(true, idx2);
+				pF->mvbMPInliers[idx2] = true;
 				pWindow->SetBoolInlier(true, idx1);
 				nInlier++;
 				pWindow->mvPairMatchingInfo[mvIndexes[edgeIdx]].second = true;
@@ -281,10 +278,11 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		mvpFrames.push_back(pF);
 	}
 	
+	auto mvpLocalMPs = pWindow->GetLocalMap();
 	//Add map point
-	for (int i = 0; i < pWindow->GetLocalMapSize(); i++) {
+	for (int i = 0; i < mvpLocalMPs.size(); i++) {
 
-		UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint(i);
+		UVR_SLAM::MapPoint* pMP = mvpLocalMPs[i];
 		if (!pMP)
 			continue;
 		if (pMP->isDeleted()){
@@ -322,9 +320,9 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		mpOptimizer->AddVertex(mpFVertex);
 	}
 
-	for (int i = 0; i < pWindow->GetLocalMapSize(); i++) {
+	for (int i = 0; i < mvpLocalMPs.size(); i++) {
 
-		UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint(i);
+		UVR_SLAM::MapPoint* pMP = mvpLocalMPs[i];
 		if (!pMP)
 			continue;
 		if (pMP->isDeleted())

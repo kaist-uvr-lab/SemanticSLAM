@@ -193,8 +193,8 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				//set mp·Î ¹Ù´Ú, º®, ÃµÀå È¹µæÇÏ±â
 				for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
 
-					if (mpTargetFrame->GetBoolInlier(i)) {
-						UVR_SLAM::MapPoint* pMP = mpTargetFrame->GetMapPoint(i);
+					if (mpTargetFrame->mvbMPInliers[i]) {
+						UVR_SLAM::MapPoint* pMP = mpTargetFrame->mvpMPs[i];
 						if (!pMP)
 							continue;
 						if (pMP->isDeleted())
@@ -280,7 +280,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 						Ni2 = FlukerLineProjection(P3, P2, R, t, m2);
 				}
 				for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
-					if (!mpTargetFrame->GetBoolInlier(i)) {
+					if (!mpTargetFrame->mvbMPInliers[i]) {
 						cv::Point2f pt = mpTargetFrame->mvKeyPoints[i].pt;
 						cv::Mat temp = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
 						auto oType = mpTargetFrame->GetObjectType(i);

@@ -61,11 +61,11 @@ int UVR_SLAM::Frame::GetKeyFrameID() {
 }
 
 void UVR_SLAM::Frame::SetInliers(int nInliers){
-	std::unique_lock<std::mutex>(mMutexFrame);
+	std::unique_lock<std::mutex>(mMutexNumInliers);
 	mnInliers = nInliers;
 }
 int UVR_SLAM::Frame::GetInliers() {
-	std::unique_lock<std::mutex>(mMutexFrame);
+	std::unique_lock<std::mutex>(mMutexNumInliers);
 	return mnInliers;
 }
 
@@ -163,14 +163,22 @@ cv::Mat UVR_SLAM::Frame::GetOriginalImage() {
 }
 
 void UVR_SLAM::Frame::AddMP(UVR_SLAM::MapPoint* pMP, int idx){
-	SetMapPoint(pMP, idx);
+	mvpMPs[idx] = pMP;
+	mvbMPInliers[idx] = true;
+	std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
+	mnInliers++;
+	/*SetMapPoint(pMP, idx);
 	SetBoolInlier(true, idx);
-	Increase();
+	Increase();*/
 }
 void UVR_SLAM::Frame::RemoveMP(int idx) {
-	SetMapPoint(nullptr, idx);
+	mvpMPs[idx] = nullptr;
+	mvbMPInliers[idx] = false;
+	std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
+	mnInliers--;
+	/*SetMapPoint(nullptr, idx);
 	SetBoolInlier(false, idx);
-	Decrease();
+	Decrease();*/
 }
 
 void UVR_SLAM::Frame::SetObjectType(UVR_SLAM::ObjectType type, int idx){
@@ -187,32 +195,35 @@ std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Frame::GetMapPoints() {
 	return mvpMPs;
 }
 
-UVR_SLAM::MapPoint* UVR_SLAM::Frame::GetMapPoint(int idx) {
-	std::unique_lock<std::mutex> lockMP(mMutexFrame);
-	return mvpMPs[idx];
-}
-void UVR_SLAM::Frame::SetMapPoint(UVR_SLAM::MapPoint* pMP, int idx) {
-	std::unique_lock<std::mutex> lockMP(mMutexFrame);
-	mvpMPs[idx] = pMP;
-}
-bool UVR_SLAM::Frame::GetBoolInlier(int idx) {
-	std::unique_lock<std::mutex> lockMP(mMutexFrame);
-	return mvbMPInliers[idx];
-}
-void UVR_SLAM::Frame::SetBoolInlier(bool flag, int idx) {
-	std::unique_lock<std::mutex> lockMP(mMutexFrame);
-	mvbMPInliers[idx] = flag;
-}
-void UVR_SLAM::Frame::Increase(){
-	std::unique_lock<std::mutex> lockMP(mMutexFrame);
-	mnInliers++;
-}
-void UVR_SLAM::Frame::Decrease(){
-	std::unique_lock<std::mutex> lockMP(mMutexFrame);
-	mnInliers--;
-}
+//UVR_SLAM::MapPoint* UVR_SLAM::Frame::GetMapPoint(int idx) {
+//	std::unique_lock<std::mutex> lockMP(mMutexFrame);
+//	return mvpMPs[idx];
+//}
+//void UVR_SLAM::Frame::SetMapPoint(UVR_SLAM::MapPoint* pMP, int idx) {
+//	std::unique_lock<std::mutex> lockMP(mMutexFrame);
+//	mvpMPs[idx] = pMP;
+//}
+//bool UVR_SLAM::Frame::GetBoolInlier(int idx) {
+//	std::unique_lock<std::mutex> lockMP(mMutexFrame);
+//	return mvbMPInliers[idx];
+//}
+//void UVR_SLAM::Frame::SetBoolInlier(bool flag, int idx) {
+//	std::unique_lock<std::mutex> lockMP(mMutexFrame);
+//	mvbMPInliers[idx] = flag;
+//}
+
+
+//void UVR_SLAM::Frame::Increase(){
+//	std::unique_lock<std::mutex> lockMP(mMutexFrame);
+//	mnInliers++;
+//}
+//void UVR_SLAM::Frame::Decrease(){
+//	std::unique_lock<std::mutex> lockMP(mMutexFrame);
+//	mnInliers--;
+//}
+
 int UVR_SLAM::Frame::GetNumInliers() {
-	std::unique_lock<std::mutex> lockMP(mMutexFrame);
+	std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
 	return mnInliers;
 }
 
@@ -220,6 +231,15 @@ bool UVR_SLAM::Frame::isInImage(float x, float y)
 {
 	return (x >= mnMinX && x<mnMaxX && y >= mnMinY && y<mnMaxY);
 }
+
+cv::Point2f UVR_SLAM::Frame::Projection(cv::Mat w3D, cv::Mat R, cv::Mat t, cv::Mat K) {
+	cv::Mat pCam = R*w3D + t;
+	cv::Mat temp = K*pCam;
+	cv::Point2f p2D = cv::Point2f(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
+	return p2D;
+}
+
+
 
 unsigned char UVR_SLAM::Frame::GetFrameType() {
 	std::unique_lock<std::mutex>(mMutexType);
@@ -284,6 +304,8 @@ bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2
 		return false;
 	return true;
 }
+
+//두 키프레임의 베이스라인을 계산할 때 이용 됨.
 bool UVR_SLAM::Frame::ComputeSceneMedianDepth(float& fMedianDepth)
 {
 	cv::Mat tempR, tempT;
@@ -294,17 +316,15 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(float& fMedianDepth)
 	float zcw = tempT.at<float>(2);
 	for (int i = 0; i < mvKeyPoints.size(); i++)
 	{
-		if (GetBoolInlier(i))
-		{
-			UVR_SLAM::MapPoint* pMP = GetMapPoint(i);
-			if (!pMP)
-				continue;
-			if (pMP->isDeleted())
-				continue;
-			cv::Mat x3Dw = pMP->GetWorldPos();
-			float z = (float)Rcw2.dot(x3Dw) + zcw;
-			vDepths.push_back(z);
+		UVR_SLAM::MapPoint* pMP = mvpMPs[i];
+		if (!pMP) {
+			continue;
 		}
+		if (pMP->isDeleted())
+			continue;
+		cv::Mat x3Dw = pMP->GetWorldPos();
+		float z = (float)Rcw2.dot(x3Dw) + zcw;
+		vDepths.push_back(z);
 	}
 	if (vDepths.size() == 0)
 		return false;

@@ -146,6 +146,10 @@ void UVR_SLAM::FrameWindow::SetVectorInlier(int size, bool b){
 	std::unique_lock<std::mutex> lockMP(mMutexLocaMPs);
 	mvbLocalMPInliers = std::vector<bool>(size, b);
 }
+std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::FrameWindow::GetLocalMap() {
+	std::unique_lock<std::mutex> lockMP(mMutexLocaMPs);
+	return std::vector<UVR_SLAM::MapPoint*>(mvpLocalMPs.begin(), mvpLocalMPs.end());
+}
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 //프레임 카운트는 키프레임과 키프레임 사이의 누적된 프레임 수를 의미함.
 //이게 꼭 여기 있어야 하나?
@@ -187,7 +191,7 @@ void UVR_SLAM::FrameWindow::SetLocalMap() {
 	for (auto iter = mpDeque.begin(); iter != mpDeque.end(); iter++) {
 		UVR_SLAM::Frame* pF = *iter;
 		for (int i = 0; i < pF->mvKeyPoints.size(); i++) {
-			UVR_SLAM::MapPoint *pMP = pF->GetMapPoint(i);
+			UVR_SLAM::MapPoint *pMP = pF->mvpMPs[i];
 			if (!pMP)
 				continue;
 			AddMapPoint(pMP);

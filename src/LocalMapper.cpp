@@ -227,14 +227,12 @@ void UVR_SLAM::LocalMapper::NewMapPointMaginalization() {
 void UVR_SLAM::LocalMapper::UpdateMPs() {
 	int nUpdated = 0;
 	for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
-		UVR_SLAM::MapPoint* pMP = mpTargetFrame->GetMapPoint(i);
+		UVR_SLAM::MapPoint* pMP = mpTargetFrame->mvpMPs[i];
 		if (pMP) {
 			if (pMP->isDeleted()) {
 				mpTargetFrame->RemoveMP(i);
 			}
-		}
-		if (mpTargetFrame->GetBoolInlier(i)) {
-			if (pMP){
+			else {
 				nUpdated++;
 				pMP->AddFrame(mpTargetFrame, i);
 			}
@@ -358,7 +356,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(UVR_SLAM::Frame* pCurrKF, UVR_SLAM::F
 	mpFrameWindow->mvMatchInfos.clear();
 
 	for (int i = 0; i < pCurrKF->mvKeyPoints.size(); i++) {
-		if (pCurrKF->GetBoolInlier(i))
+		if (pCurrKF->mvbMPInliers[i])
 			continue;
 		int matchIDX, kidx;
 		cv::KeyPoint kp = pCurrKF->mvKeyPoints[i];
@@ -368,7 +366,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(UVR_SLAM::Frame* pCurrKF, UVR_SLAM::F
 		float sigma = pCurrKF->mvLevelSigma2[kp.octave];
 		bool bMatch = mpMatcher->FeatureMatchingWithEpipolarConstraints(matchIDX, pLastKF, F12, kp, desc, sigma, thresh_epi_dist);
 		if (bMatch) {
-			if (!pLastKF->GetBoolInlier(matchIDX)) {
+			if (!pLastKF->mvbMPInliers[matchIDX]) {
 				
 				cv::KeyPoint kp2 = pLastKF->mvKeyPoints[matchIDX];
 				cv::Mat X3D     = Triangulate(kp2.pt, kp.pt, mK*P0, mK*P1);
@@ -466,11 +464,16 @@ bool UVR_SLAM::LocalMapper::CheckScaleConsistency(cv::Mat x3D, cv::Mat Ow1, cv::
 
 void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 	std::map<UVR_SLAM::Frame*, int> mmpCandidateKFs;
-	auto mvpTemporalCandidateKFs = mpFrameWindow->GetAllFrames();
 	int nTargetID = mpTargetFrame->GetFrameID();
+	auto mvpTemporalCandidateKFs = mpFrameWindow->GetAllFrames();
+	std::cout << "LocalMapper::" << mvpTemporalCandidateKFs.size() << std::endl;
+	std::cout << "LocalMapper::TargetKF::" << nTargetID << std::endl;
+	
 	for (int i = 0; i < mvpTemporalCandidateKFs.size(); i++) {
 		if (nTargetID == mvpTemporalCandidateKFs[i]->GetFrameID())
 			continue;
+		std::cout << "LocalMapper::Window::" <<i<<"::"<< mvpTemporalCandidateKFs[i]->GetFrameID() <<", "<<mvpTemporalCandidateKFs[i]->GetKeyFrameID()<< std::endl;
+		
 		mmpCandidateKFs[mvpTemporalCandidateKFs[i]] = 0;
 		//mspCandidateKFs.insert(mvpTemporalCandidateKFs[i]);
 		auto mvpTemp2 = mvpTemporalCandidateKFs[i]->GetConnectedKFs();
@@ -480,16 +483,18 @@ void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 			mmpCandidateKFs[mvpTemp2[j]] = 0;
 		}
 	}
-	if (mmpCandidateKFs.find(mpTargetFrame) != mmpCandidateKFs.end()) {
+	/*if (mmpCandidateKFs.find(mpTargetFrame) == mmpCandidateKFs.end()) {
 		std::cout << "kf map error" << std::endl;
-	}
+	}*/
 	int Nkf = mmpCandidateKFs.size();
 	
-	for (int i = 0; i < mpFrameWindow->GetLocalMapSize(); i++) {
+	auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
+
+	for (int i = 0; i < mvpLocalMPs.size(); i++) {
 		if (!mpFrameWindow->GetBoolInlier(i)) {
 			continue;
 		}
-		UVR_SLAM::MapPoint* pMP = mpFrameWindow->GetMapPoint(i);
+		UVR_SLAM::MapPoint* pMP = mvpLocalMPs[i];
 		if (!pMP)
 			continue;
 		if (pMP->isDeleted())
@@ -499,6 +504,11 @@ void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 			UVR_SLAM::Frame* pCandidateKF = biter->first;
 			if (nTargetID == pCandidateKF->GetFrameID())
 				continue;
+
+			if (mmpCandidateKFs.find(pCandidateKF) == mmpCandidateKFs.end()) {
+				std::cout << "LocalMapping::Not connected kf" << std::endl;
+			}
+
 			mmpCandidateKFs[pCandidateKF]++;
 		}
 	}
@@ -521,7 +531,7 @@ void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 		UVR_SLAM::Frame* pKF = vPairs[i].second;
 		int nCount = vPairs[i].first;
 		mpTargetFrame->AddKF(pKF);
-		std::cout << "LocalMapping::Connection::" << pKF->GetFrameID() << ", " << nCount << std::endl;
+		std::cout << "LocalMapping::Connection::" << pKF->GetFrameID() <<" | "<<pKF->GetKeyFrameID()<< ":: " << nCount << std::endl;
 	}
 	std::cout << "LocalMapping::Connected KFs::" << mpTargetFrame->GetConnectedKFs().size() << std::endl;
 }

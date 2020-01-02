@@ -156,8 +156,8 @@ void UVR_SLAM::SemanticSegmentator::ObjectLabeling() {
 			if (mVecLabelMasks[j].at<uchar>(pt) == 255) {
 				UVR_SLAM::ObjectType type = static_cast<ObjectType>(j);
 				mpTargetFrame->SetObjectType(type, i);
-				if (mpTargetFrame->GetBoolInlier(i)) {
-					UVR_SLAM::MapPoint* pMP = mpTargetFrame->GetMapPoint(i);
+				if (mpTargetFrame->mvbMPInliers[i]) {
+					UVR_SLAM::MapPoint* pMP = mpTargetFrame->mvpMPs[i];
 					if (pMP) {
 						if (pMP->isDeleted())
 							continue;

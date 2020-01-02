@@ -120,16 +120,20 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 		//mpMatcher->FeatureMatchingForInitialPoseTracking(mpFrameWindow, pFrame);
 		std::vector<cv::DMatch> vMatchInfos;
-		int nInitMatching = mpMatcher->FeatureMatchingForInitialPoseTracking(pPrev, pCurr, mpFrameWindow, vMatchInfos);
+		//int nInitMatching = mpMatcher->FeatureMatchingForInitialPoseTracking(pPrev, pCurr, mpFrameWindow, vMatchInfos);
 		//std::cout << "Matching Init : " << nInitMatching << std::endl;
 
-		Optimization::PoseOptimization(mpFrameWindow, pCurr, true,4,10);
-		int nProjection = mpMatcher->FeatureMatchingForPoseTrackingByProjection(mpFrameWindow, pCurr,10.0);
+
+		int nInitMatching = mpMatcher->FeatureMatchingForInitialPoseTracking(mpFrameWindow, pCurr);
+		//CalcVisibleCount(pCurr);
+
+		mnMatching = Optimization::PoseOptimization(mpFrameWindow, pCurr, false,4,10);
+		//int nProjection = mpMatcher->FeatureMatchingForPoseTrackingByProjection(mpFrameWindow, pCurr,10.0);
 		//std::cout << "Matching projection : " << nProjection << std::endl;
 
 		//visible
-		CalcVisibleCount(pCurr);
-		mnMatching =  Optimization::PoseOptimization(mpFrameWindow, pCurr, false,4,10);
+		
+		//mnMatching =  Optimization::PoseOptimization(mpFrameWindow, pCurr, false,4,10);
 		pCurr->SetInliers(mnMatching);
 
 		//슬램 초기화 최종 판단
@@ -191,18 +195,18 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		vis.convertTo(vis, CV_8UC3);
 
 		for (int i = 0; i < pCurr->mvKeyPoints.size(); i++) {
-			UVR_SLAM::MapPoint* pMP = pCurr->GetMapPoint(i);
+			UVR_SLAM::MapPoint* pMP = pCurr->mvpMPs[i];
 			if (!pMP)
 				continue;
 			if (pMP->isDeleted()) {
-				pCurr->SetBoolInlier(false, i);
+				pCurr->mvbMPInliers[i] = false;
 				continue;
 			}
 			cv::Point2f p2D;
 			cv::Mat pCam;
 			pMP->Projection(p2D, pCam, pCurr->GetRotation(), pCurr->GetTranslation(), mK, mnWidth, mnHeight);
 
-			if (!pCurr->GetBoolInlier(i)){
+			if (!pCurr->mvbMPInliers[i]){
 				//if (pMP->GetPlaneID() > 0) {
 				//	//circle(vis, p2D, 4, cv::Scalar(255, 0, 255), 2);
 				//}
@@ -265,9 +269,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 void UVR_SLAM::Tracker::CalcVisibleCount(UVR_SLAM::Frame* pF) {
 	for (int i = 0; i < pF->mvKeyPoints.size(); i++) {
-		if (!pF->GetBoolInlier(i))
-			continue;
-		UVR_SLAM::MapPoint* pMP = pF->GetMapPoint(i);
+		UVR_SLAM::MapPoint* pMP = pF->mvpMPs[i];
 		if (!pMP)
 			continue;
 		pMP->IncreaseVisible();
@@ -275,11 +277,16 @@ void UVR_SLAM::Tracker::CalcVisibleCount(UVR_SLAM::Frame* pF) {
 }
 void UVR_SLAM::Tracker::CalcMatchingCount(UVR_SLAM::Frame* pF) {
 	for (int i = 0; i < pF->mvKeyPoints.size(); i++) {
-		if (!pF->GetBoolInlier(i))
-			continue;
-		UVR_SLAM::MapPoint* pMP = pF->GetMapPoint(i);
+		//if (!pF->GetBoolInlier(i))
+		//continue;
+		UVR_SLAM::MapPoint* pMP = pF->mvpMPs[i];
 		if (!pMP)
 			continue;
-		pMP->IncreaseFound();
+		if(pF->mvbMPInliers[i])
+			pMP->IncreaseFound();
+		else {
+			pMP->IncreaseVisible();
+			pF->mvpMPs[i] = nullptr;
+		}
 	}
 }

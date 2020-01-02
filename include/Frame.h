@@ -54,10 +54,12 @@ namespace UVR_SLAM {
 		void AddMP(UVR_SLAM::MapPoint* pMP, int idx);
 		void RemoveMP(int idx);
 		std::vector<UVR_SLAM::MapPoint*> GetMapPoints();
-		UVR_SLAM::MapPoint* GetMapPoint(int idx);
-		void SetMapPoint(UVR_SLAM::MapPoint* pMP, int idx);
-		bool GetBoolInlier(int idx);
-		void SetBoolInlier(bool flag, int idx);
+		
+		//UVR_SLAM::MapPoint* GetMapPoint(int idx);
+		//void SetMapPoint(UVR_SLAM::MapPoint* pMP, int idx);
+		//bool GetBoolInlier(int idx);
+		//void SetBoolInlier(bool flag, int idx);
+
 		void SetObjectType(UVR_SLAM::ObjectType type, int idx);
 		ObjectType GetObjectType(int idx);
 		int GetNumInliers();
@@ -73,6 +75,7 @@ namespace UVR_SLAM {
 		int GetInliers();
 
 		bool isInImage(float u, float v);
+		cv::Point2f Projection(cv::Mat w3D, cv::Mat R, cv::Mat t, cv::Mat K);
 
 		///
 		void AddKF(UVR_SLAM::Frame* pKF);
@@ -80,7 +83,9 @@ namespace UVR_SLAM {
 		std::vector<UVR_SLAM::Frame*> GetConnectedKFs();
 		std::vector<UVR_SLAM::Frame*> GetConnectedKFs(int n);
 	public:
-		
+
+		int mnFuseFrameID;
+		std::vector<UVR_SLAM::MapPoint*> mvpMPs;
 		std::vector<bool> mvbMPInliers;
 		std::vector<cv::KeyPoint> mvKeyPoints, mvKeyPointsUn, mvkInliers, mvTempKPs;
 		cv::Mat matDescriptor;
@@ -88,18 +93,19 @@ namespace UVR_SLAM {
 		fbow::fBow mBowVec;
 	
 	private:
-		void Increase();
-		void Decrease();
+		//void Increase();
+		//void Decrease();
 		void SetFrameID();
 		void SetKeyFrameID();
 		
 	private:
 		int mnKeyFrameID;
 		int mnFrameID;
+		std::mutex mMutexNumInliers;
 		std::mutex mMutexFrame;
 
 		std::vector<ObjectType> mvObjectTypes; //모든 키포인트에 대해서 미리 정의된 레이블인지 재할당
-		std::vector<UVR_SLAM::MapPoint*> mvpMPs;
+		
 		std::set<UVR_SLAM::Frame*> mspConnectedKFs;
 		cv::Mat matFrame, matOri;
 		cv::Mat R, t;
@@ -111,8 +117,10 @@ namespace UVR_SLAM {
 		std::mutex mMutexMPs, mMutexBoolInliers, mMutexNumInliers, mMutexPose, mMutexType;
 		std::mutex mMutexImage;*/
 	public:
+		
+
 		//from ORB_SLAM2
-		int mnFuseFrameID;
+		
 		cv::Mat mDistCoef, mK;
 		ORBextractor* mpORBextractor;
 		static float fx;

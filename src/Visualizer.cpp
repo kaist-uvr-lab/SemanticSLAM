@@ -143,9 +143,11 @@ void UVR_SLAM::Visualizer::Run() {
 			}
 			}*/
 
+
+			auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
 			//map points
-			for (int i = 0; i < mpFrameWindow->GetLocalMapSize(); i++) {
-				UVR_SLAM::MapPoint* pMP = mpFrameWindow->GetMapPoint(i);
+			for (int i = 0; i < mvpLocalMPs.size(); i++) {
+				UVR_SLAM::MapPoint* pMP = mvpLocalMPs[i];
 				if (!pMP)
 					continue;
 				if (pMP->isDeleted())
@@ -196,13 +198,13 @@ void UVR_SLAM::Visualizer::VisualizeTracking() {
 	vis.convertTo(vis, CV_8UC3);
 
 	for (int i = 0; i < mpMatchingFrame2->mvKeyPoints.size(); i++) {
-		if (!mpMatchingFrame2->GetBoolInlier(i))
+		if (!mpMatchingFrame2->mvbMPInliers[i])
 			continue;
-		UVR_SLAM::MapPoint* pMP = mpMatchingFrame2->GetMapPoint(i);
+		UVR_SLAM::MapPoint* pMP = mpMatchingFrame2->mvpMPs[i];
 		cv::circle(vis, mpMatchingFrame2->mvKeyPoints[i].pt, 1, cv::Scalar(255, 0, 255), -1);
 		if (pMP) {
 			if (pMP->isDeleted()) {
-				mpMatchingFrame2->SetBoolInlier(false, i);
+				mpMatchingFrame2->mvbMPInliers[i] = false;
 				continue;
 			}
 			cv::Point2f p2D;
@@ -264,7 +266,7 @@ void UVR_SLAM::Visualizer::VisualizeFrameMatching() {
 		cv::circle(debugging, mpMatchingFrame2->mvKeyPoints[i].pt+ ptBottom, 1, cv::Scalar(255, 255, 0), -1);
 	}*/
 	for (int i = 0; i < mvMatchInfos.size(); i++) {
-		if(mpMatchingFrame2->GetBoolInlier(mvMatchInfos[i].trainIdx))
+		if(mpMatchingFrame2->mvbMPInliers[mvMatchInfos[i].trainIdx])
 			cv::line(debugging, mpMatchingFrame1->mvKeyPoints[mvMatchInfos[i].queryIdx].pt, mpMatchingFrame2->mvKeyPoints[mvMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 0, 255));
 		else
 			cv::line(debugging, mpMatchingFrame1->mvKeyPoints[mvMatchInfos[i].queryIdx].pt, mpMatchingFrame2->mvKeyPoints[mvMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 255, 0));

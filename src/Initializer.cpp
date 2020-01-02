@@ -136,7 +136,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
 					int idx1 = resMatches[i].queryIdx;
 					int idx2 = resMatches[i].trainIdx;
 
-					UVR_SLAM::MapPoint* pMP = mpInitFrame1->GetMapPoint(idx1);
+					UVR_SLAM::MapPoint* pMP = mpInitFrame1->mvpMPs[idx1];
 					cv::Mat pCam1;
 					cv::Point2f p2D1;
 					bool bProjection1 = pMP->Projection(p2D1, pCam1, mpInitFrame1->GetRotation(), mpInitFrame1->GetTranslation(), mpInitFrame1->mK, w, h);

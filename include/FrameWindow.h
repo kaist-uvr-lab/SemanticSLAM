@@ -47,6 +47,7 @@ namespace UVR_SLAM {
 		bool GetBoolInlier(int idx);
 		void SetVectorInlier(int size, bool b);
 		int TrackedMapPoints(int minObservation);
+		std::vector<MapPoint*> GetLocalMap();
 		void SetLocalMap();
 		
 		void SetLastFrameID(int id);
@@ -61,8 +62,10 @@ namespace UVR_SLAM {
 		
 		//std::vector<cv::DMatch> mvMatchingInfo;
 		//std::vector<
+		//여기서 여기까지 삭제 예정
 		std::vector<std::pair<cv::DMatch, bool>> mvPairMatchingInfo; //타겟 프레임과 로컬 맵 사이의 매칭 정보를 기록.
 		std::vector<cv::DMatch> mvMatchInfos; //create mp시 두 프레임 사이의 매칭 정보를 기록. query가 최근 키프레임, train이 이전 키프레임
+		//여기서 여기까지 삭제 예정
 		cv::Mat descLocalMap;
 	private:
 		

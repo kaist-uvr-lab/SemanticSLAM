@@ -114,12 +114,14 @@ void UVR_SLAM::MapPoint::Fuse(UVR_SLAM::MapPoint* pMP) {
 
 		if (!pMP->isInFrame(pKF))
 		{
-			pKF->SetMapPoint(pMP, mit->second);
+			pKF->mvpMPs[mit->second] = pMP;
+			pKF->mvbMPInliers[mit->second] = true;
 			pMP->AddFrame(pKF, mit->second);
 		}
 		else
 		{
-			pKF->SetMapPoint(nullptr, mit->second);
+			pKF->mvpMPs[mit->second] = nullptr;
+			pKF->mvbMPInliers[mit->second] = false;
 			//pKF->EraseMapPointMatch(mit->second);
 		}
 	}
