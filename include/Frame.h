@@ -83,15 +83,19 @@ namespace UVR_SLAM {
 		std::vector<UVR_SLAM::Frame*> GetConnectedKFs();
 		std::vector<UVR_SLAM::Frame*> GetConnectedKFs(int n);
 	public:
-
+		int mnLocalBAID;
 		int mnFuseFrameID;
+	public:
+		//tracked & non tracked
+		cv::Mat mTrackedDescriptor, mNotTrackedDescriptor;
+		std::vector<int> mvTrackedIdxs, mvNotTrackedIdxs;
+	public:
 		std::vector<UVR_SLAM::MapPoint*> mvpMPs;
 		std::vector<bool> mvbMPInliers;
 		std::vector<cv::KeyPoint> mvKeyPoints, mvKeyPointsUn, mvkInliers, mvTempKPs;
 		cv::Mat matDescriptor;
 		cv::Mat undistorted;
 		fbow::fBow mBowVec;
-	
 	private:
 		//void Increase();
 		//void Decrease();
@@ -151,7 +155,7 @@ namespace UVR_SLAM {
 		void UndistortKeyPoints();
 		void ComputeImageBounds(const cv::Mat &imLeft);
 		void AssignFeaturesToGrid();
-		std::vector<size_t> GetFeaturesInArea(const float &x, const float  &y, const float  &r, const int minLevel, const int maxLevel);
+		std::vector<size_t> GetFeaturesInArea(const float &x, const float  &y, const float  &r, const int minLevel = -1, const int maxLevel = -1);
 		bool PosInGrid(const cv::KeyPoint &kp, int &posX, int &posY);
 	protected:
 

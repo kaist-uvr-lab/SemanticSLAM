@@ -195,7 +195,7 @@ void UVR_SLAM::System::Track() {
 void UVR_SLAM::System::Reset() {
 	mbInitialized = false;
 	mpInitializer->Init();
-	mpFrameWindow->clear();
+	mpFrameWindow->ClearLocalMapFrames();
 	nKeyFrameID = 0;
 }
 

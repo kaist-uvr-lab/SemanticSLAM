@@ -237,18 +237,14 @@ int UVR_SLAM::Optimization::InitOptimization(UVR_SLAM::InitialData* data, std::v
 	return nRes;
 }
 
-void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindow, bool& bStopBA, int trial1, int trial2, bool bShowStatus) {
+void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindow, int nTargetID,bool& bStopBA, int trial1, int trial2, bool bShowStatus) {
 	//fixed frame
 	//connected kf = 3
 	//check newmp
 	//KF
 	if(bShowStatus)
 		std::cout << "LocalBA::Start"<< std::endl;
-	//K
-	cv::Mat mK;
-	pWindow->GetFrame(0)->mK.convertTo(mK, CV_64FC1);
-	double fx = mK.at<double>(0, 0);
-	double fy = mK.at<double>(1, 1);
+	
 
 	int nPoseJacobianSize = 6;
 	int nMapJacobianSize = 3;
@@ -269,14 +265,23 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 	std::vector<UVR_SLAM::MapPoint*> mvpMPs;
 	std::vector<int> mvLocalMPIndex;
 
-	for (auto iter = pWindow->GetBeginIterator(); iter != pWindow->GetEndIterator(); iter++) {
+	auto mvpKFs = pWindow->GetLocalMapFrames();
+	for (auto iter = mvpKFs.begin(); iter != mvpKFs.end(); iter++) {
 		Frame* pF = *iter;
+		if (pF->mnLocalBAID == nTargetID)
+			continue;
+		pF->mnLocalBAID = nTargetID;
 		FrameVertex* mpVertex = new FrameVertex(pF->GetRotation(), pF->GetTranslation(), nPoseJacobianSize);
 		mpOptimizer->AddVertex(mpVertex);
 		mvpFrameVertices.push_back(mpVertex);
 		mmpFrames.insert(std::make_pair(pF, nFrame++));
 		mvpFrames.push_back(pF);
 	}
+	//K
+	cv::Mat mK = mvpKFs[0]->mK.clone();
+	mK.convertTo(mK, CV_64FC1);
+	double fx = mK.at<double>(0, 0);
+	double fy = mK.at<double>(1, 1);
 	
 	auto mvpLocalMPs = pWindow->GetLocalMap();
 	//Add map point
@@ -296,11 +301,21 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		auto mmpConnectedFrames = pMP->GetConnedtedFrames();
 		for (auto iter = mmpConnectedFrames.begin(); iter != mmpConnectedFrames.end(); iter++) {
 			UVR_SLAM::Frame* pF = iter->first;
-			auto findres = mmpFrames.find(pF);
-			if (findres == mmpFrames.end()) {
-				mmpFrames.insert(std::make_pair(pF, nFrame++));
-				mspFixedFrames.insert(pF);
-				nFixedFrames++;
+
+			if (pF->mnLocalBAID == nTargetID)
+				continue;
+			pF->mnLocalBAID = nTargetID;
+			mmpFrames.insert(std::make_pair(pF, nFrame++));
+			mspFixedFrames.insert(pF);
+			nFixedFrames++;
+
+			//auto findres = mmpFrames.find(pF);
+			//if (findres == mmpFrames.end()) {
+			//	mmpFrames.insert(std::make_pair(pF, nFrame++));
+			//	mspFixedFrames.insert(pF);
+			//	nFixedFrames++;
+				
+				
 				/*auto findres2 = mspFixedVertices.find(pF);
 				if (findres2 == mspFixedVertices.end()) {
 				}
@@ -308,10 +323,10 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 				mpFVertex->SetFixed(true);
 				mpOptimizer->AddVertex(mpFVertex);*/
 				
-			}
+			//}
 		}
 	}
-
+	
 	for (auto iter = mspFixedFrames.begin(); iter != mspFixedFrames.end(); iter++) {
 		UVR_SLAM::Frame* pF = *iter;
 		FrameVertex* mpFVertex = new FrameVertex(pF->GetRotation(), pF->GetTranslation(), nPoseJacobianSize);
@@ -335,7 +350,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 	}
 	if (bShowStatus)
 		std::cout << "LocalBA::FixedFrame::" << nFixedFrames << std::endl;
-
+	
 	//Add Edge
 	const double deltaMono = sqrt(5.991);
 	const double chiMono = 5.991;
@@ -349,7 +364,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 	//Add Edge
 	for (int i = 0; i < mvpMapPointVertices.size(); i++) {
 		int idx = mvpMapPointVertices[i]->GetIndex();
-		UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint(idx);
+		UVR_SLAM::MapPoint* pMP = mvpLocalMPs[idx];
 		auto mmpConnectedFrames = pMP->GetConnedtedFrames();
 		for (auto iter = mmpConnectedFrames.begin(); iter != mmpConnectedFrames.end(); iter++) {
 			UVR_SLAM::Frame* pF = iter->first;
@@ -393,7 +408,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		mpOptimizer->Optimize(trial2, 0, bShowStatus);
 		for (int i = 0; i < mvpEdges.size(); i++) {
 			EdgePoseNMap* pEdge = mvpEdges[i];
-			if (mvbEdges[i]) {
+			if (!mvbEdges[i]) {
 				mvpEdges[i]->CalcError();
 			}
 			double err = mvpEdges[i]->GetError();
@@ -434,7 +449,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 		if (mvpMPs[i]->GetNumConnectedFrames() < nConnectedThresh) {
 
 			int idx = mvLocalMPIndex[i];
-			UVR_SLAM::MapPoint* pMP = pWindow->GetMapPoint(idx);
+			UVR_SLAM::MapPoint* pMP = mvpLocalMPs[idx];
 			pMP->SetDelete(true);
 			pMP->Delete();
 			pWindow->SetMapPoint(nullptr, idx);

@@ -19,6 +19,12 @@ namespace UVR_SLAM {
 		virtual ~Matcher();
 
 	public:
+
+		void FindFundamental(Frame* pInit, Frame* pCurr, std::vector<cv::DMatch> vMatches, std::vector<bool> &vbMatchesInliers, float &score, cv::Mat &F21);
+
+		//초기화 매칭 20.01.03
+		int SearchForInitialization(Frame* F1, Frame* F2, std::vector<cv::DMatch>& resMatches, int windowSize);
+
 		//fuse 과정에서 수행.
 		int MatchingForFuse(const std::vector<MapPoint*> &vpMapPoints, Frame *pKF, float th = 3.0f);
 
@@ -39,8 +45,12 @@ namespace UVR_SLAM {
 		cv::Mat CalcFundamentalMatrix(cv::Mat R1, cv::Mat t1, cv::Mat R2, cv::Mat t2, cv::Mat K);
 		bool FeatureMatchingWithEpipolarConstraints(int& matchIDX, UVR_SLAM::Frame* pTargetKF, cv::Mat F12, cv::KeyPoint kp, cv::Mat desc, float sigma, int thresh);
 	private:
+
+		int DescriptorDistance(const cv::Mat &a, const cv::Mat &b);
+		void ComputeThreeMaxima(std::vector<int>* histo, const int L, int &ind1, int &ind2, int &ind3);
+
 		//Fundamental Matrix관련초기화
-		void FindFundamental(Frame* pInit, Frame* pCurr, std::vector<cv::DMatch> vMatches, std::vector<bool> &vbMatchesInliers, float &score, cv::Mat &F21);
+		
 		void Normalize(const std::vector<cv::KeyPoint> &vKeys, std::vector<cv::Point2f> &vNormalizedPoints, cv::Mat &T);
 		cv::Mat ComputeF21(const std::vector<cv::Point2f> &vP1, const std::vector<cv::Point2f> &vP2);
 		float CheckFundamental(Frame* pInit, Frame* pCurr, const cv::Mat &F21, std::vector<cv::DMatch> vMatches, std::vector<bool> &vbMatchesInliers, float sigma);
@@ -49,6 +59,7 @@ namespace UVR_SLAM {
 		cv::Mat K, D;
 		int mWidth, mHeight;
 		cv::Ptr<cv::DescriptorMatcher> matcher;
+		bool mbCheckOrientation;
 		float mfNNratio; //projection maching에서 이용
 		int TH_HIGH;     //projection maching에서 이용
 		int TH_LOW;

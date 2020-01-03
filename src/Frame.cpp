@@ -13,7 +13,7 @@ float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeig
 
 static int nFrameID = 0;
 
-UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h):mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0){
+UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h):mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0){
 	matOri = _src.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
 	matFrame.convertTo(matFrame, CV_8UC1);
@@ -21,7 +21,7 @@ UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h):mnType(0), mnInliers(0), mnKe
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
 	SetFrameID();
 }
-UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h) :mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0) {
+UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h) :mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0){
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
@@ -31,7 +31,7 @@ UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h) :mnType(0), mnInliers(0)
 	SetFrameID();
 }
 
-UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t) :mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0) {
+UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t) :mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0){
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
@@ -382,20 +382,21 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	mDistCoef = _d.clone();
 
 	cv::Mat tempDesc;
-	ExtractORB(matFrame, mvTempKPs, tempDesc);
+	ExtractORB(matFrame, mvKeyPoints, matDescriptor);
 	//detector->detectAndCompute(matFrame, cv::noArray(), mvTempKPs, tempDesc);
 
-	matDescriptor = cv::Mat::zeros(0, tempDesc.cols, tempDesc.type());
+	//matDescriptor = cv::Mat::zeros(0, tempDesc.cols, tempDesc.type());
 
-	////여기에서 중복되는 키포인트들 제거하기
-	cv::Mat overlap = cv::Mat::zeros(matFrame.size(), CV_8UC1);
-	for (int i = 0; i < mvTempKPs.size(); i++) {
-		if (!CheckKeyPointOverlap(overlap, mvTempKPs[i].pt)) {
-			continue;
-		}
-		mvKeyPoints.push_back(mvTempKPs[i]);
-		matDescriptor.push_back(tempDesc.row(i));
-	}
+	//////여기에서 중복되는 키포인트들 제거하기
+	//cv::Mat overlap = cv::Mat::zeros(matFrame.size(), CV_8UC1);
+	//for (int i = 0; i < mvTempKPs.size(); i++) {
+	//	if (!CheckKeyPointOverlap(overlap, mvTempKPs[i].pt)) {
+	//		continue;
+	//	}
+	//	mvKeyPoints.push_back(mvTempKPs[i]);
+	//	matDescriptor.push_back(tempDesc.row(i));
+	//}
+
 	//mvKeyPoints.clear();
 	//mvKeyPoints = std::vector<KeyPoint>(tempKPs.begin(), tempKPs.end());
 	////여기에서 중복되는 키포인트들 제거하기

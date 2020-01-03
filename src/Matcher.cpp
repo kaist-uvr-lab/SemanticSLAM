@@ -8,11 +8,145 @@
 
 UVR_SLAM::Matcher::Matcher(){}
 UVR_SLAM::Matcher::Matcher(cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h)
-	:mWidth(w), mHeight(h), TH_HIGH(100), TH_LOW(50), HISTO_LENGTH(30), mfNNratio(0.8), matcher(_matcher)
-{}
+	:mWidth(w), mHeight(h), TH_HIGH(100), TH_LOW(50), HISTO_LENGTH(30), mfNNratio(0.8), mbCheckOrientation(true), matcher(_matcher)
+{
+	//cv::Ptr<cv::flann::IndexParams> indexParams = cv::makePtr<cv::flann::LshIndexParams>(6, 12, 1);
+	//cv::Ptr<cv::flann::SearchParams> searchParams = cv::makePtr<cv::flann::SearchParams>(50);
+	//matcher = cv::makePtr<cv::FlannBasedMatcher>(indexParams, searchParams);
+	
+	//matcher = cv::makePtr<cv::BFMatcher>(cv::NORM_HAMMING, true);
+	//matcher = DescriptorMatcher::create("FlannBased");
+		
+	//cv::FlannBasedMatcher matcher = cv::FlannBasedMatcher(cv::makePtr<cv::flann::LshIndexParams>(12, 20, 2), cv::makePtr<cv::flann::SearchParams>(50));
+}
 UVR_SLAM::Matcher::~Matcher(){}
 
-const double nn_match_ratio = 0.8f; // Nearest-neighbour matching ratio
+const double nn_match_ratio = 0.7f; // Nearest-neighbour matching ratio
+
+int UVR_SLAM::Matcher::SearchForInitialization(Frame* F1, Frame* F2, std::vector<cv::DMatch>& resMatches, int windowSize)
+{
+	int nmatches = 0;
+	//vnMatches12 = vector<int>(F1.mvKeysUn.size(), -1);
+
+	std::vector<int> rotHist[30];
+	for (int i = 0; i < HISTO_LENGTH; i++)
+		rotHist[i].reserve(500);
+	const float factor = 1.0f / HISTO_LENGTH;
+
+	std::vector<int> vMatchedDistance(F2->mvKeyPoints.size(), INT_MAX);
+	std::vector<int> vnMatches21(F2->mvKeyPoints.size(), -1);
+	std::vector<int> vnMatches12(F1->mvKeyPoints.size(), -1);
+
+	for (size_t i1 = 0, iend1 = F1->mvKeyPoints.size(); i1 < iend1; i1++)
+	{
+		cv::KeyPoint kp1 = F1->mvKeyPoints[i1];
+		int level1 = kp1.octave;
+		if (level1 > 0)
+			continue;
+
+		std::vector<size_t> vIndices2 = F2->GetFeaturesInArea(kp1.pt.x, kp1.pt.y, windowSize, level1, level1);
+
+		if (vIndices2.empty())
+			continue;
+
+		cv::Mat d1 = F1->matDescriptor.row(i1);
+
+		int bestDist = INT_MAX;
+		int bestDist2 = INT_MAX;
+		int bestIdx2 = -1;
+
+		for (std::vector<size_t>::iterator vit = vIndices2.begin(); vit != vIndices2.end(); vit++)
+		{
+			size_t i2 = *vit;
+
+			cv::Mat d2 = F2->matDescriptor.row(i2);
+
+			int dist = DescriptorDistance(d1, d2);
+
+			if (vMatchedDistance[i2] <= dist)
+				continue;
+
+			if (dist < bestDist)
+			{
+				bestDist2 = bestDist;
+				bestDist = dist;
+				bestIdx2 = i2;
+			}
+			else if (dist < bestDist2)
+			{
+				bestDist2 = dist;
+			}
+		}
+
+		if (bestDist <= TH_LOW)
+		{
+			if (bestDist < (float)bestDist2*mfNNratio)
+			{
+				if (vnMatches21[bestIdx2] >= 0)
+				{
+					vnMatches12[vnMatches21[bestIdx2]] = -1;
+					nmatches--;
+				}
+				vnMatches12[i1] = bestIdx2;
+				vnMatches21[bestIdx2] = i1;
+				vMatchedDistance[bestIdx2] = bestDist;
+				nmatches++;
+
+				if (mbCheckOrientation)
+				{
+					float rot = F1->mvKeyPoints[i1].angle - F2->mvKeyPoints[bestIdx2].angle;
+					if (rot < 0.0)
+						rot += 360.0f;
+					int bin = round(rot*factor);
+					if (bin == HISTO_LENGTH)
+						bin = 0;
+					assert(bin >= 0 && bin < HISTO_LENGTH);
+					rotHist[bin].push_back(i1);
+				}
+			}
+		}
+
+	}
+
+	if (mbCheckOrientation)
+	{
+		int ind1 = -1;
+		int ind2 = -1;
+		int ind3 = -1;
+
+		ComputeThreeMaxima(rotHist, HISTO_LENGTH, ind1, ind2, ind3);
+
+		for (int i = 0; i < HISTO_LENGTH; i++)
+		{
+			if (i == ind1 || i == ind2 || i == ind3)
+				continue;
+			for (size_t j = 0, jend = rotHist[i].size(); j < jend; j++)
+			{
+				int idx1 = rotHist[i][j];
+				if (vnMatches12[idx1] >= 0)
+				{
+					vnMatches12[idx1] = -1;
+					nmatches--;
+				}
+			}
+		}
+
+	}
+
+	//Update prev matched
+	for (size_t i1 = 0, iend1 = vnMatches12.size(); i1 < iend1; i1++)
+	{
+		if (vnMatches12[i1] >= 0) {
+			cv::DMatch tempMatch;
+			tempMatch.queryIdx = i1;
+			tempMatch.trainIdx = vnMatches12[i1];
+			resMatches.push_back(tempMatch);
+		}
+	}
+	//		vbPrevMatched[i1] = F2.mvKeysUn[vnMatches12[i1]].pt;
+
+	return nmatches;
+}
 
 //Fuse 시 호출
 //Fuse의 경우 동일한 실제 공간의 포인트에 대해 두 키프레임이 같은 맵포인트를 가지도록 하기 위함.
@@ -87,7 +221,7 @@ int UVR_SLAM::Matcher::MatchingForFuse(const std::vector<UVR_SLAM::MapPoint*> &v
 
 			const cv::Mat &dKF = pKF->matDescriptor.row(idx);
 
-			const int dist = UVR_SLAM::MatrixOperator::DescriptorDistance(dMP, dKF);
+			const int dist = DescriptorDistance(dMP, dKF);
 
 			if (dist<bestDist)
 			{
@@ -174,8 +308,8 @@ int UVR_SLAM::Matcher::FeatureMatchingForPoseTrackingByProjection(UVR_SLAM::Fram
 		cv::Mat pCam;
 		cv::Point2f p2D;
 		bool bProjection = pMP->Projection(p2D, pCam, pWindow->GetRotation(), pWindow->GetTranslation(), pF->mK, mWidth, mHeight);
-		if (!bProjection)
-			continue;
+		/*if (!bProjection)
+			continue;*/
 		//if (!pMP->Projection(p2D, pCam, pF->GetRotation(), pF->GetTranslation(), pF->mK, mWidth, mHeight))
 		//	continue;
 
@@ -185,7 +319,7 @@ int UVR_SLAM::Matcher::FeatureMatchingForPoseTrackingByProjection(UVR_SLAM::Fram
 		//}
 		
 		//중복 맵포인트 체크
-		std::vector<size_t> vIndices = pF->GetFeaturesInArea(p2D.x, p2D.y, rr, 0, pF->mnScaleLevels);
+		std::vector<size_t> vIndices = pF->GetFeaturesInArea(p2D.x, p2D.y, rr);
 		if (vIndices.empty())
 			continue;
 
@@ -207,7 +341,7 @@ int UVR_SLAM::Matcher::FeatureMatchingForPoseTrackingByProjection(UVR_SLAM::Fram
 
 			const cv::Mat &d = pF->matDescriptor.row(idx);
 
-			const int dist = UVR_SLAM::MatrixOperator::DescriptorDistance(MPdescriptor, d);
+			const int dist = DescriptorDistance(MPdescriptor, d);
 
 			if (dist<bestDist)
 			{
@@ -242,10 +376,11 @@ int UVR_SLAM::Matcher::FeatureMatchingForPoseTrackingByProjection(UVR_SLAM::Fram
 			tempMatch.queryIdx = i;
 			tempMatch.trainIdx = bestIdx;
 			pWindow->mvPairMatchingInfo.push_back(std::make_pair(tempMatch, true));
-			nmatches++;
-
 			auto otype = pMP->GetObjectType();
 			pF->SetObjectType(otype, bestIdx);
+			nmatches++;
+
+			
 		}
 	}//pMP
 	//std::cout << "Tracker::MatchingByProjection::" << nmatches << std::endl;
@@ -272,9 +407,12 @@ int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::FrameWind
 	for (unsigned long i = 0; i < matches.size(); i++) {
 		if (matches[i][0].distance < nn_match_ratio * matches[i][1].distance) {
 			UVR_SLAM::MapPoint* pMP = mvpLocalMPs[matches[i][0].queryIdx];
+			if (pF->mvpMPs[matches[i][0].trainIdx])
+				continue;
 			if (!pMP)
 				continue;
-			
+			if (pMP->isDeleted())
+				continue;
 			if (vbTemp[matches[i][0].trainIdx]) {
 				vbTemp[matches[i][0].trainIdx] = false;
 			}
@@ -307,7 +445,39 @@ int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::FrameWind
 			count++;
 		}
 	}
-	std::cout << "Matching::" << count << ", " << Nf1 << ", " << Nf2 << std::endl;
+
+	cv::Mat vis = pF->GetOriginalImage();
+	auto mvpMPs = pF->GetMapPoints();
+	/*cv::Mat R = pF->GetRotation();
+	cv::Mat t = pF->GetTranslation();*/
+	for (int i = 0; i < mvpMPs.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = mvpMPs[i];
+		if (!pMP) {
+			continue;
+		}
+		if (pMP->isDeleted()) {
+			continue;
+		}
+		cv::Point2f p2D;
+		cv::Mat pCam;
+		pMP->Projection(p2D, pCam, R, t, pF->mK, 640,360);
+
+		if (!pF->mvbMPInliers[i]) {
+			//if (pMP->GetPlaneID() > 0) {
+			//	//circle(vis, p2D, 4, cv::Scalar(255, 0, 255), 2);
+			//}
+		}
+		else {
+			cv::circle(vis, pF->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 255), -1);
+			UVR_SLAM::ObjectType type = pMP->GetObjectType();
+			cv::line(vis, p2D, pF->mvKeyPoints[i].pt, cv::Scalar(255, 255, 0), 2);
+			if (type != OBJECT_NONE)
+				circle(vis, p2D, 3, UVR_SLAM::ObjectColors::mvObjectLabelColors[type], -1);
+		}
+	}
+	imshow("abasdfasdf", vis);
+
+	//std::cout << "Matching::" << count << ", " << Nf1 << ", " << Nf2 << std::endl;
 	return count;
 }
 
@@ -315,23 +485,28 @@ int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::Frame* pP
 
 	std::vector<bool> vbTemp(pCurr->mvKeyPoints.size(), true);
 	std::vector< std::vector<cv::DMatch> > matches;
-	matcher->knnMatch(pPrev->matDescriptor, pCurr->matDescriptor, matches, 2);
-
+	matcher->knnMatch(pPrev->mTrackedDescriptor, pCurr->matDescriptor, matches, 2);
+	
 	int Nf1 = 0;
 	int Nf2 = 0;
 	int count = 0;
 	
 	for (unsigned long i = 0; i < matches.size(); i++) {
 		if (matches[i][0].distance < nn_match_ratio * matches[i][1].distance) {
-			if (!pPrev->mvbMPInliers[matches[i][0].queryIdx]) {
-				//vMatchInfos.push_back(matches[i][0]);
-				continue;
-			}
-			UVR_SLAM::MapPoint* pMP = pPrev->mvpMPs[matches[i][0].queryIdx];
+
+			vMatchInfos.push_back(matches[i][0]);
+
+			//if (!pPrev->mvbMPInliers[matches[i][0].queryIdx]) {
+			//	//vMatchInfos.push_back(matches[i][0]);
+			//	continue;
+			//}
+			int idx = pPrev->mvTrackedIdxs[matches[i][0].queryIdx];
+			UVR_SLAM::MapPoint* pMP = pPrev->mvpMPs[idx];
 			if (!pMP)
 				continue;
 			if (pMP->isDeleted()){
-				pPrev->mvbMPInliers[matches[i][0].queryIdx]= false;
+				//pPrev->mvbMPInliers[idx]= false;
+				//pPrev->mvpMPs[idx] = nullptr;
 				continue;
 			}
 			if (vbTemp[matches[i][0].trainIdx]) {
@@ -361,16 +536,63 @@ int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::Frame* pP
 			pWindow->SetBoolInlier(true, tempMatch.queryIdx);
 
 			//labeling
-			auto otype = pPrev->GetObjectType(matches[i][0].queryIdx);
+			auto otype = pPrev->GetObjectType(idx);
 			pCurr->SetObjectType(otype, matches[i][0].trainIdx);
 
 			//매칭 성능 확인용
-			vMatchInfos.push_back(matches[i][0]);
-
+			
 			count++;
 		}
 	}
+	std::cout << "Matching : " << vMatchInfos.size() << "::" << Nf1 << std::endl;
 	
+	cv::Mat img1 = pPrev->GetOriginalImage();
+	cv::Mat img2 = pCurr->GetOriginalImage();
+	cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
+
+	cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
+	cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	img1.copyTo(debugging(mergeRect1));
+	img2.copyTo(debugging(mergeRect2));
+
+	for (int i = 0; i < pPrev->mvpMPs.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = pPrev->mvpMPs[i];
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted()) {
+			continue;
+		}
+		cv::Mat pCam;
+		cv::Point2f p2D;
+		pMP->Projection(p2D, pCam, pPrev->GetRotation(), pPrev->GetTranslation(), pCurr->mK, mWidth, mHeight);
+		cv::circle(debugging, p2D, 3, cv::Scalar(0, 255, 0), -1);
+	}
+	for (int i = 0; i < vMatchInfos.size(); i++) {
+		int idx = pPrev->mvTrackedIdxs[vMatchInfos[i].queryIdx];
+		if (pCurr->mvbMPInliers[vMatchInfos[i].trainIdx]){
+			cv::line(debugging, pPrev->mvKeyPoints[idx].pt, pCurr->mvKeyPoints[vMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 0, 255));
+			
+			UVR_SLAM::MapPoint* pMP = pPrev->mvpMPs[idx];
+			if (!pMP)
+				continue;
+			if (pMP->isDeleted()) {
+				continue;
+			}
+			cv::Mat pCam;
+			cv::Point2f p2D;
+			pMP->Projection(p2D, pCam, pPrev->GetRotation(), pPrev->GetTranslation(), pCurr->mK, mWidth, mHeight);
+			cv::line(debugging, pPrev->mvKeyPoints[idx].pt, p2D, cv::Scalar(0, 255, 255), 2);
+			cv::circle(debugging, pPrev->mvKeyPoints[idx].pt, 2, cv::Scalar(255, 0, 255), -1);
+		}
+		else{
+			cv::circle(debugging, pPrev->mvKeyPoints[idx].pt, 1, cv::Scalar(255, 0, 0), -1);
+			cv::line(debugging, pPrev->mvKeyPoints[idx].pt, pCurr->mvKeyPoints[vMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 255, 0));
+		}
+	}
+	cv::imshow("Test::Matching::Frame", debugging);
+	//waitKey(0);
+
 	return count;
 }
 
@@ -420,39 +642,39 @@ int UVR_SLAM::Matcher::MatchingProcessForInitialization(UVR_SLAM::Frame* init, U
 				nf2++;
 				continue;
 			}
-			vMatches.push_back(matches[i][0]);
+			resMatches.push_back(matches[i][0]);
 		}
 	}
 	
-	std::vector<bool> mvInliers;
-	float score;
+	//std::vector<bool> mvInliers;
+	//float score;
 
-	if ((int)vMatches.size() >= 8) {
-		FindFundamental(init, curr, vMatches, mvInliers, score, F);
-		F.convertTo(F, CV_32FC1);
-	}
-	if ((int)vMatches.size() < 8 || F.empty()) {
-		F.release();
-		F = cv::Mat::zeros(0, 0, CV_32FC1);
-		return 0;
-	}
+	//if ((int)vMatches.size() >= 8) {
+	//	FindFundamental(init, curr, vMatches, mvInliers, score, F);
+	//	F.convertTo(F, CV_32FC1);
+	//}
+	//if ((int)vMatches.size() < 8 || F.empty()) {
+	//	F.release();
+	//	F = cv::Mat::zeros(0, 0, CV_32FC1);
+	//	return 0;
+	//}
 
-	int count = 0;
-	
+	//int count = 0;
+	//
 
-	for (unsigned long i = 0; i < vMatches.size(); i++) {
-		//if(inlier_mask.at<uchar>((int)i)) {
-		if (mvInliers[i]) {
+	//for (unsigned long i = 0; i < vMatches.size(); i++) {
+	//	//if(inlier_mask.at<uchar>((int)i)) {
+	//	if (mvInliers[i]) {
 
-			cv::Point2f pt1 = init->mvKeyPoints[vMatches[i].queryIdx].pt;
-			cv::Point2f pt2 = curr->mvKeyPoints[vMatches[i].trainIdx].pt;
-			//init->mvnCPMatchingIdx.push_back(vMatches[i].queryIdx);
-			//curr->mvnCPMatchingIdx.push_back(vMatches[i].trainIdx);
-			resMatches.push_back(vMatches[i]);
-			count++;
-		}
-	}
-	return count; //190116 //inliers.size();
+	//		cv::Point2f pt1 = init->mvKeyPoints[vMatches[i].queryIdx].pt;
+	//		cv::Point2f pt2 = curr->mvKeyPoints[vMatches[i].trainIdx].pt;
+	//		//init->mvnCPMatchingIdx.push_back(vMatches[i].queryIdx);
+	//		//curr->mvnCPMatchingIdx.push_back(vMatches[i].trainIdx);
+	//		resMatches.push_back(vMatches[i]);
+	//		count++;
+	//	}
+	//}
+	return resMatches.size(); //190116 //inliers.size();
 }
 
 
@@ -486,7 +708,7 @@ bool UVR_SLAM::Matcher::FeatureMatchingWithEpipolarConstraints(int& matchIDX, UV
 			continue;
 
 		cv::Mat descPrev = pTargetKF->matDescriptor.row(j);
-		int descDist = UVR_SLAM::MatrixOperator::DescriptorDistance(desc, descPrev);
+		int descDist = DescriptorDistance(desc, descPrev);
 		if (nMinDist > descDist && descDist < thresh) {
 			nMinDist = descDist;
 			bestIdx = j;
@@ -736,4 +958,64 @@ float UVR_SLAM::Matcher::CheckFundamental(UVR_SLAM::Frame* pInit, UVR_SLAM::Fram
 	}
 
 	return score;
+}
+int UVR_SLAM::Matcher::DescriptorDistance(const cv::Mat &a, const cv::Mat &b)
+{
+	const int *pa = a.ptr<int32_t>();
+	const int *pb = b.ptr<int32_t>();
+
+	int dist = 0;
+
+	for (int i = 0; i<8; i++, pa++, pb++)
+	{
+		unsigned  int v = *pa ^ *pb;
+		v = v - ((v >> 1) & 0x55555555);
+		v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
+		dist += (((v + (v >> 4)) & 0xF0F0F0F) * 0x1010101) >> 24;
+	}
+
+	return dist;
+}
+
+void UVR_SLAM::Matcher::ComputeThreeMaxima(std::vector<int>* histo, const int L, int &ind1, int &ind2, int &ind3)
+{
+	int max1 = 0;
+	int max2 = 0;
+	int max3 = 0;
+
+	for (int i = 0; i<L; i++)
+	{
+		const int s = histo[i].size();
+		if (s>max1)
+		{
+			max3 = max2;
+			max2 = max1;
+			max1 = s;
+			ind3 = ind2;
+			ind2 = ind1;
+			ind1 = i;
+		}
+		else if (s>max2)
+		{
+			max3 = max2;
+			max2 = s;
+			ind3 = ind2;
+			ind2 = i;
+		}
+		else if (s>max3)
+		{
+			max3 = s;
+			ind3 = i;
+		}
+	}
+
+	if (max2<0.1f*(float)max1)
+	{
+		ind2 = -1;
+		ind3 = -1;
+	}
+	else if (max3<0.1f*(float)max1)
+	{
+		ind3 = -1;
+	}
 }

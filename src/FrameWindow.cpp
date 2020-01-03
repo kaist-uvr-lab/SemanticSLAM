@@ -2,8 +2,8 @@
 #include <System.h>
 #include <MapPoint.h>
 
-UVR_SLAM::FrameWindow::FrameWindow():mnWindowSize(10), LocalMapSize(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1),mnQueueSize(0){}
-UVR_SLAM::FrameWindow::FrameWindow(int _size) : mnWindowSize(_size), LocalMapSize(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1), mnQueueSize(0) {}
+UVR_SLAM::FrameWindow::FrameWindow():mnWindowSize(10), LocalMapSize(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1),mnQueueSize(0), mdFuseTime(0.0){}
+UVR_SLAM::FrameWindow::FrameWindow(int _size) : mnWindowSize(_size), LocalMapSize(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1), mnQueueSize(0), mdFuseTime(0.0) {}
 UVR_SLAM::FrameWindow::~FrameWindow() {}
 
 
@@ -68,6 +68,7 @@ void UVR_SLAM::FrameWindow::push_back(UVR_SLAM::Frame* pFrame) {
 		mnQueueSize++;
 	}
 	mpDeque.push_back(pFrame);
+	
 }
 void UVR_SLAM::FrameWindow::pop_front() {
 	std::unique_lock<std::mutex>(mMutexDeque);
@@ -90,7 +91,9 @@ UVR_SLAM::Frame* UVR_SLAM::FrameWindow::GetFrame(int idx) {
 	return mpDeque[idx];
 }
 
+//20.01.02 사용안할 수 있음.
 void UVR_SLAM::FrameWindow::AddMapPoint(MapPoint* pMP) {
+
 	std::unique_lock<std::mutex>(mMutexLocaMPs);
 	auto findres = mspLocalMPs.find(pMP);
 	if (findres == mspLocalMPs.end()) {
@@ -162,6 +165,15 @@ int  UVR_SLAM::FrameWindow::GetLastFrameID(){
 	std::unique_lock<std::mutex> lockMP(mMutexLastFrameID);
 	return mnLastFrameID;
 }
+void UVR_SLAM::FrameWindow::SetFuseTime(double d){
+	std::unique_lock<std::mutex> lockMP(mMutexFuseTime);
+	mdFuseTime = d;
+}
+double UVR_SLAM::FrameWindow::GetFuseTime(){
+	std::unique_lock<std::mutex> lockMP(mMutexFuseTime);
+	return mdFuseTime;
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 //마지막 프레임 같은 경우는 프레임이 추가 될 때 수행되므로 뮤텍스 디큐와 연관되는게 맞음.
 
@@ -182,19 +194,31 @@ int UVR_SLAM::FrameWindow::GetLastSemanticFrameIndex() {
 //	return mnLastLayoutFrame;
 //}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void UVR_SLAM::FrameWindow::SetLocalMap() {
+void UVR_SLAM::FrameWindow::SetLocalMap(int nTargetID) {
 	std::unique_lock<std::mutex>(mpSystem->mMutexTracking);
 	std::unique_lock<std::mutex>(mMutexLocalMPs);
-	descLocalMap = cv::Mat::zeros(0, mpDeque.front()->matDescriptor.cols, mpDeque.front()->matDescriptor.type());
+	
+	UVR_SLAM::Frame* pLastF = mlpFrames.back();
+	descLocalMap = cv::Mat::zeros(0, pLastF->matDescriptor.cols, pLastF->matDescriptor.type());
 	mvpLocalMPs.clear();
 	mspLocalMPs.clear();
-	for (auto iter = mpDeque.begin(); iter != mpDeque.end(); iter++) {
+
+	//20.01.02 deque에서 list로 변경함.
+	for (auto iter = mlpFrames.begin(); iter != mlpFrames.end(); iter++) {
 		UVR_SLAM::Frame* pF = *iter;
 		for (int i = 0; i < pF->mvKeyPoints.size(); i++) {
 			UVR_SLAM::MapPoint *pMP = pF->mvpMPs[i];
 			if (!pMP)
 				continue;
-			AddMapPoint(pMP);
+			if (pMP->isDeleted())
+				continue;
+			if (pMP->mnLocalMapID == nTargetID)
+				continue;
+			pMP->SetFrameWindowIndex(mvpLocalMPs.size());
+			mvpLocalMPs.push_back(pMP);
+			descLocalMap.push_back(pMP->GetDescriptor());
+			pMP->mnLocalMapID = nTargetID;
+			//AddMapPoint(pMP);
 			/*auto findres = mspLocalMPs.find(pMP);
 			if (findres == mspLocalMPs.end()) {
 				pMP->SetFrameWindowIndex(mvpLocalMPs.size());
@@ -248,4 +272,15 @@ bool UVR_SLAM::FrameWindow::CalcFrameDistanceWithBOW(UVR_SLAM::Frame* pF) {
 	}
 	//std::cout << "BOW check::" << res << std::endl;
 	return res;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void UVR_SLAM::FrameWindow::AddFrame(Frame* pF){
+	mlpFrames.push_back(pF);
+}
+void UVR_SLAM::FrameWindow::ClearLocalMapFrames(){
+	mlpFrames.clear();
+}
+std::vector<UVR_SLAM::Frame*> UVR_SLAM::FrameWindow::GetLocalMapFrames() {
+	return std::vector<UVR_SLAM::Frame*>(mlpFrames.begin(), mlpFrames.end());
 }

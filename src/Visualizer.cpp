@@ -103,7 +103,8 @@ void UVR_SLAM::Visualizer::Run() {
 		if (isDoingProcess()) {
 
 			if (mbFrameMatching) {
-				VisualizeFrameMatching();
+				//VisualizeFrameMatching();
+
 				//VisualizeTracking();
 			}
 
@@ -162,7 +163,7 @@ void UVR_SLAM::Visualizer::Run() {
 			}
 
 			//trajectory
-			auto mvpWindowFrames = mpFrameWindow->GetAllFrames();
+			auto mvpWindowFrames = mpFrameWindow->GetLocalMapFrames();
 			for (int i = 0; i < mvpWindowFrames.size() - 1; i++) {
 				cv::Mat t2 = mvpWindowFrames[i + 1]->GetTranslation();
 				cv::Mat t1 = mvpWindowFrames[i]->GetTranslation();
@@ -170,9 +171,16 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::Point2f pt2 = cv::Point2f(t2.at<float>(0)* mnVisScale, t2.at<float>(2)* mnVisScale);
 				pt1 += mVisMidPt;
 				pt2 += mVisMidPt;
-				cv::line(tempVis, pt1, pt2, cv::Scalar(0, 0, 0), 2);
+				cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 0), -1);
+				//cv::line(tempVis, pt1, pt2, cv::Scalar(0, 0, 0), 2);
 			}
-			
+			//fuse time text 
+			std::stringstream ss;
+			ss << "Fuse = " << mpFrameWindow->GetFuseTime();
+			cv::rectangle(tempVis, cv::Point2f(0, 0), cv::Point2f(tempVis.cols, 30), cv::Scalar::all(0), -1);
+			cv::putText(tempVis, ss.str(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
+			//fuse time text
+
 			cv::imshow("Output::Trajectory", tempVis);
 			cv::waitKey(1);
 

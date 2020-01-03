@@ -61,6 +61,7 @@ namespace UVR_SLAM {
 	public:
 		int mnMapPointID;
 		int mnFirstKeyFrameID;
+		int mnLocalMapID;
 
 	private:
 		std::mutex mMutexMP;

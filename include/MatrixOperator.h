@@ -41,7 +41,7 @@ namespace UVR_SLAM {
 			return res;
 		}
 
-		int static DescriptorDistance(const cv::Mat &a, const cv::Mat &b);
+		
 
 	public:
 		Eigen::Matrix3d static Skew_Eigen(Eigen::Vector3d v);
