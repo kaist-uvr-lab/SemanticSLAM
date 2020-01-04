@@ -43,13 +43,14 @@ namespace UVR_SLAM {
 		void AddMapPoint(MapPoint* pMP);
 		void SetMapPoint(MapPoint* pMP, int idx);
 		int GetLocalMapSize();
-		void SetBoolInlier(bool b,int idx);
-		bool GetBoolInlier(int idx);
-		void SetVectorInlier(int size, bool b);
+		//void SetBoolInlier(bool b,int idx);
+		//bool GetBoolInlier(int idx);
+		//void SetVectorInlier(int size, bool b);
 		int TrackedMapPoints(int minObservation);
 		std::vector<MapPoint*> GetLocalMap();
 		void SetLocalMap(int nTargetID);
-		
+		cv::Mat GetLocalMapDescriptor();
+
 		void SetLastFrameID(int id);
 		int  GetLastFrameID();
 
@@ -64,10 +65,9 @@ namespace UVR_SLAM {
 		//std::vector<
 		//여기서 여기까지 삭제 예정
 		int mnLastMatches;
-		std::vector<std::pair<cv::DMatch, bool>> mvPairMatchingInfo; //타겟 프레임과 로컬 맵 사이의 매칭 정보를 기록.
-		std::vector<cv::DMatch> mvMatchInfos; //create mp시 두 프레임 사이의 매칭 정보를 기록. query가 최근 키프레임, train이 이전 키프레임
+		//std::vector<std::pair<cv::DMatch, bool>> mvPairMatchingInfo; //타겟 프레임과 로컬 맵 사이의 매칭 정보를 기록.
 		//여기서 여기까지 삭제 예정
-		cv::Mat descLocalMap;
+		std::vector<cv::DMatch> mvMatchInfos; //create mp시 두 프레임 사이의 매칭 정보를 기록. query가 최근 키프레임, train이 이전 키프레임
 	public:
 		void AddFrame(Frame* pF);
 		void ClearLocalMapFrames();
@@ -83,6 +83,7 @@ namespace UVR_SLAM {
 
 	private:
 		int LocalMapSize;
+
 		int mnLastSemanticFrame; 
 		int mnLastLayoutFrame; //윈도우 내에서 마지막 레이아웃 프레임의 인덱스를 나타냄. 아직 사용 안함.
 
@@ -97,11 +98,10 @@ namespace UVR_SLAM {
 		cv::Mat R, t;
 		int mnWindowSize;
 		std::deque<Frame*> mpDeque;
-
-		
+		cv::Mat descLocalMap;
 		std::vector<UVR_SLAM::MapPoint*> mvpLocalMPs;
-		std::set<UVR_SLAM::MapPoint*>    mspLocalMPs; //local map을 구성할 때 이용
-		std::vector<bool> mvbLocalMPInliers;
+		//std::set<UVR_SLAM::MapPoint*>    mspLocalMPs; //local map을 구성할 때 이용
+		//std::vector<bool> mvbLocalMPInliers;
 
 		//포즈 그래프 최적화를 위한 Queue와 관련된 자료들
 	public:

@@ -29,15 +29,16 @@ namespace UVR_SLAM {
 		int MatchingForFuse(const std::vector<MapPoint*> &vpMapPoints, Frame *pKF, float th = 3.0f);
 
 		//Pose Tracking 현재 이용하는 것
-		int FeatureMatchingForInitialPoseTracking(Frame* pPrev, Frame* pCurr, UVR_SLAM::FrameWindow* pWindow, std::vector<cv::DMatch>& vMatchInfos);
-		int FeatureMatchingForPoseTrackingByProjection(FrameWindow* pWindow, Frame* pF, float rr);
+		int FeatureMatchingForInitialPoseTracking(Frame* pPrev, Frame* pCurr, UVR_SLAM::FrameWindow* pWindow, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, std::vector<bool>& mvbLocalMapInliers, std::vector<cv::DMatch>& vMatchInfos);
+		int FeatureMatchingForInitialPoseTracking(FrameWindow* pWindow, Frame* pF, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, std::vector<bool>& mvbLocalMapInliers);
+		int FeatureMatchingForPoseTrackingByProjection(FrameWindow* pWindow, Frame* pF, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, std::vector<bool>& mvbLocalMapInliers, float rr);
 
 		//초기화에 현재 이용하는 것
 		int MatchingProcessForInitialization(Frame* init, Frame* curr, cv::Mat& F, std::vector<cv::DMatch>& resMatches);
 
 		//얘네들은 확인이 필요함.
 		int FeatureMatchingWithSemanticFrames(Frame* pSemantic, Frame* pFrame);
-		int FeatureMatchingForInitialPoseTracking(FrameWindow* pWindow, Frame* pF);
+		
 		
 	public:
 		//Epipolar geometry to create new map points

@@ -94,14 +94,14 @@ UVR_SLAM::Frame* UVR_SLAM::FrameWindow::GetFrame(int idx) {
 //20.01.02 사용안할 수 있음.
 void UVR_SLAM::FrameWindow::AddMapPoint(MapPoint* pMP) {
 
-	std::unique_lock<std::mutex>(mMutexLocaMPs);
+	/*std::unique_lock<std::mutex>(mMutexLocaMPs);
 	auto findres = mspLocalMPs.find(pMP);
 	if (findres == mspLocalMPs.end()) {
 		pMP->SetFrameWindowIndex(mvpLocalMPs.size());
 		mspLocalMPs.insert(pMP);
 		mvpLocalMPs.push_back(pMP);
 		descLocalMap.push_back(pMP->GetDescriptor());
-	}
+	}*/
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
 void UVR_SLAM::FrameWindow::SetPose(cv::Mat _R, cv::Mat _t) {
@@ -137,22 +137,15 @@ int UVR_SLAM::FrameWindow::GetLocalMapSize() {
 	return LocalMapSize;
 }
 
-void UVR_SLAM::FrameWindow::SetBoolInlier(bool b, int idx) {
-	std::unique_lock<std::mutex> lockMP(mMutexLocaMPs);
-	mvbLocalMPInliers[idx] = b;
-}
-bool UVR_SLAM::FrameWindow::GetBoolInlier(int idx){
-	std::unique_lock<std::mutex> lockMP(mMutexLocaMPs);
-	return mvbLocalMPInliers[idx];
-}
-void UVR_SLAM::FrameWindow::SetVectorInlier(int size, bool b){
-	std::unique_lock<std::mutex> lockMP(mMutexLocaMPs);
-	mvbLocalMPInliers = std::vector<bool>(size, b);
-}
 std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::FrameWindow::GetLocalMap() {
 	std::unique_lock<std::mutex> lockMP(mMutexLocaMPs);
 	return std::vector<UVR_SLAM::MapPoint*>(mvpLocalMPs.begin(), mvpLocalMPs.end());
 }
+cv::Mat UVR_SLAM::FrameWindow::GetLocalMapDescriptor() {
+	std::unique_lock<std::mutex> lockMP(mMutexLocaMPs);
+	return descLocalMap.clone();
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 //프레임 카운트는 키프레임과 키프레임 사이의 누적된 프레임 수를 의미함.
 //이게 꼭 여기 있어야 하나?
@@ -201,8 +194,7 @@ void UVR_SLAM::FrameWindow::SetLocalMap(int nTargetID) {
 	UVR_SLAM::Frame* pLastF = mlpFrames.back();
 	descLocalMap = cv::Mat::zeros(0, pLastF->matDescriptor.cols, pLastF->matDescriptor.type());
 	mvpLocalMPs.clear();
-	mspLocalMPs.clear();
-
+	
 	//20.01.02 deque에서 list로 변경함.
 	for (auto iter = mlpFrames.begin(); iter != mlpFrames.end(); iter++) {
 		UVR_SLAM::Frame* pF = *iter;

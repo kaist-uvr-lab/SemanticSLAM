@@ -9,7 +9,7 @@
 #include <PoseGraphOptimization.h>
 #include <MatrixOperator.h>
 
-int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR_SLAM::Frame* pF, bool bStatus, int trial1, int trial2) {
+int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR_SLAM::Frame* pF, std::vector<MapPoint*> mvpLocalMPs, std::vector<bool>& mvbLocalMapInliers, bool bStatus, int trial1, int trial2) {
 	if(bStatus)
 		std::cout << "PoseOptimization::Start" << std::endl;
 	cv::Mat mK;
@@ -31,13 +31,12 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 	std::vector<PoseOptimizationEdge*> mvpEdges;
 	std::vector<int> mvIndexes;
 
-	for (int i = 0; i < pWindow->mvPairMatchingInfo.size(); i++) {
+	for (int i = 0; i < pWindow->mvMatchInfos.size(); i++) {
 		
-		cv::DMatch match = pWindow->mvPairMatchingInfo[i].first;
-		bool bMatch = pWindow->mvPairMatchingInfo[i].second;
-		if (!bMatch)
+		cv::DMatch match = pWindow->mvMatchInfos[i];
+		if (!mvbLocalMapInliers[i])
 			continue;
-
+		
 		mvIndexes.push_back(i);
 		int idx1 = match.queryIdx; //framewindow
 		int idx2 = match.trainIdx; //frame
@@ -66,7 +65,7 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 		mpOptimizer->Optimize(trial2, 0, bStatus);
 		nInlier = 0;
 		for (int edgeIdx = 0; edgeIdx < mvpEdges.size(); edgeIdx++) {
-			cv::DMatch match = pWindow->mvPairMatchingInfo[mvIndexes[edgeIdx]].first;
+			cv::DMatch match = pWindow->mvMatchInfos[mvIndexes[edgeIdx]];
 			
 			int idx1 = match.queryIdx; //framewindow
 			int idx2 = match.trainIdx; //frame
@@ -76,16 +75,14 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 			if (mvpEdges[edgeIdx]->GetError() > chiMono || !mvpEdges[edgeIdx]->GetDepth()) {
 				mvpEdges[edgeIdx]->SetLevel(1);
 				pF->mvbMPInliers[idx2] = false;
-				pWindow->SetBoolInlier(false, idx1);
-				pWindow->mvPairMatchingInfo[mvIndexes[edgeIdx]].second = false;
+				mvbLocalMapInliers[idx1] = false;
 			}
 			else
 			{
 				mvpEdges[edgeIdx]->SetLevel(0);
 				pF->mvbMPInliers[idx2] = true;
-				pWindow->SetBoolInlier(true, idx1);
+				mvbLocalMapInliers[idx1] = true;
 				nInlier++;
-				pWindow->mvPairMatchingInfo[mvIndexes[edgeIdx]].second = true;
 			}
 		}
 	}
@@ -453,7 +450,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 			pMP->SetDelete(true);
 			pMP->Delete();
 			pWindow->SetMapPoint(nullptr, idx);
-			pWindow->SetBoolInlier(false, idx);
+			//pWindow->SetBoolInlier(false, idx);
 			continue;
 		}
 		

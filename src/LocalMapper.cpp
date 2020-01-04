@@ -60,36 +60,47 @@ void UVR_SLAM::LocalMapper::Run() {
 		SetDoingProcess(true);
 
 		if (CheckNewKeyFrames()) {
+			std::cout << "LocalMap::1" << std::endl;
 			ProcessNewKeyFrame();
+			std::cout << "LocalMap::2" << std::endl;
 			CalculateKFConnections();
+			std::cout << "LocalMap::3" << std::endl;
 			UpdateKFs();
-
+			std::cout << "LocalMap::4" << std::endl;
 			////이전 프레임에서 생성된 맵포인트 중 삭제
 			//프레임 윈도우 내의 로컬 맵 포인트 중 new인 애들만 수행
 			NewMapPointMaginalization();
+			std::cout << "LocalMap::5" << std::endl;
 			//프레임 내에서 삭제 되는 녀석과 업데이트 되는 녀석의 분리가 필요함.
 			UpdateMPs();
+			std::cout << "LocalMap::6" << std::endl;
 			////새로운 맵포인트 생성
 			//여기부터 다시 검증이 필요
 			//CreateMapPoints(mpTargetFrame, mpPrevKeyFrame);
 			CreateMapPoints();
-
+			std::cout << "LocalMap::7" << std::endl;
 			//fuse
 			if (!CheckNewKeyFrames())
 			{
+				std::cout << "LocalMap::81" << std::endl;
 				std::chrono::high_resolution_clock::time_point fuse_start = std::chrono::high_resolution_clock::now();
 				FuseMapPoints();
 				std::chrono::high_resolution_clock::time_point fuse_end = std::chrono::high_resolution_clock::now();
 				auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(fuse_end - fuse_start).count();
 				double tttt = duration / 1000.0;
 				mpFrameWindow->SetFuseTime(tttt);
+				std::cout << "LocalMap::82" << std::endl;
 			}
 			////BA
 			//BA에서는 최근 생성된 맵포인트까지 반영을 해야 함.
 			bool btest = false;
-			if(!CheckNewKeyFrames())
+			if(!CheckNewKeyFrames()){
+				std::cout << "LocalMap::91" << std::endl;
 				Optimization::LocalBundleAdjustment(mpFrameWindow, mpTargetFrame->GetFrameID(), btest, 2, 5, false);
+				std::cout << "LocalMap::92" << std::endl;
+			}
 			mpFrameWindow->SetLocalMap(mpTargetFrame->GetFrameID());
+			std::cout << "LocalMap::93" << std::endl;
 			SetDoingProcess(false);
 			//std::cout << "Create KeyFrame::End!!!!" << std::endl;
 		}
@@ -192,44 +203,6 @@ void UVR_SLAM::LocalMapper::NewMapPointMaginalization() {
 	}
 
 	return;
-	for (int i = 0; i < mpFrameWindow->GetLocalMapSize(); i++) {
-		UVR_SLAM::MapPoint* pMP = mpFrameWindow->GetMapPoint(i);
-		if (!pMP)
-			continue;
-		if (!pMP->isNewMP())
-			continue;
-		pMP->SetNewMP(false);
-		if (pMP->GetMapPointType() == MapPointType::NORMAL_MP) {
-			//if (!mpFrameWindow->GetBoolInlier(i))
-			float ratio = pMP->GetFVRatio();
-			if (ratio < 0.15) {
-				mpFrameWindow->SetMapPoint(nullptr, i);
-				mpFrameWindow->SetBoolInlier(false, i);
-				pMP->SetDelete(true);
-				pMP->Delete();
-				//mvpDeletedMPs.push_back(pMP);
-				nMarginalized++;
-			}
-		}
-		else {
-			//if (pMP->mnMatchingCount == 0) {
-			//	mpFrameWindow->SetMapPoint(nullptr, i);
-			//	mpFrameWindow->SetBoolInlier(false, i);
-			//	pMP->SetDelete(true);
-			//	pMP->Delete();
-			//	//mvpDeletedMPs.push_back(pMP);
-			//	nMarginalized++;
-			//}
-			//평면으로 생성한 맵포인트의 마지날 라이제이션
-
-		}
-		
-		/*if (pMP->GetMapPointType() == MapPointType::PLANE_MP)
-			std::cout << "Plane MP = " << pMP->mnMatchingCount << ", " << pMP->mnVisibleCount << std::endl;*/
-		/*if(pMP->mnVisibleCount > nFrameCount || pMP->mnVisibleCount < nFrameCount*0.5 || ratio < 0.5)
-			std::cout <<"ID="<<pMP->GetMapPointID()<< "::Count=" << nFrameCount << ", " << pMP->mnMatchingCount << ", " << pMP->mnVisibleCount << std::endl;*/
-	}
-	//std::cout << "Maginalization::End::"<< nMarginalized << std::endl;
 }
 
 void UVR_SLAM::LocalMapper::UpdateKFs() {
@@ -371,7 +344,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(UVR_SLAM::Frame* pCurrKF, UVR_SLAM::F
 	cv::RNG rng(12345);
 
 	//두 키프레임 사이의 매칭 정보 초기화
-	mpFrameWindow->mvMatchInfos.clear();
+	//mpFrameWindow->mvMatchInfos.clear();
 
 	for (int i = 0; i < pCurrKF->mvKeyPoints.size(); i++) {
 		if (pCurrKF->mvbMPInliers[i])
@@ -417,7 +390,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(UVR_SLAM::Frame* pCurrKF, UVR_SLAM::F
 				cv::DMatch tempMatch;
 				tempMatch.queryIdx = i;
 				tempMatch.trainIdx = matchIDX;
-				mpFrameWindow->mvMatchInfos.push_back(tempMatch);
+				//mpFrameWindow->mvMatchInfos.push_back(tempMatch);
 
 				cv::Scalar color(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
 				//cv::line(debugging, pLastKF->mvKeyPoints[matchIDX].pt, pCurrKF->mvKeyPoints[i].pt + cv::Point2f(lastImg.cols, 0), cv::Scalar(255, 0, 255), 1);
@@ -509,9 +482,7 @@ void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 	auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
 
 	for (int i = 0; i < mvpLocalMPs.size(); i++) {
-		if (!mpFrameWindow->GetBoolInlier(i)) {
-			continue;
-		}
+		
 		UVR_SLAM::MapPoint* pMP = mvpLocalMPs[i];
 		if (!pMP)
 			continue;

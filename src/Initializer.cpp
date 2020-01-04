@@ -178,7 +178,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
 			//윈도우 로컬맵, 포즈 설정
 			mpFrameWindow->SetPose(vCandidates[resIDX]->R, vCandidates[resIDX]->t);
 			mpFrameWindow->SetLocalMap(mpInitFrame2->GetFrameID());
-			mpFrameWindow->SetVectorInlier(mpFrameWindow->GetLocalMapSize(), false);
 			mpFrameWindow->SetLastFrameID(mpInitFrame2->GetFrameID());
 			mpFrameWindow->mnLastMatches = nMatch;
 			mbInit = true;
