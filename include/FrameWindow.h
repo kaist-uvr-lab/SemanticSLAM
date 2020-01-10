@@ -34,6 +34,13 @@ namespace UVR_SLAM {
 		Frame* back();
 		Frame* GetFrame(int idx);
 	public:
+		//local map
+		void SetLocalMapInliers(std::vector<bool> vInliers);
+		std::vector<bool> GetLocalMapInliers();
+	private:
+		std::vector<bool> mvbLocalMaPInliers;
+		std::mutex mMutexLocalMapInliers;
+	public:
 		void SetPose(cv::Mat _R, cv::Mat _t);
 		void GetPose(cv::Mat &_R, cv::Mat& _t);
 		cv::Mat GetRotation();
@@ -101,7 +108,7 @@ namespace UVR_SLAM {
 		cv::Mat descLocalMap;
 		std::vector<UVR_SLAM::MapPoint*> mvpLocalMPs;
 		//std::set<UVR_SLAM::MapPoint*>    mspLocalMPs; //local map을 구성할 때 이용
-		//std::vector<bool> mvbLocalMPInliers;
+		
 
 		//포즈 그래프 최적화를 위한 Queue와 관련된 자료들
 	public:

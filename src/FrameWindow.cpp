@@ -276,3 +276,12 @@ void UVR_SLAM::FrameWindow::ClearLocalMapFrames(){
 std::vector<UVR_SLAM::Frame*> UVR_SLAM::FrameWindow::GetLocalMapFrames() {
 	return std::vector<UVR_SLAM::Frame*>(mlpFrames.begin(), mlpFrames.end());
 }
+
+void UVR_SLAM::FrameWindow::SetLocalMapInliers(std::vector<bool> vInliers){
+	std::unique_lock<std::mutex>(mMutexLocalMapInliers);
+	mvbLocalMaPInliers = std::vector<bool>(vInliers.begin(), vInliers.end());
+}
+std::vector<bool> UVR_SLAM::FrameWindow::GetLocalMapInliers(){
+	std::unique_lock<std::mutex>(mMutexLocalMapInliers);
+	return std::vector<bool>(mvbLocalMaPInliers.begin(), mvbLocalMaPInliers.end());
+}

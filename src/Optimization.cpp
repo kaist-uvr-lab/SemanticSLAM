@@ -31,16 +31,25 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 	std::vector<PoseOptimizationEdge*> mvpEdges;
 	std::vector<int> mvIndexes;
 
+	auto mvpMPs = pF->GetMapPoints();
+
 	for (int i = 0; i < pWindow->mvMatchInfos.size(); i++) {
 		
 		cv::DMatch match = pWindow->mvMatchInfos[i];
 		if (!mvbLocalMapInliers[i])
 			continue;
 		
-		mvIndexes.push_back(i);
 		int idx1 = match.queryIdx; //framewindow
 		int idx2 = match.trainIdx; //frame
-		UVR_SLAM::PoseOptimizationEdge* pEdge1 = new UVR_SLAM::PoseOptimizationEdge(pF->mvpMPs[idx2]->GetWorldPos(),nResidualSize);
+
+		UVR_SLAM::MapPoint* pMP = mvpMPs[idx2];
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted())
+			continue;
+		mvIndexes.push_back(i);
+
+		UVR_SLAM::PoseOptimizationEdge* pEdge1 = new UVR_SLAM::PoseOptimizationEdge(pMP->GetWorldPos(),nResidualSize);
 		Eigen::Vector2d temp = Eigen::Vector2d();
 		cv::Point2f pt1 = pF->mvKeyPoints[idx2].pt;
 		temp(0) = pt1.x;

@@ -33,6 +33,9 @@ namespace UVR_SLAM {
 		int FeatureMatchingForInitialPoseTracking(FrameWindow* pWindow, Frame* pF, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, std::vector<bool>& mvbLocalMapInliers);
 		int FeatureMatchingForPoseTrackingByProjection(FrameWindow* pWindow, Frame* pF, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, std::vector<bool>& mvbLocalMapInliers, float rr);
 
+		int KeyFrameFuseFeatureMatching(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr);
+		int KeyFrameFeatureMatching(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<cv::DMatch>& vMatches);
+
 		//초기화에 현재 이용하는 것
 		int MatchingProcessForInitialization(Frame* init, Frame* curr, cv::Mat& F, std::vector<cv::DMatch>& resMatches);
 

@@ -57,6 +57,7 @@ void UVR_SLAM::LocalMapper::SetDoingProcess(bool flag){
 void UVR_SLAM::LocalMapper::Run() {
 	while (1) {
 
+		//???????????????????????
 		SetDoingProcess(true);
 
 		if (CheckNewKeyFrames()) {
@@ -70,14 +71,39 @@ void UVR_SLAM::LocalMapper::Run() {
 			////이전 프레임에서 생성된 맵포인트 중 삭제
 			//프레임 윈도우 내의 로컬 맵 포인트 중 new인 애들만 수행
 			NewMapPointMaginalization();
+
+			UpdateMPs();
+
 			std::cout << "LocalMap::5" << std::endl;
 			//프레임 내에서 삭제 되는 녀석과 업데이트 되는 녀석의 분리가 필요함.
-			UpdateMPs();
+
+			std::chrono::high_resolution_clock::time_point t_start = std::chrono::high_resolution_clock::now();
+			int nCreateMP = Test();
+			std::chrono::high_resolution_clock::time_point t_end = std::chrono::high_resolution_clock::now();
+			auto du_test = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count();
+			double t_test = du_test / 1000.0;
+			std::cout << "LocalMap::kf::TEST::" << t_test<<"::Create "<< nCreateMP<< std::endl;
+
+			//marginalization test
+			/*std::chrono::high_resolution_clock::time_point kf_mar_start = std::chrono::high_resolution_clock::now();
+			KeyframeMarginalization();
+			std::chrono::high_resolution_clock::time_point kf_mar_end = std::chrono::high_resolution_clock::now();
+			auto du_kf_mar = std::chrono::duration_cast<std::chrono::milliseconds>(kf_mar_end - kf_mar_start).count();
+			double t_kf_mar = du_kf_mar / 1000.0;
+			std::cout << "LocalMap::kf::marginalization::"<<t_kf_mar<< std::endl;*/
+			
 			std::cout << "LocalMap::6" << std::endl;
 			////새로운 맵포인트 생성
 			//여기부터 다시 검증이 필요
 			//CreateMapPoints(mpTargetFrame, mpPrevKeyFrame);
-			CreateMapPoints();
+
+			//create map points
+			std::chrono::high_resolution_clock::time_point cm_start = std::chrono::high_resolution_clock::now();
+			//CreateMapPoints();
+			std::chrono::high_resolution_clock::time_point cm_end = std::chrono::high_resolution_clock::now();
+			auto du_cm = std::chrono::duration_cast<std::chrono::milliseconds>(cm_end - cm_start).count();
+			double t_cm = du_cm / 1000.0;
+			std::cout << "LocalMap::CM::" << t_cm << std::endl;
 			std::cout << "LocalMap::7" << std::endl;
 			//fuse
 			if (!CheckNewKeyFrames())
@@ -104,47 +130,6 @@ void UVR_SLAM::LocalMapper::Run() {
 			SetDoingProcess(false);
 			//std::cout << "Create KeyFrame::End!!!!" << std::endl;
 		}
-
-		if (false) {
-			std::cout << "Create KeyFrame::Start!!!!" << std::endl;
-			std::cout << "Window size = " << mpFrameWindow->size() << std::endl;
-			//키프레임으로 설정하고 프레임 윈도우에 추가
-			
-			////이전 프레임에서 생성된 맵포인트 중 삭제
-			//프레임 윈도우 내의 로컬 맵 포인트 중 new인 애들만 수행
-			NewMapPointMaginalization();
-			//프레임 내에서 삭제 되는 녀석과 업데이트 되는 녀석의 분리가 필요함.
-			UpdateMPs();
-			////새로운 맵포인트 생성
-			//여기부터 다시 검증이 필요
-			CreateMapPoints(mpTargetFrame, mpPrevKeyFrame);
-
-			////BA
-			//BA에서는 최근 생성된 맵포인트까지 반영을 해야 함.
-			//Optimization::LocalBundleAdjustment(mpFrameWindow, 2, 5, false);
-			
-			//Delete MPs
-			//DeleteMPs();
-
-			//평면 검출 쓰레드에 추가
-
-			if (mpSegmentator->isRun() && !mpSegmentator->isDoingProcess()) {
-				mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
-				mpSegmentator->SetBoolDoingProcess(true);
-				mpSegmentator->SetTargetFrame(mpTargetFrame);
-				
-			}/*else if (!mpPlaneEstimator->isDoingProcess()) {
-				mpPlaneEstimator->SetBoolDoingProcess(true, 2);
-				mpPlaneEstimator->SetTargetFrame(mpTargetFrame);
-			}*/
-
-			//이 시점에서는 로컬맵이 완성이 되고 삭제되는 일이 없음.
-			//뮤텍스로 여기에서 한번 막으면 달라지는 것은?
-			mpFrameWindow->SetLocalMap(mpTargetFrame->GetFrameID());
-			//SetBoolDoingProcess(false);
-			std::cout << "Create KeyFrame::End!!!!" << std::endl;
-		}//if
-
 	}//while
 }
 
@@ -205,6 +190,10 @@ void UVR_SLAM::LocalMapper::NewMapPointMaginalization() {
 	return;
 }
 
+//window에 포함되는 KF를 설정하기.
+//너무 많은 KF가 포함안되었으면 하고, 
+//MP들이 잘 분배되었으면 함.
+//lastframeid의 역할은?
 void UVR_SLAM::LocalMapper::UpdateKFs() {
 	mpFrameWindow->ClearLocalMapFrames();
 	auto mvpConnectedKFs = mpTargetFrame->GetConnectedKFs();
@@ -213,7 +202,6 @@ void UVR_SLAM::LocalMapper::UpdateKFs() {
 	for (auto iter = mvpConnectedKFs.begin(); iter != mvpConnectedKFs.end(); iter++) {
 		mpFrameWindow->AddFrame(*iter);
 	}
-	auto mvpKFs = mpFrameWindow->GetLocalMapFrames();
 }
 
 void UVR_SLAM::LocalMapper::UpdateMPs() {
@@ -474,12 +462,9 @@ void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 			mmpCandidateKFs[mvpTemp2[j]] = 0;
 		}
 	}
-	/*if (mmpCandidateKFs.find(mpTargetFrame) == mmpCandidateKFs.end()) {
-		std::cout << "kf map error" << std::endl;
-	}*/
-	int Nkf = mmpCandidateKFs.size();
 	
-	auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
+	int Nkf = mmpCandidateKFs.size();
+	auto mvpLocalMPs = mpTargetFrame->GetMapPoints();
 
 	for (int i = 0; i < mvpLocalMPs.size(); i++) {
 		
@@ -505,13 +490,13 @@ void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 	for (auto biter = mmpCandidateKFs.begin(), eiter = mmpCandidateKFs.end(); biter != eiter; biter++) {
 		UVR_SLAM::Frame* pKF = biter->first;
 		int nCount = biter->second;
-		if (nCount > 10) {
+		if (nCount > 20) {
 			//mpTargetFrame->AddKF(pKF);
 			vPairs.push_back(std::make_pair(nCount, pKF));
 		}
-		//
-		
 	}
+	int nKF = 0;
+	int nThreshKF = 10;
 	sort(vPairs.begin(), vPairs.end());
 	//store frame and wegiths
 	for (int i = vPairs.size()-1; i >=0 ; i--) {
@@ -519,6 +504,164 @@ void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 		int nCount = vPairs[i].first;
 		mpTargetFrame->AddKF(pKF);
 		std::cout << "LocalMapping::Connection::" << pKF->GetFrameID() <<" | "<<pKF->GetKeyFrameID()<< ":: " << nCount << std::endl;
+
+		nKF++;
+		if (nKF > nThreshKF)
+			break;
 	}
 	std::cout << "LocalMapping::Connected KFs::" << mpTargetFrame->GetConnectedKFs().size() << std::endl;
+}
+int UVR_SLAM::LocalMapper::Test() {
+	auto mvpLocalFrames = mpTargetFrame->GetConnectedKFs();
+
+
+	cv::Mat mK = mpTargetFrame->mK.clone();
+	cv::Mat Rcurr, Tcurr;
+	mpTargetFrame->GetPose(Rcurr, Tcurr);
+	cv::Mat O2 = mpTargetFrame->GetCameraCenter();
+	cv::Mat P1 = cv::Mat::zeros(3, 4, CV_32FC1);
+	Rcurr.copyTo(P1.colRange(0, 3));
+	Tcurr.copyTo(P1.col(3));
+
+	int nTotal = 0;
+
+	for (int i = 0; i < mvpLocalFrames.size(); i++) {
+		
+		UVR_SLAM::Frame* pKF = mvpLocalFrames[i];
+
+		//preprocessing
+		bool bNearBaseLine = false;
+		if (!pKF->CheckBaseLine(pKF, mpTargetFrame)) {
+			std::cout << "CreateMapPoints::Baseline error" << std::endl;
+			bNearBaseLine = true;
+			continue;
+		}
+
+		cv::Mat Rprev, Tprev;
+		pKF->GetPose(Rprev, Tprev);
+
+		cv::Mat RprevInv = Rprev.t();
+		cv::Mat RcurrInv = Rcurr.t();
+		float invfx = 1.0 / mK.at<float>(0, 0);
+		float invfy = 1.0 / mK.at<float>(1, 1);
+		float cx = mK.at<float>(0, 2);
+		float cy = mK.at<float>(1, 2);
+		float ratioFactor = 1.5f*mpTargetFrame->mfScaleFactor;
+
+		cv::Mat P0 = cv::Mat::zeros(3, 4, CV_32FC1);
+		Rprev.copyTo(P0.colRange(0, 3));
+		Tprev.copyTo(P0.col(3));
+		
+		cv::Mat O1 = pKF->GetCameraCenter();
+
+		//cv::Mat F12 = mpMatcher->CalcFundamentalMatrix(Rcurr, Tcurr, Rprev, Tprev, mK);
+		//int thresh_epi_dist = 50;
+		float thresh_reprojection = 16.0;
+		int count = 0;
+
+
+		pKF->mTrackedDescriptor = cv::Mat::zeros(0,pKF->matDescriptor.rows, pKF->matDescriptor.type());
+		pKF->mNotTrackedDescriptor = cv::Mat::zeros(0, pKF->matDescriptor.rows, pKF->matDescriptor.type());
+		
+		pKF->mvTrackedIdxs.clear();
+		pKF->mvNotTrackedIdxs.clear();
+
+		for (int j = 0; j < pKF->mvpMPs.size(); j++) {
+			UVR_SLAM::MapPoint* pMP = pKF->mvpMPs[j];
+			bool bMatch = false;
+			if (pMP) {
+				if (!pMP->isDeleted()) {
+					bMatch = true;
+				}
+			}
+			if (bMatch) {
+				pKF->mTrackedDescriptor.push_back(pKF->matDescriptor.row(j));
+				pKF->mvTrackedIdxs.push_back(j);
+			}
+			else {
+				pKF->mNotTrackedDescriptor.push_back(pKF->matDescriptor.row(j));
+				pKF->mvNotTrackedIdxs.push_back(j);
+			}
+		}
+		std::vector<cv::DMatch> vMatches;
+		mpMatcher->KeyFrameFeatureMatching(mpTargetFrame, pKF, vMatches);
+		int nTemp = 0;
+		for (int j = 0; j < vMatches.size(); j++) {
+			int idx1 = vMatches[j].queryIdx;
+			int idx2 = vMatches[j].trainIdx;
+			cv::KeyPoint kp1 = mpTargetFrame->mvKeyPoints[idx1];
+			cv::KeyPoint kp2 = pKF->mvKeyPoints[idx2];
+			cv::Mat X3D = Triangulate(kp2.pt, kp1.pt, mK*P0, mK*P1);
+			cv::Mat Xcam1 = Rprev*X3D + Tprev;
+			cv::Mat Xcam2 = Rcurr*X3D + Tcurr;
+			//SetLogMessage("Triangulation\n");
+			if (!CheckDepth(Xcam1.at<float>(2)) || !CheckDepth(Xcam2.at<float>(2))) {
+				continue;
+			}
+
+			if (!CheckReprojectionError(Xcam1, mK, kp2.pt, thresh_reprojection) || !CheckReprojectionError(Xcam2, mK, kp1.pt, thresh_reprojection))
+			{
+				continue;
+			}
+
+			if (!CheckScaleConsistency(X3D, O2, O1, ratioFactor, mpTargetFrame->mvScaleFactors[kp1.octave], pKF->mvScaleFactors[kp2.octave]))
+			{
+				continue;
+			}
+
+			cv::Mat desc = mpTargetFrame->matDescriptor.row(idx1);
+			UVR_SLAM::MapPoint* pMP = new UVR_SLAM::MapPoint(X3D, desc);
+			pMP->AddFrame(pKF, idx2);
+			pMP->AddFrame(mpTargetFrame, idx1);
+			pMP->mnFirstKeyFrameID = mpTargetFrame->GetKeyFrameID();
+			mlpNewMPs.push_back(pMP);
+
+			mpTargetFrame->mTrackedDescriptor.push_back(mpTargetFrame->matDescriptor.row(idx1));
+			mpTargetFrame->mvTrackedIdxs.push_back(idx1);
+			pKF->mTrackedDescriptor.push_back(pKF->matDescriptor.row(idx2));
+			pKF->mvTrackedIdxs.push_back(idx2);
+
+			nTemp++;
+		}
+		nTotal += nTemp;
+	}
+	return nTotal;
+}
+
+void UVR_SLAM::LocalMapper::KeyframeMarginalization() {
+
+	int nThreshKF = 5;
+
+	//auto mvpLocalMPs = mpTargetFrame->GetMapPoints();
+	auto mvpLocalFrames = mpTargetFrame->GetConnectedKFs();
+	int nKFs = mvpLocalFrames.size();
+	int nMPs = 0;
+	if (nKFs < nThreshKF)
+		return;
+	//여기에 true는 계속 나오는 MP이고 false는 별로 나오지 않는 MP이다.
+	//없애는게 나을지도 모르는 것들
+	/*std::vector<bool> mvbMPs(mvpLocalMPs.size(), false);
+	for (int i = 0; i < mvpLocalMPs.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = mvpLocalMPs[i];
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted())
+			continue;
+		int nObs = pMP->GetNumConnectedFrames();
+		double ratio = ((double)nObs) / nKFs;
+		if (nObs > 2) {
+			mvbMPs[i] = true;
+			
+		}
+		else {
+			nMPs++;
+		}
+	}*/
+
+	auto mvpConnectedKFs = mpTargetFrame->GetConnectedKFs();
+	for (int i = 0; i < mvpConnectedKFs.size(); i++) {
+		mpMatcher->KeyFrameFuseFeatureMatching(mpTargetFrame, mvpConnectedKFs[i]);
+	}
+
+	std::cout << "TESt:::" << nMPs <<", "<< mvpConnectedKFs.size()<< std::endl;
 }

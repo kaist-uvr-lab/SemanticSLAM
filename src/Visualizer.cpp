@@ -145,6 +145,7 @@ void UVR_SLAM::Visualizer::Run() {
 			}*/
 
 
+			auto mvbLocalMapInliers = mpFrameWindow->GetLocalMapInliers();
 			auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
 			//map points
 			for (int i = 0; i < mvpLocalMPs.size(); i++) {
@@ -156,9 +157,9 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::Mat x3D = pMP->GetWorldPos();
 				cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
 				tpt += mVisMidPt;
-				/*if (mpFrameWindow->GetBoolInlier(i))
+				if (mvbLocalMapInliers[i])
 					cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
-				else*/
+				else
 					cv::circle(tempVis, tpt, 1, color2, 1);
 			}
 
@@ -171,7 +172,10 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::Point2f pt2 = cv::Point2f(t2.at<float>(0)* mnVisScale, t2.at<float>(2)* mnVisScale);
 				pt1 += mVisMidPt;
 				pt2 += mVisMidPt;
-				cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 0), -1);
+				if(i != 0)
+					cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 0), -1);
+				else
+					cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
 				//cv::line(tempVis, pt1, pt2, cv::Scalar(0, 0, 0), 2);
 			}
 			//fuse time text 
@@ -204,6 +208,8 @@ void UVR_SLAM::Visualizer::VisualizeTracking() {
 	cv::Mat vis = mpMatchingFrame2->GetOriginalImage();
 	//cvtColor(vis, vis, CV_RGBA2BGR);
 	vis.convertTo(vis, CV_8UC3);
+
+
 
 	for (int i = 0; i < mpMatchingFrame2->mvKeyPoints.size(); i++) {
 		if (!mpMatchingFrame2->mvbMPInliers[i])

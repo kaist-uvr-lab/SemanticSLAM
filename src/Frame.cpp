@@ -192,7 +192,7 @@ UVR_SLAM::ObjectType UVR_SLAM::Frame::GetObjectType(int idx){
 
 std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Frame::GetMapPoints() {
 	std::unique_lock<std::mutex> lockMP(mMutexFrame);
-	return mvpMPs;
+	return std::vector<UVR_SLAM::MapPoint*>(mvpMPs.begin(), mvpMPs.end());
 }
 
 //UVR_SLAM::MapPoint* UVR_SLAM::Frame::GetMapPoint(int idx) {

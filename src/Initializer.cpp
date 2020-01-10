@@ -3,8 +3,8 @@
 #include <MatrixOperator.h>
 
 //추후 파라메터화. 귀찮아.
-int N_matching_init_therah = 80;
-int N_thresh_init_triangulate = 80;
+int N_matching_init_therah = 120; //80
+int N_thresh_init_triangulate = 120; //80
 
 UVR_SLAM::Initializer::Initializer() :mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr) {
 }
@@ -42,11 +42,10 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
 		cv::Mat F;
 		std::vector<cv::DMatch> tempMatches, resMatches;
 		mpInitFrame2 = pFrame;
-		if (mpInitFrame2->GetFrameID() - mpInitFrame1->GetFrameID() < 8)
+		if (mpInitFrame2->GetFrameID() - mpInitFrame1->GetFrameID() < 3)
 			return mbInit;
 		int count = mpMatcher->MatchingProcessForInitialization(mpInitFrame1, mpInitFrame2, F, tempMatches);
 		//int count = mpMatcher->SearchForInitialization(mpInitFrame1, mpInitFrame2, tempMatches, 100);
-		std::cout << count << std::endl;
 		if (count < N_matching_init_therah) {
 			delete mpInitFrame1;
 			mpInitFrame1 = mpInitFrame2;
@@ -181,8 +180,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
 			mpFrameWindow->SetLastFrameID(mpInitFrame2->GetFrameID());
 			mpFrameWindow->mnLastMatches = nMatch;
 			mbInit = true;
-
-			
 
 			if (mbInit) {
 				//test

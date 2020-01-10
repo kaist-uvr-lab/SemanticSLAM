@@ -613,7 +613,162 @@ int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::Frame* pP
 	cv::imshow("Test::Matching::Frame", debugging);
 	//waitKey(0);
 
-	std::cout << "Matching : " << vMatchInfos.size() << "::" << Nf1 << std::endl;
+	return count;
+}
+
+//prev : target, curr : kf
+//Fuse시 얘는 전체에 대해서 해야 함
+//그래야 비어있는 애에 대해서도 알 수 있음.
+int UVR_SLAM::Matcher::KeyFrameFuseFeatureMatching(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr) {
+
+	std::vector<bool> vbTemp(pCurr->mvKeyPoints.size(), true);
+	std::vector< std::vector<cv::DMatch> > matches;
+	matcher->knnMatch(pPrev->mTrackedDescriptor, pCurr->matDescriptor, matches, 2);
+	int Nf1 = 0;
+	int Nf2 = 0;
+	int count = 0;
+
+	std::vector<cv::DMatch> vMatchInfos;
+
+	for (unsigned long i = 0; i < matches.size(); i++) {
+		if (matches[i][0].distance < nn_match_ratio * matches[i][1].distance) {
+
+			vMatchInfos.push_back(matches[i][0]);
+
+			int idx = pPrev->mvTrackedIdxs[matches[i][0].queryIdx];
+			UVR_SLAM::MapPoint* pMP = pPrev->mvpMPs[idx];
+			if (!pMP)
+				continue;
+			if (pMP->isDeleted()) {
+				continue;
+			}
+			if (vbTemp[matches[i][0].trainIdx]) {
+				vbTemp[matches[i][0].trainIdx] = false;
+			}
+			else {
+				Nf1++;
+				continue;
+			}
+
+			//pCurr->mvpMPs[matches[i][0].trainIdx] = pMP;
+			//pCurr->mvbMPInliers[matches[i][0].trainIdx] = true;
+
+			count++;
+		}
+	}
+
+	/*cv::Mat img1 = pPrev->GetOriginalImage();
+	cv::Mat img2 = pCurr->GetOriginalImage();
+	cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
+
+	cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
+	cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	img1.copyTo(debugging(mergeRect1));
+	img2.copyTo(debugging(mergeRect2));
+
+	for (int i = 0; i < pPrev->mvpMPs.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = pPrev->mvpMPs[i];
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted()) {
+			continue;
+		}
+		cv::Mat pCam;
+		cv::Point2f p2D;
+		pMP->Projection(p2D, pCam, pPrev->GetRotation(), pPrev->GetTranslation(), pCurr->mK, mWidth, mHeight);
+		cv::circle(debugging, p2D, 3, cv::Scalar(0, 255, 0), -1);
+	}
+	for (int i = 0; i < vMatchInfos.size(); i++) {
+		int idx = pPrev->mvTrackedIdxs[vMatchInfos[i].queryIdx];
+		if (pCurr->mvbMPInliers[vMatchInfos[i].trainIdx]) {
+			cv::line(debugging, pPrev->mvKeyPoints[idx].pt, pCurr->mvKeyPoints[vMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 0, 255));
+
+			UVR_SLAM::MapPoint* pMP = pPrev->mvpMPs[idx];
+			if (!pMP)
+				continue;
+			if (pMP->isDeleted()) {
+				continue;
+			}
+			cv::Mat pCam;
+			cv::Point2f p2D;
+			pMP->Projection(p2D, pCam, pPrev->GetRotation(), pPrev->GetTranslation(), pCurr->mK, mWidth, mHeight);
+			cv::line(debugging, pPrev->mvKeyPoints[idx].pt, p2D, cv::Scalar(0, 255, 255), 2);
+			cv::circle(debugging, pPrev->mvKeyPoints[idx].pt, 2, cv::Scalar(255, 0, 255), -1);
+		}
+		else {
+			cv::circle(debugging, pPrev->mvKeyPoints[idx].pt, 1, cv::Scalar(255, 0, 0), -1);
+			cv::line(debugging, pPrev->mvKeyPoints[idx].pt, pCurr->mvKeyPoints[vMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 255, 0));
+		}
+	}
+	cv::imshow("Test::Matching::KeyFrame::Fuse", debugging);
+	waitKey(100);*/
+
+	return count;
+}
+
+int UVR_SLAM::Matcher::KeyFrameFeatureMatching(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<cv::DMatch>& vMatches) {
+
+	std::vector<bool> vbTemp(pCurr->mvKeyPoints.size(), true);
+	std::vector< std::vector<cv::DMatch> > matches;
+	matcher->knnMatch(pPrev->mNotTrackedDescriptor, pCurr->mNotTrackedDescriptor, matches, 2);
+	
+	int Nf1 = 0;
+	int Nf2 = 0;
+	int count = 0;
+
+	std::vector<cv::DMatch> vMatchInfos;
+
+	for (unsigned long i = 0; i < matches.size(); i++) {
+		if (matches[i][0].distance < nn_match_ratio * matches[i][1].distance) {
+
+			int idx1 = pPrev->mvNotTrackedIdxs[matches[i][0].queryIdx];
+			int idx2 = pCurr->mvNotTrackedIdxs[matches[i][0].trainIdx];
+			UVR_SLAM::MapPoint* pMP1 = pPrev->mvpMPs[idx1];
+			UVR_SLAM::MapPoint* pMP2 = pCurr->mvpMPs[idx2];
+			if (pMP1 || pMP2)
+				continue;
+
+			cv::DMatch tempMatch;
+			tempMatch.queryIdx = idx1;
+			tempMatch.trainIdx = idx2;
+
+			vMatches.push_back(tempMatch);
+
+			if (vbTemp[matches[i][0].trainIdx]) {
+				vbTemp[matches[i][0].trainIdx] = false;
+			}
+			else {
+				Nf1++;
+				continue;
+			}
+
+			//pCurr->mvpMPs[matches[i][0].trainIdx] = pMP;
+			//pCurr->mvbMPInliers[matches[i][0].trainIdx] = true;
+
+			count++;
+		}
+	}
+
+	/*cv::Mat img1 = pPrev->GetOriginalImage();
+	cv::Mat img2 = pCurr->GetOriginalImage();
+	cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
+
+	cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
+	cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	img1.copyTo(debugging(mergeRect1));
+	img2.copyTo(debugging(mergeRect2));
+	
+	for (int i = 0; i < vMatchInfos.size(); i++) {
+		int idx1 = pPrev->mvNotTrackedIdxs[vMatchInfos[i].queryIdx];
+		int idx2 = pCurr->mvNotTrackedIdxs[vMatchInfos[i].trainIdx];
+		cv::circle(debugging, pPrev->mvKeyPoints[idx1].pt, 1, cv::Scalar(255, 0, 0), -1);
+		cv::line(debugging, pPrev->mvKeyPoints[idx1].pt, pCurr->mvKeyPoints[idx2].pt + ptBottom, cv::Scalar(255, 255, 0));
+		
+	}
+	cv::imshow("Test::Matching::KeyFrame::CreateMPs", debugging);
+	waitKey(100);*/
 
 	return count;
 }

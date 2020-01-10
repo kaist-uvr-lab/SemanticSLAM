@@ -39,6 +39,8 @@ namespace UVR_SLAM {
 		void UpdateKFs();
 		void UpdateMPs();
 		void DeleteMPs();
+		void KeyframeMarginalization();
+		int Test();
 	private:
 		cv::Mat Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2);
 		bool CheckDepth(float depth);
