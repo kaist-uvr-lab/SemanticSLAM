@@ -9,21 +9,25 @@
 #include <PoseGraphOptimization.h>
 #include <MatrixOperator.h>
 
-int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR_SLAM::Frame* pF, std::vector<MapPoint*> mvpLocalMPs, std::vector<bool>& mvbLocalMapInliers, bool bStatus, int trial1, int trial2) {
-	if(bStatus)
-		std::cout << "PoseOptimization::Start" << std::endl;
+int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::Frame* pF, std::vector<UVR_SLAM::MapPoint*> mvpLocalMPs, std::vector<bool>& mvbLocalMPInliers, std::vector<cv::DMatch> mvMatchLocalMap, bool bStatus, int trial1, int trial2){
 	cv::Mat mK;
 	pF->mK.convertTo(mK, CV_64FC1);
 	double fx = mK.at<double>(0, 0);
 	double fy = mK.at<double>(1, 1);
 
+	int nCurrFrameID = pF->GetFrameID();
 	int nPoseJacobianSize = 6;
 	int nResidualSize = 2;
 
 	GraphOptimizer::Optimizer* mpOptimizer = new GraphOptimizer::LMOptimizer();
-	FrameVertex* mpVertex1 = new FrameVertex(pWindow->GetRotation(), pWindow->GetTranslation(), nPoseJacobianSize);
+
+	cv::Mat Rinit, Tinit;
+	Rinit = pF->GetRotation();
+	Tinit = pF->GetTranslation();
+
+	FrameVertex* mpVertex1 = new FrameVertex(Rinit, Tinit, nPoseJacobianSize);
 	mpOptimizer->AddVertex(mpVertex1);
-	
+
 	//Add Edge
 	const double deltaMono = sqrt(5.991);
 	const double chiMono = 5.991;
@@ -31,25 +35,20 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 	std::vector<PoseOptimizationEdge*> mvpEdges;
 	std::vector<int> mvIndexes;
 
-	auto mvpMPs = pF->GetMapPoints();
+	for (int i = 0; i < mvMatchLocalMap.size(); i++) {
 
-	for (int i = 0; i < pWindow->mvMatchInfos.size(); i++) {
-		
-		cv::DMatch match = pWindow->mvMatchInfos[i];
-		if (!mvbLocalMapInliers[i])
-			continue;
-		
-		int idx1 = match.queryIdx; //framewindow
-		int idx2 = match.trainIdx; //frame
+		int idx1 = mvMatchLocalMap[i].queryIdx;
+		int idx2 = mvMatchLocalMap[i].trainIdx;
 
-		UVR_SLAM::MapPoint* pMP = mvpMPs[idx2];
+		UVR_SLAM::MapPoint* pMP = mvpLocalMPs[idx1];
 		if (!pMP)
 			continue;
 		if (pMP->isDeleted())
 			continue;
+		if (!mvbLocalMPInliers[i])
+			continue;
 		mvIndexes.push_back(i);
-
-		UVR_SLAM::PoseOptimizationEdge* pEdge1 = new UVR_SLAM::PoseOptimizationEdge(pMP->GetWorldPos(),nResidualSize);
+		UVR_SLAM::PoseOptimizationEdge* pEdge1 = new UVR_SLAM::PoseOptimizationEdge(pMP->GetWorldPos(), nResidualSize);
 		Eigen::Vector2d temp = Eigen::Vector2d();
 		cv::Point2f pt1 = pF->mvKeyPoints[idx2].pt;
 		temp(0) = pt1.x;
@@ -74,8 +73,7 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 		mpOptimizer->Optimize(trial2, 0, bStatus);
 		nInlier = 0;
 		for (int edgeIdx = 0; edgeIdx < mvpEdges.size(); edgeIdx++) {
-			cv::DMatch match = pWindow->mvMatchInfos[mvIndexes[edgeIdx]];
-			
+			cv::DMatch match = mvMatchLocalMap[mvIndexes[edgeIdx]];
 			int idx1 = match.queryIdx; //framewindow
 			int idx2 = match.trainIdx; //frame
 			if (!pF->mvbMPInliers[idx2]) {
@@ -84,13 +82,15 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 			if (mvpEdges[edgeIdx]->GetError() > chiMono || !mvpEdges[edgeIdx]->GetDepth()) {
 				mvpEdges[edgeIdx]->SetLevel(1);
 				pF->mvbMPInliers[idx2] = false;
-				mvbLocalMapInliers[idx1] = false;
+				//pF->mvpMPs[idx2]->SetRecentTrackingFrameID(-1);
+				mvbLocalMPInliers[idx1] = false;
 			}
 			else
 			{
 				mvpEdges[edgeIdx]->SetLevel(0);
 				pF->mvbMPInliers[idx2] = true;
-				mvbLocalMapInliers[idx1] = true;
+				//pF->mvpMPs[idx2]->SetRecentTrackingFrameID(nCurrFrameID);
+				mvbLocalMPInliers[idx1] = true;
 				nInlier++;
 			}
 		}
@@ -100,10 +100,106 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR
 	//std::cout << "PoseOptimization::inlier=" << nInlier << std::endl;
 	mpVertex1->RestoreData();
 	pF->SetPose(mpVertex1->Rmat, mpVertex1->Tmat);
+	if (bStatus)
+		std::cout << "PoseOptimization::End" << std::endl;
+	return nInlier;
+}
+
+int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::FrameWindow* pWindow, UVR_SLAM::Frame* pF, std::vector<MapPoint*> mvpLocalMPs, std::vector<bool>& mvbLocalMapInliers, bool bStatus, int trial1, int trial2) {
+	if(bStatus)
+		std::cout << "PoseOptimization::Start" << std::endl;
+	cv::Mat mK;
+	pF->mK.convertTo(mK, CV_64FC1);
+	double fx = mK.at<double>(0, 0);
+	double fy = mK.at<double>(1, 1);
+
+	int nPoseJacobianSize = 6;
+	int nResidualSize = 2;
+
+	GraphOptimizer::Optimizer* mpOptimizer = new GraphOptimizer::LMOptimizer();
+	FrameVertex* mpVertex1 = new FrameVertex(pWindow->GetRotation(), pWindow->GetTranslation(), nPoseJacobianSize);
+	mpOptimizer->AddVertex(mpVertex1);
+	
+	//Add Edge
+	const double deltaMono = sqrt(5.991);
+	const double chiMono = 5.991;
+
+	std::vector<PoseOptimizationEdge*> mvpEdges;
+	std::vector<int> mvIndexes;
+
+	auto mvpMPs = pF->GetMapPoints();
+
+	//for (int i = 0; i < pWindow->mvMatchInfos.size(); i++) {
+	//	
+	//	cv::DMatch match = pWindow->mvMatchInfos[i];
+	//	if (!mvbLocalMapInliers[i])
+	//		continue;
+	//	
+	//	int idx1 = match.queryIdx; //framewindow
+	//	int idx2 = match.trainIdx; //frame
+
+	//	UVR_SLAM::MapPoint* pMP = mvpMPs[idx2];
+	//	if (!pMP)
+	//		continue;
+	//	if (pMP->isDeleted())
+	//		continue;
+	//	mvIndexes.push_back(i);
+
+	//	UVR_SLAM::PoseOptimizationEdge* pEdge1 = new UVR_SLAM::PoseOptimizationEdge(pMP->GetWorldPos(),nResidualSize);
+	//	Eigen::Vector2d temp = Eigen::Vector2d();
+	//	cv::Point2f pt1 = pF->mvKeyPoints[idx2].pt;
+	//	temp(0) = pt1.x;
+	//	temp(1) = pt1.y;
+	//	pEdge1->SetMeasurement(temp);
+	//	cv::cv2eigen(mK, pEdge1->K);
+	//	pEdge1->AddVertex(mpVertex1);
+	//	double info = (double)pF->mvInvLevelSigma2[pF->mvKeyPoints[idx2].octave];
+	//	//std::cout << "information::" << info2 << std::endl;
+	//	pEdge1->SetInformation(cv::Mat::eye(nResidualSize, nResidualSize, CV_64FC1)*info);
+	//	pEdge1->fx = fx;
+	//	pEdge1->fy = fy;
+	//	GraphOptimizer::RobustKernel* huber = new GraphOptimizer::HuberKernel();
+	//	huber->SetDelta(deltaMono);
+	//	pEdge1->mpRobustKernel = huber;
+	//	mpOptimizer->AddEdge(pEdge1);
+	//	mvpEdges.push_back(pEdge1);
+	//}
+
+	//int nInlier = 0;
+	//for (int trial = 0; trial < trial1; trial++) {
+	//	mpOptimizer->Optimize(trial2, 0, bStatus);
+	//	nInlier = 0;
+	//	for (int edgeIdx = 0; edgeIdx < mvpEdges.size(); edgeIdx++) {
+	//		cv::DMatch match = pWindow->mvMatchInfos[mvIndexes[edgeIdx]];
+	//		
+	//		int idx1 = match.queryIdx; //framewindow
+	//		int idx2 = match.trainIdx; //frame
+	//		if (!pF->mvbMPInliers[idx2]) {
+	//			mvpEdges[edgeIdx]->CalcError();
+	//		}
+	//		if (mvpEdges[edgeIdx]->GetError() > chiMono || !mvpEdges[edgeIdx]->GetDepth()) {
+	//			mvpEdges[edgeIdx]->SetLevel(1);
+	//			pF->mvbMPInliers[idx2] = false;
+	//			mvbLocalMapInliers[idx1] = false;
+	//		}
+	//		else
+	//		{
+	//			mvpEdges[edgeIdx]->SetLevel(0);
+	//			pF->mvbMPInliers[idx2] = true;
+	//			mvbLocalMapInliers[idx1] = true;
+	//			nInlier++;
+	//		}
+	//	}
+	//}
+
+	//mp inlier 
+	//std::cout << "PoseOptimization::inlier=" << nInlier << std::endl;
+	mpVertex1->RestoreData();
+	pF->SetPose(mpVertex1->Rmat, mpVertex1->Tmat);
 	pWindow->SetPose(mpVertex1->Rmat, mpVertex1->Tmat);
 	if(bStatus)
 		std::cout << "PoseOptimization::End" << std::endl;
-	return nInlier;
+	return 0;
 }
 int UVR_SLAM::Optimization::InitOptimization(UVR_SLAM::InitialData* data, std::vector<cv::DMatch> Matches, UVR_SLAM::Frame* pInitFrame1, UVR_SLAM::Frame* pInitFrame2, cv::Mat K, bool& bInit, int trial1, int trial2) {
 	cv::Mat mK;
@@ -458,7 +554,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::FrameWindow* pWindo
 			UVR_SLAM::MapPoint* pMP = mvpLocalMPs[idx];
 			pMP->SetDelete(true);
 			pMP->Delete();
-			pWindow->SetMapPoint(nullptr, idx);
+			//pWindow->SetMapPoint(nullptr, idx);
 			//pWindow->SetBoolInlier(false, idx);
 			continue;
 		}

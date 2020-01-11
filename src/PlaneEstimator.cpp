@@ -307,7 +307,6 @@ void UVR_SLAM::PlaneEstimator::Run() {
 							pNewMP->SetPlaneID(pPlane1->mnPlaneID);
 							pNewMP->SetObjectType(pPlane1->mnPlaneType);
 							pNewMP->AddFrame(mpTargetFrame, i);
-							mpFrameWindow->AddMapPoint(pNewMP);
 							cv::circle(vis, pt, 3, cv::Scalar(255, 0, 255), -1);
 
 							cv::Point2f p2D;
@@ -344,7 +343,6 @@ void UVR_SLAM::PlaneEstimator::Run() {
 							pNewMP->AddFrame(mpTargetFrame, i);
 							pNewMP->SetPlaneID(pPlane2->mnPlaneID);
 							pNewMP->SetObjectType(pPlane2->mnPlaneType);
-							mpFrameWindow->AddMapPoint(pNewMP);
 							cv::circle(vis, pt, 2, cv::Scalar(255, 255, 0), -1);
 						}
 						//else if (b3 && oType == ObjectType::OBJECT_CEILING) {

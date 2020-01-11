@@ -147,6 +147,7 @@ void UVR_SLAM::Visualizer::Run() {
 
 			auto mvbLocalMapInliers = mpFrameWindow->GetLocalMapInliers();
 			auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
+			mvbLocalMapInliers = std::vector<bool>(mvpLocalMPs.size(), false);
 			//map points
 			for (int i = 0; i < mvpLocalMPs.size(); i++) {
 				UVR_SLAM::MapPoint* pMP = mvpLocalMPs[i];

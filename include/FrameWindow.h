@@ -46,14 +46,8 @@ namespace UVR_SLAM {
 		cv::Mat GetRotation();
 		cv::Mat GetTranslation();
 		bool CalcFrameDistanceWithBOW(Frame* pF);
-		MapPoint* GetMapPoint(int idx);
-		void AddMapPoint(MapPoint* pMP);
+		
 		void SetMapPoint(MapPoint* pMP, int idx);
-		int GetLocalMapSize();
-		//void SetBoolInlier(bool b,int idx);
-		//bool GetBoolInlier(int idx);
-		//void SetVectorInlier(int size, bool b);
-		int TrackedMapPoints(int minObservation);
 		std::vector<MapPoint*> GetLocalMap();
 		void SetLocalMap(int nTargetID);
 		cv::Mat GetLocalMapDescriptor();
@@ -74,7 +68,7 @@ namespace UVR_SLAM {
 		int mnLastMatches;
 		//std::vector<std::pair<cv::DMatch, bool>> mvPairMatchingInfo; //타겟 프레임과 로컬 맵 사이의 매칭 정보를 기록.
 		//여기서 여기까지 삭제 예정
-		std::vector<cv::DMatch> mvMatchInfos; //create mp시 두 프레임 사이의 매칭 정보를 기록. query가 최근 키프레임, train이 이전 키프레임
+		//std::vector<cv::DMatch> mvMatchInfos; //create mp시 두 프레임 사이의 매칭 정보를 기록. query가 최근 키프레임, train이 이전 키프레임
 	public:
 		void AddFrame(Frame* pF);
 		void ClearLocalMapFrames();
@@ -100,7 +94,7 @@ namespace UVR_SLAM {
 		System* mpSystem;
 		std::mutex mMutexPose;
 		std::mutex mMutexDeque;
-		std::mutex mMutexLocaMPs;
+		std::mutex mMutexLocalMPs;
 		
 		cv::Mat R, t;
 		int mnWindowSize;
@@ -117,6 +111,13 @@ namespace UVR_SLAM {
 	private:
 		std::queue<Frame*> mpQueue; //Window에서 나온 프레임을 추가함. 포즈 그래프 옵티마이제이션에 이용. 나중에 별도의 클래스에 빼낼 것임.
 		int mnQueueSize;
+	//Local Map Update
+	public:
+		bool isUseLocalMap();
+		void SetUseLocalMap(bool bUse);
+	private:
+		bool mbUseLocalMap;
+		std::mutex mMutexUseLocalMap;
 	};
 }
 

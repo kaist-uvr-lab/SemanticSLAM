@@ -31,13 +31,14 @@ void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
 	mpTargetFrame = mKFQueue.front();
 	mKFQueue.pop();
 	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+	mpFrameWindow->SetLastFrameID(mpTargetFrame->GetFrameID());
 	mbStopBA = false;
 
 	////이게 필요한지?
 	//이전 키프레임 정보 획득 후 현재 프레임을 윈도우에 추가
 	//mpPrevKeyFrame = mpFrameWindow->back();
 	//mpFrameWindow->push_back(mpTargetFrame);
-	//mpFrameWindow->SetLastFrameID(mpTargetFrame->GetFrameID());
+	
 }
 
 bool UVR_SLAM::LocalMapper::isDoingProcess(){
@@ -125,8 +126,12 @@ void UVR_SLAM::LocalMapper::Run() {
 				Optimization::LocalBundleAdjustment(mpFrameWindow, mpTargetFrame->GetFrameID(), btest, 2, 5, false);
 				std::cout << "LocalMap::92" << std::endl;
 			}
+			//while (mpFrameWindow->isUseLocalMap()){}
+			std::cout << "LocalMap::931" << std::endl;
+			//mpFrameWindow->SetUseLocalMap(true);
 			mpFrameWindow->SetLocalMap(mpTargetFrame->GetFrameID());
-			std::cout << "LocalMap::93" << std::endl;
+			//mpFrameWindow->SetUseLocalMap(false);
+			std::cout << "LocalMap::932" << std::endl;
 			SetDoingProcess(false);
 			//std::cout << "Create KeyFrame::End!!!!" << std::endl;
 		}
@@ -198,7 +203,6 @@ void UVR_SLAM::LocalMapper::UpdateKFs() {
 	mpFrameWindow->ClearLocalMapFrames();
 	auto mvpConnectedKFs = mpTargetFrame->GetConnectedKFs();
 	mpFrameWindow->AddFrame(mpTargetFrame);
-	mpFrameWindow->SetLastFrameID(mpTargetFrame->GetFrameID());
 	for (auto iter = mvpConnectedKFs.begin(); iter != mvpConnectedKFs.end(); iter++) {
 		mpFrameWindow->AddFrame(*iter);
 	}

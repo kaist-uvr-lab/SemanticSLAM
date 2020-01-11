@@ -15,7 +15,7 @@ UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath){
 	Init();
 }
 UVR_SLAM::System::System(int nWidth, int nHeight, cv::Mat _K, cv::Mat _K2, cv::Mat _D, int _nFeatures, float _fScaleFactor, int _nLevels, int _fIniThFAST, int _fMinThFAST, std::string _strVOCPath):
-	mnWidth(nWidth), mnHeight(nHeight), mK(_K), mKforPL(_K2), mD(_D),
+	mnWidth(nWidth), mnHeight(nHeight), mK(_K), mKforPL(_K2), mD(_D), mbTrackingEnd(true), mbLocalMapUpdateEnd(true),
 	mnFeatures(_nFeatures), mfScaleFactor(_fScaleFactor), mnLevels(_nLevels), mfIniThFAST(_fIniThFAST), mfMinThFAST(_fMinThFAST), strVOCPath(_strVOCPath)
 {
 	LoadVocabulary();
@@ -173,7 +173,7 @@ void UVR_SLAM::System::SetCurrFrame(cv::Mat img) {
 	//std::cout << mpCurrFrame->mnFrameID << std::endl;
 	mpCurrFrame->Init(mpORBExtractor, mK, mD);
 	mpCurrFrame->SetBowVec(fvoc);
-
+	
 	//cv::Mat test = mpCurrFrame->GetOriginalImage();
 	//for (int i = 0; i < mpCurrFrame->mvKeyPoints.size(); i++) {
 	//	circle(test, mpCurrFrame->mvKeyPoints[i].pt, 3, cv::Scalar(255, 0, 255), -1);

@@ -61,7 +61,7 @@ namespace UVR_SLAM {
 	public:
 		int mnMapPointID;
 		int mnFirstKeyFrameID;
-		int mnLocalMapID;
+		
 
 	private:
 		std::mutex mMutexMP;
@@ -83,6 +83,19 @@ namespace UVR_SLAM {
 		std::mutex mMutexFeatures;
 		int mnVisible;
 		int mnFound;
+
+	//local map 및 최근 트래킹 관련 index 관련
+	public:
+		int GetRecentLocalMapID();
+		void SetRecentLocalMapID(int nLocalMapID);
+		int GetRecentTrackingFrameID();
+		void SetRecentTrackingFrameID(int nFrameID);
+	private:
+		std::mutex mMutexRecentLocalMapID, mMutexRecentTrackedFrameID;
+		int mnLocalMapID, mnTrackedFrameID;
+
+
+
 	};
 }
 

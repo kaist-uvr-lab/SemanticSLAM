@@ -7,21 +7,38 @@ static int nMapPointID = 0;
 
 UVR_SLAM::MapPoint::MapPoint()
 	:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
-	, mnFirstKeyFrameID(0), mnLocalMapID(0)
+	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnTrackedFrameID(-1)
 {}
 UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, cv::Mat _desc)
 :p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
-, mnFirstKeyFrameID(0), mnLocalMapID(0)
+, mnFirstKeyFrameID(0), mnLocalMapID(0), mnTrackedFrameID(-1)
 {}
 UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, cv::Mat _desc, MapPointType ntype)
 	: p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
-	, mnFirstKeyFrameID(0), mnLocalMapID(0)
+	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnTrackedFrameID(-1)
 {}
 UVR_SLAM::MapPoint::~MapPoint(){}
 
 int UVR_SLAM::MapPoint::GetMapPointID() {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	return mnMapPointID;
+}
+
+int UVR_SLAM::MapPoint::GetRecentLocalMapID() {
+	std::unique_lock<std::mutex> lockMP(mMutexRecentLocalMapID);
+	return mnLocalMapID;
+}
+void UVR_SLAM::MapPoint::SetRecentLocalMapID(int nLocalMapID) {
+	std::unique_lock<std::mutex> lockMP(mMutexRecentLocalMapID);
+	mnLocalMapID = nLocalMapID;
+}
+int UVR_SLAM::MapPoint::GetRecentTrackingFrameID() {
+	std::unique_lock<std::mutex> lockMP(mMutexRecentTrackedFrameID);
+	return mnTrackedFrameID;
+}
+void UVR_SLAM::MapPoint::SetRecentTrackingFrameID(int nFrameID) {
+	std::unique_lock<std::mutex> lockMP(mMutexRecentTrackedFrameID);
+	mnTrackedFrameID = nFrameID;
 }
 
 void UVR_SLAM::MapPoint::SetPlaneID(int nid) {
@@ -213,3 +230,4 @@ bool UVR_SLAM::MapPoint::Projection(cv::Point2f& _P2D, cv::Mat& _Pcam, cv::Mat R
 	mbSeen = bres;
 	return bres;
 }
+

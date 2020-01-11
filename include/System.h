@@ -7,6 +7,7 @@
 #include <thread>
 #include <fbow.h>
 #include <mutex>
+#include <condition_variable>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/features2d.hpp>
@@ -115,7 +116,7 @@ namespace UVR_SLAM {
 		int mfMinThFAST;
 		int mnWidth, mnHeight;
 	public:
-		std::mutex mMutexTracking;
+		
 		std::string strVOCPath;
 		fbow::Vocabulary* fvoc;
 		FrameWindow* mpFrameWindow;
@@ -125,6 +126,14 @@ namespace UVR_SLAM {
 		std::string ip;
 		int port;
 		static int nKeyFrameID;
+
+	public:
+		//lock tracking and localmap
+		std::mutex mMutexUseLocalMap;
+		std::condition_variable cvUseLocalMap;
+		bool mbTrackingEnd;
+		bool mbLocalMapUpdateEnd;
+
 	};
 }
 
