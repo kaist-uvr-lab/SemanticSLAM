@@ -98,9 +98,11 @@ namespace UVR_SLAM {
 		void SetRecentLocalMapID(int nLocalMapID);
 		int GetRecentTrackingFrameID();
 		void SetRecentTrackingFrameID(int nFrameID);
+		int GetRecentLayoutFrameID();
+		void SetRecentLayoutFrameID(int nFrameID);
 	private:
-		std::mutex mMutexRecentLocalMapID, mMutexRecentTrackedFrameID;
-		int mnLocalMapID, mnTrackedFrameID;
+		std::mutex mMutexRecentLocalMapID, mMutexRecentTrackedFrameID, mMutexRecentLayoutFrameID;
+		int mnLocalMapID, mnTrackedFrameID, mnLayoutFrameID;
 
 
 

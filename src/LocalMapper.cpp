@@ -15,7 +15,7 @@ void UVR_SLAM::LocalMapper::InsertKeyFrame(UVR_SLAM::Frame *pKF)
 {
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
 	mKFQueue.push(pKF);
-	std::cout << "insertkeyframe::queue size = " << mKFQueue.size() << std::endl;
+	//std::cout << "insertkeyframe::queue size = " << mKFQueue.size() << std::endl;
 	mbStopBA = true;
 }
 
@@ -72,25 +72,17 @@ void UVR_SLAM::LocalMapper::SetDoingProcess(bool flag){
 void UVR_SLAM::LocalMapper::Run() {
 	while (1) {
 
-		//???????????????????????
-		
-
 		if (CheckNewKeyFrames()) {
 			SetDoingProcess(true);
-			std::cout << "LocalMap::1" << std::endl;
 			ProcessNewKeyFrame();
-			std::cout << "LocalMap::2" << std::endl;
 			CalculateKFConnections();
-			std::cout << "LocalMap::3" << std::endl;
 			UpdateKFs();
-			std::cout << "LocalMap::4" << std::endl;
 			////이전 프레임에서 생성된 맵포인트 중 삭제
 			//프레임 윈도우 내의 로컬 맵 포인트 중 new인 애들만 수행
 			NewMapPointMaginalization();
 
 			UpdateMPs();
 
-			std::cout << "LocalMap::5" << std::endl;
 			//프레임 내에서 삭제 되는 녀석과 업데이트 되는 녀석의 분리가 필요함.
 
 			std::chrono::high_resolution_clock::time_point t_start = std::chrono::high_resolution_clock::now();
@@ -98,8 +90,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::chrono::high_resolution_clock::time_point t_end = std::chrono::high_resolution_clock::now();
 			auto du_test = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count();
 			double t_test = du_test / 1000.0;
-			std::cout << "LocalMap::kf::TEST::" << t_test<<"::Create "<< nCreateMP<< std::endl;
-
+		
 			//marginalization test
 			/*std::chrono::high_resolution_clock::time_point kf_mar_start = std::chrono::high_resolution_clock::now();
 			KeyframeMarginalization();
@@ -108,31 +99,27 @@ void UVR_SLAM::LocalMapper::Run() {
 			double t_kf_mar = du_kf_mar / 1000.0;
 			std::cout << "LocalMap::kf::marginalization::"<<t_kf_mar<< std::endl;*/
 			
-			std::cout << "LocalMap::6" << std::endl;
 			////새로운 맵포인트 생성
 			//여기부터 다시 검증이 필요
 			//CreateMapPoints(mpTargetFrame, mpPrevKeyFrame);
 
-			//create map points
-			std::chrono::high_resolution_clock::time_point cm_start = std::chrono::high_resolution_clock::now();
-			//CreateMapPoints();
-			std::chrono::high_resolution_clock::time_point cm_end = std::chrono::high_resolution_clock::now();
-			auto du_cm = std::chrono::duration_cast<std::chrono::milliseconds>(cm_end - cm_start).count();
-			double t_cm = du_cm / 1000.0;
-			std::cout << "LocalMap::CM::" << t_cm << std::endl;
-			std::cout << "LocalMap::7" << std::endl;
-			//fuse
+			////create map points
+			//std::chrono::high_resolution_clock::time_point cm_start = std::chrono::high_resolution_clock::now();
+			////CreateMapPoints();
+			//std::chrono::high_resolution_clock::time_point cm_end = std::chrono::high_resolution_clock::now();
+			//auto du_cm = std::chrono::duration_cast<std::chrono::milliseconds>(cm_end - cm_start).count();
+			//double t_cm = du_cm / 1000.0;
+
+			///fuse
 			if (!isStopLocalMapping())
 			{
-				std::cout << "LocalMap::81" << std::endl;
 				std::chrono::high_resolution_clock::time_point fuse_start = std::chrono::high_resolution_clock::now();
 				FuseMapPoints();
 				std::chrono::high_resolution_clock::time_point fuse_end = std::chrono::high_resolution_clock::now();
 				auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(fuse_end - fuse_start).count();
 				double tttt = duration / 1000.0;
 				mpFrameWindow->SetFuseTime(tttt);
-				std::cout << "LocalMap::82" << std::endl;
-
+		
 				////debugging
 				////save image
 				//cv::Mat img1 = mpTargetFrame->GetOriginalImage();
@@ -190,24 +177,20 @@ void UVR_SLAM::LocalMapper::Run() {
 				////save image
 			}
 
-			std::cout << "LocalMap::Update::Start" << std::endl;
 			mpFrameWindow->SetLocalMap(mpTargetFrame->GetFrameID());
-			std::cout << "LocalMap::Update::End" << std::endl;
+			
+			if (mpSegmentator->isRun() && !mpSegmentator->isDoingProcess()) {
+				mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
+				//mpSegmentator->SetBoolDoingProcess(true);
+				mpSegmentator->SetTargetFrame(mpTargetFrame);
+			}
 
 			////BA
 			//BA에서는 최근 생성된 맵포인트까지 반영을 해야 함.
-			mbStopBA = false;
+			mbStopBA = false; 
 			if(!isStopLocalMapping()){
-				std::cout << "LocalMap::91" << std::endl;
 				//Optimization::LocalBundleAdjustment(mpFrameWindow, mpTargetFrame->GetFrameID(), mbStopBA, 2, 5, false);
 				Optimization::LocalBundleAdjustment(mpTargetFrame, mpFrameWindow, &mbStopBA);
-				std::cout << "LocalMap::92" << std::endl;
-			}
-
-			if (mpSegmentator->isRun() && !mpSegmentator->isDoingProcess()) {
-				mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
-				mpSegmentator->SetBoolDoingProcess(true);
-				mpSegmentator->SetTargetFrame(mpTargetFrame);
 			}
 
 			StopLocalMapping(false);
@@ -532,8 +515,6 @@ void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 	int nTargetID = mpTargetFrame->GetFrameID();
 	auto mvpTemporalCandidateKFs = mpFrameWindow->GetLocalMapFrames();
 	
-	std::cout << "LocalMapper::TargetKF::" << nTargetID << std::endl;
-	
 	for (int i = 0; i < mvpTemporalCandidateKFs.size(); i++) {
 		if (nTargetID == mvpTemporalCandidateKFs[i]->GetFrameID())
 			continue;
@@ -548,7 +529,6 @@ void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 	
 	int Nkf = mmpCandidateKFs.size();
 	auto mvpLocalMPs = mpTargetFrame->GetMapPoints();
-	std::cout << "LocalMapper::UpdateKF::1::" << mmpCandidateKFs.size() << std::endl;
 	for (int i = 0; i < mvpLocalMPs.size(); i++) {
 		
 		UVR_SLAM::MapPoint* pMP = mvpLocalMPs[i];
@@ -567,7 +547,6 @@ void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 			mmpCandidateKFs[pCandidateKF]++;
 		}
 	}
-	std::cout << "LocalMapper::UpdateKF::2::" << mmpCandidateKFs.size() << std::endl;
 	//sort mmp
 	std::vector<std::pair<int,UVR_SLAM::Frame*>> vPairs;
 
@@ -581,52 +560,6 @@ void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 			pKF->AddKF(mpTargetFrame, nCount);
 		}
 	}
-
-	auto mmpKFs = mpTargetFrame->GetConnectedKFsWithWeight();
-	for (std::multimap<int, UVR_SLAM::Frame*, std::greater<int>>::iterator iter = mmpKFs.begin(); iter != mmpKFs.end(); iter++) {
-		std::cout << "ID : " << iter->second->GetFrameID() << ", " << iter->first << std::endl;
-	}
-		
-
-	//20.01.16
-	//set을 multimap으로 변경하여 order를 추가하게 되면서 sorting 할 필요가 없어짐.
-
-	//int nKF = 0;
-	//int nThreshKF = 8;
-	//sort(vPairs.begin(), vPairs.end());
-	////store frame and wegiths
-
-	////가장 최근 두개의 키프레임은 자동 추가
-	//if (mpPrevKeyFrame) {
-	//	int weight = mmpCandidateKFs[mpPrevKeyFrame];
-	//	mpTargetFrame->AddKF(mpPrevKeyFrame, weight);
-	//	mpPrevKeyFrame->AddKF(mpTargetFrame, weight);
-	//	mpPrevKeyFrame->mnLocalMapFrameID = nTargetID;
-	//	std::cout << "LocalMapping::Connection::" << mpPrevKeyFrame->GetFrameID() << std::endl;
-	//}
-	//if (mpPPrevKeyFrame) {
-	//	int weight = mmpCandidateKFs[mpPPrevKeyFrame];
-	//	mpTargetFrame->AddKF(mpPPrevKeyFrame, weight);
-	//	mpPPrevKeyFrame->AddKF(mpTargetFrame, weight);
-	//	mpPPrevKeyFrame->mnLocalMapFrameID = nTargetID;
-	//	std::cout << "LocalMapping::Connection::" << mpPPrevKeyFrame->GetFrameID() << std::endl;
-	//}
-
-	//for (int i = vPairs.size()-1; i >=0 ; i--) {
-	//	UVR_SLAM::Frame* pKF = vPairs[i].second;
-	//	if (pKF->mnLocalMapFrameID == nTargetID)
-	//		continue;
-	//	int nCount = vPairs[i].first;
-	//	mpTargetFrame->AddKF(pKF, nCount);
-	//	pKF->AddKF(mpTargetFrame, nCount);
-	//	pKF->mnLocalMapFrameID = nTargetID;
-	//	std::cout << "LocalMapping::Connection::" << pKF->GetFrameID() <<" | "<<pKF->GetKeyFrameID()<< ":: " << nCount << std::endl;
-
-	//	nKF++;
-	//	if (nKF > nThreshKF)
-	//		break;
-	//}
-	//std::cout << "LocalMapping::Connected KFs::" << mpTargetFrame->GetConnectedKFs().size() << std::endl;
 }
 int UVR_SLAM::LocalMapper::Test() {
 	auto mvpLocalFrames = mpTargetFrame->GetConnectedKFs();

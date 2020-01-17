@@ -125,7 +125,7 @@ void UVR_SLAM::System::Init() {
 	mpInitializer->SetFrameWindow(mpFrameWindow);
 
 	//PlaneEstimator
-	mpPlaneEstimator = new UVR_SLAM::PlaneEstimator(mK, mKforPL, mnWidth, mnHeight);
+	mpPlaneEstimator = new UVR_SLAM::PlaneEstimator(mstrFilePath, mK, mKforPL, mnWidth, mnHeight);
 	mpPlaneEstimator->SetSystem(this);
 	mpPlaneEstimator->SetFrameWindow(mpFrameWindow);
 	mptPlaneEstimator = new std::thread(&UVR_SLAM::PlaneEstimator::Run, mpPlaneEstimator);

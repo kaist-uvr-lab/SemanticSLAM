@@ -93,6 +93,8 @@ int UVR_SLAM::Matcher::MatchingWithPrevFrame(UVR_SLAM::Frame* pPrev, UVR_SLAM::F
 	img1.copyTo(debugging(mergeRect1));
 	img2.copyTo(debugging(mergeRect2));
 
+	
+
 	for (int i = 0; i < pPrev->mvpMPs.size(); i++) {
 		UVR_SLAM::MapPoint* pMP = pPrev->mvpMPs[i];
 		if (!pMP)

@@ -205,6 +205,8 @@ void UVR_SLAM::Visualizer::Run() {
 				//cv::line(tempVis, pt1, pt2, cv::Scalar(0, 0, 0), 2);
 			}
 
+			int nRecentLayoutFrameID = mpFrameWindow->GetLastLayoutFrameID();
+
 			auto vpFrameMPs = GetMPs();
 			for (int i = 0; i < vpFrameMPs.size(); i++) {
 				UVR_SLAM::MapPoint* pMP = vpFrameMPs[i];
@@ -216,11 +218,14 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
 				tpt += mVisMidPt;
 				cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
+				if (pMP->GetRecentLayoutFrameID() == nRecentLayoutFrameID) {
+					cv::circle(tempVis, tpt, 4, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()]/2, 2);
+				}
 			}
 
 			//fuse time text 
 			std::stringstream ss;
-			ss << "Fuse = " << mpFrameWindow->GetFuseTime();
+			ss << "Fuse = " << mpFrameWindow->GetFuseTime()<<", PE = "<< mpFrameWindow->GetPETime();
 			cv::rectangle(tempVis, cv::Point2f(0, 0), cv::Point2f(tempVis.cols, 30), cv::Scalar::all(0), -1);
 			cv::putText(tempVis, ss.str(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			//fuse time text

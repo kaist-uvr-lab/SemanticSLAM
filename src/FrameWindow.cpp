@@ -2,8 +2,8 @@
 #include <System.h>
 #include <MapPoint.h>
 
-UVR_SLAM::FrameWindow::FrameWindow():mnWindowSize(10), LocalMapSize(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1),mnQueueSize(0),mdFuseTime(0.0), mbUseLocalMap(false) {}
-UVR_SLAM::FrameWindow::FrameWindow(int _size) : mnWindowSize(_size), LocalMapSize(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1), mnQueueSize(0), mdFuseTime(0.0), mbUseLocalMap(false) {}
+UVR_SLAM::FrameWindow::FrameWindow():mnWindowSize(10), LocalMapSize(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1),mnQueueSize(0),mdFuseTime(0.0), mdPETime(0.0), mbUseLocalMap(false) {}
+UVR_SLAM::FrameWindow::FrameWindow(int _size) : mnWindowSize(_size), LocalMapSize(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1), mnQueueSize(0), mdFuseTime(0.0), mdPETime(0.0), mbUseLocalMap(false) {}
 UVR_SLAM::FrameWindow::~FrameWindow() {}
 
 
@@ -137,6 +137,14 @@ int  UVR_SLAM::FrameWindow::GetLastFrameID(){
 	std::unique_lock<std::mutex> lockMP(mMutexLastFrameID);
 	return mnLastFrameID;
 }
+void UVR_SLAM::FrameWindow::SetLastLayoutFrameID(int id) {
+	std::unique_lock<std::mutex> lockMP(mMutexLastLayoutFrameID);
+	mnLastLayoutFrameID = id;
+}
+int  UVR_SLAM::FrameWindow::GetLastLayoutFrameID() {
+	std::unique_lock<std::mutex> lockMP(mMutexLastLayoutFrameID);
+	return mnLastLayoutFrameID;
+}
 void UVR_SLAM::FrameWindow::SetFuseTime(double d){
 	std::unique_lock<std::mutex> lockMP(mMutexFuseTime);
 	mdFuseTime = d;
@@ -145,7 +153,14 @@ double UVR_SLAM::FrameWindow::GetFuseTime(){
 	std::unique_lock<std::mutex> lockMP(mMutexFuseTime);
 	return mdFuseTime;
 }
-
+void UVR_SLAM::FrameWindow::SetPETime(double d){
+	std::unique_lock<std::mutex> lockMP(mMutexPETime);
+	mdPETime = d;
+}
+double UVR_SLAM::FrameWindow::GetPETime(){
+	std::unique_lock<std::mutex> lockMP(mMutexPETime);
+	return mdPETime;
+}
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 //마지막 프레임 같은 경우는 프레임이 추가 될 때 수행되므로 뮤텍스 디큐와 연관되는게 맞음.
 

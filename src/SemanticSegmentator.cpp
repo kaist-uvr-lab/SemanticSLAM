@@ -46,19 +46,6 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 		if (isDoingProcess()) {
 			std::cout << "SemanticSegmentator::RUN::Start" << std::endl;
 
-			//semantic frame index
-			int nLastFrameIndex = mpFrameWindow->GetLastSemanticFrameIndex();
-			mpFrameWindow->SetLastSemanticFrameIndex();
-			int nCurrFrameIndex = mpFrameWindow->GetLastSemanticFrameIndex();
-
-			UVR_SLAM::Frame* prevSemanticFrame;
-			/*if (nLastFrameIndex >= 0) {
-				prevSemanticFrame = mpFrameWindow->GetFrame(nLastFrameIndex);
-				auto pType = prevSemanticFrame->GetType();
-				std::cout << "type test = " << "::" << (int)pType << std::endl << std::endl << std::endl;
-			}*/
-			std::cout << "SemanticFrame::Last=" << nLastFrameIndex << "|| Curr=" << nCurrFrameIndex << std::endl;
-
 			cv::Mat colorimg, segmented;
 			cvtColor(mpTargetFrame->GetOriginalImage(), colorimg, CV_RGBA2BGR);
 			colorimg.convertTo(colorimg, CV_8UC3);
@@ -67,14 +54,12 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			SetSegmentationMask(segmented);
 			ObjectLabeling();
 
-			////PlaneEstimator
-			//if (!mpPlaneEstimator->isDoingProcess()) {
-			//	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
-			//	mpPlaneEstimator->SetBoolDoingProcess(true, 3);
-			//	mpPlaneEstimator->SetTargetFrame(mpTargetFrame);
-			//}
-			//else {
-			//}
+			//PlaneEstimator
+			/*if (!mpPlaneEstimator->isDoingProcess()) {
+				mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
+				mpPlaneEstimator->SetBoolDoingProcess(true, 3);
+				mpPlaneEstimator->SetTargetFrame(mpTargetFrame);
+			}*/
 
 			//여기는 시각화로 보낼 수 있으면 보내는게 좋을 듯.
 			cv::addWeighted(segmented, 0.5, colorimg, 0.5, 0.0, colorimg);

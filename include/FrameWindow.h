@@ -52,12 +52,6 @@ namespace UVR_SLAM {
 		void SetLocalMap(int nTargetID);
 		cv::Mat GetLocalMapDescriptor();
 
-		void SetLastFrameID(int id);
-		int  GetLastFrameID();
-
-		void SetLastSemanticFrameIndex();
-		int GetLastSemanticFrameIndex();
-
 		//void AddFrame(UVR_SLAM::Frame* pFrame);
 		//void RemoveFrame(UVR_SLAM::Frame* pFrame);
 	public:
@@ -88,8 +82,7 @@ namespace UVR_SLAM {
 		int mnLastSemanticFrame; 
 		int mnLastLayoutFrame; //윈도우 내에서 마지막 레이아웃 프레임의 인덱스를 나타냄. 아직 사용 안함.
 
-		int mnLastFrameID;
-		std::mutex mMutexLastFrameID;
+		
 
 		System* mpSystem;
 		std::mutex mMutexPose;
@@ -118,6 +111,26 @@ namespace UVR_SLAM {
 	private:
 		bool mbUseLocalMap;
 		std::mutex mMutexUseLocalMap;
+
+	public:
+		void SetLastFrameID(int id);
+		int  GetLastFrameID();
+		void SetLastLayoutFrameID(int id);
+		int  GetLastLayoutFrameID();
+
+		void SetLastSemanticFrameIndex(); //???
+		int GetLastSemanticFrameIndex();
+	private:
+		int mnLastFrameID, mnLastLayoutFrameID;
+		std::mutex mMutexLastFrameID, mMutexLastLayoutFrameID;
+
+	//Plane Estimation 관련
+	public:
+		void SetPETime(double d);
+		double GetPETime();
+	private:
+		double mdPETime;
+		std::mutex mMutexPETime;
 	};
 }
 

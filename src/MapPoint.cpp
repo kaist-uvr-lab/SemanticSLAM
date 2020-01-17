@@ -7,15 +7,15 @@ static int nMapPointID = 0;
 
 UVR_SLAM::MapPoint::MapPoint()
 	:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
-	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1)
+	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1)
 {}
 UVR_SLAM::MapPoint::MapPoint(UVR_SLAM::Frame* pRefKF,cv::Mat _p3D, cv::Mat _desc)
 :mpRefKF(pRefKF),p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
-, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1)
+, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1)
 {}
 UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, cv::Mat _desc, MapPointType ntype)
 	: p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
-	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1)
+	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1)
 {}
 UVR_SLAM::MapPoint::~MapPoint(){}
 
@@ -39,6 +39,14 @@ int UVR_SLAM::MapPoint::GetRecentTrackingFrameID() {
 void UVR_SLAM::MapPoint::SetRecentTrackingFrameID(int nFrameID) {
 	std::unique_lock<std::mutex> lockMP(mMutexRecentTrackedFrameID);
 	mnTrackedFrameID = nFrameID;
+}
+int UVR_SLAM::MapPoint::GetRecentLayoutFrameID() {
+	std::unique_lock<std::mutex> lockMP(mMutexRecentLayoutFrameID);
+	return mnLayoutFrameID;
+}
+void UVR_SLAM::MapPoint::SetRecentLayoutFrameID(int nFrameID) {
+	std::unique_lock<std::mutex> lockMP(mMutexRecentLayoutFrameID);
+	mnLayoutFrameID = nFrameID;
 }
 
 void UVR_SLAM::MapPoint::SetPlaneID(int nid) {
