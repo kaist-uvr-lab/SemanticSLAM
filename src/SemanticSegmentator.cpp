@@ -67,14 +67,14 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			SetSegmentationMask(segmented);
 			ObjectLabeling();
 
-			//PlaneEstimator
-			if (!mpPlaneEstimator->isDoingProcess()) {
-				mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
-				mpPlaneEstimator->SetBoolDoingProcess(true, 3);
-				mpPlaneEstimator->SetTargetFrame(mpTargetFrame);
-			}
-			else {
-			}
+			////PlaneEstimator
+			//if (!mpPlaneEstimator->isDoingProcess()) {
+			//	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
+			//	mpPlaneEstimator->SetBoolDoingProcess(true, 3);
+			//	mpPlaneEstimator->SetTargetFrame(mpTargetFrame);
+			//}
+			//else {
+			//}
 
 			//여기는 시각화로 보낼 수 있으면 보내는게 좋을 듯.
 			cv::addWeighted(segmented, 0.5, colorimg, 0.5, 0.0, colorimg);

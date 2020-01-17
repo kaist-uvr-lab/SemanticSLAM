@@ -21,7 +21,7 @@ namespace UVR_SLAM {
 	public:
 		//초기 포즈 만들 때는 double형으로 형변환
 		MapPoint();
-		MapPoint(cv::Mat _p3D, cv::Mat _desc);
+		MapPoint(UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc);
 		MapPoint(cv::Mat _p3D, cv::Mat _desc, MapPointType ntype);
 		virtual ~MapPoint();
 	public:
@@ -32,6 +32,9 @@ namespace UVR_SLAM {
 		bool isInFrame(Frame* pF);
 		void AddFrame(UVR_SLAM::Frame* pF, int idx); //index in frame
 		void RemoveFrame(UVR_SLAM::Frame* pKF);
+		int GetIndexInFrame(UVR_SLAM::Frame* pF);
+		void UpdateNormalAndDepth();
+		int PredictScale(const float &currentDist, Frame* pKF);
 		void Delete();
 		void SetDescriptor(cv::Mat _desc);
 		cv::Mat GetDescriptor();
@@ -47,8 +50,6 @@ namespace UVR_SLAM {
 		ObjectType  GetObjectType();
 		MapPointType GetMapPointType();
 
-		void SetFrameWindowIndex(int nIdx);
-		int GetFrameWindowIndex();
 		void SetPlaneID(int nid);
 		int GetPlaneID();
 		int GetMapPointID();
@@ -58,18 +59,22 @@ namespace UVR_SLAM {
 		void SetDelete(bool b);
 		bool isDeleted();
 		
+		float GetMaxDistance();
+		float GetMinDistance();
+		cv::Mat GetNormal();
+
 	public:
 		int mnMapPointID;
 		int mnFirstKeyFrameID;
-		
+		int mnLocalBAID;
 
 	private:
+		Frame* mpRefKF;
 		std::mutex mMutexMP;
 		bool mbDelete;
 		int mnPlaneID;
 		MapPointType mnType;
 		ObjectType mObjectType;
-		int mnFrameWindowIndex;
 
 		float mfDepth;
 		bool mbSeen;
@@ -83,6 +88,9 @@ namespace UVR_SLAM {
 		std::mutex mMutexFeatures;
 		int mnVisible;
 		int mnFound;
+
+		float mfMaxDistance, mfMinDistance;
+		cv::Mat mNormalVector;
 
 	//local map 및 최근 트래킹 관련 index 관련
 	public:

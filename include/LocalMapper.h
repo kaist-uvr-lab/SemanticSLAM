@@ -47,13 +47,16 @@ namespace UVR_SLAM {
 		bool CheckReprojectionError(cv::Mat x3D, cv::Mat K, cv::Point2f pt, float thresh);
 		bool CheckScaleConsistency(cv::Mat x3D, cv::Mat Ow1, cv::Mat Ow2, float fRatioFactor, float fScaleFactor1, float fScaleFactor2);
 		void SetDoingProcess(bool flag);
+	public:
+		bool isStopLocalMapping();
+		void StopLocalMapping(bool flag);
 	private:
 
 		//queue¿Í mvpNewMPs Ãß°¡
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
 		std::list<UVR_SLAM::MapPoint*> mlpNewMPs;
-		std::mutex mMutexNewKFs;
-		bool mbStopBA;
+		std::mutex mMutexNewKFs, mMutexStopLocalMapping;
+		bool mbStopBA, mbStopLocalMapping;
 		std::mutex mMutexDoingProcess;
 		bool mbDoingProcess;
 
@@ -61,7 +64,7 @@ namespace UVR_SLAM {
 		SemanticSegmentator* mpSegmentator;
 		PlaneEstimator* mpPlaneEstimator;
 		FrameWindow* mpFrameWindow;
-		Frame* mpTargetFrame, *mpPrevKeyFrame;
+		Frame* mpTargetFrame, *mpPrevKeyFrame, *mpPPrevKeyFrame;
 		Matcher* mpMatcher;
 		int mnWidth, mnHeight;
 	};

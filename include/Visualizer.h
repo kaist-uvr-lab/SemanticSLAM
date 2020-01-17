@@ -8,6 +8,7 @@
 
 namespace UVR_SLAM {
 	class Frame;
+	class MapPoint;
 	class FrameWindow;
 
 	class Visualizer {
@@ -49,7 +50,22 @@ namespace UVR_SLAM {
 	private:
 		cv::Mat mVisualized2DMap, mVisTrajectory, mVisMapPoints, mVisPoseGraph;
 		cv::Point2f mVisMidPt, mVisPrevPt;
+		
+	//update scale
+	public:
+		int GetScale();
+		void SetScale(int s);
+		static void CallBackFunc(int event, int x, int y, int flags, void* userdata);
+	private:
 		int mnVisScale;
+		std::mutex mMutexScale;
+	//local tracknig results
+	public:
+		void SetMPs(std::vector<UVR_SLAM::MapPoint*> vpMPs);
+		std::vector<UVR_SLAM::MapPoint*> GetMPs();
+	private:
+		std::mutex mMutexFrameMPs;
+		std::vector<UVR_SLAM::MapPoint*> mvpFrameMPs;
 	};
 }
 #endif

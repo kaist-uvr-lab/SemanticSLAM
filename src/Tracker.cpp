@@ -69,7 +69,7 @@ void UVR_SLAM::Tracker::SetPlaneEstimator(UVR_SLAM::PlaneEstimator* pEstimator) 
 
 bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr) {
 	int nMinObs = 3;
-	if (mpFrameWindow->size() <= 2)
+	if (mpFrameWindow->GetLocalMapFrames().size() <= 2)
 		nMinObs = 2;
 	//int nRefMatches = mpFrameWindow->TrackedMapPoints(nMinObs);
 	int nRefMatches = mpRefKF->TrackedMapPoints(nMinObs);
@@ -77,14 +77,21 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr) {
 	float thRefRatio = 0.9f;
 
 	bool bLocalMappingIdle = !mpLocalMapper->isDoingProcess();
-	//std::cout << "CheckNeedKeyFrame::Ref = " << nRefMatches <<", "<< mnMatching <<", "<<mpFrameWindow->mnLastMatches<<":: "<<bLocalMappingIdle<< std::endl;
+	
 	
 	int nLastID = mpFrameWindow->GetLastFrameID();
-	bool c1a = pCurr->GetFrameID() >= nLastID + mnMaxFrames;
-	bool c1b = pCurr->GetFrameID() >= nLastID + mnMinFrames && bLocalMappingIdle;
-	bool c2 = mnMatching < nRefMatches*thRefRatio && mnMatching > 20;
+	bool c1a = pCurr->GetFrameID() >= nLastID + mnMaxFrames; //무조건 추가되는 상황
+	bool c1b = pCurr->GetFrameID() >= nLastID + mnMinFrames; //최소한의 조건
+	bool c2 = false; mnMatching < nRefMatches*thRefRatio && mnMatching > 20; //매칭 퀄리티를 유지하기 위한 것. 
 
-	if ((c1a || c1b) && c2) {
+	std::cout << "CheckNeedKeyFrame::Ref = " << nRefMatches << ", " << mnMatching << ", " << mpFrameWindow->mnLastMatches << "::IDLE = " << bLocalMappingIdle <<"::C2 = "<<c2<<", "<<nLastID<< std::endl;
+
+	if ((c1b || c2)&& !bLocalMappingIdle) {
+		//interrupt
+		mpLocalMapper->StopLocalMapping(true);
+	}
+
+	if ((c1a || c1b || c2) && !mpLocalMapper->isDoingProcess()) {
 		/*if (bLocalMappingIdle)
 			return true;
 		else {
@@ -103,70 +110,73 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr) {
 
 void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 	if(!mbInitializing){
-		mbInitializing = mpInitializer->Initialize(pCurr, mnWidth, mnHeight);
+		bool bReset = false;
+		mbInitializing = mpInitializer->Initialize(pCurr, bReset, mnWidth, mnHeight);
+		
+		if (bReset)
+			mpSystem->Reset();
+
 		//mbInit = bInit;
-		mbFirstFrameAfterInit = mbInitializing;
+		mbFirstFrameAfterInit = false;
+		
 		if (mbInitializing){
 			mpRefKF = pCurr;
+			mbInitilized = true;
+			mpSystem->SetBoolInit(true);
+
 			/*std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
 			mpSystem->mbLocalMapUpdateEnd = true;
 			lock.unlock();
 			mpSystem->cvUseLocalMap.notify_one();
 			std::cout << "????????" << std::endl;*/
 		}
+		
 			
 	}
 	else {
-
-		//std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
-		//mpSystem->cvUseLocalMap.wait(lock, [&]{return mpSystem->mbLocalMapUpdateEnd;});
+		std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
+		while (!mpSystem->mbLocalMapUpdateEnd){
+			mpSystem->cvUseLocalMap.wait(lock);
+		}
 		mpSystem->mbTrackingEnd = false;
-		/*while (mpFrameWindow->isUseLocalMap()){}
-		mpFrameWindow->SetUseLocalMap(true);*/
-
-		//std::unique_lock<std::mutex>(mpSystem->mMutexTracking);
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
-		////시맨틱 프레임과 매칭
-		//int nLastFrameIndex = mpFrameWindow->GetLastSemanticFrameIndex();
-		//if (nLastFrameIndex >= 0) {
-		//	UVR_SLAM::Frame* mpSemanticFrame = mpFrameWindow->GetFrame(nLastFrameIndex);
-		//	mpMatcher->FeatureMatchingWithSemanticFrames(mpSemanticFrame, pCurr);
-		//}
-			
-		//Local Map 자료 얻기
-		//local map points, descriptors, matching information, inlier vector
 		
 		std::cout << "track::1" << std::endl;
 		pCurr->SetPose(pPrev->GetRotation(), pPrev->GetTranslation());
 		int nLocalMapID = mpFrameWindow->GetLastFrameID();
 		auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
 		cv::Mat mLocalMapDesc = mpFrameWindow->GetLocalMapDescriptor();
-		
 		std::vector<bool> mvbLocalMapInliers(mvpLocalMPs.size(), false);
-		std::vector<cv::DMatch> mvMatches;
+		std::vector<std::pair<int, bool>> mvPairMatchingInfos;
+		mpSystem->mbTrackingEnd = true;
+		mpSystem->cvUseLocalMap.notify_one();
 
-		//mpMatcher->FeatureMatchingForInitialPoseTracking(mpFrameWindow, pFrame);
-		
-		//std::cout << "Matching Init : " << nInitMatching << std::endl;
 		std::cout << "track::2" << std::endl;
+		//이전 프레임에 포함된 맵포인트와 현재 프레임의 키포인트를 매칭하는 과정.
+		//빠른 속도를 위해 이전 프레임에서 추적되는 맵포인트를 디스크립터로 만듬.
 		std::chrono::high_resolution_clock::time_point matching_start = std::chrono::high_resolution_clock::now();
-		int nInitMatching = mpMatcher->FeatureMatchingForInitialPoseTracking(pPrev, pCurr, mvpLocalMPs, mLocalMapDesc, mvbLocalMapInliers, mvMatches, nLocalMapID);
+		int nInitMatching = mpMatcher->MatchingWithPrevFrame(pPrev, pCurr, mvPairMatchingInfos, nLocalMapID);
 		//int nInitMatching = mpMatcher->FeatureMatchingForInitialPoseTracking(mpFrameWindow, pCurr);
 		std::chrono::high_resolution_clock::time_point matching_end = std::chrono::high_resolution_clock::now();
+		std::cout << "match::prev::" << nInitMatching <<", "<< mvPairMatchingInfos .size()<<", "<<pPrev->mTrackedDescriptor.rows<< std::endl;
 		std::cout << "track::3" << std::endl;
 		std::chrono::high_resolution_clock::time_point optimize_start = std::chrono::high_resolution_clock::now();
 		//mnMatching = Optimization::PoseOptimization(mpFrameWindow, pCurr, mvpLocalMPs, mvbLocalMapInliers,false,4,10);
-		mnMatching = Optimization::PoseOptimization(pCurr, mvpLocalMPs, mvbLocalMapInliers, mvMatches, false, 4, 10);
+		//mnMatching = Optimization::PoseOptimization(pCurr, mvPairMatchingInfos, false, 4, 10); //이게 최근 버전
+		mnMatching = Optimization::PoseOptimization(pCurr);
 		std::chrono::high_resolution_clock::time_point optimize_end = std::chrono::high_resolution_clock::now();
+		std::cout << "optimization::prev::" << mnMatching << std::endl;
 		std::cout << "track::4" << std::endl;
+
 		std::chrono::high_resolution_clock::time_point matching_start2 = std::chrono::high_resolution_clock::now();
-		mpMatcher->FeatureMatchingForPoseTrackingByProjection(pCurr, mvpLocalMPs, mLocalMapDesc,mvbLocalMapInliers, mvMatches, 5.0);
+		mpMatcher->MatchingWithLocalMap(pCurr, mvpLocalMPs, mLocalMapDesc,mvbLocalMapInliers, mvPairMatchingInfos, 5.0);
 		//mpMatcher->FeatureMatchingForInitialPoseTracking(mpFrameWindow, pCurr, mvbLocalMapInliers);
 		std::chrono::high_resolution_clock::time_point matching_end2 = std::chrono::high_resolution_clock::now();
 		std::cout << "track::5" << std::endl;
 		std::chrono::high_resolution_clock::time_point optimize_start2 = std::chrono::high_resolution_clock::now();
 		//mnMatching = Optimization::PoseOptimization(mpFrameWindow, pCurr, mvpLocalMPs, mvbLocalMapInliers, false, 4, 10);
-		mnMatching = Optimization::PoseOptimization(pCurr, mvpLocalMPs, mvbLocalMapInliers, mvMatches, false, 4, 10);
+		//mnMatching = Optimization::PoseOptimization(pCurr, mvPairMatchingInfos, false, 4, 10);
+		mnMatching = Optimization::PoseOptimization(pCurr);
 		std::chrono::high_resolution_clock::time_point optimize_end2 = std::chrono::high_resolution_clock::now();
 		std::cout << "track::6" << std::endl;
 		//std::cout << "Track::res::"<< nInitMatching <<", "<< mnMatching<<"::"<<mpFrameWindow->GetLocalMapSize() << std::endl;
@@ -181,7 +191,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				mbInitializing = false;
 				mpSystem->Reset();
 				std::cout << "Fail Initilization = " << mnMatching << std::endl;
-				//mpFrameWindow->SetUseLocalMap(false);
 				return;
 			}
 			else {
@@ -240,12 +249,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 		//update tracking results
 		mpFrameWindow->mnLastMatches = mnMatching;
-		mpFrameWindow->SetLocalMapInliers(mvbLocalMapInliers);
-		//mpFrameWindow->SetUseLocalMap(false);
+		//mpFrameWindow->SetLocalMapInliers(mvbLocalMapInliers);
 
-		mpSystem->mbTrackingEnd = true;
-		//lock.unlock();
-		//mpSystem->cvUseLocalMap.notify_one();
+		//mpFrameWindow->SetUseLocalMap(false);
 
 		/*if (mpFrameWindow->GetLastFrameID() + 10 < pCurr->GetFrameID() || (nMatching < 50)) {
 			mpLocalMapper->InsertKeyFrame(pCurr);
@@ -258,7 +264,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		}*/
 
 		//일단 테스트
-		
 		cv::Mat vis = pCurr->GetOriginalImage();
 		//cvtColor(vis, vis, CV_RGBA2BGR);
 		vis.convertTo(vis, CV_8UC3);
@@ -331,13 +336,14 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		//cv::imwrite("../../bin/segmentation/res/labeling.jpg", vis2);
 		cv::waitKey(1);
 		
+		mpVisualizer->SetMPs(pCurr->GetMapPoints());
 		//visualizer thread
 		if (!mpVisualizer->isDoingProcess()) {
 			//mpSystem->SetVisualizeFrame(pCurr);
 			mpVisualizer->SetBoolDoingProcess(true);
 			//mpVisualizer->SetFrameMatching(pPrev, pCurr, vMatchInfos);
 		}
-		
+		std::cout << "tracker::end" << std::endl;
 	}
 }
 

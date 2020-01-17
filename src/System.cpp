@@ -9,7 +9,7 @@
 int UVR_SLAM::System::nKeyFrameID = 0;
 
 UVR_SLAM::System::System(){}
-UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath){
+UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapUpdateEnd(true) {
 	LoadParameter(strFilePath);
 	LoadVocabulary();
 	Init();

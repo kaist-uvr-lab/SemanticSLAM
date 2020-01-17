@@ -20,6 +20,9 @@ namespace UVR_SLAM {
 
 	public:
 
+		int MatchingWithPrevFrame(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr,  std::vector<std::pair<int,bool>>& mvMatches, int nLocalMapID);
+		int MatchingWithLocalMap(Frame* pF, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, std::vector<bool>& mvbLocalMapInliers, std::vector<std::pair<int, bool>>& mvMatches, float rr);
+
 		void FindFundamental(Frame* pInit, Frame* pCurr, std::vector<cv::DMatch> vMatches, std::vector<bool> &vbMatchesInliers, float &score, cv::Mat &F21);
 
 		//초기화 매칭 20.01.03

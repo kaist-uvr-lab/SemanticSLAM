@@ -8,6 +8,8 @@
 #define UVR_SLAM_FRAME_H
 #pragma once
 #include <fbow.h> //include windows header.
+#include <map>
+#include <functional>
 #include <mutex>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
@@ -75,15 +77,18 @@ namespace UVR_SLAM {
 		int GetInliers();
 
 		bool isInImage(float u, float v);
+		bool isInFrustum(MapPoint *pMP, float viewingCosLimit);
 		cv::Point2f Projection(cv::Mat w3D, cv::Mat R, cv::Mat t, cv::Mat K);
 
 		///
-		void AddKF(UVR_SLAM::Frame* pKF);
-		void RemoveKF(UVR_SLAM::Frame* pKF);
-		std::vector<UVR_SLAM::Frame*> GetConnectedKFs();
-		std::vector<UVR_SLAM::Frame*> GetConnectedKFs(int n);
+		void AddKF(UVR_SLAM::Frame* pKF, int weight);
+		void RemoveKF(UVR_SLAM::Frame* pKF, int weight);
+		//std::vector<UVR_SLAM::Frame*> GetConnectedKFs();
+		std::vector<UVR_SLAM::Frame*> GetConnectedKFs(int n = 0);
+		std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> GetConnectedKFsWithWeight();
 	public:
-		int mnLocalBAID;
+		int mnLocalMapFrameID;
+		int mnLocalBAID, mnFixedBAID;
 		int mnFuseFrameID;
 	public:
 		//tracked & non tracked
@@ -110,7 +115,7 @@ namespace UVR_SLAM {
 
 		std::vector<ObjectType> mvObjectTypes; //모든 키포인트에 대해서 미리 정의된 레이블인지 재할당
 		
-		std::set<UVR_SLAM::Frame*> mspConnectedKFs;
+		std::multimap<int,UVR_SLAM::Frame*, std::greater<int>> mmpConnectedKFs;
 		cv::Mat matFrame, matOri;
 		cv::Mat R, t;
 		int mnInliers;

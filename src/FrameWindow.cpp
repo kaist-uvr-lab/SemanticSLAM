@@ -168,9 +168,11 @@ int UVR_SLAM::FrameWindow::GetLastSemanticFrameIndex() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void UVR_SLAM::FrameWindow::SetLocalMap(int nTargetID) {
 
-	/*std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
-	mpSystem->cvUseLocalMap.wait(lock, [&] {return mpSystem->mbTrackingEnd; });
-	mpSystem->mbLocalMapUpdateEnd = false;*/
+	std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
+	while (!mpSystem->mbTrackingEnd){
+		mpSystem->cvUseLocalMap.wait(lock);
+	}
+	mpSystem->mbLocalMapUpdateEnd = false;
 
 	std::unique_lock<std::mutex>(mMutexLocalMPs);
 	
@@ -190,7 +192,6 @@ void UVR_SLAM::FrameWindow::SetLocalMap(int nTargetID) {
 				continue;
 			if (pMP->GetRecentLocalMapID() == nTargetID)
 				continue;
-			pMP->SetFrameWindowIndex(mvpLocalMPs.size());
 			mvpLocalMPs.push_back(pMP);
 			descLocalMap.push_back(pMP->GetDescriptor());
 			pMP->SetRecentLocalMapID(nTargetID);
@@ -201,14 +202,13 @@ void UVR_SLAM::FrameWindow::SetLocalMap(int nTargetID) {
 				mspLocalMPs.insert(pMP);
 				mvpLocalMPs.push_back(pMP);
 				descLocalMap.push_back(pMP->GetDescriptor());
-			}*/
+			}*/ 
 		}
 	}
 	LocalMapSize = mvpLocalMPs.size();
-
-	/*mpSystem->mbLocalMapUpdateEnd = true;
-	lock.unlock();
-	mpSystem->cvUseLocalMap.notify_one();*/
+	mpSystem->mbLocalMapUpdateEnd = true;
+	mpSystem->cvUseLocalMap.notify_one();
+	
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

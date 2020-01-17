@@ -7,15 +7,15 @@ static int nMapPointID = 0;
 
 UVR_SLAM::MapPoint::MapPoint()
 	:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
-	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnTrackedFrameID(-1)
+	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1)
 {}
-UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, cv::Mat _desc)
-:p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
-, mnFirstKeyFrameID(0), mnLocalMapID(0), mnTrackedFrameID(-1)
+UVR_SLAM::MapPoint::MapPoint(UVR_SLAM::Frame* pRefKF,cv::Mat _p3D, cv::Mat _desc)
+:mpRefKF(pRefKF),p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
+, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1)
 {}
 UVR_SLAM::MapPoint::MapPoint(cv::Mat _p3D, cv::Mat _desc, MapPointType ntype)
 	: p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
-	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnTrackedFrameID(-1)
+	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1)
 {}
 UVR_SLAM::MapPoint::~MapPoint(){}
 
@@ -203,16 +203,6 @@ bool UVR_SLAM::MapPoint::isSeen(){
 	return mbSeen;
 }
 
-void UVR_SLAM::MapPoint::SetFrameWindowIndex(int nIdx){
-	std::unique_lock<std::mutex> lockMP(mMutexMP);
-	mnFrameWindowIndex = nIdx;
-}
-
-int UVR_SLAM::MapPoint::GetFrameWindowIndex(){
-	std::unique_lock<std::mutex> lockMP(mMutexMP);
-	return mnFrameWindowIndex;
-}
-
 bool UVR_SLAM::MapPoint::Projection(cv::Point2f& _P2D, cv::Mat& _Pcam, cv::Mat R, cv::Mat t, cv::Mat K, int w, int h) {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	_Pcam = R*p3D + t;
@@ -231,3 +221,85 @@ bool UVR_SLAM::MapPoint::Projection(cv::Point2f& _P2D, cv::Mat& _Pcam, cv::Mat R
 	return bres;
 }
 
+void UVR_SLAM::MapPoint::UpdateNormalAndDepth()
+{
+	std::map<UVR_SLAM::Frame*, int> observations;
+	UVR_SLAM::Frame* pRefKF;
+	cv::Mat Pos;
+	{
+		std::unique_lock<std::mutex> lock1(mMutexMP);
+		//unique_lock<mutex> lock2(mMutexPos);
+		if (mbDelete)
+			return;
+		observations = mmpFrames;
+		pRefKF = mpRefKF;
+		Pos = p3D.clone();
+	}
+
+	if (observations.empty())
+		return;
+
+	cv::Mat normal = cv::Mat::zeros(3, 1, CV_32F);
+	int n = 0;
+	for (auto mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
+	{
+		UVR_SLAM::Frame* pKF = mit->first;
+		cv::Mat Owi = pKF->GetCameraCenter();
+		cv::Mat normali = Pos - Owi;
+		normal = normal + normali / cv::norm(normali);
+		n++;
+	}
+
+	cv::Mat PC = Pos - pRefKF->GetCameraCenter();
+	const float dist = cv::norm(PC);
+	const int level = pRefKF->mvKeyPoints[observations[pRefKF]].octave;
+	const float levelScaleFactor = pRefKF->mvScaleFactors[level];
+	const int nLevels = pRefKF->mnScaleLevels;
+
+	{
+		std::unique_lock < std::mutex > lock3(mMutexMP);
+		mfMaxDistance = dist*levelScaleFactor;
+		mfMinDistance = mfMaxDistance / pRefKF->mvScaleFactors[nLevels - 1];
+		mNormalVector = normal / n;
+	}
+}
+
+int UVR_SLAM::MapPoint::PredictScale(const float &currentDist, Frame* pKF)
+{
+	float ratio;
+	{
+		std::unique_lock<std::mutex> lock(mMutexMP);
+		ratio = mfMaxDistance / currentDist;
+	}
+
+	int nScale = ceil(log(ratio) / pKF->mfLogScaleFactor);
+	if (nScale<0)
+		nScale = 0;
+	else if (nScale >= pKF->mnScaleLevels)
+		nScale = pKF->mnScaleLevels - 1;
+
+	return nScale;
+}
+
+
+float UVR_SLAM::MapPoint::GetMaxDistance() {
+	std::unique_lock<std::mutex> lock(mMutexMP);
+	return 1.2f*mfMaxDistance;
+}
+float UVR_SLAM::MapPoint::GetMinDistance(){
+	std::unique_lock<std::mutex> lock(mMutexMP);
+	return 0.8f*mfMinDistance;
+}
+
+cv::Mat UVR_SLAM::MapPoint::GetNormal() {
+	std::unique_lock<std::mutex> lock(mMutexMP);
+	return mNormalVector;
+}
+int UVR_SLAM::MapPoint::GetIndexInFrame(Frame *pKF)
+{
+	std::unique_lock<std::mutex> lock(mMutexMP);
+	if (mmpFrames.count(pKF))
+		return mmpFrames[pKF];
+	else
+		return -1;
+}

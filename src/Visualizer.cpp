@@ -1,6 +1,7 @@
 #include <Visualizer.h>
 #include <FrameWindow.h>
 #include <Frame.h>
+#include <MapPoint.h>
 
 UVR_SLAM::Visualizer::Visualizer() {}
 UVR_SLAM::Visualizer::Visualizer(int w, int h, int scale) :mnWidth(w), mnHeight(h), mnVisScale(scale), mnFontFace(2), mfFontScale(0.6){}
@@ -12,16 +13,26 @@ cv::Point2f ePt = cv::Point2f(0, 0);
 cv::Point2f mPt = cv::Point2f(0, 0);
 cv::Mat M = cv::Mat::zeros(0, 0, CV_64FC1);
 
-void CallBackFunc(int event, int x, int y, int flags, void* userdata)
+int nScale;
+int UVR_SLAM::Visualizer::GetScale(){
+	std::unique_lock<std::mutex>lock(mMutexScale);
+	return mnVisScale;
+}
+void UVR_SLAM::Visualizer::SetScale(int s){
+	std::unique_lock<std::mutex>lock(mMutexScale);
+	mnVisScale = s;
+}
+
+void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void* userdata)
 {
 	if (event == cv::EVENT_LBUTTONDOWN)
 	{
-		std::cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << std::endl;
+		//std::cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << std::endl;
 		sPt = cv::Point2f(x, y);
 	}
 	else if (event == cv::EVENT_LBUTTONUP)
 	{
-		std::cout << "Left button of the mouse is released - position (" << x << ", " << y << ")" << std::endl;
+		//std::cout << "Left button of the mouse is released - position (" << x << ", " << y << ")" << std::endl;
 		ePt = cv::Point2f(x, y);
 		mPt = ePt - sPt;
 		M = cv::Mat::zeros(2, 3, CV_64FC1);
@@ -29,6 +40,19 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata)
 		M.at<double>(1, 1) = 1.0;
 		M.at<double>(0, 2) = mPt.x;
 		M.at<double>(1, 2) = mPt.y;
+	}
+	else if (event == cv::EVENT_MOUSEWHEEL) {
+		//std::cout << "Wheel event detection" << std::endl;
+		if (flags > 0) {
+			//scroll up
+			nScale += 20;
+		}
+		else {
+			//scroll down
+			nScale -= 20;
+			if (nScale <= 0)
+				nScale = 20;
+		}
 	}
 }
 
@@ -77,8 +101,8 @@ void UVR_SLAM::Visualizer::Init() {
 	cv::namedWindow("Test::Matching::Frame");
 	cv::moveWindow("Test::Matching::Frame", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth*0.7, 30 + mnHeight);
 
-	cv::setMouseCallback("Output::Trajectory", CallBackFunc, NULL);
-
+	cv::setMouseCallback("Output::Trajectory", UVR_SLAM::Visualizer::CallBackFunc, NULL);
+	nScale = mnVisScale;
 }
 
 void UVR_SLAM::Visualizer::SetFrameWindow(UVR_SLAM::FrameWindow* pFrameWindow) {
@@ -115,6 +139,7 @@ void UVR_SLAM::Visualizer::Run() {
 			//update pt
 			mVisMidPt += mPt;
 			mPt = cv::Point2f(0, 0);
+			mnVisScale = nScale;
 
 			cv::Scalar color1 = cv::Scalar(0, 0, 255);
 			cv::Scalar color2 = cv::Scalar(0, 255, 0);
@@ -179,6 +204,20 @@ void UVR_SLAM::Visualizer::Run() {
 					cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
 				//cv::line(tempVis, pt1, pt2, cv::Scalar(0, 0, 0), 2);
 			}
+
+			auto vpFrameMPs = GetMPs();
+			for (int i = 0; i < vpFrameMPs.size(); i++) {
+				UVR_SLAM::MapPoint* pMP = vpFrameMPs[i];
+				if (!pMP)
+					continue;
+				if (pMP->isDeleted())
+					continue;
+				cv::Mat x3D = pMP->GetWorldPos();
+				cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
+				tpt += mVisMidPt;
+				cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
+			}
+
 			//fuse time text 
 			std::stringstream ss;
 			ss << "Fuse = " << mpFrameWindow->GetFuseTime();
@@ -232,10 +271,10 @@ void UVR_SLAM::Visualizer::VisualizeTracking() {
 			if (pMP->GetPlaneID() > 0) {
 				circle(vis, p2D, 4, cv::Scalar(255, 0, 255), -1);
 			}
-
 		}
-
 	}
+
+	
 
 	cv::Mat vis2 = mpMatchingFrame2->GetOriginalImage();
 	for (int i = 0; i < mpMatchingFrame2->mvKeyPoints.size(); i++) {
@@ -293,4 +332,12 @@ void UVR_SLAM::Visualizer::VisualizeFrameMatching() {
 
 	cv::imshow("Test::Matching::Frame", debugging);
 	mbFrameMatching = false;
+}
+void UVR_SLAM::Visualizer::SetMPs(std::vector<UVR_SLAM::MapPoint*> vpMPs){
+	std::unique_lock<std::mutex> lock(mMutexFrameMPs);
+	mvpFrameMPs = std::vector<UVR_SLAM::MapPoint*>(vpMPs.begin(), vpMPs.end());
+}
+std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Visualizer::GetMPs(){
+	std::unique_lock<std::mutex> lock(mMutexFrameMPs);
+	return std::vector<UVR_SLAM::MapPoint*>(mvpFrameMPs.begin(), mvpFrameMPs.end());
 }

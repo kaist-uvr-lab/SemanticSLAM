@@ -23,6 +23,239 @@ UVR_SLAM::Matcher::~Matcher(){}
 
 const double nn_match_ratio = 0.7f; // Nearest-neighbour matching ratio
 
+int UVR_SLAM::Matcher::MatchingWithPrevFrame(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<std::pair<int, bool>>& mvMatches, int nLocalMapID) {
+
+	std::vector<bool> vbTemp(pCurr->mvKeyPoints.size(), true);
+	std::vector< std::vector<cv::DMatch> > matches;
+	std::vector<cv::DMatch> vMatchInfos;
+	
+	matcher->knnMatch(pPrev->mTrackedDescriptor, pCurr->matDescriptor, matches, 2);
+
+	int Nf1 = 0;
+	int Nf2 = 0;
+	int count = 0;
+
+	int nCurrFrameID = pCurr->GetFrameID();
+	auto mvpPrevMPs = pPrev->GetMapPoints();
+
+	for (unsigned long i = 0; i < matches.size(); i++) {
+		if (matches[i][0].distance < nn_match_ratio * matches[i][1].distance) {
+
+			//if (!pPrev->mvbMPInliers[matches[i][0].queryIdx]) {
+			//	//vMatchInfos.push_back(matches[i][0]);
+			//	continue;
+			//}
+			int idx = pPrev->mvTrackedIdxs[matches[i][0].queryIdx];
+			UVR_SLAM::MapPoint* pMP = mvpPrevMPs[idx];
+			if (!pMP)
+				continue;
+			if (pMP->isDeleted()) {
+				//pPrev->mvbMPInliers[idx]= false;
+				//pPrev->mvpMPs[idx] = nullptr;
+				continue;
+			}
+			//if (pMP->GetRecentLocalMapID() != nLocalMapID)
+			//	continue;
+
+			if (vbTemp[matches[i][0].trainIdx]) {
+				vbTemp[matches[i][0].trainIdx] = false;
+			}
+			else {
+				Nf1++;
+				continue;
+			}
+			vMatchInfos.push_back(matches[i][0]);
+			//local map의 inlier를 확인할 때 이용함.
+			pMP->SetRecentTrackingFrameID(nCurrFrameID);
+
+			pCurr->mvpMPs[matches[i][0].trainIdx] = pMP;
+			pCurr->mvbMPInliers[matches[i][0].trainIdx] = true;
+
+			std::pair<int, bool> tempPair(matches[i][0].trainIdx, true);
+			mvMatches.push_back(tempPair);
+
+			//labeling
+			auto otype = pPrev->GetObjectType(idx);
+			pCurr->SetObjectType(otype, matches[i][0].trainIdx);
+
+			//매칭 성능 확인용
+			count++;
+		}
+	}
+
+	cv::Mat img1 = pPrev->GetOriginalImage();
+	cv::Mat img2 = pCurr->GetOriginalImage();
+	cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
+
+	cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
+	cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	img1.copyTo(debugging(mergeRect1));
+	img2.copyTo(debugging(mergeRect2));
+
+	for (int i = 0; i < pPrev->mvpMPs.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = pPrev->mvpMPs[i];
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted()) {
+			continue;
+		}
+		cv::Mat pCam;
+		cv::Point2f p2D;
+		pMP->Projection(p2D, pCam, pPrev->GetRotation(), pPrev->GetTranslation(), pCurr->mK, mWidth, mHeight);
+		cv::circle(debugging, p2D, 3, cv::Scalar(0, 255, 0), -1);
+	}
+	for (int i = 0; i < vMatchInfos.size(); i++) {
+		int idx = pPrev->mvTrackedIdxs[vMatchInfos[i].queryIdx];
+		if (pCurr->mvbMPInliers[vMatchInfos[i].trainIdx]) {
+			cv::line(debugging, pPrev->mvKeyPoints[idx].pt, pCurr->mvKeyPoints[vMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 0, 255));
+
+			UVR_SLAM::MapPoint* pMP = pPrev->mvpMPs[idx];
+			if (!pMP)
+				continue;
+			if (pMP->isDeleted()) {
+				continue;
+			}
+			cv::Mat pCam;
+			cv::Point2f p2D;
+			pMP->Projection(p2D, pCam, pPrev->GetRotation(), pPrev->GetTranslation(), pCurr->mK, mWidth, mHeight);
+			cv::line(debugging, pPrev->mvKeyPoints[idx].pt, p2D, cv::Scalar(0, 255, 255), 2);
+			cv::circle(debugging, pPrev->mvKeyPoints[idx].pt, 2, cv::Scalar(255, 0, 255), -1);
+		}
+		else {
+			cv::circle(debugging, pPrev->mvKeyPoints[idx].pt, 2, cv::Scalar(255, 0, 0), -1);
+			cv::circle(debugging, pCurr->mvKeyPoints[vMatchInfos[i].trainIdx].pt + ptBottom, 3, cv::Scalar(255, 0, 0), -1);
+			cv::line(debugging, pPrev->mvKeyPoints[idx].pt, pCurr->mvKeyPoints[vMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 255, 0));
+		}
+	}
+	cv::imshow("Matching::PrevFrame", debugging);
+	//waitKey(0);
+
+	return count;
+}
+
+int UVR_SLAM::Matcher::MatchingWithLocalMap(Frame* pF, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, std::vector<bool>& mvbLocalMapInliers, std::vector<std::pair<int, bool>>& mvMatches, float rr) {
+	int nmatches = 0;
+	int nf = 0;
+
+	int nCurrID = pF->GetFrameID();
+
+	cv::Mat R = pF->GetRotation();
+	cv::Mat t = pF->GetTranslation();
+
+	for (int i = 0; i < mvpLocalMPs.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = mvpLocalMPs[i];
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted())
+			continue;
+		if (!pF->isInFrustum(pMP, 0.5))
+			continue;
+		if (pMP->GetRecentTrackingFrameID() == nCurrID)
+			continue;
+
+		cv::Mat pCam;
+		cv::Point2f p2D;
+		bool bProjection = pMP->Projection(p2D, pCam, R, t, pF->mK, mWidth, mHeight);
+		if (!pF->isInImage(p2D.x, p2D.y))
+			continue;
+
+		//중복 맵포인트 체크
+		std::vector<size_t> vIndices = pF->GetFeaturesInArea(p2D.x, p2D.y, rr);
+		if (vIndices.empty())
+			continue;
+
+		const cv::Mat MPdescriptor = pMP->GetDescriptor();
+
+		int bestDist = 256;
+		int bestLevel = -1;
+		int bestDist2 = 256;
+		int bestLevel2 = -1;
+		int bestIdx = -1;
+
+		// Get best and second matches with near keypoints
+		for (std::vector<size_t>::const_iterator vit = vIndices.begin(), vend = vIndices.end(); vit != vend; vit++)
+		{
+			const size_t idx = *vit;
+
+			if (pF->mvbMPInliers[idx])
+				continue;
+
+			const cv::Mat &d = pF->matDescriptor.row(idx);
+
+			const int dist = DescriptorDistance(MPdescriptor, d);
+
+			if (dist<bestDist)
+			{
+				bestDist2 = bestDist;
+				bestDist = dist;
+				bestLevel2 = bestLevel;
+				bestLevel = pF->mvKeyPoints[idx].octave;
+				bestIdx = idx;
+			}
+			else if (dist<bestDist2)
+			{
+				bestLevel2 = pF->mvKeyPoints[idx].octave;
+				bestDist2 = dist;
+			}
+		}//for vindices
+
+		if (bestDist <= TH_HIGH)
+		{
+			if (bestLevel == bestLevel2 && bestDist>mfNNratio*bestDist2)
+				continue;
+
+			pF->mvbMPInliers[bestIdx] = true;
+			pF->mvpMPs[bestIdx] = pMP;
+			pMP->SetRecentTrackingFrameID(nCurrID);
+
+			std::pair<int, bool> matchInfo(bestIdx, true);
+			mvMatches.push_back(matchInfo);
+
+			mvbLocalMapInliers[i] = true;
+
+			//auto otype = pMP->GetObjectType();
+			//pF->SetObjectType(otype, bestIdx);
+			nmatches++;
+
+		}
+	}//pMP
+
+	 //시각화
+	cv::Mat vis = pF->GetOriginalImage();
+	auto mvpMPs = pF->GetMapPoints();
+	cv::Mat R2 = pF->GetRotation();
+	cv::Mat t2 = pF->GetTranslation();
+	for (int i = 0; i < mvpMPs.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = mvpMPs[i];
+		if (!pMP) {
+			continue;
+		}
+		if (pMP->isDeleted()) {
+			continue;
+		}
+		cv::Point2f p2D;
+		cv::Mat pCam;
+		pMP->Projection(p2D, pCam, R2, t2, pF->mK, 640, 360);
+
+		if (!pF->mvbMPInliers[i]) {
+			//if (pMP->GetPlaneID() > 0) {
+			//	//circle(vis, p2D, 4, cv::Scalar(255, 0, 255), 2);
+			//}
+		}
+		else {
+			cv::circle(vis, pF->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 255), -1);
+			UVR_SLAM::ObjectType type = pMP->GetObjectType();
+			cv::line(vis, p2D, pF->mvKeyPoints[i].pt, cv::Scalar(255, 255, 0), 2);
+			if (type != OBJECT_NONE)
+				circle(vis, p2D, 3, UVR_SLAM::ObjectColors::mvObjectLabelColors[type], -1);
+		}
+	}
+	imshow("Matching::LocalMap", vis);
+
+	return nmatches;
+}
+
 int UVR_SLAM::Matcher::SearchForInitialization(Frame* F1, Frame* F2, std::vector<cv::DMatch>& resMatches, int windowSize)
 {
 	int nmatches = 0;
@@ -190,6 +423,26 @@ int UVR_SLAM::Matcher::MatchingForFuse(const std::vector<UVR_SLAM::MapPoint*> &v
 		// Point must be inside the image
 		if (!pKF->isInImage(u, v))
 			continue;
+
+		//const float ur = u - invz;
+
+		//const float maxDistance = pMP->GetMaxDistance();
+		//const float minDistance = pMP->GetMinDistance();
+		//cv::Mat PO = p3Dw - Ow;
+		//const float dist3D = cv::norm(PO);
+
+		//// Depth must be inside the scale pyramid of the image
+		//if (dist3D<minDistance || dist3D>maxDistance)
+		//	continue;
+
+		//// Viewing angle must be less than 60 deg
+		//cv::Mat Pn = pMP->GetNormal();
+
+		//if (PO.dot(Pn)<0.5*dist3D)
+		//	continue;
+
+		//int nPredictedLevel = pMP->PredictScale(dist3D, pKF);
+		//const float radius = th*pKF->mvScaleFactors[nPredictedLevel];
 
 		const std::vector<size_t> vIndices = pKF->GetFeaturesInArea(u, v, th,0,pKF->mnScaleLevels);
 
@@ -553,13 +806,6 @@ int UVR_SLAM::Matcher::FeatureMatchingForInitialPoseTracking(UVR_SLAM::Frame* pP
 			pCurr->mvpMPs[matches[i][0].trainIdx] = pMP;
 			pCurr->mvbMPInliers[matches[i][0].trainIdx] = true;
 
-			int nLocalMapIdx = pMP->GetFrameWindowIndex();;
-
-			cv::DMatch tempMatch;
-			tempMatch.queryIdx = nLocalMapIdx;
-			tempMatch.trainIdx = matches[i][0].trainIdx;
-			mvMatches.push_back(tempMatch);
-			mvbLocalMapInliers[nLocalMapIdx] = true;
 			
 			//labeling
 			auto otype = pPrev->GetObjectType(idx);

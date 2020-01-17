@@ -13,7 +13,7 @@ float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeig
 
 static int nFrameID = 0;
 
-UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h):mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0){
+UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h):mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0){
 	matOri = _src.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
 	matFrame.convertTo(matFrame, CV_8UC1);
@@ -21,7 +21,7 @@ UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h):mnType(0), mnInliers(0), mnKe
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
 	SetFrameID();
 }
-UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h) :mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0){
+UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h) :mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0) {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
@@ -31,7 +31,7 @@ UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h) :mnType(0), mnInliers(0)
 	SetFrameID();
 }
 
-UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t) :mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0){
+UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t) :mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0) {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
@@ -54,7 +54,7 @@ void UVR_SLAM::Frame::SetFrameID() {
 }
 
 void UVR_SLAM::Frame::SetKeyFrameID() {
-	mnKeyFrameID = ++UVR_SLAM::System::nKeyFrameID;
+	mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 }
 int UVR_SLAM::Frame::GetKeyFrameID() {
 	return mnKeyFrameID;
@@ -277,9 +277,9 @@ int UVR_SLAM::Frame::TrackedMapPoints(int minObservation) {
 			if (bCheckObs) {
 				if (pMP->GetNumConnectedFrames() >= minObservation)
 					nPoints++;
-			}
-			else
+			}else{
 				nPoints++;
+			}
 		}
 	}
 	return nPoints;
@@ -337,21 +337,47 @@ cv::Mat UVR_SLAM::Frame::GetCameraCenter() {
 	return -R.t()*t;
 }
 
-void UVR_SLAM::Frame::AddKF(UVR_SLAM::Frame* pKF){
-	mspConnectedKFs.insert(pKF);
+void UVR_SLAM::Frame::AddKF(UVR_SLAM::Frame* pKF, int weight){
+	mmpConnectedKFs.insert(std::make_pair(weight,pKF));
 }
-void UVR_SLAM::Frame::RemoveKF(UVR_SLAM::Frame* pKF){
-	mspConnectedKFs.erase(pKF);
+void UVR_SLAM::Frame::RemoveKF(UVR_SLAM::Frame* pKF, int weight){
+	//mmpConnectedKFs.erase(pKF);
+	auto range = mmpConnectedKFs.equal_range(weight);
+	for (auto iter = range.first; iter != range.second; iter++) {
+		UVR_SLAM::Frame* pKFi = iter->second;
+		if (pKFi == pKF) {
+			mmpConnectedKFs.erase(iter);
+			return;
+		}
+	}
 }
-std::vector<UVR_SLAM::Frame*> UVR_SLAM::Frame::GetConnectedKFs(){
-	return std::vector<UVR_SLAM::Frame*>(mspConnectedKFs.begin(), mspConnectedKFs.end());
+std::vector<UVR_SLAM::Frame*> UVR_SLAM::Frame::GetConnectedKFs(int n){
+	//return std::vector<UVR_SLAM::Frame*>(mmpConnectedKFs.begin(), mmpConnectedKFs.end());
+	std::vector<UVR_SLAM::Frame*> tempKFs;
+	for (std::multimap<int, UVR_SLAM::Frame*, std::greater<int>>::iterator iter = mmpConnectedKFs.begin(); iter != mmpConnectedKFs.end(); iter++) {
+		UVR_SLAM::Frame* pKFi = iter->second;
+		tempKFs.push_back(pKFi);
+	}
+	if (n == 0 || tempKFs.size() < n) {
+		return std::vector<UVR_SLAM::Frame*>(tempKFs.begin(), tempKFs.end());
+	}
+	return std::vector<UVR_SLAM::Frame*>(tempKFs.begin(), tempKFs.begin() + n);
 }
-std::vector<UVR_SLAM::Frame*> UVR_SLAM::Frame::GetConnectedKFs(int n) {
-	auto mvpKFs = GetConnectedKFs();
-	if (mvpKFs.size() < n)
-		return mvpKFs;
-	return std::vector<UVR_SLAM::Frame*>(mvpKFs.begin(), mvpKFs.begin()+n);
+
+std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> UVR_SLAM::Frame::GetConnectedKFsWithWeight() {
+	/*std::multimap<int, UVR_SLAM::Frame*> tempKFs;
+	for (std::multimap<int, UVR_SLAM::Frame*, std::greater<int>>::iterator iter = mmpConnectedKFs.begin(); iter != mmpConnectedKFs.end(); iter++) {
+		UVR_SLAM::Frame* pKFi = iter->second;
+		tempKFs.insert(std::make_pair(iter->first, iter->second));
+	}*/
+	return std::multimap<int, UVR_SLAM::Frame*, std::greater<int>>(mmpConnectedKFs.begin(), mmpConnectedKFs.end());
 }
+//std::vector<UVR_SLAM::Frame*> UVR_SLAM::Frame::GetConnectedKFs(int n) {
+//	auto mvpKFs = GetConnectedKFs();
+//	if (mvpKFs.size() < n)
+//		return mvpKFs;
+//	return std::vector<UVR_SLAM::Frame*>(mvpKFs.begin(), mvpKFs.begin()+n);
+//}
 /////////////////////////////////
 fbow::fBow UVR_SLAM::Frame::GetBowVec() {
 	return mBowVec;
@@ -587,4 +613,65 @@ std::vector<size_t> UVR_SLAM::Frame::GetFeaturesInArea(const float &x, const flo
 	}
 
 	return vIndices;
+}
+
+bool UVR_SLAM::Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit)
+{
+	//pMP->mbTrackInView = false;
+
+	// 3D in absolute coordinates
+	cv::Mat P = pMP->GetWorldPos();
+
+	// 3D in camera coordinates
+	cv::Mat R, t;
+	GetPose(R, t);
+	cv::Mat Ow = GetCameraCenter();
+	const cv::Mat Pc = R*P + t;
+	const float &PcX = Pc.at<float>(0);
+	const float &PcY = Pc.at<float>(1);
+	const float &PcZ = Pc.at<float>(2);
+
+	// Check positive depth
+	if (PcZ<0.0f)
+		return false;
+
+	// Project in image and check it is not outside
+	const float invz = 1.0f / PcZ;
+	const float u = fx*PcX*invz + cx;
+	const float v = fy*PcY*invz + cy;
+
+	if (u<mnMinX || u>mnMaxX)
+		return false;
+	if (v<mnMinY || v>mnMaxY)
+		return false;
+
+	// Check distance is in the scale invariance region of the MapPoint
+	const float maxDistance = pMP->GetMaxDistance();
+	const float minDistance = pMP->GetMinDistance();
+	const cv::Mat PO = P - Ow;
+	const float dist = cv::norm(PO);
+
+	if (dist<minDistance || dist>maxDistance)
+		return false;
+
+	// Check viewing angle
+	cv::Mat Pn = pMP->GetNormal();
+
+	const float viewCos = PO.dot(Pn) / dist;
+
+	if (viewCos<viewingCosLimit)
+		return false;
+
+	//// Predict scale in the image
+	//const int nPredictedLevel = pMP->PredictScale(dist, this);
+
+	//// Data used by the tracking
+	//pMP->mbTrackInView = true;
+	//pMP->mTrackProjX = u;
+	//pMP->mTrackProjXR = u - mbf*invz;
+	//pMP->mTrackProjY = v;
+	//pMP->mnTrackScaleLevel = nPredictedLevel;
+	//pMP->mTrackViewCos = viewCos;
+
+	return true;
 }

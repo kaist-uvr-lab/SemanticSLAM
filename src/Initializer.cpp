@@ -30,7 +30,7 @@ void UVR_SLAM::Initializer::SetFrameWindow(UVR_SLAM::FrameWindow* pWindow) {
 	mpFrameWindow = pWindow;
 }
 
-bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
+bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h) {
 	//std::cout << "Initializer::Initialize::Start" << std::endl;
 	
 	if (!mpInitFrame1) {
@@ -108,40 +108,14 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
 		cv::RNG rng = cv::RNG(12345);
 
 		if (resIDX > 0 && vCandidates[resIDX]->nGood > N_thresh_init_triangulate) {
-
-			//std::cout << "Initialization::EpipolarGeometry" << std::endl;
-			//std::cout << "R::" << vCandidates[resIDX]->R << ", " << vCandidates[resIDX]->t << std::endl;
-
-			//최적화 수행 후 Map 생성
-			bool bInitOpt = false;
-			UVR_SLAM::Optimization::InitOptimization(vCandidates[resIDX], resMatches, mpInitFrame1, mpInitFrame2, mK, bInitOpt);
-			if (!bInitOpt)
-				return mbInit;
-			//std::cout << "Initialization::Optimization" << std::endl;
-			//std::cout << "R::" << vCandidates[resIDX]->R << ", " << vCandidates[resIDX]->t << std::endl;
-
-			//scale 잡아주기
-			//median depth check
-			std::vector<float> vDepths;
-			for (int i = 0; i < vCandidates[resIDX]->mvX3Ds.size(); i++) {
-				if (vCandidates[resIDX]->vbTriangulated[i]) {
-					cv::Mat x = vCandidates[resIDX]->R*vCandidates[resIDX]->mvX3Ds[i]+ vCandidates[resIDX]->t;
-					float depth = x.at<float>(2);
-					vDepths.push_back(depth);
-				}
-			}
-			std::nth_element(vDepths.begin(), vDepths.begin() + vDepths.size() / 2, vDepths.end());
-			float medianDepth = vDepths[(vDepths.size()) / 2];
-			float invMedianDepth = 1.0f / medianDepth;
-
-			mpInitFrame1->SetPose(vCandidates[resIDX]->R0, vCandidates[resIDX]->t0);
-			mpInitFrame2->SetPose(vCandidates[resIDX]->R, vCandidates[resIDX]->t*invMedianDepth);
-
 			
-			//queue에 두개 넣기
+			mpInitFrame1->SetPose(vCandidates[resIDX]->R0, vCandidates[resIDX]->t0);
+			mpInitFrame2->SetPose(vCandidates[resIDX]->R, vCandidates[resIDX]->t); //두번째 프레임은 median depth로 변경해야 함.
+
 			//키프레임으로 설정
 			mpInitFrame1->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 			mpInitFrame2->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+
 			//윈도우에 두 개의 키프레임 넣기
 			//20.01.02 deque에서 list로 변경함.
 			mpFrameWindow->AddFrame(mpInitFrame1);
@@ -151,14 +125,18 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
 			mpInitFrame2->mTrackedDescriptor = cv::Mat::zeros(0, mpInitFrame2->matDescriptor.cols, mpInitFrame2->matDescriptor.type());
 			//mpFrameWindow->push_back(mpInitFrame1);
 			//mpFrameWindow->push_back(mpInitFrame2);
-			
+
 			//맵포인트 생성 및 키프레임과 연결
 			int nMatch = 0;
+			std::vector<MapPoint*> vpMPs;
+			std::vector<UVR_SLAM::Frame*> vpKFs;
+			vpKFs.push_back(mpInitFrame1);
+			vpKFs.push_back(mpInitFrame2);
 			for (int i = 0; i < vCandidates[resIDX]->mvX3Ds.size(); i++) {
 				if (vCandidates[resIDX]->vbTriangulated[i]) {
 					int idx1 = resMatches[i].queryIdx;
 					int idx2 = resMatches[i].trainIdx;
-					UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(vCandidates[resIDX]->mvX3Ds[i] * invMedianDepth, mpInitFrame2->matDescriptor.row(idx2));
+					UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame1, vCandidates[resIDX]->mvX3Ds[i], mpInitFrame2->matDescriptor.row(idx2));
 					pNewMP->AddFrame(mpInitFrame1, idx1);
 					pNewMP->AddFrame(mpInitFrame2, idx2);
 					pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
@@ -171,50 +149,83 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int w, int h) {
 					mpInitFrame2->mvTrackedIdxs.push_back(idx2);
 
 					nMatch++;
+
+					vpMPs.push_back(pNewMP);
 				}
 			}
 
+
+			//최적화 수행 후 Map 생성
+			//UVR_SLAM::Optimization::InitOptimization(vCandidates[resIDX], resMatches, mpInitFrame1, mpInitFrame2, mK, bInitOpt);
+			UVR_SLAM::Optimization::InitBundleAdjustment(vpKFs, vpMPs, 20);
+
+			//calculate median depth
+			float medianDepth;
+			mpInitFrame1->ComputeSceneMedianDepth(medianDepth);
+			float invMedianDepth = 1.0f / medianDepth;
+
+			if (medianDepth < 0.0 || mpInitFrame2->TrackedMapPoints(1) < 100){
+				mbInit = false;
+				bReset = true;
+				return mbInit;
+			}
+			//포즈 업데이트
+			cv::Mat R, t;
+			mpInitFrame2->GetPose(R, t);
+			mpInitFrame2->SetPose(R, t*invMedianDepth);
+
+			//맵포인트 업데이트
+			for (int i = 0; i < vpMPs.size(); i++) {
+				UVR_SLAM::MapPoint* pMP = vpMPs[i];
+				if (!pMP)
+					continue;
+				if (pMP->isDeleted())
+					continue;
+				pMP->SetWorldPos(pMP->GetWorldPos()*invMedianDepth);
+				pMP->UpdateNormalAndDepth();
+			}
+
 			//윈도우 로컬맵, 포즈 설정
-			mpFrameWindow->SetPose(vCandidates[resIDX]->R, vCandidates[resIDX]->t);
+			mpFrameWindow->SetPose(R, t*invMedianDepth);
 			mpFrameWindow->SetLocalMap(mpInitFrame2->GetFrameID());
 			mpFrameWindow->SetLastFrameID(mpInitFrame2->GetFrameID());
 			mpFrameWindow->mnLastMatches = nMatch;
 			mbInit = true;
 
-			if (mbInit) {
-				//test
-				for (int i = 0; i < vCandidates[resIDX]->vbTriangulated.size(); i++) {
-					if (!vCandidates[resIDX]->vbTriangulated[i])
-						continue;
-					int idx1 = resMatches[i].queryIdx;
-					int idx2 = resMatches[i].trainIdx;
+			//if (mbInit) {
+			//	//test
+			//	for (int i = 0; i < vCandidates[resIDX]->vbTriangulated.size(); i++) {
+			//		if (!vCandidates[resIDX]->vbTriangulated[i])
+			//			continue;
+			//		int idx1 = resMatches[i].queryIdx;
+			//		int idx2 = resMatches[i].trainIdx;
 
-					UVR_SLAM::MapPoint* pMP = mpInitFrame1->mvpMPs[idx1];
-					cv::Mat pCam1;
-					cv::Point2f p2D1;
-					bool bProjection1 = pMP->Projection(p2D1, pCam1, mpInitFrame1->GetRotation(), mpInitFrame1->GetTranslation(), mpInitFrame1->mK, w, h);
-					cv::Mat pCam2;
-					cv::Point2f p2D2;
-					bool bProjection2 = pMP->Projection(p2D2, pCam2, mpInitFrame2->GetRotation(), mpInitFrame2->GetTranslation(), mpInitFrame2->mK, w, h);
+			//		UVR_SLAM::MapPoint* pMP = mpInitFrame1->mvpMPs[idx1];
+			//		cv::Mat pCam1;
+			//		cv::Point2f p2D1;
+			//		bool bProjection1 = pMP->Projection(p2D1, pCam1, mpInitFrame1->GetRotation(), mpInitFrame1->GetTranslation(), mpInitFrame1->mK, w, h);
+			//		cv::Mat pCam2;
+			//		cv::Point2f p2D2;
+			//		bool bProjection2 = pMP->Projection(p2D2, pCam2, mpInitFrame2->GetRotation(), mpInitFrame2->GetTranslation(), mpInitFrame2->mK, w, h);
 
-					cv::Scalar color(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
+			//		cv::Scalar color(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
 
-					circle(debugging, p2D1, 2, color, -1);
-					line(debugging, p2D1, mpInitFrame1->mvKeyPoints[idx1].pt, cv::Scalar(0, 255, 255));
+			//		circle(debugging, p2D1, 2, color, -1);
+			//		line(debugging, p2D1, mpInitFrame1->mvKeyPoints[idx1].pt, cv::Scalar(0, 255, 255));
 
-					circle(debugging, p2D2+ ptBottom, 2, color, -1);
-					line(debugging, p2D2+ ptBottom, mpInitFrame2->mvKeyPoints[idx2].pt+ ptBottom, cv::Scalar(0, 255, 255));
+			//		circle(debugging, p2D2+ ptBottom, 2, color, -1);
+			//		line(debugging, p2D2+ ptBottom, mpInitFrame2->mvKeyPoints[idx2].pt+ ptBottom, cv::Scalar(0, 255, 255));
 
-					//line(debugging, p2D1, p2D2 + ptBottom, cv::Scalar(255, 255, 0), 1);
-					/*imshow("Initialization::Results::Frame::1", vis1);
-					imshow("Initialization::Results::Frame::2", vis2);
-					cv::waitKey(0);*/
-				}
-			}
+			//		//line(debugging, p2D1, p2D2 + ptBottom, cv::Scalar(255, 255, 0), 1);
+			//		/*imshow("Initialization::Results::Frame::1", vis1);
+			//		imshow("Initialization::Results::Frame::2", vis2);
+			//		cv::waitKey(0);*/
+			//	}
+			//}
 			std::cout << "Initializer::" << nMatch << std::endl;
 		}
 
-		imshow("Initialization::Frame::1", debugging);
+		//imshow("Initialization::Frame::1", debugging);
 		//imshow("Initialization::Frame::2", vis2);
 		waitKey(1);
 
