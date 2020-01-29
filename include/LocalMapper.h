@@ -13,6 +13,7 @@ namespace UVR_SLAM {
 	class SemanticSegmentator;
 	class Matcher;
 	class MapPoint;
+	class System;
 	class LocalMapper {
 	public:
 		LocalMapper();
@@ -20,6 +21,7 @@ namespace UVR_SLAM {
 		virtual ~LocalMapper();
 	public:
 		void Run();
+		void SetSystem(System* pSystem);
 		void SetPlaneEstimator(PlaneEstimator* pPlaneEstimator);
 		void SetLayoutEstimator(SemanticSegmentator* pEstimator);
 		void SetFrameWindow(FrameWindow* pFrameWindow);
@@ -33,6 +35,7 @@ namespace UVR_SLAM {
 		void CalculateKFConnections();
 	private:
 		void FuseMapPoints();
+		void FuseMapPoints(int nn);
 		int CreateMapPoints();
 		int CreateMapPoints(Frame* pCurrKF, Frame* pLastKF);
 		void NewMapPointMaginalization();
@@ -42,7 +45,7 @@ namespace UVR_SLAM {
 		void KeyframeMarginalization();
 		int Test();
 	private:
-		cv::Mat Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2);
+		bool Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2, cv::Mat& X3D);
 		bool CheckDepth(float depth);
 		bool CheckReprojectionError(cv::Mat x3D, cv::Mat K, cv::Point2f pt, float thresh);
 		bool CheckScaleConsistency(cv::Mat x3D, cv::Mat Ow1, cv::Mat Ow2, float fRatioFactor, float fScaleFactor1, float fScaleFactor2);
@@ -50,11 +53,13 @@ namespace UVR_SLAM {
 	public:
 		bool isStopLocalMapping();
 		void StopLocalMapping(bool flag);
+	public:
+		std::list<UVR_SLAM::MapPoint*> mlpNewMPs;
 	private:
 
 		//queue¿Í mvpNewMPs Ãß°¡
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
-		std::list<UVR_SLAM::MapPoint*> mlpNewMPs;
+		
 		std::mutex mMutexNewKFs, mMutexStopLocalMapping;
 		bool mbStopBA, mbStopLocalMapping;
 		std::mutex mMutexDoingProcess;
@@ -62,6 +67,7 @@ namespace UVR_SLAM {
 
 		std::vector<MapPoint*> mvpDeletedMPs;
 		SemanticSegmentator* mpSegmentator;
+		System* mpSystem;
 		PlaneEstimator* mpPlaneEstimator;
 		FrameWindow* mpFrameWindow;
 		Frame* mpTargetFrame, *mpPrevKeyFrame, *mpPPrevKeyFrame;

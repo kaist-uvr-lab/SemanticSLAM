@@ -76,7 +76,8 @@ namespace UVR_SLAM {
 		void Reset();
 		void SetCurrFrame(cv::Mat img);
 		void Track();
-
+		void SetDirPath(std::string strPath);
+		std::string GetDirPath();
 	private:
 		ORBextractor* mpInitORBExtractor;
 		ORBextractor* mpPoseORBExtractor;
@@ -115,6 +116,10 @@ namespace UVR_SLAM {
 		int mfIniThFAST;
 		int mfMinThFAST;
 		int mnWidth, mnHeight;
+
+		std::mutex mMutexDirPath;
+		std::string mStrDirPath;
+
 	public:
 		
 		std::string strVOCPath;
@@ -134,6 +139,13 @@ namespace UVR_SLAM {
 		bool mbTrackingEnd;
 		bool mbLocalMapUpdateEnd;
 
+//time 계산 관련해서 함수 만들기.
+	public:
+		void SetSegmentationTime(float t);
+		float GetSegmentationTime();
+	private:
+		std::mutex mMutexSegmentationTime;
+		float mfSegTime;
 	};
 }
 

@@ -33,9 +33,9 @@ namespace UVR_SLAM {
 	class ORBextractor;
 	class Frame {
 	public:
-		Frame(cv::Mat _src, int w, int h);
-		Frame(void* ptr, int id, int w, int h);
-		Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t);
+		Frame(cv::Mat _src, int w, int h, cv::Mat mK);
+		Frame(void* ptr, int id, int w, int h, cv::Mat mK);
+		Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat mK);
 		virtual ~Frame();
 		void close();
 	public:
@@ -62,15 +62,14 @@ namespace UVR_SLAM {
 		//bool GetBoolInlier(int idx);
 		//void SetBoolInlier(bool flag, int idx);
 
-		void SetObjectType(UVR_SLAM::ObjectType type, int idx);
-		ObjectType GetObjectType(int idx);
+		
 		int GetNumInliers();
 		int TrackedMapPoints(int minObservation);
 		void TurnOnFlag(unsigned char opt);
 		void TurnOffFlag(unsigned char opt);
 		bool CheckFrameType(unsigned char opt);
 		int GetFrameID();
-		bool CheckBaseLine(Frame* pF1, Frame* pF2);
+		bool CheckBaseLine(Frame* pTargetKF);
 		bool ComputeSceneMedianDepth(float& fMedianDepth);
 		cv::Mat GetCameraCenter();
 		void SetInliers(int nInliers);
@@ -78,7 +77,7 @@ namespace UVR_SLAM {
 
 		bool isInImage(float u, float v);
 		bool isInFrustum(MapPoint *pMP, float viewingCosLimit);
-		cv::Point2f Projection(cv::Mat w3D, cv::Mat R, cv::Mat t, cv::Mat K);
+		cv::Point2f Projection(cv::Mat w3D);
 
 		///
 		void AddKF(UVR_SLAM::Frame* pKF, int weight);
@@ -92,6 +91,7 @@ namespace UVR_SLAM {
 		int mnFuseFrameID;
 	public:
 		//tracked & non tracked
+		void UpdateMapInfo(bool bOpt = false);
 		cv::Mat mTrackedDescriptor, mNotTrackedDescriptor;
 		std::vector<int> mvTrackedIdxs, mvNotTrackedIdxs;
 	public:
@@ -107,21 +107,32 @@ namespace UVR_SLAM {
 		void SetFrameID();
 		void SetKeyFrameID();
 		
+		//object
+	public:
+		void SetObjectType(UVR_SLAM::ObjectType type, int idx);
+		ObjectType GetObjectType(int idx);
+		std::vector<ObjectType> GetObjectVector();
+		void SetObjectVector(std::vector<ObjectType> vObjTypes);
+	private:
+		std::mutex mMutexObjectTypes;
+		std::vector<ObjectType> mvObjectTypes; //모든 키포인트에 대해서 미리 정의된 레이블인지 재할당
+
 	private:
 		int mnKeyFrameID;
 		int mnFrameID;
 		std::mutex mMutexNumInliers;
-		std::mutex mMutexFrame;
+		std::mutex mMutexFrame, mMutexPose;
 
-		std::vector<ObjectType> mvObjectTypes; //모든 키포인트에 대해서 미리 정의된 레이블인지 재할당
+		
 		
 		std::multimap<int,UVR_SLAM::Frame*, std::greater<int>> mmpConnectedKFs;
 		cv::Mat matFrame, matOri;
 		cv::Mat R, t;
 		int mnInliers;
+		int mnWidth, mnHeight;
 		unsigned char mnType;
 
-		/*std::mutex mMutexObjectTypes;
+		/*
 		std::mutex mMutexID;
 		std::mutex mMutexMPs, mMutexBoolInliers, mMutexNumInliers, mMutexPose, mMutexType;
 		std::mutex mMutexImage;*/

@@ -56,10 +56,17 @@ bool UVR_SLAM::PlaneEstimator::isDoingProcess() {
 
 void UVR_SLAM::PlaneEstimator::Run() {
 
+	std::string mStrPath;
+
+	std::vector<UVR_SLAM::PlaneInformation*> mvpPlanes;
 
 	while (1) {
 		if (isDoingProcess()) {
 			std::cout << "Plane Layout estimation::start" << std::endl;
+			//저장 디렉토리 명 획득
+			mStrPath = mpSystem->GetDirPath();
+
+			//현재 레이아웃 추정하는 키프레임 설정
 			if (mpPrevFrame) {
 				std::cout << mpPrevFrame->GetKeyFrameID() << ", " << mpTargetFrame->GetKeyFrameID() << std::endl;
 			}
@@ -67,17 +74,21 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			mpFrameWindow->SetLastLayoutFrameID(nTargetID);
 
 			auto mvpMPs = mpTargetFrame->GetMapPoints();
+			std::cout << "1" << std::endl;
+			auto mvpOPs = mpTargetFrame->GetObjectVector();
+			std::cout << mvpMPs.size() << ", " << mvpOPs.size() << std::endl;
+			std::cout << "2" << std::endl;
 			std::set<UVR_SLAM::MapPoint*> mspLocalFloorMPs, mspLocalWallMPs, mspLocalCeilMPs;
 			std::vector<UVR_SLAM::MapPoint*> mvpLocalFloorMPs, mvpLocalWallMPs, mvpLocalCeilMPs;
 			
 			for (int i = 0; i < mvpMPs.size(); i++) {
-				UVR_SLAM::MapPoint* pMP = mpTargetFrame->mvpMPs[i];
+				UVR_SLAM::MapPoint* pMP = mvpMPs[i];
 				if (!pMP)
 					continue;
 				if (pMP->isDeleted())
 					continue;
 				//type check
-				auto type = pMP->GetObjectType();
+				auto type = mvpOPs[i];
 				switch (type) {
 				case UVR_SLAM::ObjectType::OBJECT_FLOOR:
 					mspLocalFloorMPs.insert(pMP);
@@ -90,17 +101,138 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					break;
 				}
 			}
+			//평면 변수 선언
 			std::cout << "Local Keyframe ::" << mspLocalFloorMPs.size() << ", " << mspLocalWallMPs.size() << ", " << mspLocalCeilMPs.size() << std::endl;
 			UVR_SLAM::PlaneInformation* pPlane1, *pPlane2, *pPlane3;
+			int tempFloorID = 0;
+			int tempWallID = 0;
 			pPlane1 = new UVR_SLAM::PlaneInformation();
 			pPlane2 = new UVR_SLAM::PlaneInformation();
+
+			//평면 RANSAC 초기화
 			std::chrono::high_resolution_clock::time_point p_start = std::chrono::high_resolution_clock::now();
-			PlaneInitialization(pPlane1, mspLocalWallMPs, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
-			//PlaneInitialization(pPlane2, mspLocalFloorMPs, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+			bool bLocalWall =  PlaneInitialization(pPlane1, mspLocalWallMPs, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+			bool bLocalFloor = PlaneInitialization(pPlane2, mspLocalFloorMPs, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);	
 			std::chrono::high_resolution_clock::time_point p_end = std::chrono::high_resolution_clock::now();
 			auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(p_end - p_start).count();
 			double tttt = duration / 1000.0;
 			mpFrameWindow->SetPETime(tttt);
+
+			if (bLocalWall) {
+				tempWallID = pPlane1->mnPlaneID;
+				pPlane1->mnFrameID = nTargetID;
+				pPlane1->mnPlaneType = ObjectType::OBJECT_WALL;
+				pPlane1->mnCount = 1;
+			}
+			if (bLocalFloor) {
+				tempFloorID = pPlane2->mnPlaneID;
+				pPlane2->mnFrameID = nTargetID;
+				pPlane2->mnPlaneType = ObjectType::OBJECT_FLOOR;
+				pPlane2->mnCount = 1;
+			}
+
+			//compare & association
+			for (int i = 0; i < mvpPlanes.size(); i++) {
+				UVR_SLAM::PlaneInformation* p = mvpPlanes[i];
+				float ratio = 0.0;
+				switch (p->mnPlaneType) {
+				case ObjectType::OBJECT_FLOOR:
+					ratio = pPlane2->CalcOverlapMPs(p, nTargetID);
+					std::cout << "Association::Test::" <<p->mnCount<<"::"<< p->mnPlaneID << ", " << pPlane2->mnPlaneID << "=" << ratio << std::endl;
+					std::cout << pPlane2->matPlaneParam.t() << ", " << p->matPlaneParam.t() << std::endl;
+					if (ratio > 0.15) {
+						p->Merge(pPlane2, nTargetID, mfThreshPlaneDistance);
+						p->mnCount++;
+					}
+					else {
+						mvpPlanes[i] = pPlane2;
+					}
+					break;
+				case ObjectType::OBJECT_WALL:
+					break;
+				}
+				
+			}
+
+			//merge
+
+			if (mvpPlanes.size() == 0 && bLocalFloor) {
+				mvpPlanes.push_back(pPlane2);
+			}
+			else {
+				//save txt
+				std::ofstream f;
+				std::stringstream sss;
+				sss << mStrPath.c_str() << "/plane_init.txt";
+				f.open(sss.str().c_str());
+				for (int j = 0; j < mvpPlanes[0]->mvpMPs.size(); j++) {
+					UVR_SLAM::MapPoint* pMP = mvpPlanes[0]->mvpMPs[j];
+					if (!pMP) {
+						continue;
+					}
+					if (pMP->isDeleted()) {
+						continue;
+					}
+					cv::Mat Xw = pMP->GetWorldPos();
+					f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2) << " 1" << std::endl;
+				}
+				f.close();
+			}
+
+			//save txt
+			std::ofstream f;
+			std::stringstream sss;
+			sss << mStrPath.c_str() << "/plane.txt";
+			f.open(sss.str().c_str());
+			for (int j = 0; j < mvpMPs.size(); j++) {
+				UVR_SLAM::MapPoint* pMP = mvpMPs[j];
+				if (!pMP) {
+					continue;
+				}
+				if (pMP->isDeleted()) {
+					continue;
+				}
+				cv::Mat Xw = pMP->GetWorldPos();
+				
+				if (pMP->GetPlaneID() > 0) {
+					if (pMP->GetPlaneID() == tempFloorID)
+					{
+						f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2) << " 1" << std::endl;
+					}
+					else if (pMP->GetPlaneID() == tempWallID) {
+						f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2) << " 2" << std::endl;
+					}
+				}
+				else
+					f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2) << " 0" << std::endl;
+			}
+			f.close();
+
+
+
+			////////////////image
+			cv::Mat vImg = mpTargetFrame->GetOriginalImage();
+			for (int j = 0; j < mvpMPs.size(); j++) {
+				UVR_SLAM::MapPoint* pMP = mvpMPs[j];
+				if (!pMP) {
+					continue;
+				}
+				if (pMP->isDeleted()) {
+					continue;
+				}
+				cv::circle(vImg, mpTargetFrame->mvKeyPoints[j].pt, 1, cv::Scalar(255, 0, 0), -1);
+				cv::Mat Xw = pMP->GetWorldPos();
+
+				if(bLocalFloor && pMP->GetPlaneID()==pPlane2->mnPlaneID){
+					cv::circle(vImg, mpTargetFrame->mvKeyPoints[j].pt, 3, cv::Scalar(255, 0, 255));
+				}
+				else if (bLocalWall && pMP->GetPlaneID() == pPlane1->mnPlaneID) {
+					cv::circle(vImg, mpTargetFrame->mvKeyPoints[j].pt, 3, cv::Scalar(255, 255, 0));
+				}
+			}
+			sss.str("");
+			sss << mStrPath.c_str() << "/plane.jpg";
+			cv::imwrite(sss.str(), vImg);
 
 			SetBoolDoingProcess(false, 1);
 		}
@@ -527,8 +659,8 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 	float planeRatio = ((float)max_num_inlier / mMat.rows);
 	std::cout << "PLANE INIT : " << max_num_inlier << ", " << paramStatus.rows << "::" << cv::countNonZero(paramStatus) << " " << spMPs.size() << "::" << planeRatio << std::endl;
 
-	cv::Mat checkResidual2 = mMat*param > 2 * thresh_distance; checkResidual2 /= 255; checkResidual2 *= 2;
-	paramStatus += checkResidual2;
+	//cv::Mat checkResidual2 = mMat*param > 2 * thresh_distance; checkResidual2 /= 255; checkResidual2 *= 2;
+	//paramStatus += checkResidual2;
 
 	if (planeRatio > thresh_ratio) {
 		cv::Mat pParam = param.clone();
@@ -540,12 +672,18 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 		for (auto iter = spMPs.begin(); iter != spMPs.end(); iter++) {
 			int nidx = idx++;
 			int checkIdx = paramStatus.at<uchar>(nidx);
+			//std::cout << checkIdx << std::endl;
 			UVR_SLAM::MapPoint* pMP = *iter;
+			if (checkIdx == 0)
+				continue;
 			if (pMP) {
 				//평면에 대한 레이블링이 필요함.
 				if (pMP->isDeleted())
 					continue;
+
 				pMP->SetRecentLayoutFrameID(nTargetID);
+				pMP->SetPlaneID(pPlane->mnPlaneID);
+				pPlane->mvpMPs.push_back(pMP);
 			}
 		}
 		//평면 정보 생성.
@@ -656,3 +794,62 @@ cv::Mat UVR_SLAM::PlaneEstimator::FlukerLineProjection(cv::Mat P1, cv::Mat P2, c
 //cv::line(vis, cv::Point2f(x1, y1), cv::Point2f(x2, y2), cv::Scalar(255, 0, 0), 2);
 ////Pluker Lines
 ///////////////
+
+//keyframe(p)에서 현재 local map(this)와 머지
+void UVR_SLAM::PlaneInformation::Merge(PlaneInformation* p, int nID, float thresh) {
+	//p에 속하는 MP 중 현재 평면에 속하는 것들 추가
+	//map point vector 복사
+	//update param
+
+	int n1 = p->mvpMPs.size();
+	int n2 = mvpMPs.size();
+
+	for (int i = 0; i < mvpMPs.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = mvpMPs[i];
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted())
+			continue;
+		/*if (pMP->GetRecentLocalMapID() < nID) {
+			continue;
+		}*/
+		if (pMP->GetPlaneID() == p->mnPlaneID) {
+			continue;
+		}
+		//distance 계산
+		cv::Mat X3D = pMP->GetWorldPos();
+		cv::Mat normal = p->matPlaneParam.rowRange(0, 3);
+		float dist = p->matPlaneParam.at<float>(3);
+		float res = abs(normal.dot(X3D) + dist);
+
+		if (res < thresh)
+			p->mvpMPs.push_back(pMP);
+	}
+	mvpMPs = std::vector<MapPoint*>(p->mvpMPs.begin(), p->mvpMPs.end());
+
+	std::cout << "Merge::" << n1 << ", " << n2 << "::" << mvpMPs.size() << std::endl;
+}
+
+//this : keyframe
+//p : localmap
+float UVR_SLAM::PlaneInformation::CalcOverlapMPs(PlaneInformation* p, int nID) {
+	std::map<UVR_SLAM::MapPoint*, int> mmpMPs;
+	int nCount = 0;
+	int nTotal = 0;
+
+	for (int i = 0; i < p->mvpMPs.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = p->mvpMPs[i];
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted())
+			continue;
+		if (pMP->GetRecentLocalMapID()>=nID) {
+			nTotal++;
+		}
+		if (pMP->GetPlaneID() == mnPlaneID) {
+			nCount++;
+		}
+	}
+	std::cout << "Association::Overlap::" << nCount << ", " << nTotal <<"::"<<p->mvpMPs.size()<<", "<<mvpMPs.size()<< std::endl;
+	return ((float)nCount) / nTotal;
+}

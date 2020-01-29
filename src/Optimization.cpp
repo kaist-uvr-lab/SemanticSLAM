@@ -1199,7 +1199,6 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame)
 	const float deltaMono = sqrt(5.991);
 	const float deltaStereo = sqrt(7.815);
 
-
 	{
 
 		for (int i = 0; i<N; i++)
@@ -1255,8 +1254,6 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame)
 	const float chi2Stereo[4] = { 7.815,7.815,7.815, 7.815 };
 	const int its[4] = { 10,10,10,10 };
 
-	
-
 	int nBad = 0;
 	for (size_t it = 0; it<4; it++)
 	{
@@ -1279,7 +1276,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame)
 
 			const float chi2 = e->chi2();
 
-			if (chi2>chi2Mono[it])
+			if (chi2>chi2Mono[it] || !e->isDepthPositive())
 			{
 				pFrame->mvbMPInliers[idx] = false;
 				pFrame->mvpMPs[idx]->SetRecentTrackingFrameID(-1);

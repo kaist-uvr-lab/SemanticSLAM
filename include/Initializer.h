@@ -14,7 +14,7 @@
 using namespace cv;
 
 namespace UVR_SLAM {
-
+	class LocalMapper;
 	class FrameWindow;
 	class Initializer {
 	public:
@@ -23,6 +23,7 @@ namespace UVR_SLAM {
 		virtual ~Initializer();
 	public:
 		void Init();
+		void SetLocalMapper(LocalMapper* pMapper);
 		void SetMatcher(Matcher* pMatcher);
 		void SetFrameWindow(FrameWindow* pWindow);
 		bool Initialize(Frame* pFrame, bool& bReset, int w, int h);
@@ -31,12 +32,13 @@ namespace UVR_SLAM {
 		int SelectCandidatePose(std::vector<UVR_SLAM::InitialData*>& vCandidates);
 		void DecomposeE(cv::Mat E, cv::Mat &R1, cv::Mat& R2, cv::Mat& t1, cv::Mat& t2);
 		void CheckRT(std::vector<cv::DMatch> Matches, InitialData* candidate, float th2);
-		void Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2, cv::Mat& x3D);
-		bool CheckCreatedPoints(cv::Mat X3D, cv::Point2f kp1, cv::Point2f kp2, cv::Mat O1, cv::Mat O2, cv::Mat R1, cv::Mat t1, cv::Mat R2, cv::Mat t2, float& cosParallax, float th2);
+		bool Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2, cv::Mat& x3D);
+		bool CheckCreatedPoints(cv::Mat X3D, cv::Point2f kp1, cv::Point2f kp2, cv::Mat O1, cv::Mat O2, cv::Mat R1, cv::Mat t1, cv::Mat R2, cv::Mat t2, float& cosParallax, float th1, float th2);
 	public:
 		Frame* mpInitFrame1, *mpInitFrame2;
 	private:
 		FrameWindow* mpFrameWindow;
+		LocalMapper* mpLocalMapper;
 		bool mbInit;
 		Matcher* mpMatcher;
 		cv::Mat mK;

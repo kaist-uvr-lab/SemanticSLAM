@@ -2,6 +2,7 @@
 #include <FrameWindow.h>
 #include <Frame.h>
 #include <MapPoint.h>
+#include <System.h>
 
 UVR_SLAM::Visualizer::Visualizer() {}
 UVR_SLAM::Visualizer::Visualizer(int w, int h, int scale) :mnWidth(w), mnHeight(h), mnVisScale(scale), mnFontFace(2), mfFontScale(0.6){}
@@ -105,6 +106,10 @@ void UVR_SLAM::Visualizer::Init() {
 	nScale = mnVisScale;
 }
 
+void UVR_SLAM::Visualizer::SetSystem(UVR_SLAM::System* pSystem) {
+	mpSystem = pSystem;
+}
+
 void UVR_SLAM::Visualizer::SetFrameWindow(UVR_SLAM::FrameWindow* pFrameWindow) {
 	mpFrameWindow = pFrameWindow;
 }
@@ -169,7 +174,6 @@ void UVR_SLAM::Visualizer::Run() {
 			}
 			}*/
 
-
 			auto mvbLocalMapInliers = mpFrameWindow->GetLocalMapInliers();
 			auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
 			mvbLocalMapInliers = std::vector<bool>(mvpLocalMPs.size(), false);
@@ -191,13 +195,13 @@ void UVR_SLAM::Visualizer::Run() {
 
 			//trajectory
 			auto mvpWindowFrames = mpFrameWindow->GetLocalMapFrames();
-			for (int i = 0; i < mvpWindowFrames.size() - 1; i++) {
-				cv::Mat t2 = mvpWindowFrames[i + 1]->GetTranslation();
+			for (int i = 0; i < mvpWindowFrames.size(); i++) {
+				//cv::Mat t2 = mvpWindowFrames[i + 1]->GetTranslation();
 				cv::Mat t1 = mvpWindowFrames[i]->GetTranslation();
 				cv::Point2f pt1 = cv::Point2f(t1.at<float>(0)* mnVisScale, t1.at<float>(2)* mnVisScale);
-				cv::Point2f pt2 = cv::Point2f(t2.at<float>(0)* mnVisScale, t2.at<float>(2)* mnVisScale);
+				//cv::Point2f pt2 = cv::Point2f(t2.at<float>(0)* mnVisScale, t2.at<float>(2)* mnVisScale);
 				pt1 += mVisMidPt;
-				pt2 += mVisMidPt;
+				//pt2 += mVisMidPt;
 				if(i != 0)
 					cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 0), -1);
 				else
@@ -231,8 +235,17 @@ void UVR_SLAM::Visualizer::Run() {
 			//fuse time text
 
 			cv::imshow("Output::Trajectory", tempVis);
-			cv::waitKey(1);
+			
 
+			//time 
+			cv::Mat imgTime = cv::Mat::zeros(500, 500, CV_8UC1);
+			std::stringstream ssTime;
+			ssTime << "Segmentation : " << mpSystem->GetSegmentationTime() << "\n";
+
+			cv::putText(imgTime, ssTime.str(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
+			cv::imshow("Output::Time", imgTime);
+
+			cv::waitKey(1);
 			SetBoolDoingProcess(false);
 		}//if
 	}//while
@@ -280,10 +293,10 @@ void UVR_SLAM::Visualizer::VisualizeTracking() {
 	}
 
 	
-
+	auto mvpOPs = mpMatchingFrame2->GetObjectVector();
 	cv::Mat vis2 = mpMatchingFrame2->GetOriginalImage();
 	for (int i = 0; i < mpMatchingFrame2->mvKeyPoints.size(); i++) {
-		UVR_SLAM::ObjectType type = mpMatchingFrame2->GetObjectType(i);
+		UVR_SLAM::ObjectType type = mvpOPs[i];
 		if (type != OBJECT_NONE)
 			circle(vis2, mpMatchingFrame2->mvKeyPoints[i].pt, 2, ObjectColors::mvObjectLabelColors[type], -1);
 	}

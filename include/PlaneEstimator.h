@@ -18,7 +18,13 @@ namespace UVR_SLAM {
 	public:
 		cv::Mat matPlaneParam;
 		int mnPlaneID;
+		int mnFrameID;
+		int mnCount;
 		ObjectType mnPlaneType; //¹Ù´Ú, º®, ÃµÀå
+		std::vector<MapPoint*> mvpMPs;
+	public:
+		float CalcOverlapMPs(PlaneInformation* p, int nID);
+		void Merge(PlaneInformation* p, int nID, float thresh);
 	};
 
 	class PlaneEstimator {

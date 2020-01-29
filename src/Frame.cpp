@@ -13,7 +13,7 @@ float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeig
 
 static int nFrameID = 0;
 
-UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h):mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0){
+UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0){
 	matOri = _src.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
 	matFrame.convertTo(matFrame, CV_8UC1);
@@ -21,7 +21,7 @@ UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h):mnType(0), mnInliers(0), mnKe
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
 	SetFrameID();
 }
-UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h) :mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0) {
+UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0) {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
@@ -31,7 +31,7 @@ UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h) :mnType(0), mnInliers(0)
 	SetFrameID();
 }
 
-UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t) :mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0) {
+UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0) {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
@@ -144,7 +144,7 @@ bool CheckKeyPointOverlap(cv::Mat& overlap, cv::Point2f pt) {
 	if (overlap.at<uchar>(pt) > 0) {
 		return false;
 	}
-	circle(overlap, pt, 2, cv::Scalar(255), -1);
+	circle(overlap, pt, 3, cv::Scalar(255), -1);
 	return true;
 }
 /////////////////////////////////
@@ -181,12 +181,21 @@ void UVR_SLAM::Frame::RemoveMP(int idx) {
 	Decrease();*/
 }
 
+std::vector<UVR_SLAM::ObjectType> UVR_SLAM::Frame::GetObjectVector() {
+	std::unique_lock<std::mutex> lockMP(mMutexObjectTypes);
+	return std::vector<UVR_SLAM::ObjectType>(mvObjectTypes.begin(), mvObjectTypes.end());
+}
+void UVR_SLAM::Frame::SetObjectVector(std::vector<UVR_SLAM::ObjectType> vObjTypes){
+	std::unique_lock<std::mutex> lockMP(mMutexObjectTypes);
+	mvObjectTypes = std::vector<UVR_SLAM::ObjectType>(vObjTypes.begin(), vObjTypes.end());
+}
+
 void UVR_SLAM::Frame::SetObjectType(UVR_SLAM::ObjectType type, int idx){
-	std::unique_lock<std::mutex> lockMP(mMutexFrame);
+	std::unique_lock<std::mutex> lockMP(mMutexObjectTypes);
 	mvObjectTypes[idx] = type;
 }
 UVR_SLAM::ObjectType UVR_SLAM::Frame::GetObjectType(int idx){
-	std::unique_lock<std::mutex> lockMP(mMutexFrame);
+	std::unique_lock<std::mutex> lockMP(mMutexObjectTypes);
 	return mvObjectTypes[idx];
 }
 
@@ -232,9 +241,15 @@ bool UVR_SLAM::Frame::isInImage(float x, float y)
 	return (x >= mnMinX && x<mnMaxX && y >= mnMinY && y<mnMaxY);
 }
 
-cv::Point2f UVR_SLAM::Frame::Projection(cv::Mat w3D, cv::Mat R, cv::Mat t, cv::Mat K) {
-	cv::Mat pCam = R*w3D + t;
-	cv::Mat temp = K*pCam;
+cv::Point2f UVR_SLAM::Frame::Projection(cv::Mat w3D) {
+	cv::Mat tempR, tempT;
+	{
+		std::unique_lock<std::mutex> lock(mMutexPose);
+		tempR = R.clone();
+		tempT = t.clone();
+	}
+	cv::Mat pCam = tempR*w3D + tempT;
+	cv::Mat temp = mK*pCam;
 	cv::Point2f p2D = cv::Point2f(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
 	return p2D;
 }
@@ -265,6 +280,33 @@ bool UVR_SLAM::Frame::CheckFrameType(unsigned char opt) {
 	return flag == opt;
 }
 
+void  UVR_SLAM::Frame::UpdateMapInfo(bool bOpt) {
+	mTrackedDescriptor = cv::Mat::zeros(0, matDescriptor.rows, matDescriptor.type());
+	mvTrackedIdxs.clear();
+	if (bOpt) {
+		mNotTrackedDescriptor = cv::Mat::zeros(0, matDescriptor.rows, matDescriptor.type());
+		mvNotTrackedIdxs.clear();
+	}
+
+	for (int j = 0; j < mvpMPs.size(); j++) {
+		UVR_SLAM::MapPoint* pMP = mvpMPs[j];
+		bool bMatch = false;
+		if (pMP) {
+			if (!pMP->isDeleted()) {
+				bMatch = true;
+			}
+		}
+		if (bMatch) {
+			mTrackedDescriptor.push_back(matDescriptor.row(j));
+			mvTrackedIdxs.push_back(j);
+		}
+		else if(!bMatch && bOpt){
+			mNotTrackedDescriptor.push_back(matDescriptor.row(j));
+			mvNotTrackedIdxs.push_back(j);
+		}
+	}
+}
+
 int UVR_SLAM::Frame::TrackedMapPoints(int minObservation) {
 	std::unique_lock<std::mutex> lock(mMutexFrame);
 	int nPoints = 0;
@@ -285,16 +327,18 @@ int UVR_SLAM::Frame::TrackedMapPoints(int minObservation) {
 	return nPoints;
 }
 
-bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2) {
+//Ow2가 현재 함수를 콜한 쪽이며, neighbor keyframe, Ow1이 현재 키프레임
+//메디안 뎁스는 neighbor에서 계산함. 이 함수는 변경 가능함.
+bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pTargetKF) {
 
-	cv::Mat Ow1 = pKF1->GetCameraCenter();
-	cv::Mat Ow2 = pKF2->GetCameraCenter();
+	cv::Mat Ow1 = pTargetKF->GetCameraCenter();
+	cv::Mat Ow2 = this->GetCameraCenter();
 
 	cv::Mat vBaseline = Ow2 - Ow1;
 	float baseline = cv::norm(vBaseline);
 
 	float medianDepthKF2;
-	if (!pKF2->ComputeSceneMedianDepth(medianDepthKF2)) {
+	if (!this->ComputeSceneMedianDepth(medianDepthKF2)) {
 		return false;
 	}
 
@@ -407,24 +451,24 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	mK = _k.clone();
 	mDistCoef = _d.clone();
 
+	//tempDesc와 tempKPs는 이미지에서 겹치는 키포인트를 제거하기 위함.
 	cv::Mat tempDesc;
-	ExtractORB(matFrame, mvKeyPoints, matDescriptor);
-	//detector->detectAndCompute(matFrame, cv::noArray(), mvTempKPs, tempDesc);
-
-	//matDescriptor = cv::Mat::zeros(0, tempDesc.cols, tempDesc.type());
+	//ExtractORB(matFrame, mvKeyPoints, matDescriptor);
+	
+	{
+		ExtractORB(matFrame, mvTempKPs, tempDesc);
+		matDescriptor = cv::Mat::zeros(0, tempDesc.cols, tempDesc.type());
+	}
 
 	//////여기에서 중복되는 키포인트들 제거하기
-	//cv::Mat overlap = cv::Mat::zeros(matFrame.size(), CV_8UC1);
-	//for (int i = 0; i < mvTempKPs.size(); i++) {
-	//	if (!CheckKeyPointOverlap(overlap, mvTempKPs[i].pt)) {
-	//		continue;
-	//	}
-	//	mvKeyPoints.push_back(mvTempKPs[i]);
-	//	matDescriptor.push_back(tempDesc.row(i));
-	//}
-
-	//mvKeyPoints.clear();
-	//mvKeyPoints = std::vector<KeyPoint>(tempKPs.begin(), tempKPs.end());
+	cv::Mat overlap = cv::Mat::zeros(matFrame.size(), CV_8UC1);
+	for (int i = 0; i < mvTempKPs.size(); i++) {
+		if (!CheckKeyPointOverlap(overlap, mvTempKPs[i].pt)) {
+			continue;
+		}
+		mvKeyPoints.push_back(mvTempKPs[i]);
+		matDescriptor.push_back(tempDesc.row(i));
+	}
 	////여기에서 중복되는 키포인트들 제거하기
 
 	if (mvKeyPoints.empty())

@@ -74,11 +74,11 @@ void UVR_SLAM::MapPoint::SetWorldPos(cv::Mat X) {
 }
 
 void UVR_SLAM::MapPoint::SetObjectType(UVR_SLAM::ObjectType nType){
-	std::unique_lock<std::mutex>(mMutexObjectType);
+	std::unique_lock<std::mutex> lock(mMutexObjectType);
 	mObjectType = nType;
 }
 UVR_SLAM::ObjectType  UVR_SLAM::MapPoint::GetObjectType(){
-	std::unique_lock<std::mutex>(mMutexObjectType);
+	std::unique_lock<std::mutex> lock(mMutexObjectType);
 	return mObjectType;
 }
 

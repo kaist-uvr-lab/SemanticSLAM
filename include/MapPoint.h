@@ -46,8 +46,6 @@ namespace UVR_SLAM {
 		bool Projection(cv::Point2f& _P2D, cv::Mat& _Pcam, cv::Mat R, cv::Mat t, cv::Mat K, int w, int h);
 		bool isSeen();
 
-		void SetObjectType(ObjectType nType);
-		ObjectType  GetObjectType();
 		MapPointType GetMapPointType();
 
 		void SetPlaneID(int nid);
@@ -74,7 +72,7 @@ namespace UVR_SLAM {
 		bool mbDelete;
 		int mnPlaneID;
 		MapPointType mnType;
-		ObjectType mObjectType;
+		
 
 		float mfDepth;
 		bool mbSeen;
@@ -103,9 +101,13 @@ namespace UVR_SLAM {
 	private:
 		std::mutex mMutexRecentLocalMapID, mMutexRecentTrackedFrameID, mMutexRecentLayoutFrameID;
 		int mnLocalMapID, mnTrackedFrameID, mnLayoutFrameID;
-
-
-
+	//Object Type
+	public:
+		void SetObjectType(ObjectType nType);
+		ObjectType  GetObjectType();
+	private:
+		std::mutex mMutexObjectType;
+		ObjectType mObjectType;
 	};
 }
 

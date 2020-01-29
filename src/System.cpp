@@ -117,6 +117,7 @@ void UVR_SLAM::System::Init() {
 	mpVisualizer = new Visualizer(mnWidth, mnHeight, mnVisScale);
 	mpVisualizer->Init();
 	mpVisualizer->SetFrameWindow(mpFrameWindow);
+	mpVisualizer->SetSystem(this);
 	mptVisualizer = new std::thread(&UVR_SLAM::Visualizer::Run, mpVisualizer);
 
 	//initializer
@@ -143,7 +144,10 @@ void UVR_SLAM::System::Init() {
 	mpLocalMapper->SetMatcher(mpMatcher);
 	mpLocalMapper->SetPlaneEstimator(mpPlaneEstimator);
 	mpLocalMapper->SetLayoutEstimator(mpSegmentator);
+	mpLocalMapper->SetSystem(this);
 	mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);
+
+	mpInitializer->SetLocalMapper(mpLocalMapper);
 
 	//loop closing thread
 
@@ -164,12 +168,15 @@ void UVR_SLAM::System::Init() {
 	mpTracker->SetSegmentator(mpSegmentator);
 	mpTracker->SetVisualizer(mpVisualizer);
 	mpPlaneEstimator->SetInitializer(mpInitializer);
+
+	//Time
+	mfSegTime = 0.0;
 	
 }
 
 void UVR_SLAM::System::SetCurrFrame(cv::Mat img) {
 	mpPrevFrame = mpCurrFrame;
-	mpCurrFrame = new UVR_SLAM::Frame(img, mnWidth, mnHeight);
+	mpCurrFrame = new UVR_SLAM::Frame(img, mnWidth, mnHeight, mK);
 	//std::cout << mpCurrFrame->mnFrameID << std::endl;
 	mpCurrFrame->Init(mpORBExtractor, mK, mD);
 	mpCurrFrame->SetBowVec(fvoc);
@@ -196,6 +203,7 @@ void UVR_SLAM::System::Reset() {
 	mbInitialized = false;
 	mpInitializer->Init();
 	mpFrameWindow->ClearLocalMapFrames();
+	mpLocalMapper->mlpNewMPs.clear();
 	nKeyFrameID = 0;
 }
 
@@ -203,5 +211,25 @@ void UVR_SLAM::System::SetBoolInit(bool b) {
 	mbInitialized = b;
 }
 
+void UVR_SLAM::System::SetDirPath(std::string strPath) {
+	std::unique_lock<std::mutex> lock(mMutexDirPath);
+	mStrDirPath = strPath;
+}
+std::string UVR_SLAM::System::GetDirPath(){
+	std::unique_lock<std::mutex> lock(mMutexDirPath);
+	return mStrDirPath;
+}
+
 //이것들 전부다 private로 변경.
 //trajecotoryMap, MPsMap;
+
+
+void UVR_SLAM::System::SetSegmentationTime(float t) {
+	std::unique_lock<std::mutex> lock(mMutexSegmentationTime);
+	mfSegTime = t;
+}
+
+float UVR_SLAM::System::GetSegmentationTime() {
+	std::unique_lock<std::mutex> lock(mMutexSegmentationTime);
+	return mfSegTime;
+}

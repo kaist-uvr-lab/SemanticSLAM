@@ -45,7 +45,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 
 		if (isDoingProcess()) {
 			std::cout << "SemanticSegmentator::RUN::Start" << std::endl;
-
+			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			cv::Mat colorimg, segmented;
 			cvtColor(mpTargetFrame->GetOriginalImage(), colorimg, CV_RGBA2BGR);
 			colorimg.convertTo(colorimg, CV_8UC3);
@@ -55,11 +55,11 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			ObjectLabeling();
 
 			//PlaneEstimator
-			/*if (!mpPlaneEstimator->isDoingProcess()) {
+			if (!mpPlaneEstimator->isDoingProcess()) {
 				mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
-				mpPlaneEstimator->SetBoolDoingProcess(true, 3);
 				mpPlaneEstimator->SetTargetFrame(mpTargetFrame);
-			}*/
+				mpPlaneEstimator->SetBoolDoingProcess(true, 3);
+			}
 
 			//여기는 시각화로 보낼 수 있으면 보내는게 좋을 듯.
 			cv::addWeighted(segmented, 0.5, colorimg, 0.5, 0.0, colorimg);
@@ -68,8 +68,8 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			cv::imshow("Output::SegmentationMask", maskSegmentation);
 			cv::imshow("Output::Segmentation", colorimg);
 
-			cv::imwrite("../../bin/segmentation/res/seg.jpg", colorimg);
-			cv::imwrite("../../bin/segmentation/res/mask.jpg", maskSegmentation);
+			//cv::imwrite("../../bin/segmentation/res/seg.jpg", colorimg);
+			//cv::imwrite("../../bin/segmentation/res/mask.jpg", maskSegmentation);
 
 			/*cv::imshow("Output::LABEL::FLOOR"   , mVecLabelMasks[0]);
 			cv::imshow("Output::LABEL::WALL"    , mVecLabelMasks[1]);
@@ -101,7 +101,11 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			ss << "../../bin/segmentation/res_keypoints_" << mpTargetFrame->GetFrameID() << ".jpg";
 			imwrite(ss.str(), test);*/
 			//cv::imwrite("../../bin/segmentation/res/label_kp.jpg", test);
-			cv::waitKey(10);
+			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
+			auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
+			float tttt = duration / 1000.0;
+			mpSystem->SetSegmentationTime(tttt);
+			cv::waitKey(1);
 
 			SetBoolDoingProcess(false);
 			std::cout << "SemanticSegmentator::RUN::End" << std::endl;
@@ -135,12 +139,16 @@ bool UVR_SLAM::SemanticSegmentator::isRun() {
 /////////////////////////////////////////////////////////////////////////////////////////
 //모든 특징점과 트래킹되고 있는 맵포인트를 레이블링함.
 void UVR_SLAM::SemanticSegmentator::ObjectLabeling() {
+
+	std::vector<UVR_SLAM::ObjectType> vObjTypes(mpTargetFrame->mvKeyPoints.size(), UVR_SLAM::OBJECT_NONE);
+
 	for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
 		cv::Point2f pt = mpTargetFrame->mvKeyPoints[i].pt;
 		for (int j = 0; j < mVecLabelMasks.size(); j++) {
 			if (mVecLabelMasks[j].at<uchar>(pt) == 255) {
 				UVR_SLAM::ObjectType type = static_cast<ObjectType>(j);
-				mpTargetFrame->SetObjectType(type, i);
+				//mpTargetFrame->SetObjectType(type, i);
+				vObjTypes[i] = type;
 				if (mpTargetFrame->mvbMPInliers[i]) {
 					UVR_SLAM::MapPoint* pMP = mpTargetFrame->mvpMPs[i];
 					if (pMP) {
@@ -156,6 +164,8 @@ void UVR_SLAM::SemanticSegmentator::ObjectLabeling() {
 			}
 		}
 	}
+	mpTargetFrame->SetObjectVector(vObjTypes);
+
 }
 
 //참조하고 있는 오브젝트 클래스 별로 마스크 이미지를 생성하고 픽셀 단위로 마스킹함.

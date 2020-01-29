@@ -145,15 +145,14 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		int nLocalMapID = mpFrameWindow->GetLastFrameID();
 		auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
 		cv::Mat mLocalMapDesc = mpFrameWindow->GetLocalMapDescriptor();
-		std::vector<bool> mvbLocalMapInliers(mvpLocalMPs.size(), false);
-		std::vector<std::pair<int, bool>> mvPairMatchingInfos;
+		std::vector<cv::DMatch> mvMatchInfo;
 		mpSystem->mbTrackingEnd = true;
 		mpSystem->cvUseLocalMap.notify_one();
 
 		//이전 프레임에 포함된 맵포인트와 현재 프레임의 키포인트를 매칭하는 과정.
 		//빠른 속도를 위해 이전 프레임에서 추적되는 맵포인트를 디스크립터로 만듬.
 		std::chrono::high_resolution_clock::time_point matching_start = std::chrono::high_resolution_clock::now();
-		int nInitMatching = mpMatcher->MatchingWithPrevFrame(pPrev, pCurr, mvPairMatchingInfos, nLocalMapID);
+		int nInitMatching = mpMatcher->MatchingWithPrevFrame(pPrev, pCurr, mvMatchInfo);
 		//int nInitMatching = mpMatcher->FeatureMatchingForInitialPoseTracking(mpFrameWindow, pCurr);
 		std::chrono::high_resolution_clock::time_point matching_end = std::chrono::high_resolution_clock::now();
 		std::chrono::high_resolution_clock::time_point optimize_start = std::chrono::high_resolution_clock::now();
@@ -163,7 +162,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::chrono::high_resolution_clock::time_point optimize_end = std::chrono::high_resolution_clock::now();
 		
 		std::chrono::high_resolution_clock::time_point matching_start2 = std::chrono::high_resolution_clock::now();
-		mpMatcher->MatchingWithLocalMap(pCurr, mvpLocalMPs, mLocalMapDesc,mvbLocalMapInliers, mvPairMatchingInfos, 5.0);
+		mpMatcher->MatchingWithLocalMap(pCurr, mvpLocalMPs, mLocalMapDesc, 5.0);
 		//mpMatcher->FeatureMatchingForInitialPoseTracking(mpFrameWindow, pCurr, mvbLocalMapInliers);
 		std::chrono::high_resolution_clock::time_point matching_end2 = std::chrono::high_resolution_clock::now();
 		std::chrono::high_resolution_clock::time_point optimize_start2 = std::chrono::high_resolution_clock::now();
@@ -233,6 +232,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		vis.convertTo(vis, CV_8UC3);
 
 		auto mvpMPs = pCurr->GetMapPoints();
+		//auto mvpOPs = pCurr->GetObjectVector();
 		cv::Mat R = pCurr->GetRotation();
 		cv::Mat t = pCurr->GetTranslation();
 		for (int i = 0; i < mvpMPs.size(); i++) {
@@ -256,13 +256,13 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			}
 			else {
 				cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 255), -1);
-				UVR_SLAM::ObjectType type = pMP->GetObjectType();
+				/*UVR_SLAM::ObjectType type = mvpOPs[i];
 				cv::line(vis, p2D, pCurr->mvKeyPoints[i].pt, cv::Scalar(255, 255, 0), 2);
 				if (type != OBJECT_NONE)
 					circle(vis, p2D, 3, UVR_SLAM::ObjectColors::mvObjectLabelColors[type], -1);
 				if (pMP->GetPlaneID() > 0) {
 					circle(vis, p2D, 4, cv::Scalar(255, 0, 255), -1);
-				}
+				}*/
 			}
 		}
 		
@@ -284,21 +284,38 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::imshow("Output::Tracking", vis);
 
 		//시각화 과정
-		//std::stringstream ss;
-		//ss << "../../bin/segmentation/res/img/img_" << pCurr->GetFrameID() << ".jpg";
-		//cv::imwrite(ss.str(), vis);
-		//cv::imwrite("../../bin/segmentation/res/tracking.jpg", vis);
+		
+		cv::Mat img1 = pPrev->GetOriginalImage();
+		cv::Mat img2 = pCurr->GetOriginalImage();
 
-		////시각화
-		//cv::Mat vis2 = pCurr->GetOriginalImage();
-		//for (int i = 0; i < pCurr->mvKeyPoints.size(); i++) {
-		//	UVR_SLAM::ObjectType type = pCurr->GetObjectType(i);
-		//	if (type != OBJECT_NONE)
-		//		circle(vis2, pCurr->mvKeyPoints[i].pt, 2, ObjectColors::mvObjectLabelColors[type], -1);
-		//}
-		//cv::imshow("Output::Matching::SemanticFrame", vis2);
-		//cv::imwrite("../../bin/segmentation/res/labeling.jpg", vis2);
-		cv::waitKey(1);
+		cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
+
+		cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
+		cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
+		cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+		img1.copyTo(debugging(mergeRect1));
+		img2.copyTo(debugging(mergeRect2));
+
+		for (int j = 0; j < mvMatchInfo.size(); j++) {
+			int idx1 = mvMatchInfo[j].queryIdx;
+			int idx2 = mvMatchInfo[j].trainIdx;
+			UVR_SLAM::MapPoint* pMP = mvpMPs[idx2];
+			if (!pMP)
+				continue;
+			if(pMP->isDeleted())
+				continue;
+			cv::Point2f pt1 = pPrev->mvKeyPoints[idx1].pt;
+			cv::Point2f pt2 = pCurr->mvKeyPoints[idx2].pt;
+			float diffX = abs(pt1.x - pt2.x);
+			//std::cout << diffX << std::endl;
+			if(diffX > 20.0)
+				cv::line(debugging, pt1, pt2 + ptBottom, cv::Scalar(255, 0, 0), 1);
+			else
+				cv::line(debugging, pt1, pt2 + ptBottom, cv::Scalar(255, 0, 255), 1);
+		}
+		std::stringstream sss;
+		sss << "../../bin/SLAM/tracking/"<< pCurr->GetFrameID() << ".jpg";
+		cv::imwrite(sss.str(), debugging);
 		
 		mpVisualizer->SetMPs(pCurr->GetMapPoints());
 		//visualizer thread
@@ -307,7 +324,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			mpVisualizer->SetBoolDoingProcess(true);
 			//mpVisualizer->SetFrameMatching(pPrev, pCurr, vMatchInfos);
 		}
-	
+		cv::waitKey(1);
 	}
 }
 

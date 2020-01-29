@@ -1,5 +1,6 @@
 #include <Initializer.h>
 #include <FrameWindow.h>
+#include <LocalMapper.h>
 #include <MatrixOperator.h>
 
 //추후 파라메터화. 귀찮아.
@@ -20,7 +21,9 @@ void UVR_SLAM::Initializer::Init() {
 	mbInit = false;
 }
 
-
+void UVR_SLAM::Initializer::SetLocalMapper(LocalMapper* pMapper) {
+	mpLocalMapper = pMapper;
+}
 
 void UVR_SLAM::Initializer::SetMatcher(UVR_SLAM::Matcher* pMatcher) {
 	mpMatcher = pMatcher;
@@ -107,8 +110,10 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 		cv::RNG rng = cv::RNG(12345);
 
+		
+
 		if (resIDX > 0 && vCandidates[resIDX]->nGood > N_thresh_init_triangulate) {
-			
+			std::cout << vCandidates[resIDX]->nGood << std::endl;
 			mpInitFrame1->SetPose(vCandidates[resIDX]->R0, vCandidates[resIDX]->t0);
 			mpInitFrame2->SetPose(vCandidates[resIDX]->R, vCandidates[resIDX]->t); //두번째 프레임은 median depth로 변경해야 함.
 
@@ -147,6 +152,9 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 					mpInitFrame2->mTrackedDescriptor.push_back(mpInitFrame2->matDescriptor.row(idx2));
 					mpInitFrame2->mvTrackedIdxs.push_back(idx2);
+
+					//local map에 축
+					mpLocalMapper->mlpNewMPs.push_back(pNewMP);
 
 					nMatch++;
 
@@ -308,10 +316,13 @@ void UVR_SLAM::Initializer::CheckRT(std::vector<cv::DMatch> Matches, UVR_SLAM::I
 		const cv::KeyPoint &kp1 = mpInitFrame1->mvKeyPoints[Matches[i].queryIdx];
 		const cv::KeyPoint &kp2 = mpInitFrame2->mvKeyPoints[Matches[i].trainIdx];
 		cv::Mat X3D;
-		Triangulate(kp1.pt, kp2.pt, P1, P2, X3D);
+
+		if (!Triangulate(kp1.pt, kp2.pt, P1, P2, X3D))
+			continue;
 
 		float cosParallax;
-		bool res = CheckCreatedPoints(X3D, kp1.pt, kp2.pt, O1, O2, R, t, candidate->R, candidate->t, cosParallax, th2);
+
+		bool res = CheckCreatedPoints(X3D, kp1.pt, kp2.pt, O1, O2, R, t, candidate->R, candidate->t, cosParallax, th2,th2);
 		if (res) {
 			vCosParallax.push_back(cosParallax);
 			//candidate->vMap3D[i] = new MapPoint(X3D);
@@ -337,7 +348,7 @@ void UVR_SLAM::Initializer::CheckRT(std::vector<cv::DMatch> Matches, UVR_SLAM::I
 			}
 		}
 	}
-
+	
 	if (candidate->nGood>0)
 	{
 		std::sort(vCosParallax.begin(), vCosParallax.end());
@@ -353,7 +364,7 @@ void UVR_SLAM::Initializer::CheckRT(std::vector<cv::DMatch> Matches, UVR_SLAM::I
 	}
 }
 
-void UVR_SLAM::Initializer::Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2, cv::Mat& x3D){
+bool UVR_SLAM::Initializer::Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2, cv::Mat& x3D){
 	cv::Mat A(4, 4, CV_32F);
 
 	A.row(0) = pt1.x*P1.row(2) - P1.row(0);
@@ -364,9 +375,21 @@ void UVR_SLAM::Initializer::Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Ma
 	cv::Mat u, w, vt;
 	cv::SVD::compute(A, w, u, vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
 	x3D = vt.row(3).t();
+
+	float a = w.at<float>(3);
+	if (a < 0.001)
+		return false;
+	if (abs(x3D.at<float>(3)) <= 0.001)
+		return false;
+
+	//if (abs(x3D.at<float>(3)) < 0.01)
+	//	std::cout << "abc:" << x3D.at<float>(3) << std::endl;
+
 	x3D = x3D.rowRange(0, 3) / x3D.at<float>(3);
+	
+	return true;
 }
-bool UVR_SLAM::Initializer::CheckCreatedPoints(cv::Mat X3D, cv::Point2f kp1, cv::Point2f kp2, cv::Mat O1, cv::Mat O2, cv::Mat R1, cv::Mat t1, cv::Mat R2, cv::Mat t2, float& cosParallax, float th2) {
+bool UVR_SLAM::Initializer::CheckCreatedPoints(cv::Mat X3D, cv::Point2f kp1, cv::Point2f kp2, cv::Mat O1, cv::Mat O2, cv::Mat R1, cv::Mat t1, cv::Mat R2, cv::Mat t2, float& cosParallax, float th1, float th2) {
 	if (!std::isfinite(X3D.at<float>(0)) || !std::isfinite(X3D.at<float>(1)) || !std::isfinite(X3D.at<float>(2)))
 	{
 		return false;
@@ -382,25 +405,27 @@ bool UVR_SLAM::Initializer::CheckCreatedPoints(cv::Mat X3D, cv::Point2f kp1, cv:
 
 	cosParallax = ((float)normal1.dot(normal2)) / (dist1*dist2);
 
-	// Check depth in front of first camera (only if enough parallax, as "infinite" points can easily go to negative depth)
-	if (p3dC1.at<float>(2) <= 0.0f && cosParallax<0.99998f)
+	if (cosParallax >= 0.99998f)
 		return false;
-
-	// Check depth in front of second camera (only if enough parallax, as "infinite" points can easily go to negative depth)
-	if (p3dC2.at<float>(2) <= 0.0f && cosParallax<0.99998f)
+	//std::cout << p3dC1 << ", " << p3dC2 << ", " << th1 <<", "<< th2 << std::endl;
+	// Check depth in front of first camera (only if enough parallax, as "infinite" points can easily go to negative depth)
+	if (p3dC1.at<float>(2) <= 0.0f || p3dC2.at<float>(2) <= 0.0f )
 		return false;
 
 	// Check reprojection error in first image
 	cv::Mat reproj1 = mK*p3dC1;
 	reproj1 /= p3dC1.at<float>(2);
 	float squareError1 = (reproj1.at<float>(0) - kp1.x)*(reproj1.at<float>(0) - kp1.x) + (reproj1.at<float>(1) - kp1.y)*(reproj1.at<float>(1) - kp1.y);
-	if (squareError1>th2)
+	
+	//std::cout << squareError1 << std::endl;
+	if (squareError1>th1)
 		return false;
 
 	// Check reprojection error in second image
 	cv::Mat reproj2 = mK*p3dC2;
 	reproj2 /= p3dC2.at<float>(2);
 	float squareError2 = (reproj2.at<float>(0) - kp2.x)*(reproj2.at<float>(0) - kp2.x) + (reproj2.at<float>(1) - kp2.y)*(reproj2.at<float>(1) - kp2.y);
+	
 	if (squareError2>th2)
 		return false;
 	return true;
@@ -419,7 +444,7 @@ int UVR_SLAM::Initializer::SelectCandidatePose(std::vector<UVR_SLAM::InitialData
 			nMaxGood = vCandidates[i]->nGood;
 		}
 	}
-
+	std::cout << "max::" << nMaxGood << std::endl;
 	int nsimilar = 0;
 	int th_good = (int)(0.7f*(float)nMaxGood);
 	int nMinGood = (int)(0.9f*(float)vCandidates[0]->nMinGood);
@@ -436,5 +461,6 @@ int UVR_SLAM::Initializer::SelectCandidatePose(std::vector<UVR_SLAM::InitialData
 	if (vCandidates[maxIdx]->parallax > minParallax && nMaxGood<nMinGood && nsimilar == 1) {
 		res = (int)maxIdx;
 	}
+
 	return res;
 }

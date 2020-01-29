@@ -1,4 +1,4 @@
-#ifndef UVR_SLAM_MATCHER_H
+ #ifndef UVR_SLAM_MATCHER_H
 #define UVR_SLAM_MATCHER_H
 #pragma once
 
@@ -20,8 +20,15 @@ namespace UVR_SLAM {
 
 	public:
 
-		int MatchingWithPrevFrame(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr,  std::vector<std::pair<int,bool>>& mvMatches, int nLocalMapID);
-		int MatchingWithLocalMap(Frame* pF, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, std::vector<bool>& mvbLocalMapInliers, std::vector<std::pair<int, bool>>& mvMatches, float rr);
+		int MatchingWithPrevFrame(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr,  std::vector<cv::DMatch>& mvMatches);
+		int MatchingWithLocalMap(Frame* pF, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, float rr);
+
+		//fuse 20.01.19
+		int KeyFrameFuseFeatureMatching(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr);
+		int KeyFrameFuseFeatureMatching2(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr);
+
+		//GMS matching 20.01.21
+		int GMSMatching(Frame* pFrame1, Frame* pFrame2, std::vector<cv::DMatch>& vMatchInfo);
 
 		void FindFundamental(Frame* pInit, Frame* pCurr, std::vector<cv::DMatch> vMatches, std::vector<bool> &vbMatchesInliers, float &score, cv::Mat &F21);
 
@@ -36,7 +43,7 @@ namespace UVR_SLAM {
 		int FeatureMatchingForInitialPoseTracking(FrameWindow* pWindow, Frame* pF, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, std::vector<bool>& mvbLocalMapInliers);
 		int FeatureMatchingForPoseTrackingByProjection(Frame* pF, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, std::vector<bool>& mvbLocalMapInliers, std::vector<cv::DMatch>& mvMatches, float rr);
 
-		int KeyFrameFuseFeatureMatching(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr);
+		
 		int KeyFrameFeatureMatching(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<cv::DMatch>& vMatches);
 
 		//초기화에 현재 이용하는 것
