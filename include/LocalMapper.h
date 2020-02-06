@@ -54,7 +54,7 @@ namespace UVR_SLAM {
 		bool isStopLocalMapping();
 		void StopLocalMapping(bool flag);
 	public:
-		std::list<UVR_SLAM::MapPoint*> mlpNewMPs;
+		
 	private:
 
 		//queue¿Í mvpNewMPs Ãß°¡

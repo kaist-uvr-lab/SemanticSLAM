@@ -22,7 +22,7 @@ namespace UVR_SLAM {
 		//초기 포즈 만들 때는 double형으로 형변환
 		MapPoint();
 		MapPoint(UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc);
-		MapPoint(cv::Mat _p3D, cv::Mat _desc, MapPointType ntype);
+		MapPoint(UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype);
 		virtual ~MapPoint();
 	public:
 		void SetWorldPos(cv::Mat X);

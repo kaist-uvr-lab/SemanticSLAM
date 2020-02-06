@@ -254,7 +254,16 @@ cv::Point2f UVR_SLAM::Frame::Projection(cv::Mat w3D) {
 	return p2D;
 }
 
-
+void UVR_SLAM::Frame::SetDepthRange(float min, float max){
+	std::unique_lock<std::mutex> lock(mMutexDepthRange);
+	mfMaxDepth = max;
+	mfMinDepth = min;
+}
+void UVR_SLAM::Frame::GetDepthRange(float& min, float& max) {
+	std::unique_lock<std::mutex> lock(mMutexDepthRange);
+	min = mfMinDepth;
+	max = mfMaxDepth;
+}
 
 unsigned char UVR_SLAM::Frame::GetFrameType() {
 	std::unique_lock<std::mutex>(mMutexType);
@@ -372,12 +381,14 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(float& fMedianDepth)
 	}
 	if (vDepths.size() == 0)
 		return false;
-	std::nth_element(vDepths.begin(), vDepths.begin() + vDepths.size() / 2, vDepths.end());
-	fMedianDepth = vDepths[(vDepths.size()) / 2];
+	int nidx = vDepths.size() / 2;
+	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
+	fMedianDepth = vDepths[(nidx) / 2];
+	std::cout << "median depth ::" << fMedianDepth << std::endl;
 	return true;
 }
 cv::Mat UVR_SLAM::Frame::GetCameraCenter() {
-	std::unique_lock<std::mutex> lockMP(mMutexFrame);
+	std::unique_lock<std::mutex> lockMP(mMutexPose);
 	return -R.t()*t;
 }
 

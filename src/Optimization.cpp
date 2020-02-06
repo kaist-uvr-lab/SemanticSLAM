@@ -1138,10 +1138,11 @@ void UVR_SLAM::Optimization::InitBundleAdjustment(const std::vector<UVR_SLAM::Fr
 		cv::Mat Tcw = Converter::toCvMat(SE3quat);
 		R = Tcw.rowRange(0, 3).colRange(0, 3);
 		t = Tcw.rowRange(0, 3).col(3);
+		std::cout<<"ID::Before::"<< pKF->GetKeyFrameID() << pKF->GetRotation() << ", " << pKF->GetTranslation().t() << std::endl;
 		pKF->SetPose(R, t);
 		//if (i == 0)
 		{
-			std::cout <<"ID::"<<pKF->GetKeyFrameID()<< R << ", " << t << std::endl;
+			std::cout <<"ID::After::"<<pKF->GetKeyFrameID()<< R << ", " << t.t() << std::endl;
 		}
 	}
 

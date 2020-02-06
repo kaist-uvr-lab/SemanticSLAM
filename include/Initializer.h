@@ -16,16 +16,20 @@ using namespace cv;
 namespace UVR_SLAM {
 	class LocalMapper;
 	class FrameWindow;
+	class System;
+	class SemanticSegmentator;
 	class Initializer {
 	public:
 		Initializer();
 		Initializer(cv::Mat _K);
+		Initializer(System* pSystem, cv::Mat _K);
 		virtual ~Initializer();
 	public:
 		void Init();
 		void SetLocalMapper(LocalMapper* pMapper);
 		void SetMatcher(Matcher* pMatcher);
 		void SetFrameWindow(FrameWindow* pWindow);
+		void SetSegmentator(SemanticSegmentator* pEstimator);
 		bool Initialize(Frame* pFrame, bool& bReset, int w, int h);
 	private:
 		void SetCandidatePose(cv::Mat F, std::vector<cv::DMatch> Matches, std::vector<UVR_SLAM::InitialData*>& vCandidates);
@@ -37,6 +41,8 @@ namespace UVR_SLAM {
 	public:
 		Frame* mpInitFrame1, *mpInitFrame2;
 	private:
+		System* mpSystem;
+		SemanticSegmentator* mpSegmentator;
 		FrameWindow* mpFrameWindow;
 		LocalMapper* mpLocalMapper;
 		bool mbInit;

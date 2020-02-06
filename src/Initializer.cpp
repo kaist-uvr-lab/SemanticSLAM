@@ -1,13 +1,17 @@
 #include <Initializer.h>
 #include <FrameWindow.h>
 #include <LocalMapper.h>
+#include <System.h>
 #include <MatrixOperator.h>
+#include <SemanticSegmentator.h>
 
 //추후 파라메터화. 귀찮아.
 int N_matching_init_therah = 120; //80
-int N_thresh_init_triangulate = 120; //80
+int N_thresh_init_triangulate = 60; //80
 
 UVR_SLAM::Initializer::Initializer() :mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr) {
+}
+UVR_SLAM::Initializer::Initializer(System* pSystem, cv::Mat _K) : mpSystem(pSystem), mK(_K), mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr) {
 }
 UVR_SLAM::Initializer::Initializer(cv::Mat _K):mK(_K),mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr){
 }
@@ -33,6 +37,10 @@ void UVR_SLAM::Initializer::SetFrameWindow(UVR_SLAM::FrameWindow* pWindow) {
 	mpFrameWindow = pWindow;
 }
 
+void UVR_SLAM::Initializer::SetSegmentator(SemanticSegmentator* pEstimator) {
+	mpSegmentator = pEstimator;
+}
+
 bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h) {
 	//std::cout << "Initializer::Initialize::Start" << std::endl;
 	
@@ -45,8 +53,9 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		cv::Mat F;
 		std::vector<cv::DMatch> tempMatches, resMatches;
 		mpInitFrame2 = pFrame;
-		if (mpInitFrame2->GetFrameID() - mpInitFrame1->GetFrameID() < 3)
-			return mbInit;
+		//if (mpInitFrame2->GetFrameID() - mpInitFrame1->GetFrameID() < 3)
+		//	return mbInit;
+
 		int count = mpMatcher->MatchingProcessForInitialization(mpInitFrame1, mpInitFrame2, F, tempMatches);
 		//int count = mpMatcher->SearchForInitialization(mpInitFrame1, mpInitFrame2, tempMatches, 100);
 		if (count < N_matching_init_therah) {
@@ -63,26 +72,21 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpMatcher->FindFundamental(mpInitFrame1, mpInitFrame2, tempMatches, mvInliers, score, F);
 			F.convertTo(F, CV_32FC1);
 		}
+
 		if ((int)tempMatches.size() < 8 || F.empty()) {
 			F.release();
 			F = cv::Mat::zeros(0, 0, CV_32FC1);
-			delete mpInitFrame1;
-			mpInitFrame1 = mpInitFrame2;
+			//delete mpInitFrame1;
+			//mpInitFrame1 = mpInitFrame2;
 			return mbInit;
 		}
 
 		for (unsigned long i = 0; i < tempMatches.size(); i++) {
-			//if(inlier_mask.at<uchar>((int)i)) {
 			if (mvInliers[i]) {
-
-				cv::Point2f pt1 = mpInitFrame1->mvKeyPoints[tempMatches[i].queryIdx].pt;
-				cv::Point2f pt2 = mpInitFrame2->mvKeyPoints[tempMatches[i].trainIdx].pt;
-				//init->mvnCPMatchingIdx.push_back(vMatches[i].queryIdx);
-				//curr->mvnCPMatchingIdx.push_back(vMatches[i].trainIdx);
 				resMatches.push_back(tempMatches[i]);
 			}
 		}
-
+		count = resMatches.size();
 		//std::cout << "matching res = " << count<<", "<< resMatches.size() << std::endl;
 
 		std::vector<UVR_SLAM::InitialData*> vCandidates;
@@ -109,8 +113,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//cvtColor(vis1, vis1, CV_8UC3);
 
 		cv::RNG rng = cv::RNG(12345);
-
-		
 
 		if (resIDX > 0 && vCandidates[resIDX]->nGood > N_thresh_init_triangulate) {
 			std::cout << vCandidates[resIDX]->nGood << std::endl;
@@ -154,14 +156,13 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 					mpInitFrame2->mvTrackedIdxs.push_back(idx2);
 
 					//local map에 축
-					mpLocalMapper->mlpNewMPs.push_back(pNewMP);
+					mpSystem->mlpNewMPs.push_back(pNewMP);
 
 					nMatch++;
 
 					vpMPs.push_back(pNewMP);
 				}
 			}
-
 
 			//최적화 수행 후 Map 생성
 			//UVR_SLAM::Optimization::InitOptimization(vCandidates[resIDX], resMatches, mpInitFrame1, mpInitFrame2, mK, bInitOpt);
@@ -198,6 +199,13 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpFrameWindow->SetLocalMap(mpInitFrame2->GetFrameID());
 			mpFrameWindow->SetLastFrameID(mpInitFrame2->GetFrameID());
 			mpFrameWindow->mnLastMatches = nMatch;
+
+			mpSegmentator->InsertKeyFrame(mpInitFrame1);
+			mpSegmentator->InsertKeyFrame(mpInitFrame2);
+			mpLocalMapper->InsertKeyFrame(mpInitFrame1);
+			mpLocalMapper->InsertKeyFrame(mpInitFrame2);
+			
+
 			mbInit = true;
 
 			//if (mbInit) {
@@ -264,23 +272,23 @@ void UVR_SLAM::Initializer::DecomposeE(cv::Mat E, cv::Mat &R1, cv::Mat& R2, cv::
 	cv::Mat u, w, vt;
 	cv::SVD::compute(E, w, u, vt);
 
-	u.col(2).copyTo(t1); // or UZU.t()xt=가 0이여서
-	float tempNorm = (float)cv::norm(t1);
-	t1 = t1 / tempNorm;
-	t2 = -1.0f*t1.clone();
-
+	 u.col(2).copyTo(t1); // or UZU.t()xt=가 0이여서
+	t1 = t1 / cv::norm(t1);
+	t2 = -1.0f*t1;
+	
 	cv::Mat W = cv::Mat::zeros(3, 3, CV_32FC1);
 	W.at<float>(0, 1) = -1.0f;
 	W.at<float>(1, 0) = 1.0f;
 	W.at<float>(2, 2) = 1.0f;
 
 	R1 = u*W*vt;
-	if (cv::determinant(R1)<0.0)
+	if (cv::determinant(R1)<0.0){
 		R1 = -R1;
-
+	}
 	R2 = u*W.t()*vt;
-	if (cv::determinant(R2)<0.0)
+	if (cv::determinant(R2)<0.0){
 		R2 = -R2;
+	}
 }
 void UVR_SLAM::Initializer::CheckRT(std::vector<cv::DMatch> Matches, UVR_SLAM::InitialData* candidate, float th2) {
 
@@ -294,8 +302,8 @@ void UVR_SLAM::Initializer::CheckRT(std::vector<cv::DMatch> Matches, UVR_SLAM::I
 	std::vector<float> vCosParallax;
 	//vCosParallax.reserve(pKF->mvnMatchingIdx.size());
 
-	cv::Mat R = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat t = cv::Mat::zeros(3, 1, CV_32FC1);
+	//cv::Mat R = cv::Mat::eye(3, 3, CV_32FC1);
+	//cv::Mat t = cv::Mat::zeros(3, 1, CV_32FC1);
 
 	// Camera 1 Projection Matrix K[I|0]
 	cv::Mat P1(3, 4, CV_32F, cv::Scalar(0));
@@ -307,7 +315,7 @@ void UVR_SLAM::Initializer::CheckRT(std::vector<cv::DMatch> Matches, UVR_SLAM::I
 	candidate->R.copyTo(P2.rowRange(0, 3).colRange(0, 3));
 	candidate->t.copyTo(P2.rowRange(0, 3).col(3));
 	P2 = mK*P2;
-
+	
 	cv::Mat O2 = -candidate->R.t()*candidate->t;
 
 	for (unsigned long i = 0; i < Matches.size(); i++)
@@ -319,10 +327,10 @@ void UVR_SLAM::Initializer::CheckRT(std::vector<cv::DMatch> Matches, UVR_SLAM::I
 
 		if (!Triangulate(kp1.pt, kp2.pt, P1, P2, X3D))
 			continue;
-
+		
 		float cosParallax;
 
-		bool res = CheckCreatedPoints(X3D, kp1.pt, kp2.pt, O1, O2, R, t, candidate->R, candidate->t, cosParallax, th2,th2);
+		bool res = CheckCreatedPoints(X3D, kp1.pt, kp2.pt, O1, O2, candidate->R0, candidate->t0, candidate->R, candidate->t, cosParallax, th2,th2);
 		if (res) {
 			vCosParallax.push_back(cosParallax);
 			//candidate->vMap3D[i] = new MapPoint(X3D);
@@ -341,11 +349,9 @@ void UVR_SLAM::Initializer::CheckRT(std::vector<cv::DMatch> Matches, UVR_SLAM::I
 			candidate->vMap3D[i]->mNormalVector = candidate->vMap3D[i]->mNormalVector / cv::norm(candidate->vMap3D[i]->mNormalVector);
 			}
 			*/
-			if (cosParallax<0.99998f) {
-				candidate->vbTriangulated[i] = true;
-				candidate->mvX3Ds[i] = X3D.clone();
-				candidate->nGood++;
-			}
+			candidate->vbTriangulated[i] = true;
+			candidate->mvX3Ds[i] = X3D.clone();
+			candidate->nGood++;
 		}
 	}
 	
@@ -353,9 +359,9 @@ void UVR_SLAM::Initializer::CheckRT(std::vector<cv::DMatch> Matches, UVR_SLAM::I
 	{
 		std::sort(vCosParallax.begin(), vCosParallax.end());
 		int idx = 50;
-		int nParallaxSize = (int)vCosParallax.size();
-		if (idx > nParallaxSize - 1) {
-			idx = nParallaxSize - 1;
+		int nParallaxSize = (int)vCosParallax.size() - 1;
+		if (idx > nParallaxSize) {
+			idx = nParallaxSize;
 		}
 		candidate->parallax = (float)(acos(vCosParallax[idx])*UVR_SLAM::MatrixOperator::rad2deg);
 	}
@@ -379,8 +385,8 @@ bool UVR_SLAM::Initializer::Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Ma
 	float a = w.at<float>(3);
 	if (a < 0.001)
 		return false;
-	if (abs(x3D.at<float>(3)) <= 0.001)
-		return false;
+	//if (abs(x3D.at<float>(3)) <= 0.001)
+	//	return false;
 
 	//if (abs(x3D.at<float>(3)) < 0.01)
 	//	std::cout << "abc:" << x3D.at<float>(3) << std::endl;
@@ -394,8 +400,8 @@ bool UVR_SLAM::Initializer::CheckCreatedPoints(cv::Mat X3D, cv::Point2f kp1, cv:
 	{
 		return false;
 	}
-
-	cv::Mat p3dC1 = R1*X3D + t1;
+	
+	cv::Mat p3dC1 = X3D;
 	cv::Mat p3dC2 = R2*X3D + t2;
 	// Check parallax
 	cv::Mat normal1 = p3dC1 - O1;
@@ -434,7 +440,7 @@ bool UVR_SLAM::Initializer::CheckCreatedPoints(cv::Mat X3D, cv::Point2f kp1, cv:
 int UVR_SLAM::Initializer::SelectCandidatePose(std::vector<UVR_SLAM::InitialData*>& vCandidates) {
 	//int SelectCandidatePose(UVR::InitialData* c1, UVR::InitialData* c2, UVR::InitialData* c3, UVR::InitialData* c4){
 	float minParallax = 1.0f;
-	int   minTriangulated = 80;
+	int   minTriangulated = 50;
 
 	unsigned long maxIdx = (unsigned long)-1;
 	int nMaxGood = -1;
@@ -444,10 +450,10 @@ int UVR_SLAM::Initializer::SelectCandidatePose(std::vector<UVR_SLAM::InitialData
 			nMaxGood = vCandidates[i]->nGood;
 		}
 	}
-	std::cout << "max::" << nMaxGood << std::endl;
+	
 	int nsimilar = 0;
 	int th_good = (int)(0.7f*(float)nMaxGood);
-	int nMinGood = (int)(0.9f*(float)vCandidates[0]->nMinGood);
+	int nMinGood = (int)(0.8f*(float)vCandidates[0]->nMinGood);
 	if (nMinGood < minTriangulated) {
 		nMinGood = minTriangulated;
 	}
@@ -456,11 +462,10 @@ int UVR_SLAM::Initializer::SelectCandidatePose(std::vector<UVR_SLAM::InitialData
 			nsimilar++;
 		}
 	}
-
+	
 	int res = -1;
-	if (vCandidates[maxIdx]->parallax > minParallax && nMaxGood<nMinGood && nsimilar == 1) {
+	if (vCandidates[maxIdx]->parallax > minParallax && nMaxGood > nMinGood && nsimilar == 1) {
 		res = (int)maxIdx;
 	}
-
 	return res;
 }

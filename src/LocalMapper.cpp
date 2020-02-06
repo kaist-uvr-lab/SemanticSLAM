@@ -9,7 +9,6 @@
 #include <SemanticSegmentator.h>
 #include <opencv2/core/mat.hpp>
 
-
 #include <ctime>
 #include <direct.h>
 
@@ -44,8 +43,8 @@ void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
 
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
 	mpTargetFrame = mKFQueue.front();
+	mpSystem->SetLocalMapperFrameID(mpTargetFrame->GetKeyFrameID());
 	mKFQueue.pop();
-	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 	mpFrameWindow->SetLastFrameID(mpTargetFrame->GetFrameID());
 	mbStopBA = false;
 
@@ -81,25 +80,13 @@ void UVR_SLAM::LocalMapper::SetDoingProcess(bool flag){
 
 void UVR_SLAM::LocalMapper::Run() {
 
-	//확인용 폴더 생성하기 위한 것
-	std::string strBaseDirPath;
-	{
-		std::time_t curr_time;
-		struct tm curr_tm;
-		curr_time = time(NULL);
-		localtime_s(&curr_tm, &curr_time);
-		//curr_tm = std::localtime(&curr_time);
-
-		std::stringstream ssDirPath;
-		ssDirPath << "../../bin/SLAM/KeyframeDebugging/" << curr_tm.tm_year << "_" << curr_tm.tm_mon << "_" << curr_tm.tm_mday << "_" << curr_tm.tm_hour << "_" << curr_tm.tm_min << "_" << curr_tm.tm_sec;
-		strBaseDirPath = ssDirPath.str();
-		_mkdir(strBaseDirPath.c_str());
-	}
+	
 
 	while (1) {
 
 		if (CheckNewKeyFrames()) {
 			SetDoingProcess(true);
+			std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
 			CalculateKFConnections();
 			UpdateKFs();
@@ -139,12 +126,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			///fuse
 			if (!isStopLocalMapping())
 			{
-				std::chrono::high_resolution_clock::time_point fuse_start = std::chrono::high_resolution_clock::now();
 				FuseMapPoints();
-				std::chrono::high_resolution_clock::time_point fuse_end = std::chrono::high_resolution_clock::now();
-				auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(fuse_end - fuse_start).count();
-				double tttt = duration / 1000.0;
-				mpFrameWindow->SetFuseTime(tttt);		
 			}
 
 			//test
@@ -153,29 +135,31 @@ void UVR_SLAM::LocalMapper::Run() {
 			mpFrameWindow->SetLocalMap(mpTargetFrame->GetFrameID());
 			
 			//set dir
-			std::string strLocalPath;
-			{
-				std::stringstream ss;
-				ss << strBaseDirPath.c_str() << "/" << mpTargetFrame->GetKeyFrameID();
-				strLocalPath = ss.str();
-				_mkdir(ss.str().c_str());
-				mpSystem->SetDirPath(strLocalPath);
-			}
+			
 			
 
-			if (mpSegmentator->isRun() && !mpSegmentator->isDoingProcess()) {
+			/*if (mpSegmentator->isRun() && !mpSegmentator->isDoingProcess()) {
 				mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
 				mpSegmentator->SetTargetFrame(mpTargetFrame);
 				mpSegmentator->SetBoolDoingProcess(true);
-			}
+			}*/
 
 			////BA
 			//BA에서는 최근 생성된 맵포인트까지 반영을 해야 함.
 			mbStopBA = false; 
+			std::chrono::high_resolution_clock::time_point ba_start = std::chrono::high_resolution_clock::now();
 			if(!isStopLocalMapping()){
 				//Optimization::LocalBundleAdjustment(mpFrameWindow, mpTargetFrame->GetFrameID(), mbStopBA, 2, 5, false);
 				Optimization::LocalBundleAdjustment(mpTargetFrame, mpFrameWindow, &mbStopBA);
 			}
+
+			std::chrono::high_resolution_clock::time_point lm_end = std::chrono::high_resolution_clock::now();
+
+			auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(lm_end - lm_start).count();
+			float t_test1 = du_test1 / 1000.0;
+			auto du_test2 = std::chrono::duration_cast<std::chrono::milliseconds>(lm_end - ba_start).count();
+			float t_test2 = du_test2 / 1000.0;
+			mpSystem->SetLocalMappingTime(t_test1, t_test2);
 
 			{
 				////debugging
@@ -218,6 +202,8 @@ void UVR_SLAM::LocalMapper::Run() {
 					}else
 						cv::circle(img1, mpTargetFrame->mvKeyPoints[j].pt, 2, cv::Scalar(0, 255, 0), -1);
 				}
+
+				std::string strLocalPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
 
 				for (int i = 0; i < mvpKFs.size(); i++) {
 					UVR_SLAM::Frame* pKFi = mvpKFs[i];
@@ -303,6 +289,16 @@ void UVR_SLAM::LocalMapper::Run() {
 				}
 
 				f.close();
+				sss.str("");
+				sss << strLocalPath.c_str() << "/pose.txt";
+				f.open(sss.str().c_str());
+				cv::Mat tempr = mpTargetFrame->GetRotation();
+				cv::Mat tempt = mpTargetFrame->GetTranslation();
+				f << tempr.at<float>(0,0) << " " << tempr.at<float>(0,1) << " " << tempr.at<float>(0,2)<<std::endl;
+				f << tempr.at<float>(1, 0) << " " << tempr.at<float>(1, 1) << " " << tempr.at<float>(1, 2) << std::endl;
+				f << tempr.at<float>(2, 0) << " " << tempr.at<float>(2, 1) << " " << tempr.at<float>(2, 2) << std::endl;
+				f << tempt.at<float>(0) << " " << tempt.at<float>(1) << " " << tempt.at<float>(2);
+				f.close();
 				////save image
 			}
 
@@ -337,25 +333,25 @@ void UVR_SLAM::LocalMapper::NewMapPointMaginalization() {
 	//mvpDeletedMPs.clear();
 	int nMarginalized = 0;
 
-	std::list<UVR_SLAM::MapPoint*>::iterator lit = mlpNewMPs.begin();
-	while (lit != mlpNewMPs.end()) {
+	std::list<UVR_SLAM::MapPoint*>::iterator lit = mpSystem->mlpNewMPs.begin();
+	while (lit != mpSystem->mlpNewMPs.end()) {
 		UVR_SLAM::MapPoint* pMP = *lit;
 		bool bBad = false;
 		if (pMP->isDeleted()) {
 			//already deleted
-			lit = mlpNewMPs.erase(lit);
+			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
 		else if (pMP->GetFVRatio() < 0.25f) {
 			//pMP->Delete();
 			bBad = true;
-			lit = mlpNewMPs.erase(lit);
+			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
-		else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= 2) {
+		else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= 2 && pMP->GetMapPointType() != UVR_SLAM::PLANE_MP) {
 			bBad = true;
-			lit = mlpNewMPs.erase(lit);
+			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
 		else if (pMP->mnFirstKeyFrameID + 3 <= mpTargetFrame->GetKeyFrameID()){
-			lit = mlpNewMPs.erase(lit);
+			lit = mpSystem->mlpNewMPs.erase(lit);
 			pMP->SetNewMP(false);
 		}else
 			lit++;
@@ -440,7 +436,7 @@ void UVR_SLAM::LocalMapper::FuseMapPoints(int nn) {
 		mpMatcher->GMSMatching(mpTargetFrame, pKFi, vMatchInfoi);
 	}
 
-	std::cout << "New Fuse Test : " << tttt1 << ", " << tttt2<<", "<<mpFrameWindow->GetFuseTime() <<"::"<<n1<<", "<<n2<< std::endl;
+	std::cout << "New Fuse Test : " << tttt1 << ", " << tttt2<<", "<<"::"<<n1<<", "<<n2<< std::endl;
 }
 
 void UVR_SLAM::LocalMapper::FuseMapPoints()
@@ -553,6 +549,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(UVR_SLAM::Frame* pCurrKF, UVR_SLAM::F
 	//두 키프레임 사이의 매칭 정보 초기화
 	//mpFrameWindow->mvMatchInfos.clear();
 
+	
 	for (int i = 0; i < pCurrKF->mvKeyPoints.size(); i++) {
 		if (pCurrKF->mvbMPInliers[i])
 			continue;
@@ -591,7 +588,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(UVR_SLAM::Frame* pCurrKF, UVR_SLAM::F
 				pMP2->AddFrame(pLastKF, matchIDX);
 				pMP2->AddFrame(pCurrKF, i);
 				pMP2->mnFirstKeyFrameID = pCurrKF->GetKeyFrameID();
-				mlpNewMPs.push_back(pMP2);
+				mpSystem->mlpNewMPs.push_back(pMP2);
 				//mvpNewMPs.push_back(pMP2);
 				//mDescNewMPs.push_back(pMP2->GetDescriptor());
 
@@ -771,15 +768,24 @@ int UVR_SLAM::LocalMapper::Test() {
 
 	int nTotal = 0;
 
+	//target keyframe information
 	auto mvpMPs = mpTargetFrame->GetMapPoints();
-
+	auto mvpCurrOPs = mpTargetFrame->GetObjectVector();
+	float fMinCurr, fMaxCurr;
+	mpTargetFrame->GetDepthRange(fMinCurr, fMaxCurr);
+	//std::cout << "Depth::Curr::" << fMaxCurr << std::endl << std::endl << std::endl;
+	
 	for (int i = 0; i < mvpLocalFrames.size(); i++) {
 		if (isStopLocalMapping())
 			break;
 		UVR_SLAM::Frame* pKF = mvpLocalFrames[i];
 
+		//neighbor keyframe information
 		auto mvpMPs2 = pKF->GetMapPoints();
-
+		auto mvpPrevOPs = pKF->GetObjectVector();
+		float fMinNeighbor, fMaxNeighbor;
+		pKF->GetDepthRange(fMinNeighbor, fMaxNeighbor);
+		//std::cout << "Depth::Neighbor::" << fMaxNeighbor << std::endl << std::endl << std::endl;
 		//preprocessing
 		/*bool bNearBaseLine = false;
 		if (!pKF->CheckBaseLine(mpTargetFrame)) {
@@ -820,6 +826,8 @@ int UVR_SLAM::LocalMapper::Test() {
 			int idx2 = vMatches[j].trainIdx;
 			if (mpTargetFrame->mvpMPs[idx1])
 				continue;
+			if (mvpCurrOPs[idx1] != mvpPrevOPs[idx2] || mvpCurrOPs[idx1] == ObjectType::OBJECT_FLOOR || mvpPrevOPs[idx2] == ObjectType::OBJECT_FLOOR)
+				continue;
 			cv::KeyPoint kp1 = mpTargetFrame->mvKeyPoints[idx1];
 			cv::KeyPoint kp2 = pKF->mvKeyPoints[idx2];
 
@@ -835,10 +843,14 @@ int UVR_SLAM::LocalMapper::Test() {
 			}
 			cv::Mat Xcam1 = Rcurr*X3D + Tcurr; 
 			cv::Mat Xcam2 = Rprev*X3D + Tprev;
+			float depth1 = Xcam1.at<float>(2);
+			float depth2 = Xcam2.at<float>(2);
 			//SetLogMessage("Triangulation\n");
-			if (!CheckDepth(Xcam1.at<float>(2)) || !CheckDepth(Xcam2.at<float>(2))) {
+			if (!CheckDepth(depth1) || !CheckDepth(depth2)) {
 				continue;
 			}
+			if (depth2 > fMaxNeighbor)
+				continue;
 
 			if (!CheckReprojectionError(Xcam2, mK, kp2.pt, 5.991*pKF->mvLevelSigma2[kp2.octave]) || !CheckReprojectionError(Xcam1, mK, kp1.pt, 5.991*mpTargetFrame->mvLevelSigma2[kp1.octave]))
 			{
@@ -858,7 +870,7 @@ int UVR_SLAM::LocalMapper::Test() {
 			pMP->AddFrame(mpTargetFrame, idx1);
 			pMP->UpdateNormalAndDepth();
 			pMP->mnFirstKeyFrameID = mpTargetFrame->GetKeyFrameID();
-			mlpNewMPs.push_back(pMP);
+			mpSystem->mlpNewMPs.push_back(pMP);
 
 			//mpTargetFrame->mTrackedDescriptor.push_back(mpTargetFrame->matDescriptor.row(idx1));
 			//mpTargetFrame->mvTrackedIdxs.push_back(idx1);

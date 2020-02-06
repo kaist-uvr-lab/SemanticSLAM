@@ -136,7 +136,7 @@ int UVR_SLAM::Matcher::MatchingWithPrevFrame(UVR_SLAM::Frame* pPrev, UVR_SLAM::F
 			cv::line(debugging, pPrev->mvKeyPoints[idx].pt, pCurr->mvKeyPoints[vMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 255, 0));
 		}
 	}
-	cv::imshow("Matching::PrevFrame", debugging);
+	cv::imshow("Output::Matching", debugging);
 	//waitKey(0);
 
 	return count;
@@ -1108,21 +1108,17 @@ int UVR_SLAM::Matcher::KeyFrameFeatureMatching(UVR_SLAM::Frame* pPrev, UVR_SLAM:
 //초기화에서 F를 계산하고 매칭
 int UVR_SLAM::Matcher::MatchingProcessForInitialization(UVR_SLAM::Frame* init, UVR_SLAM::Frame* curr, cv::Mat& F, std::vector<cv::DMatch>& resMatches) {
 
-	//////Debuging
-	//SetDir("/debug/keyframe");
-	//std::stringstream dirss;
-	//dirss << "/debug/keyframe/keyframe_" << 0;
-	//std::string dirStr = SetDir(dirss.str());
-
-	//cv::Rect mergeRect1 = cv::Rect(0, 0, curr->matOri.cols, curr->matOri.rows);
-	//cv::Rect mergeRect2 = cv::Rect(curr->matOri.cols, 0, curr->matOri.cols, curr->matOri.rows);
-	//cv::Mat featureImg = cv::Mat::zeros(curr->matOri.rows, curr->matOri.cols * 2, curr->matOri.type());
+	////Debuging
+	cv::Point2f ptBottom = cv::Point2f(0, curr->GetOriginalImage().rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, curr->GetOriginalImage().cols, curr->GetOriginalImage().rows);
+	cv::Rect mergeRect2 = cv::Rect(0, curr->GetOriginalImage().rows, curr->GetOriginalImage().cols, curr->GetOriginalImage().rows);
+	cv::Mat featureImg = cv::Mat::zeros(curr->GetOriginalImage().rows *2, curr->GetOriginalImage().cols, curr->GetOriginalImage().type());
 
 	//std::stringstream sfile;
 	//sfile << "/keyframe_" << 0;
 
-	//curr->matOri.copyTo(featureImg(mergeRect1));
-	//init->matOri.copyTo(featureImg(mergeRect2));
+	curr->GetOriginalImage().copyTo(featureImg(mergeRect1));
+	init->GetOriginalImage().copyTo(featureImg(mergeRect2));
 	//cvtColor(featureImg, featureImg, CV_RGBA2BGR);
 	//featureImg.convertTo(featureImg, CV_8UC3);
 	//////Debuging
@@ -1139,6 +1135,7 @@ int UVR_SLAM::Matcher::MatchingProcessForInitialization(UVR_SLAM::Frame* init, U
 	std::vector< std::vector<cv::DMatch> > matches;
 	std::vector<cv::DMatch> vMatches;
 
+	int res = 0;
 	matcher->knnMatch(init->matDescriptor, curr->matDescriptor, matches, 2);
 	for (unsigned long i = 0; i < matches.size(); i++) {
 		if (matches[i][0].distance < nn_match_ratio * matches[i][1].distance) {
@@ -1150,39 +1147,33 @@ int UVR_SLAM::Matcher::MatchingProcessForInitialization(UVR_SLAM::Frame* init, U
 				nf2++;
 				continue;
 			}
-			resMatches.push_back(matches[i][0]);
+			
+			cv::Point2f pt1 = curr->mvKeyPoints[matches[i][0].trainIdx].pt;
+			cv::Point2f pt2 = init->mvKeyPoints[matches[i][0].queryIdx].pt;
+			float diffX = abs(pt1.x - pt2.x);
+			bool bMatch = false;
+			if(diffX < 15){
+				bMatch = true;
+				res++;
+				cv::line(featureImg, pt1,  pt2 + ptBottom, cv::Scalar(255, 0, 255));
+			}else if(diffX >= 15 && diffX < 90){
+				res++;
+				cv::line(featureImg, pt1, pt2 + ptBottom, cv::Scalar(0, 255, 255));
+				bMatch = true;
+			}
+			else{
+				
+				cv::line(featureImg, pt1, pt2 + ptBottom, cv::Scalar(255, 255, 0));
+			}
+
+			if(bMatch)
+				resMatches.push_back(matches[i][0]);
 		}
 	}
 	
-	//std::vector<bool> mvInliers;
-	//float score;
-
-	//if ((int)vMatches.size() >= 8) {
-	//	FindFundamental(init, curr, vMatches, mvInliers, score, F);
-	//	F.convertTo(F, CV_32FC1);
-	//}
-	//if ((int)vMatches.size() < 8 || F.empty()) {
-	//	F.release();
-	//	F = cv::Mat::zeros(0, 0, CV_32FC1);
-	//	return 0;
-	//}
-
-	//int count = 0;
-	//
-
-	//for (unsigned long i = 0; i < vMatches.size(); i++) {
-	//	//if(inlier_mask.at<uchar>((int)i)) {
-	//	if (mvInliers[i]) {
-
-	//		cv::Point2f pt1 = init->mvKeyPoints[vMatches[i].queryIdx].pt;
-	//		cv::Point2f pt2 = curr->mvKeyPoints[vMatches[i].trainIdx].pt;
-	//		//init->mvnCPMatchingIdx.push_back(vMatches[i].queryIdx);
-	//		//curr->mvnCPMatchingIdx.push_back(vMatches[i].trainIdx);
-	//		resMatches.push_back(vMatches[i]);
-	//		count++;
-	//	}
-	//}
-	return resMatches.size(); //190116 //inliers.size();
+	imshow("init", featureImg);
+	
+	return res; //190116 //inliers.size();
 }
 
 
@@ -1259,11 +1250,9 @@ void UVR_SLAM::Matcher::FindFundamental(UVR_SLAM::Frame* pInit, UVR_SLAM::Frame*
 #pragma  omp parallel for
 	for (int it = 0; it<mMaxIterations; it++)
 	{
-
 		// Iteration variables
 		std::vector<cv::Point2f> vPn1i(8);
 		std::vector<cv::Point2f> vPn2i(8);
-		cv::Mat F21i;
 		std::vector<bool> vbCurrentInliers(N, false);
 		float currentScore;
 		std::vector<size_t> vAllIndices;
@@ -1290,8 +1279,9 @@ void UVR_SLAM::Matcher::FindFundamental(UVR_SLAM::Frame* pInit, UVR_SLAM::Frame*
 
 		cv::Mat Fn = ComputeF21(vPn1i, vPn2i);
 
-		F21i = T2t*Fn*T1;
+		cv::Mat F21i = T2t*Fn*T1;
 
+		//homography check
 		currentScore = CheckFundamental(pInit, pCurr, F21i, vMatches, vbCurrentInliers, 1.0);
 
 		if (currentScore>score)
@@ -1301,6 +1291,7 @@ void UVR_SLAM::Matcher::FindFundamental(UVR_SLAM::Frame* pInit, UVR_SLAM::Frame*
 			score = currentScore;
 		}//if
 	}//for
+
 }
 
 void UVR_SLAM::Matcher::Normalize(const std::vector<cv::KeyPoint> &vKeys, std::vector<cv::Point2f> &vNormalizedPoints, cv::Mat &T)

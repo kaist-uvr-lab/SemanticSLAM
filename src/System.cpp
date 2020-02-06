@@ -5,6 +5,7 @@
 #include <LocalMapper.h>
 #include <PlaneEstimator.h>
 #include <Visualizer.h>
+#include <direct.h>
 
 int UVR_SLAM::System::nKeyFrameID = 0;
 
@@ -93,6 +94,8 @@ bool UVR_SLAM::System::LoadVocabulary() {
 
 void UVR_SLAM::System::Init() {
 
+	InitDirPath();
+
 	//init
 	mbInitialized = false;
 	//mpInitFrame = nullptr;
@@ -121,7 +124,7 @@ void UVR_SLAM::System::Init() {
 	mptVisualizer = new std::thread(&UVR_SLAM::Visualizer::Run, mpVisualizer);
 
 	//initializer
-	mpInitializer = new UVR_SLAM::Initializer(mK);
+	mpInitializer = new UVR_SLAM::Initializer(this, mK);
 	mpInitializer->SetMatcher(mpMatcher);
 	mpInitializer->SetFrameWindow(mpFrameWindow);
 
@@ -148,7 +151,7 @@ void UVR_SLAM::System::Init() {
 	mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);
 
 	mpInitializer->SetLocalMapper(mpLocalMapper);
-
+	mpInitializer->SetSegmentator(mpSegmentator);
 	//loop closing thread
 
 	
@@ -170,8 +173,9 @@ void UVR_SLAM::System::Init() {
 	mpPlaneEstimator->SetInitializer(mpInitializer);
 
 	//Time
-	mfSegTime = 0.0;
-	
+	mnSegID = mnLoalMapperID = mnPlaneID  = 0;
+	mfSegTime = mfLayoutTime = 0.0;
+	mfLocalMappingTime1 = mfLocalMappingTime2 = 0.0;
 }
 
 void UVR_SLAM::System::SetCurrFrame(cv::Mat img) {
@@ -203,21 +207,47 @@ void UVR_SLAM::System::Reset() {
 	mbInitialized = false;
 	mpInitializer->Init();
 	mpFrameWindow->ClearLocalMapFrames();
-	mpLocalMapper->mlpNewMPs.clear();
+	mlpNewMPs.clear();
+	//mpLocalMapper->mlpNewMPs.clear();
 	nKeyFrameID = 0;
 }
 
 void UVR_SLAM::System::SetBoolInit(bool b) {
 	mbInitialized = b;
 }
+void UVR_SLAM::System::InitDirPath() {
+	std::unique_lock<std::mutex> lock(mMutexDirPath);
+	//확인용 폴더 생성하기 위한 것
+	std::time_t curr_time;
+	struct tm curr_tm;
+	curr_time = time(NULL);
+	localtime_s(&curr_tm, &curr_time);
+	//curr_tm = std::localtime(&curr_time);
 
-void UVR_SLAM::System::SetDirPath(std::string strPath) {
-	std::unique_lock<std::mutex> lock(mMutexDirPath);
-	mStrDirPath = strPath;
+	std::stringstream ssDirPath;
+	ssDirPath << "../../bin/SLAM/KeyframeDebugging/" << curr_tm.tm_year << "_" << curr_tm.tm_mon << "_" << curr_tm.tm_mday << "_" << curr_tm.tm_hour << "_" << curr_tm.tm_min << "_" << curr_tm.tm_sec;
+	mStrBasePath = ssDirPath.str();
+	_mkdir(mStrBasePath.c_str());
 }
-std::string UVR_SLAM::System::GetDirPath(){
-	std::unique_lock<std::mutex> lock(mMutexDirPath);
-	return mStrDirPath;
+
+void UVR_SLAM::System::SetDirPath(int id) {
+
+	std::stringstream ss;
+	{
+		std::unique_lock<std::mutex> lock(mMutexDirPath);
+		ss << mStrBasePath.c_str() << "/" << id;
+	}
+	_mkdir(ss.str().c_str());
+}
+std::string UVR_SLAM::System::GetDirPath(int id){
+	std::string strPath;
+	std::stringstream ss;
+	{
+		std::unique_lock<std::mutex> lock(mMutexDirPath);
+		ss << mStrBasePath.c_str() << "/" << id;
+	}
+	strPath = ss.str();
+	return strPath;
 }
 
 //이것들 전부다 private로 변경.
@@ -232,4 +262,52 @@ void UVR_SLAM::System::SetSegmentationTime(float t) {
 float UVR_SLAM::System::GetSegmentationTime() {
 	std::unique_lock<std::mutex> lock(mMutexSegmentationTime);
 	return mfSegTime;
+}
+
+void UVR_SLAM::System::SetLayoutTime(float t1) {
+	std::unique_lock<std::mutex> lock(mMutexLayoutTime);
+	mfLayoutTime = t1;
+}
+
+void UVR_SLAM::System::GetLayoutTime(float& t1) {
+	std::unique_lock<std::mutex> lock(mMutexLayoutTime);
+	t1 = mfLayoutTime;
+}
+
+void UVR_SLAM::System::SetLocalMappingTime(float t1, float t2) {
+	std::unique_lock<std::mutex> lock(mMutexLocalMappingTime);
+	mfLocalMappingTime1 = t1;
+	mfLocalMappingTime2 = t2;
+}
+
+void UVR_SLAM::System::GetLocalMappingTime(float& t1, float& t2){
+	std::unique_lock<std::mutex> lock(mMutexLocalMappingTime);
+	t1 = mfLocalMappingTime1;
+	t2 = mfLocalMappingTime2;
+}
+void UVR_SLAM::System::SetSegFrameID(int n){
+	std::unique_lock<std::mutex> lock(mMutexSegID);
+	mnSegID = n;
+}
+int UVR_SLAM::System::GetSegFrameID(){
+	std::unique_lock<std::mutex> lock(mMutexSegID);
+	return mnSegID;
+}
+void UVR_SLAM::System::SetLocalMapperFrameID(int n)
+{
+	std::unique_lock<std::mutex> lock(mMutexLMID);
+	mnLoalMapperID = n;
+}
+int UVR_SLAM::System::GetLocalMapperFrameID(){
+	std::unique_lock<std::mutex> lock(mMutexLMID);
+	return mnLoalMapperID;
+}
+void UVR_SLAM::System::SetPlaneFrameID(int n)
+{
+	std::unique_lock<std::mutex> lock(mMutexPlaneID);
+	mnPlaneID = n;
+}
+int UVR_SLAM::System::GetPlaneFrameID() {
+	std::unique_lock<std::mutex> lock(mMutexPlaneID);
+	return mnPlaneID;
 }

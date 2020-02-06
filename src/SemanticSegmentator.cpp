@@ -37,36 +37,69 @@ UVR_SLAM::SemanticSegmentator::SemanticSegmentator(const std::string & strSettin
 UVR_SLAM::SemanticSegmentator::~SemanticSegmentator(){}
 
 
+void UVR_SLAM::SemanticSegmentator::InsertKeyFrame(UVR_SLAM::Frame *pKF)
+{
+	mpSystem->SetDirPath(pKF->GetKeyFrameID());
+	std::unique_lock<std::mutex> lock(mMutexNewKFs);
+	std::cout << "Segmentator::" << mKFQueue.size() << std::endl;
+	mKFQueue.push(pKF);
+}
+
+bool UVR_SLAM::SemanticSegmentator::CheckNewKeyFrames()
+{
+	std::unique_lock<std::mutex> lock(mMutexNewKFs);
+	return(!mKFQueue.empty());
+}
+
+void UVR_SLAM::SemanticSegmentator::ProcessNewKeyFrame()
+{
+	std::unique_lock<std::mutex> lock(mMutexNewKFs);
+	mpTargetFrame = mKFQueue.front();
+	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
+	mpSystem->SetSegFrameID(mpTargetFrame->GetKeyFrameID());
+	mKFQueue.pop();
+}
+
 void UVR_SLAM::SemanticSegmentator::Run() {
 
 	JSONConverter::Init();
 
 	while (1) {
 
-		if (isDoingProcess()) {
-			std::cout << "SemanticSegmentator::RUN::Start" << std::endl;
+		if (CheckNewKeyFrames()) {
+			SetBoolDoingProcess(true);
+			ProcessNewKeyFrame();
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			cv::Mat colorimg, segmented;
 			cvtColor(mpTargetFrame->GetOriginalImage(), colorimg, CV_RGBA2BGR);
 			colorimg.convertTo(colorimg, CV_8UC3);
+			cv::resize(colorimg, colorimg, cv::Size(320, 180));
+			//cv::resize(colorimg, colorimg, cv::Size(160, 90));
 			JSONConverter::RequestPOST(ip, port, colorimg, segmented, mpTargetFrame->GetFrameID());
 			cv::resize(segmented, segmented, cv::Size(mnWidth, mnHeight));
-			SetSegmentationMask(segmented);
-			ObjectLabeling();
+			//SetSegmentationMask(segmented);
+			ObjectLabeling(segmented);
 
-			//PlaneEstimator
-			if (!mpPlaneEstimator->isDoingProcess()) {
-				mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
-				mpPlaneEstimator->SetTargetFrame(mpTargetFrame);
-				mpPlaneEstimator->SetBoolDoingProcess(true, 3);
-			}
+			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
+			auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
+			float tttt = duration / 1000.0;
+			mpSystem->SetSegmentationTime(tttt);
 
-			//여기는 시각화로 보낼 수 있으면 보내는게 좋을 듯.
-			cv::addWeighted(segmented, 0.5, colorimg, 0.5, 0.0, colorimg);
-			cv::Mat maskSegmentation = mVecLabelMasks[0].clone() + mVecLabelMasks[1].clone() / 255 * 50 + mVecLabelMasks[2].clone() / 255 * 150;
+			mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
 
-			cv::imshow("Output::SegmentationMask", maskSegmentation);
-			cv::imshow("Output::Segmentation", colorimg);
+			////PlaneEstimator
+			//if (!mpPlaneEstimator->isDoingProcess()) {
+			//	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
+			//	mpPlaneEstimator->SetTargetFrame(mpTargetFrame);
+			//	mpPlaneEstimator->SetBoolDoingProcess(true, 3);
+			//}
+
+			////여기는 시각화로 보낼 수 있으면 보내는게 좋을 듯.
+			//cv::addWeighted(segmented, 0.5, colorimg, 0.5, 0.0, colorimg);
+			//cv::Mat maskSegmentation = mVecLabelMasks[0].clone() + mVecLabelMasks[1].clone() / 255 * 50 + mVecLabelMasks[2].clone() / 255 * 150;
+
+			//cv::imshow("Output::SegmentationMask", maskSegmentation);
+			//cv::imshow("Output::Segmentation", colorimg);
 
 			//cv::imwrite("../../bin/segmentation/res/seg.jpg", colorimg);
 			//cv::imwrite("../../bin/segmentation/res/mask.jpg", maskSegmentation);
@@ -101,14 +134,10 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			ss << "../../bin/segmentation/res_keypoints_" << mpTargetFrame->GetFrameID() << ".jpg";
 			imwrite(ss.str(), test);*/
 			//cv::imwrite("../../bin/segmentation/res/label_kp.jpg", test);
-			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
-			auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
-			float tttt = duration / 1000.0;
-			mpSystem->SetSegmentationTime(tttt);
+			
 			cv::waitKey(1);
 
 			SetBoolDoingProcess(false);
-			std::cout << "SemanticSegmentator::RUN::End" << std::endl;
 		}
 	}
 }
@@ -138,6 +167,43 @@ bool UVR_SLAM::SemanticSegmentator::isRun() {
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //모든 특징점과 트래킹되고 있는 맵포인트를 레이블링함.
+void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked) {
+
+	std::vector<UVR_SLAM::ObjectType> vObjTypes(mpTargetFrame->mvKeyPoints.size(), UVR_SLAM::OBJECT_NONE);
+
+	auto mvpMPs = mpTargetFrame->GetMapPoints();
+
+	for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
+		cv::Point2f pt = mpTargetFrame->mvKeyPoints[i].pt;
+		int val = masked.at<uchar>(pt);
+		UVR_SLAM::ObjectType type = vObjTypes[i];
+		switch (val) {
+		case 1:
+			type = ObjectType::OBJECT_WALL;
+			break;
+		case 4:
+			type = ObjectType::OBJECT_FLOOR;
+			break;
+		case 6:
+			type = ObjectType::OBJECT_CEILING;
+			break;
+		default:
+			break;
+		}
+		vObjTypes[i] = type;
+		UVR_SLAM::MapPoint* pMP = mvpMPs[i];
+		if (pMP) {
+			if (pMP->isDeleted())
+				continue;
+			cv::Point2f p2D;
+			cv::Mat pcam;
+			pMP->SetObjectType(type);
+			
+		}//pMP
+	}
+	mpTargetFrame->SetObjectVector(vObjTypes);
+
+}
 void UVR_SLAM::SemanticSegmentator::ObjectLabeling() {
 
 	std::vector<UVR_SLAM::ObjectType> vObjTypes(mpTargetFrame->mvKeyPoints.size(), UVR_SLAM::OBJECT_NONE);

@@ -131,7 +131,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			std::cout << "????????" << std::endl;*/
 		}
 		
-			
 	}
 	else {
 		std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
@@ -147,6 +146,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat mLocalMapDesc = mpFrameWindow->GetLocalMapDescriptor();
 		std::vector<cv::DMatch> mvMatchInfo;
 		mpSystem->mbTrackingEnd = true;
+		lock.unlock();
 		mpSystem->cvUseLocalMap.notify_one();
 
 		//이전 프레임에 포함된 맵포인트와 현재 프레임의 키포인트를 매칭하는 과정.
@@ -180,6 +180,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::chrono::high_resolution_clock::time_point check_start = std::chrono::high_resolution_clock::now();
 		if (CheckNeedKeyFrame(pCurr)) {
 			mpRefKF = pCurr;
+			pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+			mpSegmentator->InsertKeyFrame(pCurr);
 			mpLocalMapper->InsertKeyFrame(pCurr);
 		}
 		std::chrono::high_resolution_clock::time_point check_end = std::chrono::high_resolution_clock::now();
@@ -238,7 +240,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		for (int i = 0; i < mvpMPs.size(); i++) {
 			UVR_SLAM::MapPoint* pMP = mvpMPs[i];
 			if (!pMP){
-				cv::circle(vis, pCurr->mvKeyPoints[i].pt, 1, cv::Scalar(0, 0, 255), -1);
+				//cv::circle(vis, pCurr->mvKeyPoints[i].pt, 1, cv::Scalar(0, 0, 255), -1);
 				continue;
 			}
 			if (pMP->isDeleted()) {
@@ -255,7 +257,15 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				//}
 			}
 			else {
-				cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 255), -1);
+				if (pMP->GetMapPointType() != UVR_SLAM::PLANE_MP)
+					continue;
+				int nObservations = pMP->GetConnedtedFrames().size();
+				if (nObservations > 5)
+					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(0, 0, 255), -1);
+				else if(nObservations > 3)
+					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 0), -1);
+				else
+					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 255), -1);
 				/*UVR_SLAM::ObjectType type = mvpOPs[i];
 				cv::line(vis, p2D, pCurr->mvKeyPoints[i].pt, cv::Scalar(255, 255, 0), 2);
 				if (type != OBJECT_NONE)

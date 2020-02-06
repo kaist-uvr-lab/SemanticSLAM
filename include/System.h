@@ -7,6 +7,7 @@
 #include <thread>
 #include <fbow.h>
 #include <mutex>
+#include <ConcurrentList.h>
 #include <condition_variable>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
@@ -76,8 +77,12 @@ namespace UVR_SLAM {
 		void Reset();
 		void SetCurrFrame(cv::Mat img);
 		void Track();
-		void SetDirPath(std::string strPath);
-		std::string GetDirPath();
+		void InitDirPath();
+		void SetDirPath(int id);
+		std::string GetDirPath(int id);
+		//std::list<UVR_SLAM::MapPoint*> GetListNewMPs();
+		//void AddNewMP(MapPoint* pMP);
+
 	private:
 		ORBextractor* mpInitORBExtractor;
 		ORBextractor* mpPoseORBExtractor;
@@ -108,6 +113,9 @@ namespace UVR_SLAM {
 		
 		std::string mstrFilePath;
 
+		//management created map points
+		//std::mutex mMutexListMPs;
+		//std::list<UVR_SLAM::MapPoint*> mlpNewMPs;
 	private:
 		//외부에서 불러온 파라메터
 		int mnFeatures;
@@ -118,10 +126,12 @@ namespace UVR_SLAM {
 		int mnWidth, mnHeight;
 
 		std::mutex mMutexDirPath;
+		std::string mStrBasePath;
 		std::string mStrDirPath;
 
 	public:
 		
+		ConcurrentList<UVR_SLAM::MapPoint*> mlpNewMPs;
 		std::string strVOCPath;
 		fbow::Vocabulary* fvoc;
 		FrameWindow* mpFrameWindow;
@@ -143,9 +153,25 @@ namespace UVR_SLAM {
 	public:
 		void SetSegmentationTime(float t);
 		float GetSegmentationTime();
+		void SetLocalMappingTime(float t1, float t2);
+		void GetLocalMappingTime(float& t1, float& t2);
+		void SetLayoutTime(float t1);
+		void GetLayoutTime(float& t1);
+		void SetSegFrameID(int n);
+		int GetSegFrameID();
+		void SetLocalMapperFrameID(int n);
+		int GetLocalMapperFrameID();
+		void SetPlaneFrameID(int n);
+		int GetPlaneFrameID();
 	private:
 		std::mutex mMutexSegmentationTime;
 		float mfSegTime;
+		std::mutex mMutexLocalMappingTime;
+		float mfLocalMappingTime1, mfLocalMappingTime2;
+		std::mutex mMutexLayoutTime;
+		float mfLayoutTime;
+		std::mutex mMutexSegID, mMutexLMID, mMutexPlaneID;
+		int mnSegID, mnLoalMapperID, mnPlaneID;
 	};
 }
 

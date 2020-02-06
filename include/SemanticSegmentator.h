@@ -21,6 +21,10 @@ namespace UVR_SLAM {
 		SemanticSegmentator(const std::string & strSettingPath);
 		virtual ~SemanticSegmentator();
 	public:
+		void InsertKeyFrame(UVR_SLAM::Frame *pKF);
+		bool CheckNewKeyFrames();
+		void ProcessNewKeyFrame();
+
 		void Run();
 		void SetSystem(System* pSystem);
 		void SetFrameWindow(FrameWindow* pFrameWindow);
@@ -31,12 +35,15 @@ namespace UVR_SLAM {
 		bool isRun();
 	public:
 		void ObjectLabeling();
+		void ObjectLabeling(cv::Mat masked);
 		void SetSegmentationMask(cv::Mat segmented);
 	private:
 		//std::vector<cv::Vec3b> mVecLabelColors;
 		std::vector<cv::Mat> mVecLabelMasks;
 		int mnWidth, mnHeight;
 	private:
+		std::queue<UVR_SLAM::Frame*> mKFQueue;
+		std::mutex mMutexNewKFs;
 		bool mbOn;
 		System* mpSystem;
 		std::mutex mMutexDoingProcess;

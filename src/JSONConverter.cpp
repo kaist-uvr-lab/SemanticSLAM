@@ -1,6 +1,37 @@
 #include <JSONConverter.h>
 #include <winsock2.h>
 
+std::string JSONConverter::ConvertImageToJSONStr(int nFrameID, cv::Mat img) {
+	/*
+	auto reqJsonData = R"(
+	{
+	"UserSeq": 1,
+	"UserID": "jacking75",
+	"UserPW": "123qwe"
+	}
+	)";
+	const char json[] = " { \"hello\" : \"world\", \"t\" : true , \"f\" : false, \"n\": null, \"i\":123, \"pi\": 3.1416, \"a\":[1, 2, 3, 4] } ";
+	*/
+	std::string json;
+
+	int r = img.rows;
+	int c = img.cols;
+
+	std::stringstream ss;
+	ss << "{\"image\":" << "[";
+	for (int cha = 0; cha < 3; cha++) {
+		for (int y = 0; y < r; y++) {
+			for (int x = 0; x < c; x++) {
+				cv::Vec3b colorVec = img.at<cv::Vec3b>(y, x);
+				ss << (int)colorVec.val[cha];
+				if (cha != 2 || x != c - 1 || y != r - 1)
+					ss << ",";
+			}
+		}
+	}
+	ss << "],\"w\":" << (int)c << ",\"h\":" << (int)r << "}";
+	return ss.str();
+}
 
 cv::Mat JSONConverter::ConvertStringToImage(const char* data, int N) {
 	rapidjson::Document document;
@@ -37,6 +68,32 @@ cv::Mat JSONConverter::ConvertStringToImage(const char* data, int N) {
 	return res;
 }
 
+cv::Mat JSONConverter::ConvertStringToLabel(const char* data, int N) {
+	rapidjson::Document document;
+	if (document.Parse(data).HasParseError()) {
+		std::cout << "JSON parsing error" << std::endl;
+	}
+
+	cv::Mat res = cv::Mat::zeros(0, 0, CV_8UC1);
+	if (document.HasMember("seg_label") && document["seg_label"].IsArray()) {
+
+		const rapidjson::Value& a = document["seg_label"];
+		int h = document["h"].GetInt();
+		int w = document["w"].GetInt();
+		//int c = a[0][0].Size();
+
+		res = cv::Mat::zeros(h, w, CV_8UC1);
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				res.at<uchar>(y, x) = a[y][x].GetInt();
+			}
+		}
+
+	}
+
+	return res;
+}
+
 const char* JSONConverter::headers[] = {
 	"Connection", "close",
 	"Content-type", "application/json",
@@ -63,7 +120,8 @@ void OnData(const happyhttp::Response* r, void* userdata, const unsigned char* d
 
 void OnComplete(const happyhttp::Response* r, void* userdata)
 {
-	res = JSONConverter::ConvertStringToImage(ss.str().c_str(), count);
+	res = JSONConverter::ConvertStringToLabel(ss.str().c_str(), count);
+	//res = JSONConverter::ConvertStringToImage(ss.str().c_str(), count);
 	//printf("COMPLETE (%d bytes)\n", count);
 }
 
@@ -79,13 +137,13 @@ bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& 
 	
 	std::string strJSON = ConvertImageToJSONStr(mnFrameID, img);
 	
-	//rapidjson::Document document;
-	
-
+	rapidjson::Document document;
 	//if (document.Parse(strJSON.c_str()).HasParseError()) {
 	//	std::cout << "JSON parsing error" << std::endl;
 	//}
-
+	//if (document.HasMember("w") && document.HasMember("h") && document["w"].IsInt()) {
+	//	std::cout << "a;lsdjf;alskdjfl;asdjkf" << std::endl;
+	//}
 	//if (document.HasMember("image") && document["image"].IsArray()) {
 	//	std::cout << "success" << std::endl;
 	//	//std::cout << document["image"].GetArray();

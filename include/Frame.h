@@ -79,6 +79,9 @@ namespace UVR_SLAM {
 		bool isInFrustum(MapPoint *pMP, float viewingCosLimit);
 		cv::Point2f Projection(cv::Mat w3D);
 
+		void SetDepthRange(float min, float max);
+		void GetDepthRange(float& min, float& max);
+
 		///
 		void AddKF(UVR_SLAM::Frame* pKF, int weight);
 		void RemoveKF(UVR_SLAM::Frame* pKF, int weight);
@@ -122,7 +125,8 @@ namespace UVR_SLAM {
 		int mnFrameID;
 		std::mutex mMutexNumInliers;
 		std::mutex mMutexFrame, mMutexPose;
-
+		std::mutex mMutexDepthRange;
+		float mfMinDepth, mfMaxDepth;
 		
 		
 		std::multimap<int,UVR_SLAM::Frame*, std::greater<int>> mmpConnectedKFs;

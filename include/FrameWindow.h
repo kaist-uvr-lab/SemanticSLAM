@@ -67,10 +67,6 @@ namespace UVR_SLAM {
 		void AddFrame(Frame* pF);
 		void ClearLocalMapFrames();
 		std::vector<Frame*> GetLocalMapFrames();
-		double mdFuseTime;
-		void SetFuseTime(double d);
-		double GetFuseTime();
-		std::mutex mMutexFuseTime;
 
 	private:
 		//deque에서 list로 변경
@@ -123,14 +119,6 @@ namespace UVR_SLAM {
 	private:
 		int mnLastFrameID, mnLastLayoutFrameID;
 		std::mutex mMutexLastFrameID, mMutexLastLayoutFrameID;
-
-	//Plane Estimation 관련
-	public:
-		void SetPETime(double d);
-		double GetPETime();
-	private:
-		double mdPETime;
-		std::mutex mMutexPETime;
 	};
 }
 

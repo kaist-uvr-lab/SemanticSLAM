@@ -72,16 +72,23 @@ void UVR_SLAM::Visualizer::Init() {
 	int nImageWindowStartX = -1690;
 	int nImageWIndowStartY1 = 20;
 	int nImageWIndowStartY2 = 50;
-	cv::namedWindow("Output::Segmentation");
-	cv::moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1);
+
+	///////////////
+	cv::namedWindow("Output::Matching");
+	cv::moveWindow("Output::Matching", nImageWindowStartX, nImageWIndowStartY1);
 	cv::namedWindow("Output::Tracking");
 	cv::moveWindow("Output::Tracking", nImageWindowStartX + mnWidth, nImageWIndowStartY1);
 	cv::namedWindow("Output::PlaneEstimation");
 	cv::moveWindow("Output::PlaneEstimation", nImageWindowStartX + mnWidth, 50 + mnHeight);
-	cv::namedWindow("Output::SegmentationMask");
-	cv::moveWindow("Output::SegmentationMask", nImageWindowStartX, 50 + mnHeight);
+	//cv::namedWindow("Output::Segmentation");
+	//cv::moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1);
+	//cv::namedWindow("Output::SegmentationMask");
+	//cv::moveWindow("Output::SegmentationMask", nImageWindowStartX, 50 + mnHeight);
+	
 	cv::namedWindow("Output::Trajectory");
 	cv::moveWindow("Output::Trajectory", nImageWindowStartX + mnWidth + mnWidth, 20);
+	cv::namedWindow("Output::Time");
+	cv::moveWindow("Output::Time", nImageWindowStartX + mnWidth + mnWidth + mVisPoseGraph.cols, 20);
 
 	//cv::namedWindow("Output::Trajectory");
 	//cv::moveWindow("Output::Trajectory", nImageWindowStartX + mnWidth + mnWidth, 20);
@@ -174,6 +181,7 @@ void UVR_SLAM::Visualizer::Run() {
 			}
 			}*/
 
+			//local map
 			auto mvbLocalMapInliers = mpFrameWindow->GetLocalMapInliers();
 			auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
 			mvbLocalMapInliers = std::vector<bool>(mvpLocalMPs.size(), false);
@@ -197,20 +205,30 @@ void UVR_SLAM::Visualizer::Run() {
 			auto mvpWindowFrames = mpFrameWindow->GetLocalMapFrames();
 			for (int i = 0; i < mvpWindowFrames.size(); i++) {
 				//cv::Mat t2 = mvpWindowFrames[i + 1]->GetTranslation();
-				cv::Mat t1 = mvpWindowFrames[i]->GetTranslation();
-				cv::Point2f pt1 = cv::Point2f(t1.at<float>(0)* mnVisScale, t1.at<float>(2)* mnVisScale);
+				cv::Mat t1 = mvpWindowFrames[i]->GetCameraCenter();
+				cv::Point2f pt1 = cv::Point2f(t1.at<float>(0)* mnVisScale, -t1.at<float>(2)* mnVisScale);
 				//cv::Point2f pt2 = cv::Point2f(t2.at<float>(0)* mnVisScale, t2.at<float>(2)* mnVisScale);
 				pt1 += mVisMidPt;
 				//pt2 += mVisMidPt;
 				if(i != 0)
 					cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 0), -1);
-				else
+				else{
 					cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
+					cv::Mat directionZ = mvpWindowFrames[i]->GetRotation().row(2);
+					cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(0)* mnVisScale/10.0, -directionZ.at<float>(2)* mnVisScale / 10.0)+pt1;
+					cv::line(tempVis, pt1, dirPtZ, cv::Scalar(0, 0, 255), 2);
+
+					cv::Mat directionX = mvpWindowFrames[i]->GetRotation().row(0);
+					cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(0)* mnVisScale / 10.0, -directionX.at<float>(2)* mnVisScale / 10.0);
+					cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(0)* mnVisScale / 10.0, -directionX.at<float>(2)* mnVisScale / 10.0);
+					cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
+				}
 				//cv::line(tempVis, pt1, pt2, cv::Scalar(0, 0, 0), 2);
 			}
 
 			int nRecentLayoutFrameID = mpFrameWindow->GetLastLayoutFrameID();
 
+			//tracking results
 			auto vpFrameMPs = GetMPs();
 			for (int i = 0; i < vpFrameMPs.size(); i++) {
 				UVR_SLAM::MapPoint* pMP = vpFrameMPs[i];
@@ -229,7 +247,7 @@ void UVR_SLAM::Visualizer::Run() {
 
 			//fuse time text 
 			std::stringstream ss;
-			ss << "Fuse = " << mpFrameWindow->GetFuseTime()<<", PE = "<< mpFrameWindow->GetPETime();
+			//ss << "Fuse = " << mpFrameWindow->GetFuseTime()<<", PE = "<< mpFrameWindow->GetPETime();
 			cv::rectangle(tempVis, cv::Point2f(0, 0), cv::Point2f(tempVis.cols, 30), cv::Scalar::all(0), -1);
 			cv::putText(tempVis, ss.str(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			//fuse time text
@@ -240,9 +258,19 @@ void UVR_SLAM::Visualizer::Run() {
 			//time 
 			cv::Mat imgTime = cv::Mat::zeros(500, 500, CV_8UC1);
 			std::stringstream ssTime;
-			ssTime << "Segmentation : " << mpSystem->GetSegmentationTime() << "\n";
-
+			ssTime << "Segmentation : " <<mpSystem->GetSegFrameID()<<"::"<< mpSystem->GetSegmentationTime();
 			cv::putText(imgTime, ssTime.str(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
+			float mfLayoutTime1;
+			mpSystem->GetLayoutTime(mfLayoutTime1);
+			ssTime.str("");
+			ssTime << "Layout Estimatino : " <<mpSystem->GetPlaneFrameID()<<"::"<< mfLayoutTime1;
+			cv::putText(imgTime, ssTime.str(), cv::Point2f(0, 50), mnFontFace, mfFontScale, cv::Scalar::all(255));
+			float lm1, lm2;
+			mpSystem->GetLocalMappingTime(lm1, lm2);
+			ssTime.str("");
+			ssTime << "LocalMapping : " <<mpSystem->GetLocalMapperFrameID()<<"::"<< lm1 << " :: BA : " << lm2;
+			cv::putText(imgTime, ssTime.str(), cv::Point2f(0, 80), mnFontFace, mfFontScale, cv::Scalar::all(255));
+
 			cv::imshow("Output::Time", imgTime);
 
 			cv::waitKey(1);
