@@ -12,8 +12,8 @@ namespace UVR_SLAM {
 	class System;
 	class Frame;
 	class FrameWindow;
-	class Initializer;
 	class MapPoint;
+	class Initializer;
 	class PlaneInformation {
 	public:
 		cv::Mat matPlaneParam;

@@ -15,6 +15,7 @@ namespace UVR_SLAM {
 	class LocalMapper;
 	class Visualizer;
 	class System;
+	class MapOptimizer;
 	class Tracker {
 	public:
 
@@ -34,6 +35,7 @@ namespace UVR_SLAM {
 		void SetInitializer(Initializer* pInitializer);
 		void SetLocalMapper(LocalMapper* pLocalMapper);
 		void SetPlaneEstimator(PlaneEstimator* pEstimator);
+		void SetMapOptimizer(MapOptimizer* pMapOptimizer);
 		void SetVisualizer(Visualizer* pVis);
 	private:
 		bool CheckNeedKeyFrame(Frame* pCurr);
@@ -53,6 +55,7 @@ namespace UVR_SLAM {
 		Initializer* mpInitializer;
 		SemanticSegmentator* mpSegmentator;
 		PlaneEstimator* mpPlaneEstimator;
+		MapOptimizer* mpMapOptimizer;
 		FrameWindow* mpFrameWindow;
 		LocalMapper* mpLocalMapper;
 		Visualizer* mpVisualizer;

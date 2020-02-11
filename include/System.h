@@ -61,6 +61,7 @@ namespace UVR_SLAM {
 	class LocalMapper;
 	class PlaneEstimator;
 	class Visualizer;
+	class MapOptimizer;
 	class System {
 	public:
 
@@ -107,6 +108,9 @@ namespace UVR_SLAM {
 
 		Visualizer* mpVisualizer;
 		std::thread* mptVisualizer;
+
+		MapOptimizer* mpMapOptimizer;
+		std::thread* mptMapOptimizer;
 
 		Tracker* mpTracker;
 		//std::thread *mptTracker;
@@ -155,23 +159,45 @@ namespace UVR_SLAM {
 		float GetSegmentationTime();
 		void SetLocalMappingTime(float t1, float t2);
 		void GetLocalMappingTime(float& t1, float& t2);
-		void SetLayoutTime(float t1);
-		void GetLayoutTime(float& t1);
+		//void SetLayoutTime(float t1);
+		//void GetLayoutTime(float& t1);
 		void SetSegFrameID(int n);
 		int GetSegFrameID();
 		void SetLocalMapperFrameID(int n);
 		int GetLocalMapperFrameID();
 		void SetPlaneFrameID(int n);
 		int GetPlaneFrameID();
+
+		void SetMapOptimizerTime(float t1);
+		void GetMapOptimizerTime(float& t1);
+		void SetMapOptimizerID(int n);
+		int  GetMapOptimizerID();
 	private:
 		std::mutex mMutexSegmentationTime;
 		float mfSegTime;
 		std::mutex mMutexLocalMappingTime;
 		float mfLocalMappingTime1, mfLocalMappingTime2;
-		std::mutex mMutexLayoutTime;
-		float mfLayoutTime;
-		std::mutex mMutexSegID, mMutexLMID, mMutexPlaneID;
-		int mnSegID, mnLoalMapperID, mnPlaneID;
+		
+		std::mutex mMutexMapOptimizerTime;
+		float mfMapOptimizerTime;
+		std::mutex mMutexSegID, mMutexLMID, mMutexPlaneID, mMutexMapOptimizerID;
+		int mnSegID, mnLoalMapperID, mnPlaneID, mnMapOptimizerID;
+
+		//std::mutex mMutexLayoutTime;
+		//float mfLayoutTime;
+	//time에서 출력하는 스트링으로 변환
+	public:
+		void SetPlaneString(std::string str);
+		std::string GetPlaneString();
+
+		void SetTrackerString(std::string str);
+		std::string GetTrackerString();
+
+	private:
+		std::mutex mMutexPlaneString;
+		std::string mStrPlaneString;
+		std::mutex mMutexTrackerString;
+		std::string mStrTrackerString;
 	};
 }
 

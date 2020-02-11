@@ -511,6 +511,12 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
 	mvbMPInliers = std::vector<bool>(mvKeyPoints.size(), false);
 	mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);
+	mvMapObjects = std::vector<std::multimap<ObjectType, int, std::greater<int>>>(mvKeyPoints.size());
+	//파트별 매칭을 위한 것.
+	mWallDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
+	mObjectDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
+	mPlaneDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
+	mLabelStatus = cv::Mat::zeros(mvKeyPoints.size(), 1, CV_8UC1);
 }
 
 void UVR_SLAM::Frame::ExtractORB(const cv::Mat &im, std::vector<cv::KeyPoint>& vKPs, cv::Mat& desc)
@@ -701,13 +707,13 @@ bool UVR_SLAM::Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit)
 		return false;
 
 	// Check distance is in the scale invariance region of the MapPoint
-	const float maxDistance = pMP->GetMaxDistance();
+	/*const float maxDistance = pMP->GetMaxDistance();
 	const float minDistance = pMP->GetMinDistance();
+	if (dist<minDistance || dist>maxDistance)
+		return false;*/
+
 	const cv::Mat PO = P - Ow;
 	const float dist = cv::norm(PO);
-
-	if (dist<minDistance || dist>maxDistance)
-		return false;
 
 	// Check viewing angle
 	cv::Mat Pn = pMP->GetNormal();

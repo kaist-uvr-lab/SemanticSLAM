@@ -65,20 +65,24 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 	JSONConverter::Init();
 
 	while (1) {
-
+		std::string mStrDirPath;
 		if (CheckNewKeyFrames()) {
 			SetBoolDoingProcess(true);
 			ProcessNewKeyFrame();
+			mStrDirPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
-			cv::Mat colorimg, segmented;
+			cv::Mat colorimg, resized_color, segmented;
 			cvtColor(mpTargetFrame->GetOriginalImage(), colorimg, CV_RGBA2BGR);
 			colorimg.convertTo(colorimg, CV_8UC3);
-			cv::resize(colorimg, colorimg, cv::Size(320, 180));
-			//cv::resize(colorimg, colorimg, cv::Size(160, 90));
-			JSONConverter::RequestPOST(ip, port, colorimg, segmented, mpTargetFrame->GetFrameID());
-			cv::resize(segmented, segmented, cv::Size(mnWidth, mnHeight));
+			cv::resize(colorimg, resized_color, cv::Size(320, 180));
+			//cv::resize(colorimg, resized_color, cv::Size(160, 90));
+			JSONConverter::RequestPOST(ip, port, resized_color, segmented, mpTargetFrame->GetFrameID());
+			
+			int nRatio = colorimg.rows / segmented.rows;
+			//object rebling을 resize하지 않고 ratio를 토대로 저장.
+			//cv::resize(segmented, segmented, cv::Size(mnWidth, mnHeight));
 			//SetSegmentationMask(segmented);
-			ObjectLabeling(segmented);
+			ObjectLabeling(segmented, nRatio);
 
 			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
 			auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
@@ -87,6 +91,16 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 
 			mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
 
+
+			//image
+			cv::Mat seg_color = cv::Mat::zeros(segmented.size(), CV_8UC3);
+			for (int i = 0; i < segmented.rows; i++) {
+				for (int j = 0; j < segmented.cols; j++) {
+					seg_color.at<Vec3b>(i, j) = UVR_SLAM::ObjectColors::mvObjectLabelColors[segmented.at<uchar>(i, j)];
+				}
+			}
+			cv::resize(seg_color, seg_color, colorimg.size());
+			//imshow("segsegseg", seg_color);
 			////PlaneEstimator
 			//if (!mpPlaneEstimator->isDoingProcess()) {
 			//	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
@@ -95,23 +109,10 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//}
 
 			////여기는 시각화로 보낼 수 있으면 보내는게 좋을 듯.
-			//cv::addWeighted(segmented, 0.5, colorimg, 0.5, 0.0, colorimg);
+			cv::addWeighted(seg_color, 0.4, colorimg, 0.6, 0.0, colorimg);
 			//cv::Mat maskSegmentation = mVecLabelMasks[0].clone() + mVecLabelMasks[1].clone() / 255 * 50 + mVecLabelMasks[2].clone() / 255 * 150;
-
 			//cv::imshow("Output::SegmentationMask", maskSegmentation);
-			//cv::imshow("Output::Segmentation", colorimg);
-
-			//cv::imwrite("../../bin/segmentation/res/seg.jpg", colorimg);
-			//cv::imwrite("../../bin/segmentation/res/mask.jpg", maskSegmentation);
-
-			/*cv::imshow("Output::LABEL::FLOOR"   , mVecLabelMasks[0]);
-			cv::imshow("Output::LABEL::WALL"    , mVecLabelMasks[1]);
-			cv::imshow("Output::LABEL::CEILING" , mVecLabelMasks[2]);*/
-			//cv::imwrite("../../bin/segmentation/res.jpg", colorimg);
-			//cv::imwrite("../../bin/segmentation/res_ceil.jpg", mVecLabelMasks[2]);
-			//cv::imwrite("../../bin/segmentation/res_wall.jpg", mVecLabelMasks[1]);
-			//cv::imwrite("../../bin/segmentation/res_floor.jpg", mVecLabelMasks[0]);
-
+			cv::imshow("Output::Segmentation", colorimg);
 
 			//피쳐 레이블링 결과 확인
 			/*cv::Mat test = mpTargetFrame->undistorted.clone();
@@ -135,6 +136,12 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			imwrite(ss.str(), test);*/
 			//cv::imwrite("../../bin/segmentation/res/label_kp.jpg", test);
 			
+			std::stringstream ss;
+			ss << mStrDirPath.c_str() << "/segmentation.jpg";
+			cv::imwrite(ss.str(), segmented);
+			ss.str("");
+			ss << mStrDirPath.c_str() << "/segmentation_color.jpg";
+			cv::imwrite(ss.str(), colorimg);
 			cv::waitKey(1);
 
 			SetBoolDoingProcess(false);
@@ -167,39 +174,112 @@ bool UVR_SLAM::SemanticSegmentator::isRun() {
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //모든 특징점과 트래킹되고 있는 맵포인트를 레이블링함.
-void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked) {
+void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked, int ratio) {
 
+	//레이블링을 매칭에 이용하기 위한 디스크립터 설정.
+	/*bool bMatch = false;
+	if (mpTargetFrame->mPlaneDescriptor.rows == 0)
+		bMatch = true;*/
+	//초기화 하지 말고 중복 체크하면서 추가하도록 해야 함.
+	bool bMatch = true;
+	mpTargetFrame->mPlaneDescriptor = cv::Mat::zeros(0, mpTargetFrame->matDescriptor.cols, mpTargetFrame->matDescriptor.type());
+	mpTargetFrame->mPlaneIdxs.clear();
+	mpTargetFrame->mWallDescriptor = cv::Mat::zeros(0, mpTargetFrame->matDescriptor.cols, mpTargetFrame->matDescriptor.type());
+	mpTargetFrame->mWallIdxs.clear();
+
+	//오브젝트 및 맵포인트 정보 획득
 	std::vector<UVR_SLAM::ObjectType> vObjTypes(mpTargetFrame->mvKeyPoints.size(), UVR_SLAM::OBJECT_NONE);
-
 	auto mvpMPs = mpTargetFrame->GetMapPoints();
+	auto mvMapObject = mpTargetFrame->mvMapObjects;
+	//다른 프레임들과의 매칭 결과를 반영해야 함.
 
 	for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
+
+		//get object type
 		cv::Point2f pt = mpTargetFrame->mvKeyPoints[i].pt;
+		pt.x /= ratio;
+		pt.y /= ratio;
 		int val = masked.at<uchar>(pt);
 		UVR_SLAM::ObjectType type = vObjTypes[i];
+		
+		bool bMP = false;
+		UVR_SLAM::MapPoint* pMP = mvpMPs[i];
+		if (pMP) {
+			if (!pMP->isDeleted()) {
+				if (mpTargetFrame->isInFrustum(pMP, 0.5)) {
+					bMP = true;
+				}
+			}
+		}
+
+		////find object type in map
+		//auto val2 = static_cast<ObjectType>(val);
+		//auto iter = mpTargetFrame->mvMapObjects[i].find(val2);
+		//if (iter != mpTargetFrame->mvMapObjects[i].end()) {
+		//	iter->second++;
+		//}
+		//else {
+		//	mpTargetFrame->mvMapObjects[i].insert(std::make_pair(val2, 1));
+		//}
+		//
+		//int maxVal = 0;
+		//
+		//for (std::multimap<ObjectType, int, std::greater<int>>::iterator iter = mpTargetFrame->mvMapObjects[i].begin(); iter != mpTargetFrame->mvMapObjects[i].end(); iter++) {
+		//	//std::cout << "begin ::" << iter->first << ", " << iter->second << std::endl;
+		//	if (maxVal < iter->second) {
+		//		val2 = iter->first;
+		//		maxVal = iter->second;
+		//	}
+		//}
+
 		switch (val) {
-		case 1:
+		case 1://벽
+		case 9://유리창
+		case 11://캐비넷
+		case 15://문
+		case 23: //그림
+		case 36://옷장
+		case 43://기둥
+		case 44://갚난
+		case 94://막대기
+		case 101://포스터
 			type = ObjectType::OBJECT_WALL;
+			if (bMP){
+				mpTargetFrame->mspWallMPs.insert(pMP);
+				mpFrameWindow->mspWallMPs.insert(pMP);
+			}
+			if (mpTargetFrame->mLabelStatus.at<uchar>(i) == 0) {
+				mpTargetFrame->mLabelStatus.at<uchar>(i) = val;
+				mpTargetFrame->mWallDescriptor.push_back(mpTargetFrame->matDescriptor.row(i));
+				mpTargetFrame->mWallIdxs.push_back(i);
+			}
 			break;
 		case 4:
 			type = ObjectType::OBJECT_FLOOR;
+			if (bMP){
+				mpTargetFrame->mspFloorMPs.insert(pMP);
+				mpFrameWindow->mspFloorMPs.insert(pMP);
+			}
+			if (mpTargetFrame->mLabelStatus.at<uchar>(i) == 0) {
+				mpTargetFrame->mLabelStatus.at<uchar>(i) = val;
+				mpTargetFrame->mPlaneDescriptor.push_back(mpTargetFrame->matDescriptor.row(i));
+				mpTargetFrame->mPlaneIdxs.push_back(i);
+			}
 			break;
 		case 6:
 			type = ObjectType::OBJECT_CEILING;
+			if (bMP){
+				mpTargetFrame->mspCeilMPs.insert(pMP);
+				mpFrameWindow->mspCeilMPs.insert(pMP);
+			}
 			break;
 		default:
 			break;
 		}
 		vObjTypes[i] = type;
-		UVR_SLAM::MapPoint* pMP = mvpMPs[i];
-		if (pMP) {
-			if (pMP->isDeleted())
-				continue;
-			cv::Point2f p2D;
-			cv::Mat pcam;
+		if (bMP) {
 			pMP->SetObjectType(type);
-			
-		}//pMP
+		}
 	}
 	mpTargetFrame->SetObjectVector(vObjTypes);
 

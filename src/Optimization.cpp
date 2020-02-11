@@ -1002,8 +1002,8 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 		int nConnectedThresh = 2;
 		if (pMP->GetMapPointType() == UVR_SLAM::MapPointType::PLANE_MP)
 			nConnectedThresh = 0;
-		else if (pMP->isNewMP())
-			nConnectedThresh = 1;
+		//else if (pMP->isNewMP())
+		//	nConnectedThresh = 1;
 		if (pMP->GetNumConnectedFrames() < nConnectedThresh) {
 			pMP->SetDelete(true);
 			pMP->Delete();

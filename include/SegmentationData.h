@@ -6,10 +6,10 @@
 
 namespace UVR_SLAM {
 	const enum ObjectType {
-		OBJECT_FLOOR,
-		OBJECT_WALL,
-		OBJECT_CEILING,
-		OBJECT_NONE
+		OBJECT_FLOOR = 4,
+		OBJECT_WALL = 1,
+		OBJECT_CEILING = 6,
+		OBJECT_NONE = 0
 	};
 	const cv::Vec3b COLOR_NONE = cv::Vec3b(0, 0, 0);
 	const cv::Vec3b COLOR_WALL = cv::Vec3b(128, 0, 0);
@@ -25,16 +25,40 @@ namespace UVR_SLAM {
 	public:
 		static std::vector<cv::Vec3b> mvObjectLabelColors;
 		static void Init() {
+			cv::Mat colormap = cv::Mat::zeros(256, 3, CV_8UC1);
+			cv::Mat ind = cv::Mat::zeros(256, 1, CV_8UC1);
+			for (int i = 1; i < ind.rows; i++) {
+				ind.at<uchar>(i) = i;
+			}
+
+			for (int i = 7; i >= 0; i--) {
+				for (int j = 0; j < 3; j++) {
+					cv::Mat tempCol = colormap.col(j);
+					int a = pow(2, j);
+					int b = pow(2, i);
+					cv::Mat temp = ((ind / a) & 1) * b;
+					tempCol |= temp;
+					tempCol.copyTo(colormap.col(j));
+				}
+				ind /= 8;
+			}
+			std::cout << colormap << std::endl;
+			for (int i = 0; i < colormap.rows; i++) {
+				cv::Vec3b color = cv::Vec3b(colormap.at<uchar>(i, 0), colormap.at<uchar>(i, 1), colormap.at<uchar>(i, 2));
+				mvObjectLabelColors.push_back(color);
+			}
+
 			//Indoor
-			mvObjectLabelColors.push_back(COLOR_FLOOR);
+			/*mvObjectLabelColors.push_back(COLOR_FLOOR);
 			mvObjectLabelColors.push_back(COLOR_WALL);
 			mvObjectLabelColors.push_back(COLOR_CEILING);
-			mvObjectLabelColors.push_back(COLOR_NONE);
+			mvObjectLabelColors.push_back(COLOR_NONE);*/
 			//Outdoor
 			/*mvObjectLabelColors.push_back(COLOR_OUTDOOR_ROAD);
 			mvObjectLabelColors.push_back(COLOR_OUTDOOR_BUILDING);
 			mvObjectLabelColors.push_back(COLOR_OUTDOOR_SKY);
 			mvObjectLabelColors.push_back(COLOR_OUTDOOR_NONE);*/
+
 		}
 	};
 

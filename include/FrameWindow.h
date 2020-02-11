@@ -34,6 +34,9 @@ namespace UVR_SLAM {
 		Frame* back();
 		Frame* GetFrame(int idx);
 	public:
+		//objectype
+		std::set<MapPoint*> mspFloorMPs, mspCeilMPs, mspWallMPs;
+	public:
 		//local map
 		void SetLocalMapInliers(std::vector<bool> vInliers);
 		std::vector<bool> GetLocalMapInliers();

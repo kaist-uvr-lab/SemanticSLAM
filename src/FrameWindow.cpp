@@ -179,6 +179,9 @@ void UVR_SLAM::FrameWindow::SetLocalMap(int nTargetID) {
 	UVR_SLAM::Frame* pLastF = mlpFrames.back();
 	descLocalMap = cv::Mat::zeros(0, pLastF->matDescriptor.cols, pLastF->matDescriptor.type());
 	mvpLocalMPs.clear();
+	mspWallMPs.clear();
+	mspFloorMPs.clear();
+	mspCeilMPs.clear();
 	//SetLastFrameID(nTargetID);
 
 	//20.01.02 deque에서 list로 변경함.
@@ -192,17 +195,25 @@ void UVR_SLAM::FrameWindow::SetLocalMap(int nTargetID) {
 				continue;
 			if (pMP->GetRecentLocalMapID() == nTargetID)
 				continue;
+			
+			switch (pMP->GetObjectType()) {
+			case  ObjectType::OBJECT_WALL:
+				mspWallMPs.insert(pMP);
+				break;
+			case ObjectType::OBJECT_FLOOR:
+				mspFloorMPs.insert(pMP);
+				break;
+			case ObjectType::OBJECT_CEILING:
+				mspCeilMPs.insert(pMP);
+				break;
+			default:
+				break;
+			}
+
 			mvpLocalMPs.push_back(pMP);
 			descLocalMap.push_back(pMP->GetDescriptor());
 			pMP->SetRecentLocalMapID(nTargetID);
-			//AddMapPoint(pMP);
-			/*auto findres = mspLocalMPs.find(pMP);
-			if (findres == mspLocalMPs.end()) {
-				pMP->SetFrameWindowIndex(mvpLocalMPs.size());
-				mspLocalMPs.insert(pMP);
-				mvpLocalMPs.push_back(pMP);
-				descLocalMap.push_back(pMP->GetDescriptor());
-			}*/ 
+			
 		}
 	}
 	LocalMapSize = mvpLocalMPs.size();

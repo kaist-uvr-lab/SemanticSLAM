@@ -104,6 +104,16 @@ namespace UVR_SLAM {
 		cv::Mat matDescriptor;
 		cv::Mat undistorted;
 		fbow::fBow mBowVec;
+	public:
+		//objectype
+		std::set<MapPoint*> mspFloorMPs, mspCeilMPs, mspWallMPs;
+		std::vector<std::multimap<ObjectType, int, std::greater<int>>> mvMapObjects;
+		//matching
+		cv::Mat mPlaneDescriptor;
+		cv::Mat mWallDescriptor;
+		cv::Mat mObjectDescriptor;
+		std::vector<int> mPlaneIdxs, mWallIdxs, mObjectIdxs;
+		cv::Mat mLabelStatus; //오브젝트 디스크립터 포함 유무 체크하기 위한 것. //1 = floor, 2 = wall, 3 = object //object labeling을 따르자 그냥.
 	private:
 		//void Increase();
 		//void Decrease();
@@ -127,7 +137,6 @@ namespace UVR_SLAM {
 		std::mutex mMutexFrame, mMutexPose;
 		std::mutex mMutexDepthRange;
 		float mfMinDepth, mfMaxDepth;
-		
 		
 		std::multimap<int,UVR_SLAM::Frame*, std::greater<int>> mmpConnectedKFs;
 		cv::Mat matFrame, matOri;

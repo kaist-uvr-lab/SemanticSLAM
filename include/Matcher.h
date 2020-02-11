@@ -20,6 +20,7 @@ namespace UVR_SLAM {
 
 	public:
 
+		int MatchingWithLabeling(UVR_SLAM::Frame* pKF, UVR_SLAM::Frame* pCurr);
 		int MatchingWithPrevFrame(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr,  std::vector<cv::DMatch>& mvMatches);
 		int MatchingWithLocalMap(Frame* pF, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, float rr);
 
@@ -37,6 +38,7 @@ namespace UVR_SLAM {
 
 		//fuse 과정에서 수행.
 		int MatchingForFuse(const std::vector<MapPoint*> &vpMapPoints, Frame *pKF, float th = 3.0f);
+		int MatchingForFuse(const std::vector<MapPoint*> &vpMapPoints, Frame* pTargetKF, Frame *pNeighborKF, bool bOpt, float th = 3.0f);
 
 		//Pose Tracking 현재 이용하는 것
 		int FeatureMatchingForInitialPoseTracking(Frame* pPrev, Frame* pCurr, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, std::vector<bool>& mvbLocalMapInliers, std::vector<cv::DMatch>& mvMatches, int nLocalMapID);

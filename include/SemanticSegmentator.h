@@ -35,7 +35,7 @@ namespace UVR_SLAM {
 		bool isRun();
 	public:
 		void ObjectLabeling();
-		void ObjectLabeling(cv::Mat masked);
+		void ObjectLabeling(cv::Mat masked, int ratio);
 		void SetSegmentationMask(cv::Mat segmented);
 	private:
 		//std::vector<cv::Vec3b> mVecLabelColors;

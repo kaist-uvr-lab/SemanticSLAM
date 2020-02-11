@@ -6,6 +6,7 @@
 #include <Matcher.h>
 #include <Optimization.h>
 #include <PlaneEstimator.h>
+#include <MapOptimizer.h>
 #include <SemanticSegmentator.h>
 #include <opencv2/core/mat.hpp>
 
@@ -18,6 +19,9 @@ UVR_SLAM::LocalMapper::~LocalMapper() {}
 
 void UVR_SLAM::LocalMapper::SetSystem(System* pSystem) {
 	mpSystem = pSystem;
+}
+void UVR_SLAM::LocalMapper::SetMapOptimizer(MapOptimizer* pMapOptimizer) {
+	mpMapOptimizer = pMapOptimizer;
 }
 
 void UVR_SLAM::LocalMapper::InsertKeyFrame(UVR_SLAM::Frame *pKF)
@@ -146,12 +150,20 @@ void UVR_SLAM::LocalMapper::Run() {
 
 			////BA
 			//BA에서는 최근 생성된 맵포인트까지 반영을 해야 함.
-			mbStopBA = false; 
-			std::chrono::high_resolution_clock::time_point ba_start = std::chrono::high_resolution_clock::now();
-			if(!isStopLocalMapping()){
-				//Optimization::LocalBundleAdjustment(mpFrameWindow, mpTargetFrame->GetFrameID(), mbStopBA, 2, 5, false);
-				Optimization::LocalBundleAdjustment(mpTargetFrame, mpFrameWindow, &mbStopBA);
+
+			if (mpMapOptimizer->isDoingProcess()) {
+
 			}
+			else {
+				mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
+			}
+
+			std::chrono::high_resolution_clock::time_point ba_start = std::chrono::high_resolution_clock::now();
+			//mbStopBA = false; 
+			//if(!isStopLocalMapping()){
+			//	//Optimization::LocalBundleAdjustment(mpFrameWindow, mpTargetFrame->GetFrameID(), mbStopBA, 2, 5, false);
+			//	Optimization::LocalBundleAdjustment(mpTargetFrame, mpFrameWindow, &mbStopBA);
+			//}
 
 			std::chrono::high_resolution_clock::time_point lm_end = std::chrono::high_resolution_clock::now();
 
@@ -470,9 +482,11 @@ void UVR_SLAM::LocalMapper::FuseMapPoints()
 	for (int i = 0; i < vpTargetKFs.size(); i++) {
 		if (isStopLocalMapping())
 			break;
+		//int n1 = mpMatcher->MatchingForFuse(vpMapPointMatches, mpTargetFrame, vpTargetKFs[i], true);
 		int n1 = mpMatcher->MatchingForFuse(vpMapPointMatches, vpTargetKFs[i]);
 		std::vector<MapPoint*> vpMapPointMatches2 = vpTargetKFs[i]->GetMapPoints();
-		int n2 = mpMatcher->MatchingForFuse(vpMapPointMatches2, mpTargetFrame);
+		//int n2 = mpMatcher->MatchingForFuse(vpMapPointMatches2, vpTargetKFs[i], mpTargetFrame, false);
+		int n2 = mpMatcher->MatchingForFuse(vpMapPointMatches2,mpTargetFrame);
 		//std::cout << "LocalMapper::MatchingFuse::" <<vpTargetKFs[i]->GetFrameID()<<"::"<< n1<<", "<<n2 << std::endl;
 		nTotal += (n1 + n2);
 	}
@@ -732,6 +746,15 @@ void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 	}
 	//sort mmp
 	std::vector<std::pair<int,UVR_SLAM::Frame*>> vPairs;
+
+	if (mpPrevKeyFrame) {
+		mpTargetFrame->AddKF(mpPrevKeyFrame, 0);
+		mpPrevKeyFrame->AddKF(mpTargetFrame, 0);
+	}
+	if (mpPPrevKeyFrame) {
+		mpTargetFrame->AddKF(mpPPrevKeyFrame, 0);
+		mpPPrevKeyFrame->AddKF(mpTargetFrame, 0);
+	}
 
 	for (auto biter = mmpCandidateKFs.begin(), eiter = mmpCandidateKFs.end(); biter != eiter; biter++) {
 		UVR_SLAM::Frame* pKF = biter->first;
