@@ -229,7 +229,6 @@ const char* JSONConverter::headers[] = {
 int count = 0;
 std::stringstream ss;
 cv::Mat res;
-float fend; //시간 체크 하기 위한 것
 
 void OnBegin(const happyhttp::Response* r, void* userdata)
 {
@@ -247,12 +246,7 @@ void OnData(const happyhttp::Response* r, void* userdata, const unsigned char* d
 
 void OnComplete(const happyhttp::Response* r, void* userdata)
 {
-	std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 	res = JSONConverter::ConvertStringToLabel(ss.str().c_str(), count);
-	std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
-	fend = duration / 1000.0;
-
 	//res = JSONConverter::ConvertStringToImage(ss.str().c_str(), count);
 	//printf("COMPLETE (%d bytes)\n", count);
 }
@@ -265,32 +259,25 @@ void JSONConverter::Init() {
 	
 }
 
-bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& dst,int mnFrameID, float& t1, float& t2) {
+bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& dst,int mnFrameID) {
 	
-	std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 	std::string strJSON = ConvertImageToJSONStr(mnFrameID, img);
-	std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
-	t1 = duration / 1000.0;
-	std::cout << "t1 ::" << t1 << std::endl;
-	rapidjson::Document document;
 	
-	
-	if (document.Parse(strJSON.c_str()).HasParseError()) {
-		std::cout << "intpu JSON parsing error" << std::endl;
-	}
-	//if (document.HasMember("w") && document.HasMember("h") && document["w"].IsInt()) {
-	//	std::cout << "a;lsdjf;alskdjfl;asdjkf" << std::endl;
+	//rapidjson::Document document;
+	//if (document.Parse(strJSON.c_str()).HasParseError()) {
+	//	std::cout << "intpu JSON parsing error" << std::endl;
 	//}
-	if (document.HasMember("image") && document["image"].IsString()) {
-		std::cout << "success string " << std::endl;
-		//std::cout << document["image"].GetArray();
-		//document["image"].G
-	}
-	else if (document.HasMember("image") && document["image"].IsArray()) {
-		std::cout << "success array " << std::endl;
-	}
-
+	////if (document.HasMember("w") && document.HasMember("h") && document["w"].IsInt()) {
+	////	std::cout << "a;lsdjf;alskdjfl;asdjkf" << std::endl;
+	////}
+	//if (document.HasMember("image") && document["image"].IsString()) {
+	//	std::cout << "success string " << std::endl;
+	//	//std::cout << document["image"].GetArray();
+	//	//document["image"].G
+	//}
+	//else if (document.HasMember("image") && document["image"].IsArray()) {
+	//	std::cout << "success array " << std::endl;
+	//}
 	
 	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
 
@@ -306,7 +293,6 @@ bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& 
 	while (mpConnection->outstanding())
 		mpConnection->pump();
 	
-	t2 = fend; //시간을 여기서 저장함.
 	dst = res.clone();
 	
 	return false;

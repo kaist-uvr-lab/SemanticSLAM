@@ -5,6 +5,7 @@
 #include <FrameWindow.h>
 #include <SegmentationData.h>
 #include <MapPoint.h>
+#include <Matcher.h>
 #include <Initializer.h>
 
 static int nPlaneID = 0;
@@ -43,6 +44,10 @@ void UVR_SLAM::PlaneEstimator::SetTargetFrame(Frame* pFrame) {
 void UVR_SLAM::PlaneEstimator::SetInitializer(UVR_SLAM::Initializer* pInitializer) {
 	mpInitializer = pInitializer;
 }
+void UVR_SLAM::PlaneEstimator::SetMatcher(UVR_SLAM::Matcher* pMatcher) {
+	mpMatcher = pMatcher;
+}
+
 void UVR_SLAM::PlaneEstimator::SetBoolDoingProcess(bool b, int ptype) {
 	std::unique_lock<std::mutex> lockTemp(mMutexDoingProcess);
 	mbDoingProcess = b;
@@ -68,6 +73,7 @@ bool UVR_SLAM::PlaneEstimator::CheckNewKeyFrames()
 void UVR_SLAM::PlaneEstimator::ProcessNewKeyFrame()
 {
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
+	mpPrevFrame = mpTargetFrame;
 	mpTargetFrame = mKFQueue.front();
 	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
 	mpSystem->SetPlaneFrameID(mpTargetFrame->GetKeyFrameID());
@@ -91,20 +97,81 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			mStrPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
 
 			//현재 레이아웃 추정하는 키프레임 설정
-			if (mpPrevFrame) {
-				std::cout << mpPrevFrame->GetKeyFrameID() << ", " << mpTargetFrame->GetKeyFrameID() << std::endl;
-			}
 			int nTargetID = mpTargetFrame->GetFrameID();
 			mpFrameWindow->SetLastLayoutFrameID(nTargetID);
 
-			cv::Mat R, t;
-			mpTargetFrame->GetPose(R, t);
-			cv::Mat T = cv::Mat::eye(4, 4, CV_32FC1);
-			R.copyTo(T.rowRange(0, 3).colRange(0, 3));
-			t.copyTo(T.col(3).rowRange(0, 3));
-			cv::Mat invT = T.inv();
+			//matching test
 
 			
+			///////////////////////////////////////////
+			
+			//int nUpdateT
+			int nPrevTest = 0;
+			if (mpPrevFrame) {
+				int nPrevID = mpPrevFrame->GetFrameID();
+				if (mpPrevFrame->mvpPlanes.size() > 0) {
+					UpdatePlane(mpPrevFrame->mvpPlanes[0], nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+					auto mvpTempMPs = mpPrevFrame->mvpPlanes[0]->mvpMPs;
+					for (int i = 0; i < mvpTempMPs.size(); i++) {
+						UVR_SLAM::MapPoint* pMP = mvpTempMPs[i];
+						if (!pMP)
+							continue;
+						if (pMP->GetRecentLocalMapID() >= nPrevID)
+							nPrevTest++;
+					}
+					//std::cout << "Update test : " << n << ", " << mvpTempMPs.size() << std::endl;
+				}
+			}
+
+			////labeling 전에 wall points matching test
+			////lock : 키프레임 커넥션 끝날 때까지
+			//{
+			//	std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
+			//	while (!mpSystem->mbLocalMappingEnd) {
+			//		mpSystem->cvUseLocalMapping.wait(lock);
+			//	}
+			//}
+
+			//lock
+			//labeling 끝날 때까지 대기
+			{
+				std::unique_lock<std::mutex> lock(mpSystem->mMutexUseSegmentation);
+				while (!mpSystem->mbSegmentationEnd) {
+					mpSystem->cvUseSegmentation.wait(lock);
+				}
+			}
+			
+			/*if (mpTargetFrame->GetKeyFrameID() > 2) {
+				auto mvpKFs = mpTargetFrame->GetConnectedKFs(10);
+				for (int i = 0; i < mvpKFs.size(); i++) {
+					std::vector<cv::DMatch> matches;
+					std::vector<int> temaap;
+					if (mvpKFs[i]->mWallDescriptor.rows == 0)
+						continue;
+					std::cout << mvpKFs[i]->mWallDescriptor.rows << ", " << mpTargetFrame->mWallDescriptor.rows << std::endl;
+					mpMatcher->KeyFrameFeatureMatching(mvpKFs[i], mpTargetFrame, mvpKFs[i]->mWallDescriptor, mpTargetFrame->mWallDescriptor, mvpKFs[i]->mWallIdxs, mpTargetFrame->mWallIdxs, matches);
+
+					cv::Mat img1 = mpTargetFrame->GetOriginalImage();
+					cv::Mat img2 = mvpKFs[i]->GetOriginalImage();
+
+					cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
+
+					cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
+					cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
+
+					cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+					img1.copyTo(debugging(mergeRect1));
+					img2.copyTo(debugging(mergeRect2));
+
+					for (int j = 0; j < matches.size(); j++) {
+						cv::line(debugging, mpTargetFrame->mvKeyPoints[matches[j].trainIdx].pt, mvpKFs[i]->mvKeyPoints[matches[j].queryIdx].pt + ptBottom, cv::Scalar(255), 1);
+					}
+					std::stringstream ss;
+					ss << mStrPath.c_str() << "/wall_" << mpTargetFrame->GetFrameID() << "_" << mvpKFs[i]->GetFrameID() << ".jpg";
+					imwrite(ss.str(), debugging);
+				}
+			}*/
+
 			//std::set<UVR_SLAM::MapPoint*> mspLocalFloorMPs, mspLocalWallMPs, mspLocalCeilMPs;
 			//std::vector<UVR_SLAM::MapPoint*> mvpLocalFloorMPs, mvpLocalWallMPs, mvpLocalCeilMPs;
 			//
@@ -137,6 +204,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			pPlane1 = new UVR_SLAM::PlaneInformation();
 			pPlane2 = new UVR_SLAM::PlaneInformation();
 
+			auto mvpFrameFloorMPs = std::vector<UVR_SLAM::MapPoint*>(mpTargetFrame->mspFloorMPs.begin(), mpTargetFrame->mspFloorMPs.end());
+			auto mvpFrameWallMPs = std::vector<UVR_SLAM::MapPoint*>(mpTargetFrame->mspWallMPs.begin(), mpTargetFrame->mspWallMPs.end());
+
 			//평면 RANSAC 초기화
 			bool bLocalFloor = false;
 			/*if (mspLocalFloorMPs.size() > 10)
@@ -144,12 +214,20 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			*/
 			if (mpTargetFrame->mspFloorMPs.size() > 10){
 				UVR_SLAM::PlaneInformation* pTemp = new UVR_SLAM::PlaneInformation();
-				bLocalFloor = PlaneInitialization(pPlane2, mpTargetFrame->mspFloorMPs, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+				bLocalFloor = PlaneInitialization(pPlane2, mvpFrameFloorMPs, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
 			}
-			if (mpFrameWindow->mspWallMPs.size() > 10) {
+
+			//////로컬 맵에서 벽 평면
+			pPlane3 = new UVR_SLAM::PlaneInformation();
+			auto mvpLoclaMapWallMPs = std::vector<UVR_SLAM::MapPoint*>(mpFrameWindow->mspWallMPs.begin(), mpFrameWindow->mspWallMPs.end());
+			bool bLocalMapWall = false;
+			if (mpFrameWindow->mspWallMPs.size() > 10 && mvpPlanes.size() > 0) {
 				UVR_SLAM::PlaneInformation* pTemp = new UVR_SLAM::PlaneInformation();
-				PlaneInitialization(pTemp, mpFrameWindow->mspWallMPs, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+				//PlaneInitialization(pTemp, mvpLoclaMapWallMPs, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+				bLocalMapWall = PlaneInitialization(pPlane3, mvpPlanes[0], 1, mvpLoclaMapWallMPs, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
 			}
+			//////로컬 맵에서 벽 평면
+
 			//평면을 찾은 경우 현재 평면을 교체하던가 수정을 해야 함.
 			if (bLocalFloor) {
 				tempFloorID = pPlane2->mnPlaneID;
@@ -158,6 +236,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				pPlane2->mnCount = 1;
 				
 				//CreatePlanarMapPoints(mvpMPs, mvpOPs, pPlane2, invT);
+				mpTargetFrame->mvpPlanes.push_back(pPlane2);
 			}
 
 			///////벽을 찾는 과정
@@ -171,7 +250,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					groundPlane = mvpPlanes[0];
 				else
 					groundPlane = pPlane2;
-				bLocalWall = PlaneInitialization(pPlane1, groundPlane, 1, mpTargetFrame->mspWallMPs, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+				bLocalWall = PlaneInitialization(pPlane1, groundPlane, 1, mvpFrameWallMPs, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
 			}
 			//라인 프로젝션
 			if (bLocalWall) {
@@ -218,13 +297,28 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				
 			}
 			//merge
+
 			auto mvpMPs = mpTargetFrame->GetMapPoints();
 			auto mvpOPs = mpTargetFrame->GetObjectVector();
-			if (bFailCase) {
+			/*if (bFailCase) {
 				CreatePlanarMapPoints(mvpMPs, mvpOPs, mvpPlanes[0], invT);
 			}
-			else if(bLocalFloor){
+			else */
+			if(bLocalFloor){
+				/*
+				if(mvpPlanes.size() == 0)
+					CreatePlanarMapPoints(mvpMPs, mvpOPs, pPlane2, invT);
+				else
+					CreatePlanarMapPoints(mvpMPs, mvpOPs, mvpPlanes[0], invT);
+				*/
+				cv::Mat R, t;
+				mpTargetFrame->GetPose(R, t);
+				cv::Mat T = cv::Mat::eye(4, 4, CV_32FC1);
+				R.copyTo(T.rowRange(0, 3).colRange(0, 3));
+				t.copyTo(T.col(3).rowRange(0, 3));
+				cv::Mat invT = T.inv();
 				CreatePlanarMapPoints(mvpMPs, mvpOPs, pPlane2, invT);
+				//mpFrameWindow->SetLocalMap(nTargetID);
 			}
 			
 			if (mvpPlanes.size() == 0 && bLocalFloor) {
@@ -256,9 +350,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float letime = leduration / 1000.0;
 			std::stringstream ss;
-			ss << "Layout time = " << letime << ", " << mpTargetFrame->mspWallMPs.size() << ", " << mpTargetFrame->mspFloorMPs.size();
+			ss << "Layout : "<<mpTargetFrame->GetKeyFrameID()<<" time = " << letime <<"::"<< nPrevTest << ", " <<bLocalMapWall<<" "<< mpTargetFrame->mspWallMPs.size() << ", " << mpTargetFrame->mspFloorMPs.size();
 			mpSystem->SetPlaneString(ss.str());
-
+			
 			//////test
 			//////save txt
 			std::ofstream f;
@@ -326,6 +420,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				else if (bLocalWall && pMP->GetPlaneID() == pPlane1->mnPlaneID) {
 					cv::circle(vImg, mpTargetFrame->mvKeyPoints[j].pt, 3, cv::Scalar(255, 255, 0));
 				}
+				else if (bLocalMapWall && pMP->GetPlaneID() == pPlane3->mnPlaneID) {
+					cv::circle(vImg, mpTargetFrame->mvKeyPoints[j].pt, 3, cv::Scalar(0, 255, 255));
+				}
 				if (!bLocalFloor && mvpPlanes.size() > 0 && pMP->GetPlaneID() == mvpPlanes[0]->mnPlaneID ) {
 					cv::circle(vImg, mpTargetFrame->mvKeyPoints[j].pt, 3, cv::Scalar(255, 0, 255));
 				}
@@ -339,17 +436,25 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				cv::line(vImg, sPt, ePt, cv::Scalar(0, 255, 0), 3);
 			}
 
-			if (bFailCase) {
-				cv::Mat temp = cv::Mat::zeros(vImg.size(), CV_8UC3);
-				rectangle(temp, cv::Point(0, 0), cv::Point(vImg.cols, vImg.rows), cv::Scalar(0, 255, 0), -1);
-				cv::addWeighted(vImg, 0.7, temp, 0.3, 0.0, vImg);
+			/*if (bFailCase) {
+				cv::Mat temp = cv::Mat::zeros(50,50, CV_8UC3);
+				cv::Point2f pt1 = cv::Point(0, vImg.rows-temp.rows);
+				cv::Point2f pt2 = cv::Point(temp.cols, vImg.rows);
+				cv::Rect rect = cv::Rect(pt1, pt2);
+				rectangle(temp, cv::Point2f(0,0), cv::Point2f(temp.cols, temp.rows), cv::Scalar(0, 255, 0), -1);
+				cv::Mat a = vImg(rect);
+				cv::addWeighted(a, 0.7, temp, 0.3, 0.0, a);
 			}
 
 			if (bFailCase2) {
-				cv::Mat temp = cv::Mat::zeros(vImg.size(), CV_8UC3);
-				rectangle(temp, cv::Point(0, 0), cv::Point(vImg.cols, vImg.rows), cv::Scalar(255, 0, 0), -1);
-				cv::addWeighted(vImg, 0.7, temp, 0.3, 0.0, vImg);
-			}
+				cv::Mat temp = cv::Mat::zeros(50, 50, CV_8UC3);
+				cv::Point2f pt1 = cv::Point(50, vImg.rows - temp.rows);
+				cv::Point2f pt2 = cv::Point(pt1.x+temp.cols, vImg.rows);
+				cv::Rect rect = cv::Rect(pt1, pt2);
+				rectangle(temp, cv::Point2f(0, 0), cv::Point2f(temp.cols, temp.rows), cv::Scalar(255, 0, 0), -1);
+				cv::Mat a = vImg(rect);
+				cv::addWeighted(a, 0.7, temp, 0.3, 0.0, vImg(rect));	
+			}*/
 
 			sss.str("");
 			sss << mStrPath.c_str() << "/plane.jpg";
@@ -359,366 +464,11 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			SetBoolDoingProcess(false, 1);
 		}
 	}
-
-	//나중에 클래스에 옮길 것.
-	//이제 이것들도 삭제 될 때 처리가 필요함.
-	std::set<UVR_SLAM::MapPoint*> mspFloorMPs, mspWallMPs, mspCeilMPs;
-
-	int RANSAC_TRIAL = 2500;
-	float thresh_plane_distance = 0.01;
-	float thresh_ratio = 0.1;
-
-	bool bInitTest = false;
-	bool b1 = false;
-	bool b2 = false;
-	bool b3 = false;
-	UVR_SLAM::PlaneInformation* pPlane1, *pPlane2, *pPlane3;
-	pPlane1 = new UVR_SLAM::PlaneInformation();
-	pPlane2 = new UVR_SLAM::PlaneInformation();
-	pPlane3 = new UVR_SLAM::PlaneInformation();
-
-	while (1) {
-		//프로세스 타입 1 : key frame 에서 맵포인트에 대한 처리하고 평면을 추정하는 과정
-		//프로세스 타입 2 : frame에서 평면 레이아웃 시각화하고 새로운 평면 맵포인트를 추가하는 과정.
-		if (isDoingProcess()) {
-			
-			if (!bInitTest && mnProcessType == 3) {
-				std::cout << "ground plane init test!!!" << std::endl;
-
-			}
-
-			//여기에 들어오면 일단 전부 레이아웃은 보여줄 준비를 해야 함.
-			//평면이 추정되었는지 확인해야 함.
-			//레이아웃 추정도 필요함.
-			cv::Mat vis = mpTargetFrame->GetOriginalImage();
-			cv::Mat R, t, P1, P2, P3;
-			cv::Mat invP1, invP2, invP3;
-			cv::Mat PLw1, Lw1, NLw1, Ni1; //바닥과 벽
-			cv::Mat PLw2, Lw2, NLw2, Ni2; //천장과 벽
-			float m1, m2;
-			Ni1 = cv::Mat::zeros(0, 0, CV_32FC1);
-			Ni2 = cv::Mat::zeros(0, 0, CV_32FC1);
-
-			mpTargetFrame->GetPose(R, t);
-			cv::Mat T = cv::Mat::eye(4, 4, CV_32FC1);
-			R.copyTo(T.rowRange(0, 3).colRange(0, 3));
-			t.copyTo(T.col(3).rowRange(0, 3));
-			cv::Mat invT = T.inv();
-
-			if(b1){
-				P1 = pPlane1->matPlaneParam.clone();
-				invP1 = invT.t()*P1;
-			}
-			if(b2){
-				P2 = pPlane2->matPlaneParam.clone();
-				invP2 = invT.t()*P2;
-			}
-			if(b3){
-				P3 = pPlane3->matPlaneParam.clone();
-				invP3 = invT.t()*P3;
-			}
-
-			if (mnProcessType >= 1) {
-				if (b1 && b2) {
-					//Ni1 = FlukerLineProjection(P1, P2, R, t, m1);
-					//PLw1 = P1*P2.t() - P2*P1.t();
-					//Lw1 = cv::Mat::zeros(6, 1, CV_32FC1);
-					//Lw1.at<float>(3) = PLw1.at<float>(2, 1);
-					//Lw1.at<float>(4) = PLw1.at<float>(0, 2);
-					//Lw1.at<float>(5) = PLw1.at<float>(1, 0);
-					//NLw1 = PLw1.col(3).rowRange(0, 3);
-					//NLw1.copyTo(Lw1.rowRange(0, 3));
-
-					////Line projection test : Ni
-					//cv::Mat T2 = cv::Mat::zeros(6, 6, CV_32FC1);
-					//R.copyTo(T2.rowRange(0, 3).colRange(0, 3));
-					//R.copyTo(T2.rowRange(3, 6).colRange(3, 6));
-					//cv::Mat tempSkew = cv::Mat::zeros(3, 3, CV_32FC1);
-					//tempSkew.at<float>(0, 1) = -t.at<float>(2);
-					//tempSkew.at<float>(1, 0) = t.at<float>(2);
-					//tempSkew.at<float>(0, 2) = t.at<float>(1);
-					//tempSkew.at<float>(2, 0) = -t.at<float>(1);
-					//tempSkew.at<float>(1, 2) = -t.at<float>(0);
-					//tempSkew.at<float>(2, 1) = t.at<float>(0);
-					//tempSkew *= R;
-					//tempSkew.copyTo(T2.rowRange(0, 3).colRange(3, 6));
-					//cv::Mat Lc = T2*Lw1;
-					//cv::Mat Nc = Lc.rowRange(0, 3);
-					//Ni1 = mK2*Nc;
-
-					float x1 = 0;
-					float y1 = 0;
-					if (Ni1.at<float>(0) != 0)
-						x1 = -Ni1.at<float>(2) / Ni1.at<float>(0);
-
-					float x2 = 0;
-					float y2 = mnHeight;
-					if (Ni1.at<float>(0) != 0)
-						x2 = (-Ni1.at<float>(2) - Ni1.at<float>(1)*y2) / Ni1.at<float>(0);
-
-					cv::line(vis, cv::Point2f(x1, y1), cv::Point2f(x2, y2), cv::Scalar(255, 0, 0), 2);
-				}
-				if (b3 && b2) {
-					//Ni2 = FlukerLineProjection(P2, P3, R, t, m2);
-
-					float x1 = 0;
-					float y1 = 0;
-					if (Ni2.at<float>(0) != 0)
-						x1 = -Ni2.at<float>(2) / Ni2.at<float>(0);
-
-					float x2 = 0;
-					float y2 = mnHeight;
-					if (Ni2.at<float>(0) != 0)
-						x2 = (-Ni2.at<float>(2) - Ni2.at<float>(1)*y2) / Ni2.at<float>(0);
-					cv::line(vis, cv::Point2f(x1, y1), cv::Point2f(x2, y2), cv::Scalar(255, 0, 0), 2);
-				}
-			}
-
-			//if (mnProcessType == 1 && mpLayoutFrame) {
-			//	{
-			//		//Last Semantic Frame 처리
-			//		cv::Mat R, t;
-			//		mpLayoutFrame->GetPose(R, t);
-
-			//		cv::Mat imgLF = mpLayoutFrame->GetOriginalImage();
-			//		for (int i = 0; i < mpLayoutFrame->mvKeyPoints.size(); i++) {
-			//			UVR_SLAM::MapPoint* pMP = mpLayoutFrame->GetMapPoint(i);
-			//			if (!pMP)
-			//				continue;
-			//			if (pMP->isDeleted())
-			//				continue;
-			//			cv::Point2f p2D;
-			//			cv::Mat pCam;
-			//			pMP->Projection(p2D, pCam, mpLayoutFrame->GetRotation(), mpLayoutFrame->GetTranslation(), mK, mnWidth, mnHeight);
-			//			if (pMP->GetMapPointType() == MapPointType::PLANE_MP) {
-			//				cv::circle(imgLF, p2D, 2, cv::Scalar(255, 0, 255), -1);
-			//				//cv::circle(imgLF, mpLayoutFrame->mvKeyPoints[i].pt, 2, cv::Scalar(0, 0, 255), -1);
-			//			}
-			//		}
-			//		cv::imshow("plane label test", imgLF);
-			//	}
-			//}
-
-			if (mnProcessType >= 2) {
-				//현재 프레임에서는 어떻게 전파를 할 것인가?
-				//라인을 획득하게 되면 레이블링이 가능해진다.
-
-				//평면이 존재하는지 확인하고, 평면의 타입을 확인하기.
-
-				//set mp로 바닥, 벽, 천장 획득하기
-				for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
-
-					if (mpTargetFrame->mvbMPInliers[i]) {
-						UVR_SLAM::MapPoint* pMP = mpTargetFrame->mvpMPs[i];
-						if (!pMP)
-							continue;
-						if (pMP->isDeleted())
-							continue;
-						//type check
-						auto type = pMP->GetObjectType();
-						switch (type) {
-						case UVR_SLAM::ObjectType::OBJECT_FLOOR:
-							mspFloorMPs.insert(pMP);
-							break;
-						case UVR_SLAM::ObjectType::OBJECT_WALL:
-							mspWallMPs.insert(pMP);
-							break;
-						case UVR_SLAM::ObjectType::OBJECT_CEILING:
-							mspCeilMPs.insert(pMP);
-							break;
-						}
-					}
-					else {
-						//키포인트도 계속 저장하기
-
-					}
-				}//for
-
-				 //일정 포인트 넘으면 평면 검출하고, 남은 것 초기화 또는 삭제하기.
-				 //맵을 생성한 뒤에 새로운 평면 포인트와 오브젝트 포인트를 어떻게 처리할지 생각해야 함.
-
-				if (mspFloorMPs.size() > 100 && !b1) {
-					std::cout << "Floor::Estimation::Start" << std::endl;
-					b1 = PlaneInitialization(pPlane1, mspFloorMPs, mpTargetFrame->GetFrameID(), RANSAC_TRIAL, thresh_plane_distance, thresh_ratio);
-					
-					//if (b1) {
-					mspFloorMPs.clear();
-					//}
-					if(b1){
-						P1 = pPlane1->matPlaneParam.clone();
-						invP1 = invT.t()*P1;
-						pPlane1->mnPlaneType = ObjectType::OBJECT_FLOOR;
-					}
-				}
-				if (mspWallMPs.size() > 100 && !b2) {
-					std::cout << "Wall::Estimation::Start" << std::endl;
-					b2 = PlaneInitialization(pPlane2, mspWallMPs, mpTargetFrame->GetFrameID(), RANSAC_TRIAL, thresh_plane_distance, thresh_ratio);
-					
-					//if (b2){
-					mspWallMPs.clear();
-					//}
-					if(b2){
-						P2 = pPlane2->matPlaneParam.clone();
-						invP2 = invT.t()*P2;
-						pPlane2->mnPlaneType = ObjectType::OBJECT_WALL;
-					}
-				}
-				if (mspCeilMPs.size() > 100 && !b3) {
-					std::cout << "Ceil::Estimation::Start" << std::endl;
-					b3 = PlaneInitialization(pPlane3, mspCeilMPs, mpTargetFrame->GetFrameID(), RANSAC_TRIAL, thresh_plane_distance, thresh_ratio);
-					
-					//if (b2){
-					mspCeilMPs.clear();
-					//}
-					if (b3) {
-						pPlane3->mnPlaneType = ObjectType::OBJECT_CEILING;
-						P3 = pPlane3->matPlaneParam.clone();
-						invP3 = invT.t()*P3;
-					}
-				}
-			}
-
-
-			if (mnProcessType >= 3) {
-				
-				bool bVal1 = false; //벽과 바닥을 나누는지 확인
-				bool bVal2 = false; //벽과 천장을 나누는지 확인
-
-				if (b1 && b2){
-					bVal1 = true;
-					//if (Ni1.rows == 0)
-						//Ni1 = FlukerLineProjection(P1, P2, R, t, m1);
-				}
-				if (b2 && b3){
-					bVal2 = true;
-					//if (Ni2.rows == 0)
-						//Ni2 = FlukerLineProjection(P3, P2, R, t, m2);
-				}
-				for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
-					if (!mpTargetFrame->mvbMPInliers[i]) {
-						cv::Point2f pt = mpTargetFrame->mvKeyPoints[i].pt;
-						cv::Mat temp = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
-						auto oType = mpTargetFrame->GetObjectType(i);
-						float val1, val2;
-						
-						if (b1 && oType == ObjectType::OBJECT_FLOOR) {
-							//bVal1 체크
-							if (bVal1) {
-								float val = pt.x*Ni1.at<float>(0) + pt.y*Ni1.at<float>(1) + Ni1.at<float>(2);
-								if (m1 < 0)
-									val *= -1;
-								if (val < 0)
-									continue;
-							}
-							
-							temp = mK.inv()*temp;
-							cv::Mat matDepth = -invP1.at<float>(3) / (invP1.rowRange(0, 3).t()*temp);
-							float depth = matDepth.at<float>(0);
-							temp *= depth;
-							temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
-							cv::Mat estimated = invT*temp;
-
-							UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame,estimated.rowRange(0, 3), mpTargetFrame->matDescriptor.row(i), MapPointType::PLANE_MP);
-							pNewMP->SetPlaneID(pPlane1->mnPlaneID);
-							pNewMP->SetObjectType(pPlane1->mnPlaneType);
-							pNewMP->AddFrame(mpTargetFrame, i);
-							cv::circle(vis, pt, 3, cv::Scalar(255, 0, 255), -1);
-
-							cv::Point2f p2D;
-							cv::Mat pCam;
-							pNewMP->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
-							cv::circle(vis, p2D, 2, cv::Scalar(0, 0, 0), -1);
-
-						}
-						else if (b2 && oType == ObjectType::OBJECT_WALL) {
-							//bVal1, bVal2 체크
-							if (!bVal1 && !bVal2)
-								continue;
-
-							if (bVal1) {
-								float val = pt.x*Ni1.at<float>(0) + pt.y*Ni1.at<float>(1) + Ni1.at<float>(2);
-								if (m1 < 0)
-									val *= -1;
-								if (val > 0)
-									continue;
-							}
-							/*if (bVal2) {
-								float val = pt.x*Ni2.at<float>(0) + pt.y*Ni2.at<float>(1) + Ni2.at<float>(2);
-								if (val < 0)
-									continue;
-							}*/
-							temp = mK.inv()*temp;
-							cv::Mat matDepth = -invP2.at<float>(3) / (invP2.rowRange(0, 3).t()*temp);
-							float depth = matDepth.at<float>(0);
-							if (depth < 0.0)
-								continue;
-							temp *= depth;
-							temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
-							cv::Mat estimated = invT*temp;
-
-							UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, estimated.rowRange(0, 3), mpTargetFrame->matDescriptor.row(i), MapPointType::PLANE_MP);
-							pNewMP->AddFrame(mpTargetFrame, i);
-							pNewMP->SetPlaneID(pPlane2->mnPlaneID);
-							pNewMP->SetObjectType(pPlane2->mnPlaneType);
-							cv::circle(vis, pt, 2, cv::Scalar(255, 255, 0), -1);
-						}
-						//else if (b3 && oType == ObjectType::OBJECT_CEILING) {
-						//   //bVal2 체크
-						//	if (bVal2) {
-						//		float val = pt.x*Ni2.at<float>(0) + pt.y*Ni2.at<float>(1) + Ni2.at<float>(2);
-						//		if (val > 0)
-						//			continue;
-						//	}
-						//	temp = mK.inv()*temp;
-						//	cv::Mat matDepth = -invP3.at<float>(3) / (invP3.rowRange(0, 3).t()*temp);
-						//	float depth = matDepth.at<float>(0);
-						//	temp *= depth;
-						//	temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
-						//	cv::Mat estimated = invT*temp;
-
-						//	UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(estimated.rowRange(0, 3), mpTargetFrame->matDescriptor.row(i), MapPointType::PLANE_MP);
-						//	pNewMP->AddFrame(mpTargetFrame, i);
-						//	pNewMP->SetPlaneID(pPlane3->mnPlaneID);
-						//	pNewMP->SetObjectType(pPlane3->mnPlaneType);
-						//	mpFrameWindow->AddMapPoint(pNewMP);
-						//	cv::circle(vis, pt, 2, cv::Scalar(0, 255, 255), -1);
-						//}
-					}//if inlier
-				}//for
-				
-				//layout frame으로 설정
-				mpLayoutFrame = mpTargetFrame;
-
-				////이전 키프레임과 매칭 정보를 확인하기
-				//cv::Mat vis2 = vis.clone();
-				//cv::Mat R2, T2;
-				//UVR_SLAM::Frame* pPrevKF = mpFrameWindow->GetFrame(mpFrameWindow->GetFrameCount() - 1);
-				//pPrevKF->GetPose(R2, T2);
-				//for (int i = 0; i < mpFrameWindow->mvMatchInfos.size(); i++) {
-				//	int qidx = mpFrameWindow->mvMatchInfos[i].queryIdx;
-				//	int tidx = mpFrameWindow->mvMatchInfos[i].trainIdx;
-				//}
-			}
-			
-			std::stringstream ss;
-			ss << "Frame ID = " << mpTargetFrame->GetFrameID() << ", Type = "<<mnProcessType<<" || F=" << b1 << ", W=" << b2 << ", C=" << b3;
-			ss << " || " << mspFloorMPs.size() << ", " << mspWallMPs.size() << ", " << mspCeilMPs.size();
-			cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
-			cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.5, cv::Scalar::all(255));
-			cv::imshow("Output::PlaneEstimation", vis);
-			if (mnProcessType == 3) {
-				cv::imshow("Output::PlaneEstimation222", vis);
-			}
-			cv::imwrite("../../bin/segmentation/res/plane.jpg", vis);
-			cv::waitKey(10);
-			SetBoolDoingProcess(false, 1);
-		}
-	}
 }
 
 //////////////////////////////////////////////////////////////////////
 //평면 추정 관련 함수들
-bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, std::set<UVR_SLAM::MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio) {
+bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, std::vector<UVR_SLAM::MapPoint*> vpMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio) {
 	//RANSAC
 	int max_num_inlier = 0;
 	cv::Mat best_plane_param;
@@ -728,8 +478,9 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 
 	//초기 매트릭스 생성
 	cv::Mat mMat = cv::Mat::zeros(0, 4, CV_32FC1);
-	for(auto iter = spMPs.begin(); iter != spMPs.end(); iter++) {
-		UVR_SLAM::MapPoint* pMP = *iter;
+	std::vector<int> vIdxs;
+	for(int i = 0; i < vpMPs.size(); i++){
+		UVR_SLAM::MapPoint* pMP = vpMPs[i];
 		if (!pMP)
 			continue;
 		if (pMP->isDeleted())
@@ -737,6 +488,7 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 		cv::Mat temp = pMP->GetWorldPos();
 		temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
 		mMat.push_back(temp.t());
+		vIdxs.push_back(i);
 	}
 
 	std::random_device rn;
@@ -791,12 +543,10 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 		pPlane->distance = pParam.at<float>(3);
 		pPlane->norm = sqrt(pPlane->normal.dot(pPlane->normal));
 
-		int idx = 0;
-		for (auto iter = spMPs.begin(); iter != spMPs.end(); iter++) {
-			int nidx = idx++;
-			int checkIdx = paramStatus.at<uchar>(nidx);
+		for (int i = 0; i < mMat.rows; i++) {
+			int checkIdx = paramStatus.at<uchar>(i);
 			//std::cout << checkIdx << std::endl;
-			UVR_SLAM::MapPoint* pMP = *iter;
+			UVR_SLAM::MapPoint* pMP = vpMPs[vIdxs[i]];
 			if (checkIdx == 0)
 				continue;
 			if (pMP) {
@@ -819,9 +569,115 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 	}
 }
 
+void UVR_SLAM::PlaneEstimator::UpdatePlane(PlaneInformation* pPlane, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio) {
+	auto mvpMPs = std::vector<UVR_SLAM::MapPoint*>(pPlane->mvpMPs.begin(), pPlane->mvpMPs.end());
+	std::vector<int> vIdxs(0);
+	int max_num_inlier = 0;
+	cv::Mat best_plane_param;
+	cv::Mat inlier;
+	//초기 매트릭스 생성
+	cv::Mat mMat = cv::Mat::zeros(0, 4, CV_32FC1);
+	for (int i = 0; i < mvpMPs.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = mvpMPs[i];
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted())
+			continue;
+		cv::Mat temp = pMP->GetWorldPos();
+		temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
+		mMat.push_back(temp.t());
+		vIdxs.push_back(i);
+	}
+	if (mMat.rows == 0)
+		return;
+
+	cv::Mat param, paramStatus;
+	std::random_device rn;
+	std::mt19937_64 rnd(rn());
+	std::uniform_int_distribution<int> range(0, mMat.rows - 1);
+
+	for (int n = 0; n < ransac_trial; n++) {
+
+		cv::Mat arandomPts = cv::Mat::zeros(0, 4, CV_32FC1);
+		//select pts
+		for (int k = 0; k < 3; k++) {
+			int randomNum = range(rnd);
+			cv::Mat temp = mMat.row(randomNum).clone();
+			arandomPts.push_back(temp);
+		}//select
+
+		 //SVD
+		cv::Mat X;
+		cv::Mat w, u, vt;
+		cv::SVD::compute(arandomPts, w, u, vt, cv::SVD::FULL_UV);
+		X = vt.row(3).clone();
+		cv::transpose(X, X);
+		calcUnitNormalVector(X);
+
+		cv::Mat checkResidual = abs(mMat*X) < thresh_distance;
+		checkResidual = checkResidual / 255;
+		int temp_inlier = cv::countNonZero(checkResidual);
+
+		if (max_num_inlier < temp_inlier) {
+			max_num_inlier = temp_inlier;
+			param = X.clone();
+			paramStatus = checkResidual.clone();
+		}
+	}//trial
+
+	if (max_num_inlier == 0)
+		return;
+
+	float planeRatio = ((float)max_num_inlier / mMat.rows);
+	
+	if (planeRatio > thresh_ratio) {
+		
+		pPlane->mvpMPs.clear();
+		cv::Mat tempMat = cv::Mat::zeros(0, 4, CV_32FC1);
+		
+		for (int i = 0; i < mMat.rows; i++) {
+			int checkIdx = paramStatus.at<uchar>(i);
+			//std::cout << checkIdx << std::endl;
+			UVR_SLAM::MapPoint* pMP = mvpMPs[vIdxs[i]];
+			if (checkIdx == 0)
+				continue;
+			if (pMP) {
+				//평면에 대한 레이블링이 필요함.
+				if (pMP->isDeleted())
+					continue;
+				pMP->SetRecentLayoutFrameID(nTargetID);
+				pMP->SetPlaneID(pPlane->mnPlaneID);
+				pPlane->mvpMPs.push_back(pMP);
+				tempMat.push_back(mMat.row(i));
+			}
+		}
+		//평면 정보 생성.
+		
+		cv::Mat X;
+		cv::Mat w, u, vt;
+		cv::SVD::compute(tempMat, w, u, vt, cv::SVD::FULL_UV);
+		X = vt.row(3).clone();
+		cv::transpose(X, X);
+		calcUnitNormalVector(X);
+
+		std::cout << "Update::" << pPlane->matPlaneParam.t() << ", " << X.t() << std::endl;
+
+		pPlane->matPlaneParam = X.clone();
+		pPlane->normal = X.rowRange(0, 3);
+		pPlane->distance = X.at<float>(3);
+		pPlane->norm = sqrt(pPlane->normal.dot(pPlane->normal));
+		return;
+	}
+	else
+	{
+		return;
+	}
+}
+
 //GroundPlane은 현재 평면, type == 1이면 벽, 아니면 천장
-bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, UVR_SLAM::PlaneInformation* GroundPlane, int type, std::set<UVR_SLAM::MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio) {
+bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, UVR_SLAM::PlaneInformation* GroundPlane, int type, std::vector<UVR_SLAM::MapPoint*> vpMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio) {
 	//RANSAC
+	std::vector<int> vIdxs(0);
 	int max_num_inlier = 0;
 	cv::Mat best_plane_param;
 	cv::Mat inlier;
@@ -830,8 +686,8 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 
 	//초기 매트릭스 생성
 	cv::Mat mMat = cv::Mat::zeros(0, 4, CV_32FC1);
-	for (auto iter = spMPs.begin(); iter != spMPs.end(); iter++) {
-		UVR_SLAM::MapPoint* pMP = *iter;
+	for (int i = 0; i < vpMPs.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = vpMPs[i];
 		if (!pMP)
 			continue;
 		if (pMP->isDeleted())
@@ -839,6 +695,7 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 		cv::Mat temp = pMP->GetWorldPos();
 		temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
 		mMat.push_back(temp.t());
+		vIdxs.push_back(i);
 	}
 	if (mMat.rows == 0)
 		return false;
@@ -907,18 +764,17 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 		pPlane->distance = pParam.at<float>(3);
 		pPlane->norm = sqrt(pPlane->normal.dot(pPlane->normal));
 
-		int idx = 0;
-		for (auto iter = spMPs.begin(); iter != spMPs.end(); iter++) {
-			int nidx = idx++;
-			int checkIdx = paramStatus.at<uchar>(nidx);
+		for (int i = 0; i < mMat.rows; i++) {
+			int checkIdx = paramStatus.at<uchar>(i);
 			//std::cout << checkIdx << std::endl;
-			UVR_SLAM::MapPoint* pMP = *iter;
+			UVR_SLAM::MapPoint* pMP = vpMPs[vIdxs[i]];
 			if (checkIdx == 0)
 				continue;
 			if (pMP) {
 				//평면에 대한 레이블링이 필요함.
 				if (pMP->isDeleted())
 					continue;
+
 				pMP->SetRecentLayoutFrameID(nTargetID);
 				pMP->SetPlaneID(pPlane->mnPlaneID);
 				pPlane->mvpMPs.push_back(pMP);
@@ -1145,6 +1001,9 @@ float UVR_SLAM::PlaneInformation::CalcPlaneDistance(cv::Mat X) {
 }
 
 void UVR_SLAM::PlaneEstimator::CreatePlanarMapPoints(std::vector<UVR_SLAM::MapPoint*> mvpMPs, std::vector<UVR_SLAM::ObjectType> mvpOPs, UVR_SLAM::PlaneInformation* pPlane, cv::Mat invT) {
+	
+	int nTargetID = mpTargetFrame->GetFrameID();
+	
 	cv::Mat invP1 = invT.t()*pPlane->matPlaneParam.clone();
 
 	float minDepth = FLT_MAX;
@@ -1181,6 +1040,8 @@ void UVR_SLAM::PlaneEstimator::CreatePlanarMapPoints(std::vector<UVR_SLAM::MapPo
 			pNewMP->UpdateNormalAndDepth();
 			pNewMP->mnFirstKeyFrameID = mpTargetFrame->GetKeyFrameID();
 			mpSystem->mlpNewMPs.push_back(pNewMP);
+			pPlane->mvpMPs.push_back(pNewMP);
+			//mpFrameWindow->AddMapPoint(pNewMP, nTargetID);
 		}
 	}
 

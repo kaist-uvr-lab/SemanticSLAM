@@ -172,7 +172,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		int nLabelMatch = 0;
 		//if (pPrev->mPlaneDescriptor.rows == 0 && mpRefKF && mpRefKF->mPlaneDescriptor.rows > 0) {
 		//if(mpRefKF && mpRefKF->mPlaneDescriptor.rows > 0)
-			nLabelMatch = mpMatcher->MatchingWithLabeling(pPrev, pCurr);
+			//nLabelMatch = mpMatcher->MatchingWithLabeling(pPrev, pCurr);
 		//}
 		//int nInitMatching = mpMatcher->FeatureMatchingForInitialPoseTracking(mpFrameWindow, pCurr);
 		std::chrono::high_resolution_clock::time_point matching_end = std::chrono::high_resolution_clock::now();
@@ -299,7 +299,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		
 		//속도 및 에러 출력
 		std::stringstream ss;
-		ss << std::setw(5) << "Tracker TIME : " << tttt <<", "<< t_matching <<", "<< nLabelMatch <<"::"<<pCurr->mPlaneDescriptor.rows<< " || " << mnMatching<<" Local Map : "<<mvpLocalMPs.size();
+		ss << std::setw(5) << "Tracker TIME : " << tttt << " || " << mnMatching<<" Local Map : "<<mvpLocalMPs.size();
 		mpSystem->SetTrackerString(ss.str());
 		//cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30*3), cv::Scalar::all(0), -1);
 		//
@@ -408,12 +408,20 @@ void UVR_SLAM::Tracker::CalcMatchingCount(UVR_SLAM::Frame* pF) {
 			//floor, wall descriptor update
 			if (pF->mLabelStatus.at<uchar>(i) == 0) {
 				auto type = pMP->GetObjectType();
-				if (type == ObjectType::OBJECT_FLOOR) {
+				switch (type) {
+				case ObjectType::OBJECT_FLOOR:
 					pF->mLabelStatus.at<uchar>(i) = (int)ObjectType::OBJECT_FLOOR;
 					pF->mPlaneDescriptor.push_back(pF->matDescriptor.row(i));
 					pF->mPlaneIdxs.push_back(i);
+					break;
+				case ObjectType::OBJECT_WALL:
+					pF->mLabelStatus.at<uchar>(i) = (int)ObjectType::OBJECT_WALL;
+					pF->mWallDescriptor.push_back(pF->matDescriptor.row(i));
+					pF->mWallIdxs.push_back(i);
+					break;
 				}
 			}
+			
 		}
 		else {
 			pF->mNotTrackedDescriptor.push_back(pF->matDescriptor.row(i));

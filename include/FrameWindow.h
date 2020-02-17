@@ -67,6 +67,7 @@ namespace UVR_SLAM {
 		//여기서 여기까지 삭제 예정
 		//std::vector<cv::DMatch> mvMatchInfos; //create mp시 두 프레임 사이의 매칭 정보를 기록. query가 최근 키프레임, train이 이전 키프레임
 	public:
+		void AddMapPoint(UVR_SLAM::MapPoint* pMP, int nTargetID);
 		void AddFrame(Frame* pF);
 		void ClearLocalMapFrames();
 		std::vector<Frame*> GetLocalMapFrames();
@@ -76,12 +77,9 @@ namespace UVR_SLAM {
 		std::list<Frame*> mlpFrames;
 
 	private:
-		int LocalMapSize;
 
 		int mnLastSemanticFrame; 
 		int mnLastLayoutFrame; //윈도우 내에서 마지막 레이아웃 프레임의 인덱스를 나타냄. 아직 사용 안함.
-
-		
 
 		System* mpSystem;
 		std::mutex mMutexPose;

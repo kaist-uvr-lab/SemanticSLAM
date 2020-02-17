@@ -11,13 +11,13 @@
 int UVR_SLAM::System::nKeyFrameID = 0;
 
 UVR_SLAM::System::System(){}
-UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapUpdateEnd(true) {
+UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapUpdateEnd(true), mbSegmentationEnd(true), mbLocalMappingEnd(true){
 	LoadParameter(strFilePath);
 	LoadVocabulary();
 	Init();
 }
 UVR_SLAM::System::System(int nWidth, int nHeight, cv::Mat _K, cv::Mat _K2, cv::Mat _D, int _nFeatures, float _fScaleFactor, int _nLevels, int _fIniThFAST, int _fMinThFAST, std::string _strVOCPath):
-	mnWidth(nWidth), mnHeight(nHeight), mK(_K), mKforPL(_K2), mD(_D), mbTrackingEnd(true), mbLocalMapUpdateEnd(true),
+	mnWidth(nWidth), mnHeight(nHeight), mK(_K), mKforPL(_K2), mD(_D), mbTrackingEnd(true), mbLocalMapUpdateEnd(true), mbSegmentationEnd(true), mbLocalMappingEnd(true),
 	mnFeatures(_nFeatures), mfScaleFactor(_fScaleFactor), mnLevels(_nLevels), mfIniThFAST(_fIniThFAST), mfMinThFAST(_fMinThFAST), strVOCPath(_strVOCPath)
 {
 	LoadVocabulary();
@@ -133,6 +133,7 @@ void UVR_SLAM::System::Init() {
 	mpPlaneEstimator = new UVR_SLAM::PlaneEstimator(mstrFilePath, mK, mKforPL, mnWidth, mnHeight);
 	mpPlaneEstimator->SetSystem(this);
 	mpPlaneEstimator->SetFrameWindow(mpFrameWindow);
+	mpPlaneEstimator->SetMatcher(mpMatcher);
 	mptPlaneEstimator = new std::thread(&UVR_SLAM::PlaneEstimator::Run, mpPlaneEstimator);
 
 	//layout estimating thread
@@ -181,7 +182,7 @@ void UVR_SLAM::System::Init() {
 
 	//Time
 	mnSegID = mnLoalMapperID = mnPlaneID = mnMapOptimizerID = 0;
-	mfSegTime = mfMapOptimizerTime = 0.0;
+	mfMapOptimizerTime = 0.0;
 	mfLocalMappingTime1 = mfLocalMappingTime2 = 0.0;
 }
 
@@ -259,17 +260,6 @@ std::string UVR_SLAM::System::GetDirPath(int id){
 
 //이것들 전부다 private로 변경.
 //trajecotoryMap, MPsMap;
-
-
-void UVR_SLAM::System::SetSegmentationTime(float t) {
-	std::unique_lock<std::mutex> lock(mMutexSegmentationTime);
-	mfSegTime = t;
-}
-
-float UVR_SLAM::System::GetSegmentationTime() {
-	std::unique_lock<std::mutex> lock(mMutexSegmentationTime);
-	return mfSegTime;
-}
 
 //void UVR_SLAM::System::SetLayoutTime(float t1) {
 //	std::unique_lock<std::mutex> lock(mMutexLayoutTime);
@@ -355,4 +345,12 @@ void UVR_SLAM::System::SetTrackerString(std::string str) {
 std::string UVR_SLAM::System::GetTrackerString() {
 	std::unique_lock<std::mutex> lock(mMutexTrackerString);
 	return mStrTrackerString;
+}
+void UVR_SLAM::System::SetSegmentationString(std::string str) {
+	std::unique_lock<std::mutex> lock(mMutexSegmentationString);
+	mStrSegmentationString = str;
+}
+std::string UVR_SLAM::System::GetSegmentationString() {
+	std::unique_lock<std::mutex> lock(mMutexSegmentationString);
+	return mStrSegmentationString;
 }

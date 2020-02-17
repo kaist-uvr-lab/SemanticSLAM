@@ -240,9 +240,9 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
 				tpt += mVisMidPt;
 				cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
-				if (pMP->GetRecentLayoutFrameID() == nRecentLayoutFrameID) {
+				/*if (pMP->GetRecentLayoutFrameID() == nRecentLayoutFrameID) {
 					cv::circle(tempVis, tpt, 4, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()]/2, 2);
-				}
+				}*/
 			}
 
 			//fuse time text 
@@ -258,14 +258,11 @@ void UVR_SLAM::Visualizer::Run() {
 			//time 
 			cv::Mat imgTime = cv::Mat::zeros(500, 500, CV_8UC1);
 			cv::putText(imgTime, mpSystem->GetTrackerString(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
-			std::stringstream ssTime;
-			ssTime << "Segmentation : " <<mpSystem->GetSegFrameID()<<"::"<< mpSystem->GetSegmentationTime();
-			cv::putText(imgTime, ssTime.str(), cv::Point2f(0, 50), mnFontFace, mfFontScale, cv::Scalar::all(255));
-			
+			cv::putText(imgTime, mpSystem->GetSegmentationString(), cv::Point2f(0, 50), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			cv::putText(imgTime, mpSystem->GetPlaneString(), cv::Point2f(0, 80), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			float lm1, lm2;
 			mpSystem->GetLocalMappingTime(lm1, lm2);
-			ssTime.str("");
+			std::stringstream ssTime;
 			ssTime << "LocalMapping : " <<mpSystem->GetLocalMapperFrameID()<<"::"<< lm1 << " :: BA : " << lm2;
 			cv::putText(imgTime, ssTime.str(), cv::Point2f(0, 110), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			//map optimizer

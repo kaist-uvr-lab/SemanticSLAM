@@ -35,12 +35,15 @@ namespace UVR_SLAM {
 		bool isRun();
 	public:
 		void ObjectLabeling();
+		//바닥과 벽에서 노이즈를 조금 걸러내보기 위함.
+		bool ConnectedComponentLabeling(cv::Mat img, cv::Mat& dst, cv::Mat& stat);
 		void ObjectLabeling(cv::Mat masked, int ratio);
 		void SetSegmentationMask(cv::Mat segmented);
 	private:
 		//std::vector<cv::Vec3b> mVecLabelColors;
 		std::vector<cv::Mat> mVecLabelMasks;
 		int mnWidth, mnHeight;
+		float cx, cy;
 	private:
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
 		std::mutex mMutexNewKFs;
@@ -48,7 +51,7 @@ namespace UVR_SLAM {
 		System* mpSystem;
 		std::mutex mMutexDoingProcess;
 		bool mbDoingProcess;
-		Frame* mpTargetFrame;
+		Frame* mpTargetFrame, *mpPrevTargetFrame;
 		FrameWindow* mpFrameWindow;
 		PlaneEstimator* mpPlaneEstimator;
 		std::string ip;

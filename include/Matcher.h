@@ -25,6 +25,7 @@ namespace UVR_SLAM {
 		int MatchingWithLocalMap(Frame* pF, std::vector<MapPoint*> mvpLocalMPs, cv::Mat mLocalMapDesc, float rr);
 
 		//fuse 20.01.19
+		int KeyFrameFeatureMatching(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2, cv::Mat desc1, cv::Mat desc2, std::vector<int> idxs1, std::vector<int> idxs2, std::vector<cv::DMatch>& vMatches);
 		int KeyFrameFuseFeatureMatching(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr);
 		int KeyFrameFuseFeatureMatching2(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr);
 

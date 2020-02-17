@@ -2,8 +2,8 @@
 #include <System.h>
 #include <MapPoint.h>
 
-UVR_SLAM::FrameWindow::FrameWindow():mnWindowSize(10), LocalMapSize(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1),mnQueueSize(0),mbUseLocalMap(false) {}
-UVR_SLAM::FrameWindow::FrameWindow(int _size) : mnWindowSize(_size), LocalMapSize(0), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1), mnQueueSize(0), mbUseLocalMap(false) {}
+UVR_SLAM::FrameWindow::FrameWindow():mnWindowSize(10), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1),mnQueueSize(0),mbUseLocalMap(false) {}
+UVR_SLAM::FrameWindow::FrameWindow(int _size) : mnWindowSize(_size), mnLastSemanticFrame(-1), mnLastLayoutFrame(-1), mnQueueSize(0), mbUseLocalMap(false) {}
 UVR_SLAM::FrameWindow::~FrameWindow() {}
 
 
@@ -216,10 +216,16 @@ void UVR_SLAM::FrameWindow::SetLocalMap(int nTargetID) {
 			
 		}
 	}
-	LocalMapSize = mvpLocalMPs.size();
 	mpSystem->mbLocalMapUpdateEnd = true;
 	mpSystem->cvUseLocalMap.notify_one();
 	
+}
+////Planar MapPoint도 즉각적으로 추가하기 위함.
+void UVR_SLAM::FrameWindow::AddMapPoint(UVR_SLAM::MapPoint* pMP, int nTargetID) {
+	std::unique_lock<std::mutex>(mMutexLocalMPs);
+	mvpLocalMPs.push_back(pMP);
+	descLocalMap.push_back(pMP->GetDescriptor());
+	pMP->SetRecentLocalMapID(nTargetID);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1342,6 +1342,42 @@ int UVR_SLAM::Matcher::KeyFrameFuseFeatureMatching2(UVR_SLAM::Frame* pPrev, UVR_
 	return count;
 }
 
+//prev1, curr2
+//1의 정보를 2에서 찾는 것임.
+int UVR_SLAM::Matcher::KeyFrameFeatureMatching(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2, cv::Mat desc1, cv::Mat desc2, std::vector<int> idxs1, std::vector<int> idxs2, std::vector<cv::DMatch>& vMatches) {
+
+	std::vector<bool> vbTemp(pKF2->mvKeyPoints.size(), true);
+	std::vector< std::vector<cv::DMatch> > matches;
+	
+	matcher->knnMatch(desc1, desc2, matches, 2);
+	int count = 0;
+
+	for (unsigned long i = 0; i < matches.size(); i++) {
+		if (matches[i][0].distance < nn_match_ratio * matches[i][1].distance) {
+
+			int idx1 = idxs1[matches[i][0].queryIdx];
+			int idx2 = idxs2[matches[i][0].trainIdx]; //matches[i][0].trainIdx;
+			
+			if (vbTemp[idx2]) {
+				vbTemp[idx2] = false;
+			}
+			else {
+				continue;
+			}
+			cv::DMatch tempMatch;
+			tempMatch.queryIdx = idx1;
+			tempMatch.trainIdx = idx2;
+
+			vMatches.push_back(tempMatch);
+
+			count++;
+		}
+	}
+
+	return count;
+}
+
+
 int UVR_SLAM::Matcher::KeyFrameFeatureMatching(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<cv::DMatch>& vMatches) {
 
 	std::vector<bool> vbTemp(pCurr->mvKeyPoints.size(), true);

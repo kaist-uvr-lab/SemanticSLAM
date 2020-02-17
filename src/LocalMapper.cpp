@@ -91,14 +91,32 @@ void UVR_SLAM::LocalMapper::Run() {
 		if (CheckNewKeyFrames()) {
 			SetDoingProcess(true);
 			std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
+			
+			////lock
+			//std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
+			//mpSystem->mbLocalMappingEnd = false;
+
 			ProcessNewKeyFrame();
 			CalculateKFConnections();
 			UpdateKFs();
 			////이전 프레임에서 생성된 맵포인트 중 삭제
 			//프레임 윈도우 내의 로컬 맵 포인트 중 new인 애들만 수행
 			NewMapPointMaginalization();
-
 			UpdateMPs();
+
+			////unlock
+			//mpSystem->mbLocalMappingEnd = true;
+			//lock.unlock();
+			//mpSystem->cvUseLocalMapping.notify_one();
+
+			//lock
+			//labeling 끝날 때까지 대기
+			{
+				std::unique_lock<std::mutex> lock(mpSystem->mMutexUseSegmentation);
+				while (!mpSystem->mbSegmentationEnd) {
+					mpSystem->cvUseSegmentation.wait(lock);
+				}
+			}
 
 			//프레임 내에서 삭제 되는 녀석과 업데이트 되는 녀석의 분리가 필요함.
 
@@ -233,8 +251,9 @@ void UVR_SLAM::LocalMapper::Run() {
 							continue;
 
 						int idx2 = pMP->GetIndexInFrame(pKFi);
-						if (idx2 >= 0) {
-							int idx1 = pMP->GetIndexInFrame(mpTargetFrame);
+						int idx1 = pMP->GetIndexInFrame(mpTargetFrame);
+						if (idx2 >= 0 && idx1 >=0 ) {
+							
 							cv::Point2f pt1 = mpTargetFrame->mvKeyPoints[idx1].pt;
 							cv::Point2f pt2 = pKFi->mvKeyPoints[idx2].pt;
 							cv::line(debugging, pt1, pt2 + ptBottom, cv::Scalar(255, 0, 0), 1);
@@ -344,10 +363,12 @@ void UVR_SLAM::LocalMapper::NewMapPointMaginalization() {
 	//std::cout << "Maginalization::Start" << std::endl;
 	//mvpDeletedMPs.clear();
 	int nMarginalized = 0;
+	int nMPThresh = 2;
 
 	std::list<UVR_SLAM::MapPoint*>::iterator lit = mpSystem->mlpNewMPs.begin();
 	while (lit != mpSystem->mlpNewMPs.end()) {
 		UVR_SLAM::MapPoint* pMP = *lit;
+		
 		bool bBad = false;
 		if (pMP->isDeleted()) {
 			//already deleted
@@ -358,7 +379,7 @@ void UVR_SLAM::LocalMapper::NewMapPointMaginalization() {
 			bBad = true;
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
-		else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= 2 && pMP->GetMapPointType() != UVR_SLAM::PLANE_MP) {
+		else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= nMPThresh && pMP->GetMapPointType() != UVR_SLAM::PLANE_MP) {
 			bBad = true;
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
@@ -839,6 +860,7 @@ int UVR_SLAM::LocalMapper::Test() {
 		float thresh_reprojection = 9.0;
 		int count = 0;
 
+		//tracked와 non-tracked를 구분하는 것
 		pKF->UpdateMapInfo(true);
 		
 		std::vector<cv::DMatch> vMatches;

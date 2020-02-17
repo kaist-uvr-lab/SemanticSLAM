@@ -14,6 +14,7 @@ namespace UVR_SLAM {
 	class FrameWindow;
 	class MapPoint;
 	class Initializer;
+	class Matcher;
 	class PlaneInformation {
 	public:
 		cv::Mat matPlaneParam;
@@ -50,20 +51,21 @@ namespace UVR_SLAM {
 		bool CheckNewKeyFrames();
 		void ProcessNewKeyFrame();
 
-
 		void CreatePlanarMapPoints(std::vector<UVR_SLAM::MapPoint*> mvpMPs, std::vector<UVR_SLAM::ObjectType> mvpOPs, UVR_SLAM::PlaneInformation* pPlane, cv::Mat invT);
 		void Run();
 		void SetSystem(System* pSystem);
 		void SetFrameWindow(FrameWindow* pFrameWindow);
 		void SetTargetFrame(Frame* pFrame);
+		void SetMatcher(Matcher* pMatcher);
 		void SetInitializer(Initializer* pInitializer);
 		void SetBoolDoingProcess(bool b, int ptype);
 		bool isDoingProcess();
 	private:
 		bool calcUnitNormalVector(cv::Mat& X);
 		void reversePlaneSign(cv::Mat& param);
-		bool PlaneInitialization(PlaneInformation* pPlane, std::set<MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
-		bool PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, UVR_SLAM::PlaneInformation* GroundPlane, int type, std::set<UVR_SLAM::MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
+		void UpdatePlane(PlaneInformation* pPlane, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
+		bool PlaneInitialization(PlaneInformation* pPlane, std::vector<MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
+		bool PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, UVR_SLAM::PlaneInformation* GroundPlane, int type, std::vector<UVR_SLAM::MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 		
 	private:
 
@@ -85,6 +87,7 @@ namespace UVR_SLAM {
 		Frame* mpTargetFrame, *mpPrevFrame;
 		FrameWindow* mpFrameWindow;
 		Initializer* mpInitializer;
+		Matcher* mpMatcher;
 		
 	};
 }

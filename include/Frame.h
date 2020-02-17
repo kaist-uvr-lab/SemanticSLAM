@@ -31,6 +31,7 @@ namespace UVR_SLAM {
 
 	//class MapPoint;
 	class ORBextractor;
+	class PlaneInformation;
 	class Frame {
 	public:
 		Frame(cv::Mat _src, int w, int h, cv::Mat mK);
@@ -114,6 +115,8 @@ namespace UVR_SLAM {
 		cv::Mat mObjectDescriptor;
 		std::vector<int> mPlaneIdxs, mWallIdxs, mObjectIdxs;
 		cv::Mat mLabelStatus; //오브젝트 디스크립터 포함 유무 체크하기 위한 것. //1 = floor, 2 = wall, 3 = object //object labeling을 따르자 그냥.
+
+		std::vector<PlaneInformation*> mvpPlanes;
 	private:
 		//void Increase();
 		//void Decrease();
