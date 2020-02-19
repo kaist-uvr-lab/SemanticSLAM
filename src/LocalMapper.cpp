@@ -118,6 +118,15 @@ void UVR_SLAM::LocalMapper::Run() {
 				}
 			}
 
+			//lock
+			//plane estimation에서 depth 추정이 끝날 때가지 대기
+			{
+				std::unique_lock<std::mutex> lock(mpSystem->mMutexUsePlaneEstimation);
+				while (!mpSystem->mbPlaneEstimationEnd) {
+					mpSystem->cvUsePlaneEstimation.wait(lock);
+				}
+			}
+
 			//프레임 내에서 삭제 되는 녀석과 업데이트 되는 녀석의 분리가 필요함.
 
 			std::chrono::high_resolution_clock::time_point t_start = std::chrono::high_resolution_clock::now();
@@ -151,8 +160,14 @@ void UVR_SLAM::LocalMapper::Run() {
 				FuseMapPoints();
 			}
 
-			//test
-			//FuseMapPoints(15);
+			//lock
+			//plane estimation에서 맵포인트를 생성할 때까지 락.
+			{
+				std::unique_lock<std::mutex> lock(mpSystem->mMutexUsePlanarMP);
+				while (!mpSystem->mbPlanarMPEnd) {
+					mpSystem->cvUsePlanarMP.wait(lock);
+				}
+			}
 
 			mpFrameWindow->SetLocalMap(mpTargetFrame->GetFrameID());
 			
@@ -817,7 +832,7 @@ int UVR_SLAM::LocalMapper::Test() {
 	auto mvpCurrOPs = mpTargetFrame->GetObjectVector();
 	float fMinCurr, fMaxCurr;
 	mpTargetFrame->GetDepthRange(fMinCurr, fMaxCurr);
-	//std::cout << "Depth::Curr::" << fMaxCurr << std::endl << std::endl << std::endl;
+	std::cout << "Depth::Curr::" <<mpTargetFrame->GetKeyFrameID()<<"::"<< fMaxCurr << std::endl << std::endl << std::endl;
 	
 	for (int i = 0; i < mvpLocalFrames.size(); i++) {
 		if (isStopLocalMapping())
@@ -894,9 +909,10 @@ int UVR_SLAM::LocalMapper::Test() {
 			if (!CheckDepth(depth1) || !CheckDepth(depth2)) {
 				continue;
 			}
-			if (depth2 > fMaxNeighbor)
-				continue;
-
+			//if (depth1 > fMaxCurr || depth2 > fMaxNeighbor){
+			//	//std::cout << depth1 <<", "<< fMaxCurr <<", "<< depth2 << ", " << fMaxNeighbor << std::endl;
+			//	continue;
+			//}
 			if (!CheckReprojectionError(Xcam2, mK, kp2.pt, 5.991*pKF->mvLevelSigma2[kp2.octave]) || !CheckReprojectionError(Xcam1, mK, kp1.pt, 5.991*mpTargetFrame->mvLevelSigma2[kp1.octave]))
 			{
 				//std::cout << "LocalMapping::CreateMP::Reprojection" << std::endl;

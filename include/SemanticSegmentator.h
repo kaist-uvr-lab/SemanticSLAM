@@ -36,7 +36,7 @@ namespace UVR_SLAM {
 	public:
 		void ObjectLabeling();
 		//바닥과 벽에서 노이즈를 조금 걸러내보기 위함.
-		bool ConnectedComponentLabeling(cv::Mat img, cv::Mat& dst, cv::Mat& stat);
+		
 		void ObjectLabeling(cv::Mat masked, int ratio);
 		void SetSegmentationMask(cv::Mat segmented);
 	private:

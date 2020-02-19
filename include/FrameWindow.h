@@ -67,8 +67,13 @@ namespace UVR_SLAM {
 		//여기서 여기까지 삭제 예정
 		//std::vector<cv::DMatch> mvMatchInfos; //create mp시 두 프레임 사이의 매칭 정보를 기록. query가 최근 키프레임, train이 이전 키프레임
 	public:
+		void SetDummyPoints(std::vector<UVR_SLAM::MapPoint*> vpMPs);
+		std::vector<UVR_SLAM::MapPoint*> GetDummyPoints();
+		void ClearDummyMPs();
+
 		void AddMapPoint(UVR_SLAM::MapPoint* pMP, int nTargetID);
 		void AddFrame(Frame* pF);
+
 		void ClearLocalMapFrames();
 		std::vector<Frame*> GetLocalMapFrames();
 
@@ -76,6 +81,8 @@ namespace UVR_SLAM {
 		//deque에서 list로 변경
 		std::list<Frame*> mlpFrames;
 
+		std::vector<UVR_SLAM::MapPoint*> mvpDummyMPs;
+		std::mutex mMutexDummyMPs;
 	private:
 
 		int mnLastSemanticFrame; 

@@ -228,6 +228,19 @@ void UVR_SLAM::FrameWindow::AddMapPoint(UVR_SLAM::MapPoint* pMP, int nTargetID) 
 	pMP->SetRecentLocalMapID(nTargetID);
 }
 
+void UVR_SLAM::FrameWindow::SetDummyPoints(std::vector<UVR_SLAM::MapPoint*> vpMPs){
+	std::unique_lock<std::mutex>(mMutexDummyMPs);
+	mvpDummyMPs = std::vector<UVR_SLAM::MapPoint*>(vpMPs.begin(), vpMPs.end());
+}
+std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::FrameWindow::GetDummyPoints(){
+	std::unique_lock<std::mutex>(mMutexDummyMPs);
+	return std::vector<UVR_SLAM::MapPoint*>(mvpDummyMPs.begin(), mvpDummyMPs.end());
+}
+void UVR_SLAM::FrameWindow::ClearDummyMPs(){
+	std::unique_lock<std::mutex>(mMutexDummyMPs);
+	mvpDummyMPs.clear();
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool UVR_SLAM::FrameWindow::CalcFrameDistanceWithBOW(UVR_SLAM::Frame* pF) {
 	

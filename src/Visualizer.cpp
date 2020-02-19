@@ -245,6 +245,16 @@ void UVR_SLAM::Visualizer::Run() {
 				}*/
 			}
 
+			//dummy for test
+			auto mvpDummys = mpFrameWindow->GetDummyPoints();
+			for (int i = 0; i < mvpDummys.size(); i++) {
+				UVR_SLAM::MapPoint* pMP = mvpDummys[i];
+				cv::Mat x3D = pMP->GetWorldPos();
+				cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
+				tpt += mVisMidPt;
+				cv::circle(tempVis, tpt, 3, cv::Scalar(255,0,255), -1);
+			}
+
 			//fuse time text 
 			std::stringstream ss;
 			//ss << "Fuse = " << mpFrameWindow->GetFuseTime()<<", PE = "<< mpFrameWindow->GetPETime();

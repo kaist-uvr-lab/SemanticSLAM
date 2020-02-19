@@ -160,6 +160,14 @@ namespace UVR_SLAM {
 		std::mutex mMutexUseLocalMapping;
 		std::condition_variable cvUseLocalMapping;
 		bool mbLocalMappingEnd;
+
+		//layoutestimation
+		//1 max depth
+		//2 create planar points
+		std::mutex mMutexUsePlaneEstimation, mMutexUsePlanarMP;
+		std::condition_variable cvUsePlaneEstimation, cvUsePlanarMP;
+		bool mbPlaneEstimationEnd, mbPlanarMPEnd;
+
 //time 계산 관련해서 함수 만들기.
 	public:
 		void SetLocalMappingTime(float t1, float t2);

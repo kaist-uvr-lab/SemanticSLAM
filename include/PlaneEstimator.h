@@ -15,6 +15,19 @@ namespace UVR_SLAM {
 	class MapPoint;
 	class Initializer;
 	class Matcher;
+	class LineProcessor {
+	public:
+		float static CalcSlope(cv::Point2f pt1, cv::Point2f pt2) {
+			float dx = pt1.x - pt2.x;
+			float dy = pt1.y - pt2.y;
+			float slope;
+			if (dx == 0.0)
+				slope = 1000.0;
+			else
+				slope = dy / dx;
+			return slope;
+		}
+	};
 	class PlaneInformation {
 	public:
 		cv::Mat matPlaneParam;
@@ -52,6 +65,7 @@ namespace UVR_SLAM {
 		void ProcessNewKeyFrame();
 
 		void CreatePlanarMapPoints(std::vector<UVR_SLAM::MapPoint*> mvpMPs, std::vector<UVR_SLAM::ObjectType> mvpOPs, UVR_SLAM::PlaneInformation* pPlane, cv::Mat invT);
+		void CreateWallMapPoints(std::vector<UVR_SLAM::MapPoint*> mvpMPs, std::vector<UVR_SLAM::ObjectType> mvpOPs, UVR_SLAM::PlaneInformation* pPlane, cv::Mat invT, int wtype,int MinX, int MaxX, bool b1, bool b2);
 		void Run();
 		void SetSystem(System* pSystem);
 		void SetFrameWindow(FrameWindow* pFrameWindow);
@@ -66,7 +80,7 @@ namespace UVR_SLAM {
 		void UpdatePlane(PlaneInformation* pPlane, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 		bool PlaneInitialization(PlaneInformation* pPlane, std::vector<MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 		bool PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, UVR_SLAM::PlaneInformation* GroundPlane, int type, std::vector<UVR_SLAM::MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
-		
+		bool ConnectedComponentLabeling(cv::Mat img, cv::Mat& dst, cv::Mat& stat);
 	private:
 
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
