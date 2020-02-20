@@ -215,6 +215,7 @@ void UVR_SLAM::System::Reset() {
 	mbInitialized = false;
 	mpInitializer->Init();
 	mpFrameWindow->ClearLocalMapFrames();
+	ClearGlobalFrames();
 	mlpNewMPs.clear();
 	//mpLocalMapper->mlpNewMPs.clear();
 	nKeyFrameID = 0;
@@ -353,4 +354,17 @@ void UVR_SLAM::System::SetSegmentationString(std::string str) {
 std::string UVR_SLAM::System::GetSegmentationString() {
 	std::unique_lock<std::mutex> lock(mMutexSegmentationString);
 	return mStrSegmentationString;
+}
+
+void UVR_SLAM::System::AddGlobalFrame(Frame* pF){
+	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
+	mvpGlobalFrames.push_back(pF);
+}
+std::vector<UVR_SLAM::Frame*> UVR_SLAM::System::GetGlobalFrames(){
+	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
+	return std::vector<UVR_SLAM::Frame*>(mvpGlobalFrames.begin(), mvpGlobalFrames.end());
+}
+void UVR_SLAM::System::ClearGlobalFrames(){
+	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
+	mvpGlobalFrames.clear();
 }

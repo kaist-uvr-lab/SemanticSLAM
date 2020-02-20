@@ -83,6 +83,7 @@ namespace UVR_SLAM {
 
 		std::vector<UVR_SLAM::MapPoint*> mvpDummyMPs;
 		std::mutex mMutexDummyMPs;
+
 	private:
 
 		int mnLastSemanticFrame; 

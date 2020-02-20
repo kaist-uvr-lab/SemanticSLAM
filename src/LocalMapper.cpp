@@ -84,8 +84,6 @@ void UVR_SLAM::LocalMapper::SetDoingProcess(bool flag){
 
 void UVR_SLAM::LocalMapper::Run() {
 
-	
-
 	while (1) {
 
 		if (CheckNewKeyFrames()) {
@@ -170,7 +168,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			}
 
 			mpFrameWindow->SetLocalMap(mpTargetFrame->GetFrameID());
-			
+			mpSystem->AddGlobalFrame(mpTargetFrame);
 			//set dir
 			
 			
@@ -206,6 +204,8 @@ void UVR_SLAM::LocalMapper::Run() {
 			float t_test2 = du_test2 / 1000.0;
 			mpSystem->SetLocalMappingTime(t_test1, t_test2);
 
+			//////////////////////////////////////////////////////////////////////////////////////
+			///////////////////////////////µð¹ö±ë¿ë
 			{
 				////debugging
 				////save image
@@ -346,6 +346,8 @@ void UVR_SLAM::LocalMapper::Run() {
 				f << tempt.at<float>(0) << " " << tempt.at<float>(1) << " " << tempt.at<float>(2);
 				f.close();
 				////save image
+				///////////////////////////////µð¹ö±ë¿ë
+				//////////////////////////////////////////////////////////////////////////////////////
 			}
 
 			StopLocalMapping(false);

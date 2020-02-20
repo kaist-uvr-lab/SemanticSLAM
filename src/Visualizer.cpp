@@ -181,6 +181,27 @@ void UVR_SLAM::Visualizer::Run() {
 			}
 			}*/
 
+			//////////////////////////////////////////////////////////////////////////////
+			/////////////전체 포인트 출력
+			auto mvpGlobalFrames = mpSystem->GetGlobalFrames();
+			for (int i = 0; i < mvpGlobalFrames.size(); i++) {
+				UVR_SLAM::Frame* pF = mvpGlobalFrames[i];
+				auto mvpMPs = pF->GetMapPoints();
+				for (int j = 0; j < mvpMPs.size(); j++) {
+					UVR_SLAM::MapPoint* pMP = mvpMPs[j];
+					if (!pMP)
+						continue;
+					if (pMP->isDeleted())
+						continue;
+					cv::Mat x3D = pMP->GetWorldPos();
+					cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
+					tpt += mVisMidPt;
+					cv::circle(tempVis, tpt, 2,cv::Scalar(0,0,0), -1);
+				}
+			}
+			/////////////전체 포인트 출력
+			//////////////////////////////////////////////////////////////////////////////
+
 			//local map
 			auto mvbLocalMapInliers = mpFrameWindow->GetLocalMapInliers();
 			auto mvpLocalMPs = mpFrameWindow->GetLocalMap();

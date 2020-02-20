@@ -214,6 +214,14 @@ namespace UVR_SLAM {
 		std::string mStrTrackerString;
 		std::mutex mMutexSegmentationString;
 		std::string mStrSegmentationString;
+	////////////////////////////////////////////////////////////////////////
+	public:
+		void AddGlobalFrame(Frame* pF);
+		std::vector<Frame*> GetGlobalFrames();
+		void ClearGlobalFrames();
+	private:
+		std::mutex mMutexGlobalFrames;
+		std::vector<Frame*> mvpGlobalFrames;
 	};
 }
 
