@@ -78,7 +78,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			cv::Mat colorimg, resized_color, segmented;
 			cv::cvtColor(mpTargetFrame->GetOriginalImage(), colorimg, CV_RGBA2BGR);
 			colorimg.convertTo(colorimg, CV_8UC3);
-			cv::resize(colorimg, resized_color, cv::Size(320, 180));
+			cv::resize(colorimg, resized_color, cv::Size(mnWidth/2, mnHeight/2));
 			//cv::resize(colorimg, resized_color, cv::Size(160, 90));
 
 			//lock
@@ -108,115 +108,17 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float tttt = duration / 1000.0;
 
-			
-
-			/*
-
-			//////test save image
-			//std::stringstream ssas;
-			//ssas << mStrDirPath.c_str() << "/test_labeling2.jpg";
-			//cv::imwrite(ssas.str(), tempColor);
-			//////test save image
-
-			////
-			////
-			//////나누어진 이미지를 바탕으로 레이블링 수행
-			//
-
-			////바닥과 벽의 라인을 표시한 것.
-			
-			//
-			//////벽을 나누기 위한 테스트.
-			////cv::Mat dists = cv::Mat::zeros(1, floorCCL.cols, CV_32SC1);
-			////cv::Mat graph = cv::Mat::zeros(400, floorCCL.cols, CV_8UC1);
-			////for (int x = 0; x < sumCCL.cols; x++) {
-			////	int count = countNonZero(sumCCL.col(x));
-			////	dists.at<int>(x) = count;
-			////	
-			////	int val = 400 - count;
-			////	cv::line(graph, cv::Point2f(x, 400), cv::Point2f(x, val), cv::Scalar(255));
-			////}
-
-			////cv::Ptr<cv::LineSegmentDetector> pLSD = createLineSegmentDetector();
-			////std::vector<cv::Vec4i> lines;
-			////pLSD->detect(graph, lines);
-			////graph.convertTo(graph, CV_8UC3);
-			////cv::cvtColor(graph, graph, CV_GRAY2BGR);
-			////for (int i = 0; i < lines.size(); i++) {
-			////	Vec4i v = lines[i];
-			////	Point from(v[0], v[1]);
-			////	Point to(v[2], v[3]);
-			////	Point2f diff = from - to;
-			////	float dist = sqrt(diff.dot(diff));
-			////	//if(dist < 20)
-			////	//cv::line(fLineImg, from, to, cv::Scalar(255,0,0));
-			////	//else
-			////	cv::line(graph, from, to, cv::Scalar(0, 0, 255));
-			////}
-			////cv::imshow("graph", graph);
-
-			///*i
-			//imgFloor*/
-			//
-			////std::cout << floorY << ", " << ceilY << std::endl;
-			//cv::Mat fLineImg = floorCCL + ceilCCL;
-			//
-			//
-			//
-
-			////cv::line(floorCCL, cv::Point2f(0, floorY), cv::Point2f(imgFloor.cols, floorY), cv::Scalar(255, 255, 255));
-			////cv::line(ceilCCL, cv::Point2f(0, ceilY), cv::Point2f(imgCeil.cols, ceilY), cv::Scalar(255, 255, 255));
-			//imshow("floor", floorCCL+ ceilCCL);
-			//imshow("fline", fLineImg);
-			////imshow("ceil", ceilCCL);
-
-
-			//std::chrono::high_resolution_clock::time_point see = std::chrono::high_resolution_clock::now();
-			//auto durationa = std::chrono::duration_cast<std::chrono::milliseconds>(see - saa).count();
-			//float tttt5 = durationa / 1000.0;
-			/////////////////Conneted Component Labeling
-
-
+			//////////////////////////////////////////////
 			//////디버깅 값 전달
 			std::stringstream ssa;
 			ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() << " : " << tttt << "||" << n1 << ", " << n2;
 			//ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() << " : " << tttt << ", " << tttt5 << "||" << n1 << ", " << n2 << "::" << numOfLables;
 			mpSystem->SetSegmentationString(ssa.str());
 			//////디버깅 값 전달
+			//////////////////////////////////////////////
 
-
-			//cv::resize(seg_color, seg_color, colorimg.size());
-
-			//imshow("segsegseg", seg_color);
-			////PlaneEstimator
-			//if (!mpPlaneEstimator->isDoingProcess()) {
-			//	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
-			//	mpPlaneEstimator->SetTargetFrame(mpTargetFrame);
-			//	mpPlaneEstimator->SetBoolDoingProcess(true, 3);
-			//}
-
-			//피쳐 레이블링 결과 확인
-			/*cv::Mat test = mpTargetFrame->undistorted.clone();
-			for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
-				UVR_SLAM::ObjectType type = mpTargetFrame->GetObjectType(i);
-				if(type != OBJECT_NONE)
-				circle(test, mpTargetFrame->mvKeyPoints[i].pt, 3, ObjectColors::mvObjectLabelColors[type], 1);
-				UVR_SLAM::MapPoint* pMP = mpTargetFrame->GetMapPoint(i);
-				if (pMP) {
-				if (pMP->isDeleted())
-				continue;
-				UVR_SLAM::ObjectType type2 = pMP->GetObjectType();
-				if (type2 != OBJECT_NONE)
-				circle(test, mpTargetFrame->mvKeyPoints[i].pt, 1, ObjectColors::mvObjectLabelColors[type2], -1);
-				}
-			}*/
-			//imshow("segmendted feature", test);
-
-			/*std::stringstream ss;
-			ss << "../../bin/segmentation/res_keypoints_" << mpTargetFrame->GetFrameID() << ".jpg";
-			imwrite(ss.str(), test);*/
-			//cv::imwrite("../../bin/segmentation/res/label_kp.jpg", test);
-			
+			//////////////////////////////////////////////
+			////디버깅을 위한 이미지 저장
 			std::stringstream ss;
 			ss << mStrDirPath.c_str() << "/segmentation.jpg";
 			cv::imwrite(ss.str(), segmented);
@@ -224,7 +126,9 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			ss << mStrDirPath.c_str() << "/segmentation_color.jpg";
 			cv::imwrite(ss.str(), colorimg);
 			cv::waitKey(1);
-
+			////디버깅을 위한 이미지 저장
+			//////////////////////////////////////////////
+			
 			SetBoolDoingProcess(false);
 		}
 	}

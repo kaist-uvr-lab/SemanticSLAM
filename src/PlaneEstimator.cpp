@@ -102,7 +102,6 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			cv::Mat vImg = mpTargetFrame->GetOriginalImage();
 			//matching test
 
-			
 			///////////////////////////////////////////
 			////이전 키프레임에서 추정한 맵포인트 업데이트
 			//int nUpdateT
@@ -162,9 +161,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					mpSystem->cvUseSegmentation.wait(lock);
 				}
 			}
-			
-
-			
+						
 			////////////////////////////////////////////////////////////////////////
 			///////////////Conneted Component Labeling & object labeling
 			//image
@@ -593,7 +590,6 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			mpSystem->cvUsePlaneEstimation.notify_all();
 			////////////////////////////////////////////////////////////////////////
 			
-
 			/////////////////////////////////////////////////////////////////////////////
 			////바닥의 좌우 값을 추정하기 위한 것
 			for (int x = 0; x < tempWallLines.cols; x++) {
@@ -681,7 +677,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				CreatePlanarMapPoints(mvpMPs, mvpOPs, mpTargetFrame->mvpPlanes[0], invT);
 				//mpFrameWindow->SetLocalMap(nTargetID);
 			}
-
+			
 			////unlock & notify
 			mpSystem->mbPlanarMPEnd = true;
 			lockPlanar.unlock();
@@ -856,7 +852,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			bool bFailCase2 = false;
 			//compare & association
 			//평면을 교체하게 되면 잘못되는 경우가 생김.
-			if (mpPrevFrame) {
+			if (mpPrevFrame && mpPrevFrame->mvpPlanes.size() > 0) {
 				UVR_SLAM::PlaneInformation* p1 = mpPrevFrame->mvpPlanes[0];
 				UVR_SLAM::PlaneInformation* p2 = mpTargetFrame->mvpPlanes[0];
 				//ratio = pPlane2->CalcOverlapMPs(p, nTargetID);
@@ -868,8 +864,6 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					bFailCase2 = true;
 			}
 			////////////////////////////////////////////////////////////////////////////////////////////
-			
-			
 			
 			if (mvpPlanes.size() == 0 && bLocalFloor) {
 				mvpPlanes.push_back(pPlane2);
@@ -936,7 +930,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				}
 			f.close();*/
 			//////save txt
-
+			
 			////////////////image
 			
 			if(bMaxFloorY)
@@ -1048,7 +1042,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				cv::Mat a = vImg(rect);
 				cv::addWeighted(a, 0.7, temp, 0.3, 0.0, vImg(rect));
 			}
-
+			
 			/*sss.str("");
 			sss << mStrPath.c_str() << "/plane.jpg";
 			cv::imwrite(sss.str(), vImg);*/
