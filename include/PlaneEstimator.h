@@ -74,7 +74,14 @@ namespace UVR_SLAM {
 		void SetInitializer(Initializer* pInitializer);
 		void SetBoolDoingProcess(bool b, int ptype);
 		bool isDoingProcess();
+
+		bool isFloorPlaneInitialized();
+		void SetFloorPlaneInitialization(bool b);
+
 	private:
+
+		cv::Mat CalcPlaneRotationMatrix(cv::Mat P);
+
 		bool calcUnitNormalVector(cv::Mat& X);
 		void reversePlaneSign(cv::Mat& param);
 		void UpdatePlane(PlaneInformation* pPlane, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
@@ -102,6 +109,9 @@ namespace UVR_SLAM {
 		FrameWindow* mpFrameWindow;
 		Initializer* mpInitializer;
 		Matcher* mpMatcher;
+
+		std::mutex mMutexInitFloorPlane;
+		bool mbInitFloorPlane;
 		
 	};
 }

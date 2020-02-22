@@ -232,7 +232,7 @@ void UVR_SLAM::Visualizer::Run() {
 				pt1 += mVisMidPt;
 				//pt2 += mVisMidPt;
 				if(i != 0)
-					cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 0), -1);
+					cv::circle(tempVis, pt1, 3, cv::Scalar(255, 255, 0), -1);
 				else{
 					cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
 					cv::Mat directionZ = mvpWindowFrames[i]->GetRotation().row(2);

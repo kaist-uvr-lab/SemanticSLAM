@@ -24,6 +24,9 @@ namespace UVR_SLAM {
 		virtual ~MatrixOperator() {
 		}
 	public:
+		cv::Mat static RotationMatrixFromEulerAngle(float a, char c);
+		cv::Mat static RotationMatrixFromEulerAngles(float a, float b, float c, std::string str);
+
 		cv::Mat static EXP(double wx, double wy, double wz);
 		cv::Mat static EXPD(cv::Mat mat);
 		cv::Mat static EXP6(double vx, double vy, double vz, double wx, double wy, double wz);

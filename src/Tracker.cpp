@@ -150,7 +150,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mpSystem->mbTrackingEnd = false;
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 		
-		pCurr->SetPose(pPrev->GetRotation(), pPrev->GetTranslation());
+		//pCurr->SetPose(pPrev->GetRotation(), pPrev->GetTranslation());
+		pCurr->SetPose(mpFrameWindow->GetRotation(), mpFrameWindow->GetTranslation());
+
 		int nLocalMapID = mpFrameWindow->GetLastFrameID();
 		auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
 		cv::Mat mLocalMapDesc = mpFrameWindow->GetLocalMapDescriptor();
@@ -187,6 +189,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::chrono::high_resolution_clock::time_point optimize_end2 = std::chrono::high_resolution_clock::now();
 		//std::cout << "Track::res::"<< nInitMatching <<", "<< mnMatching<<"::"<<mpFrameWindow->GetLocalMapSize() << std::endl;
 		pCurr->SetInliers(mnMatching);
+		mpFrameWindow->SetPose(pCurr->GetRotation(), pCurr->GetTranslation());
 		
 		std::chrono::high_resolution_clock::time_point count_start = std::chrono::high_resolution_clock::now();
 		CalcMatchingCount(pCurr);
@@ -272,8 +275,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				cv::line(vis, p2D, pCurr->mvKeyPoints[i].pt, cv::Scalar(255, 255, 0), 2);
 				if (type != OBJECT_NONE)
 					circle(vis, p2D, 3, UVR_SLAM::ObjectColors::mvObjectLabelColors[type], -1);
-				if (pMP->GetPlaneID() > 0) {
-					circle(vis, p2D, 4, cv::Scalar(255, 0, 255), -1);
+				if (pMP->GetMapPointType() == MapPointType::PLANE_MP) {
+					circle(vis, p2D, 2, cv::Scalar(255, 0, 255), -1);
 				}
 			}
 		}

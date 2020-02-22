@@ -205,7 +205,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpLocalMapper->InsertKeyFrame(mpInitFrame1);
 			mpLocalMapper->InsertKeyFrame(mpInitFrame2);
 			
-
 			mbInit = true;
 
 			//if (mbInit) {

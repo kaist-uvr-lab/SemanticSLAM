@@ -71,7 +71,6 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 		if (CheckNewKeyFrames()) {
 			SetBoolDoingProcess(true);
 			ProcessNewKeyFrame();
-			
 			mStrDirPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
 
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
