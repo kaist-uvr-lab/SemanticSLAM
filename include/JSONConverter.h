@@ -21,7 +21,7 @@ public:
 	static std::string ConvertImageToJSONStr(int nFrameID, cv::Mat img);
 	static cv::Mat ConvertStringToImage(const char* data, int N);
 	static cv::Mat ConvertStringToLabel(const char* data, int N);
-	static bool RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& dst, int mnFrameID);
+	static bool RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& dst, int mnFrameID, int& stat);
 public:
 	const static char* headers[];
 private:

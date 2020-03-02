@@ -43,7 +43,7 @@ void UVR_SLAM::SemanticSegmentator::InsertKeyFrame(UVR_SLAM::Frame *pKF)
 {
 	mpSystem->SetDirPath(pKF->GetKeyFrameID());
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
-	std::cout << "Segmentator::" << mKFQueue.size() << std::endl;
+	//std::cout << "Segmentator::" << mKFQueue.size() << std::endl;
 	mKFQueue.push(pKF);
 }
 
@@ -69,6 +69,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 	while (1) {
 		std::string mStrDirPath;
 		if (CheckNewKeyFrames()) {
+			waitKey(1);
 			SetBoolDoingProcess(true);
 			ProcessNewKeyFrame();
 			mStrDirPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
@@ -87,7 +88,8 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
 			//request post
 			//리사이즈 안하면 칼라이미지로
-			JSONConverter::RequestPOST(ip, port, resized_color, segmented, mpTargetFrame->GetFrameID());
+			int status = 0;
+			JSONConverter::RequestPOST(ip, port, resized_color, segmented, mpTargetFrame->GetFrameID(), status);
 			//cv::resize(segmented, segmented, colorimg.size());
 			
 			int n1 = mpTargetFrame->mPlaneDescriptor.rows;
@@ -110,23 +112,23 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//////////////////////////////////////////////
 			//////디버깅 값 전달
 			std::stringstream ssa;
-			ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() << " : " << tttt << "||" << n1 << ", " << n2;
+			ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() << " : " << tttt << "||" << status << std::endl;
 			//ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() << " : " << tttt << ", " << tttt5 << "||" << n1 << ", " << n2 << "::" << numOfLables;
 			mpSystem->SetSegmentationString(ssa.str());
 			//////디버깅 값 전달
 			//////////////////////////////////////////////
 
-			//////////////////////////////////////////////
-			////디버깅을 위한 이미지 저장
-			std::stringstream ss;
-			ss << mStrDirPath.c_str() << "/segmentation.jpg";
-			cv::imwrite(ss.str(), segmented);
-			ss.str("");
-			ss << mStrDirPath.c_str() << "/segmentation_color.jpg";
-			cv::imwrite(ss.str(), colorimg);
-			cv::waitKey(1);
-			////디버깅을 위한 이미지 저장
-			//////////////////////////////////////////////
+			////////////////////////////////////////////////
+			//////디버깅을 위한 이미지 저장
+			//std::stringstream ss;
+			//ss << mStrDirPath.c_str() << "/segmentation.jpg";
+			//cv::imwrite(ss.str(), segmented);
+			//ss.str("");
+			//ss << mStrDirPath.c_str() << "/segmentation_color.jpg";
+			//cv::imwrite(ss.str(), colorimg);
+			//cv::waitKey(1);
+			//////디버깅을 위한 이미지 저장
+			////////////////////////////////////////////////
 			
 			SetBoolDoingProcess(false);
 		}

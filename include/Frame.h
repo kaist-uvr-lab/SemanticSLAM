@@ -153,8 +153,19 @@ namespace UVR_SLAM {
 		std::mutex mMutexID;
 		std::mutex mMutexMPs, mMutexBoolInliers, mMutexNumInliers, mMutexPose, mMutexType;
 		std::mutex mMutexImage;*/
+
+//////////////////////////
+////LINE
 	public:
-		
+		void SetLines(std::vector<cv::Vec4i> lines);
+		std::vector<cv::Vec4i> Getlines();
+	private:
+		std::vector<cv::Vec4i> mvLines;
+		std::mutex mMutexLines;
+////LINE
+//////////////////////////
+
+	public:
 
 		//from ORB_SLAM2
 		

@@ -192,6 +192,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 					continue;
 				pMP->SetWorldPos(pMP->GetWorldPos()*invMedianDepth);
 				pMP->UpdateNormalAndDepth();
+				pMP->IncreaseFound(2);
+				pMP->IncreaseVisible(2);
 			}
 
 			//윈도우 로컬맵, 포즈 설정

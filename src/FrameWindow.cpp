@@ -193,9 +193,17 @@ void UVR_SLAM::FrameWindow::SetLocalMap(int nTargetID) {
 				continue;
 			if (pMP->isDeleted())
 				continue;
+			
+			////퓨즈에서 다른 프레임과 매칭을 하지 못하면 삭제
+			/*if (pMP->mnFirstKeyFrameID + 3 > nTargetID && pMP->GetMapPointType() == MapPointType::PLANE_MP &&  pMP->GetNumConnectedFrames() == 1){
+				pMP->SetDelete(true);
+				pMP->Delete();
+				continue;
+			}*/
+
 			if (pMP->GetRecentLocalMapID() == nTargetID)
 				continue;
-			
+
 			switch (pMP->GetObjectType()) {
 			case  ObjectType::OBJECT_WALL:
 				mspWallMPs.insert(pMP);
@@ -244,23 +252,52 @@ void UVR_SLAM::FrameWindow::ClearDummyMPs(){
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool UVR_SLAM::FrameWindow::CalcFrameDistanceWithBOW(UVR_SLAM::Frame* pF) {
 	
-	//UVR_SLAM::Frame* pF1 = mpDeque.front();
-	//UVR_SLAM::Frame* pF2 = mpDeque.back();
-	////std::cout << "Frame Type = " << (int)pF1->GetType()<<", "<<(int)pF2->GetType() <<", "<<pF2->CheckFrameType(UVR_SLAM::FLAG_SEGMENTED_FRAME)<<", "<<pF1->CheckFrameType(UVR_SLAM::FLAG_SEGMENTED_FRAME)<< std::endl;
-	//std::cout << "DBOW::SCORE1::" << pF1->Score(pF2)<<std::endl;
+	std::chrono::high_resolution_clock::time_point t_start = std::chrono::high_resolution_clock::now();
 
-	//윈도우 내의 프레임 중 하나라도 값이 0.01보다 크면 false를 return함.
-	std::unique_lock<std::mutex>(mMutexDeque);
 	bool res = true;
-	for (auto iter = mpDeque.begin(); iter != mpDeque.end(); iter++) {
-		UVR_SLAM::Frame* pDequeFrame = *iter;
-		double score = pDequeFrame->Score(pF);
-		
-		if (score > 0.01)
-			res = false;
-		//std::cout << "DBOW::SCORE::" <<score<< std::endl;
+	auto mvpKFs = mpSystem->GetLoopFrames();
+	auto mvNeighKFs = pF->GetConnectedKFs();
+
+	std::set<int> msKeyFrameIDs;
+	for (int i = 0; i < mvNeighKFs.size(); i++) {
+		msKeyFrameIDs.insert(mvNeighKFs[i]->GetKeyFrameID());
 	}
-	//std::cout << "BOW check::" << res << std::endl;
+
+	for (int i = 0; i < mvpKFs.size(); i++) {
+		UVR_SLAM::Frame* pKFi = mvpKFs[i];
+		auto find_res = msKeyFrameIDs.find(pKFi->GetKeyFrameID());
+		if (find_res != msKeyFrameIDs.end())
+			continue;
+		double score = pKFi->Score(pF);
+		if (score > 0.01) {
+			cv::Mat resImg = pKFi->GetOriginalImage();
+			cv::resize(resImg, resImg, resImg.size() / 2);
+			imshow("Output::LoopFrame", resImg);
+			cv::waitKey(1);
+		}
+	}
+
+	std::chrono::high_resolution_clock::time_point t_end = std::chrono::high_resolution_clock::now();
+	auto du_test = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count();
+	double t_test = du_test / 1000.0;
+	std::cout << "loop test :: " << t_test << std::endl;
+	////UVR_SLAM::Frame* pF1 = mpDeque.front();
+	////UVR_SLAM::Frame* pF2 = mpDeque.back();
+	//////std::cout << "Frame Type = " << (int)pF1->GetType()<<", "<<(int)pF2->GetType() <<", "<<pF2->CheckFrameType(UVR_SLAM::FLAG_SEGMENTED_FRAME)<<", "<<pF1->CheckFrameType(UVR_SLAM::FLAG_SEGMENTED_FRAME)<< std::endl;
+	////std::cout << "DBOW::SCORE1::" << pF1->Score(pF2)<<std::endl;
+
+	////윈도우 내의 프레임 중 하나라도 값이 0.01보다 크면 false를 return함.
+	//std::unique_lock<std::mutex>(mMutexDeque);
+	
+	//for (auto iter = mpDeque.begin(); iter != mpDeque.end(); iter++) {
+	//	UVR_SLAM::Frame* pDequeFrame = *iter;
+	//	double score = pDequeFrame->Score(pF);
+	//	
+	//	if (score > 0.01)
+	//		res = false;
+	//	//std::cout << "DBOW::SCORE::" <<score<< std::endl;
+	//}
+	////std::cout << "BOW check::" << res << std::endl;
 	return res;
 }
 

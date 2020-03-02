@@ -314,7 +314,7 @@ void Connection::request( const char* method,
 {
 
 	bool gotcontentlength = false;	// already in headers?
-
+	
 	// check headers for content-length
 	// TODO: check for "Host" and "Accept-Encoding" too
 	// and avoid adding them ourselves in putrequest()
@@ -333,10 +333,13 @@ void Connection::request( const char* method,
 				gotcontentlength = true;
 		}
 	}
+	
 	putrequest( method, url );
+	
 	if (body && !gotcontentlength) {
 		putheader("Content-Length", bodysize);
 	}
+	
 	if( headers )
 	{
 		const char** h = headers;
@@ -347,7 +350,9 @@ void Connection::request( const char* method,
 			putheader( name, value );
 		}
 	}
+	
 	endheaders();
+	
 	if (body) {
 		send(body, bodysize);
 	}
@@ -412,7 +417,9 @@ void Connection::endheaders()
 	}
 	m_Buffer.clear();
 //	printf( "%s", msg.c_str() );
+	
 	send( (const unsigned char*)msg.c_str(), (int)msg.size() );
+	
 }
 
 
@@ -431,8 +438,10 @@ void Connection::send( const unsigned char* buf, int numbytes )
 		int n = ::send( m_Sock, buf, numbytes, 0 );
 #endif
 		if (n < 0) {
+			printf("BailOnSocketError::SocketError\n");
 			BailOnSocketError("send()");
 		}
+		//printf("%d %d\n", numbytes, buf);
 		numbytes -= n;
 		buf += n;
 	}

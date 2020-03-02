@@ -156,6 +156,8 @@ void UVR_SLAM::MapPoint::Fuse(UVR_SLAM::MapPoint* pMP) {
 
 float UVR_SLAM::MapPoint::GetFVRatio() {
 	std::unique_lock<std::mutex> lock(mMutexFeatures);
+	if (mnVisible == 0)
+		return 0.0;
 	return ((float)mnFound) / mnVisible;
 }
 

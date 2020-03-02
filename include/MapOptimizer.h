@@ -26,7 +26,7 @@ namespace UVR_SLAM {
 		void SetSystem(System* pSystem);
 		void SetFrameWindow(FrameWindow* pFrameWindow);
 	public:
-
+		void StopBA(bool b);
 	private:
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
 		int mnWidth, mnHeight;

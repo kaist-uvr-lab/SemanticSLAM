@@ -217,11 +217,13 @@ namespace UVR_SLAM {
 	////////////////////////////////////////////////////////////////////////
 	public:
 		void AddGlobalFrame(Frame* pF);
+		std::vector<Frame*> GetLoopFrames();
 		std::vector<Frame*> GetGlobalFrames();
 		void ClearGlobalFrames();
 	private:
 		std::mutex mMutexGlobalFrames;
 		std::vector<Frame*> mvpGlobalFrames;
+		std::vector<Frame*> mvpLoopFrames;
 	};
 }
 

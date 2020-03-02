@@ -191,7 +191,7 @@ void UVR_SLAM::System::SetCurrFrame(cv::Mat img) {
 	mpCurrFrame = new UVR_SLAM::Frame(img, mnWidth, mnHeight, mK);
 	//std::cout << mpCurrFrame->mnFrameID << std::endl;
 	mpCurrFrame->Init(mpORBExtractor, mK, mD);
-	mpCurrFrame->SetBowVec(fvoc);
+	//mpCurrFrame->SetBowVec(fvoc);
 	
 	//cv::Mat test = mpCurrFrame->GetOriginalImage();
 	//for (int i = 0; i < mpCurrFrame->mvKeyPoints.size(); i++) {
@@ -359,12 +359,20 @@ std::string UVR_SLAM::System::GetSegmentationString() {
 void UVR_SLAM::System::AddGlobalFrame(Frame* pF){
 	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
 	mvpGlobalFrames.push_back(pF);
+	if (mvpGlobalFrames.size() % 5 == 0) {
+		mvpLoopFrames.push_back(pF);
+	}
 }
 std::vector<UVR_SLAM::Frame*> UVR_SLAM::System::GetGlobalFrames(){
 	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
 	return std::vector<UVR_SLAM::Frame*>(mvpGlobalFrames.begin(), mvpGlobalFrames.end());
 }
+std::vector<UVR_SLAM::Frame*> UVR_SLAM::System::GetLoopFrames() {
+	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
+	return std::vector<UVR_SLAM::Frame*>(mvpLoopFrames.begin(), mvpLoopFrames.end());
+}
 void UVR_SLAM::System::ClearGlobalFrames(){
 	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
 	mvpGlobalFrames.clear();
+	mvpLoopFrames.clear();
 }

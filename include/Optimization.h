@@ -19,6 +19,7 @@ namespace UVR_SLAM {
 	public:
 		//g2o
 		static int PoseOptimization(Frame *pFrame);
+		static void LocalBundleAdjustmentWithPlane(UVR_SLAM::Frame *pKF, UVR_SLAM::FrameWindow* pWindow, bool* pbStopFlag);
 		static void LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLAM::FrameWindow* pWindow, bool* pbStopFlag);
 		static void InitBundleAdjustment(const std::vector<UVR_SLAM::Frame*> &vpKFs, const std::vector<UVR_SLAM::MapPoint *> &vpMP, int nIterations);
 

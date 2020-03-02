@@ -167,9 +167,10 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		int nInitMatching = mpMatcher->MatchingWithPrevFrame(pPrev, pCurr, mvMatchInfo);
 		int nLabelMatch = 0;
 		//if (pPrev->mPlaneDescriptor.rows == 0 && mpRefKF && mpRefKF->mPlaneDescriptor.rows > 0) {
-		//if(mpRefKF && mpRefKF->mPlaneDescriptor.rows > 0)
-			//nLabelMatch = mpMatcher->MatchingWithLabeling(pPrev, pCurr);
-		//}
+		/*if(mpRefKF && mpRefKF->mPlaneDescriptor.rows > 0){
+			nLabelMatch = mpMatcher->MatchingWithLabeling(pPrev, pCurr);
+		}*/
+
 		//int nInitMatching = mpMatcher->FeatureMatchingForInitialPoseTracking(mpFrameWindow, pCurr);
 		std::chrono::high_resolution_clock::time_point matching_end = std::chrono::high_resolution_clock::now();
 		std::chrono::high_resolution_clock::time_point optimize_start = std::chrono::high_resolution_clock::now();
@@ -197,6 +198,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::chrono::high_resolution_clock::time_point count_end = std::chrono::high_resolution_clock::now();
 		
 		std::chrono::high_resolution_clock::time_point check_start = std::chrono::high_resolution_clock::now();
+
+		//std::cout << "cam : " << pCurr->GetCameraCenter().t() << std::endl;
+
 		if (CheckNeedKeyFrame(pCurr)) {
 			mpRefKF = pCurr;
 			pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
@@ -282,9 +286,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		}
 		
 		//속도 및 에러 출력
-		std::stringstream ss;
+		/*std::stringstream ss;
 		ss << std::setw(5) << "Tracker TIME : " << tttt << " || " << mnMatching<<" Local Map : "<<mvpLocalMPs.size();
-		mpSystem->SetTrackerString(ss.str());
+		mpSystem->SetTrackerString(ss.str());*/
 		
 		cv::imshow("Output::Tracking", vis);
 		

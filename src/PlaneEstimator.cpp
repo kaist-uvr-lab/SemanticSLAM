@@ -28,6 +28,17 @@ mpPrevFrame(nullptr), mpTargetFrame(nullptr), mbInitFloorPlane(false)
 	//mnConnect = fSettings["Layout.nconnect"];
 	fSettings.release();
 }
+void UVR_SLAM::PlaneInformation::SetParam(cv::Mat n, float d){
+	std::unique_lock<std::mutex> lockTemp(mMutexParam);
+	normal = n.clone();
+	distance = d;
+	norm = this->normal.dot(this->normal);
+}
+void UVR_SLAM::PlaneInformation::GetParam(cv::Mat& n, float& d){
+	std::unique_lock<std::mutex> lockTemp(mMutexParam);
+	n = normal.clone();
+	d = distance;
+}
 UVR_SLAM::PlaneEstimator::~PlaneEstimator() {}
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -93,6 +104,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 		if (CheckNewKeyFrames()) {
 			//저장 디렉토리 명 획득
 			SetBoolDoingProcess(true,0);
+			
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
 			mStrPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
@@ -110,13 +122,13 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			//////////라인 검출
 			//////////////////////////////////////////////////////////////////////////////
 			std::chrono::high_resolution_clock::time_point line_start = std::chrono::high_resolution_clock::now();
-			cv::Mat img = mpTargetFrame->GetOriginalImage();
+			/*cv::Mat img = mpTargetFrame->GetOriginalImage();
 			cv::Mat gray, filtered, edge;
 			std::vector<cv::Vec4i> vecLines;
 			cv::cvtColor(img, gray, CV_BGR2GRAY);
 			GaussianBlur(gray, filtered, cv::Size(5, 5), 0.0);
 			Canny(filtered, edge, 100, 200);
-			cv::HoughLinesP(edge, vecLines, 1, CV_PI / 180.0, 30, 30, 3);
+			cv::HoughLinesP(edge, vecLines, 1, CV_PI / 180.0, 30, 30, 3);*/
 			
 			//imshow("line", img);
 			std::chrono::high_resolution_clock::time_point line_end = std::chrono::high_resolution_clock::now();
@@ -128,10 +140,26 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			//int nUpdateT
 			int nPrevTest = 0;
 			bool bInitFloorPlane = isFloorPlaneInitialized();//true;
-
+			int nPrevTest2 = 0;
+			cv::Mat pmat;
 			if (bInitFloorPlane) {
 				int nPrevID = mpPrevFrame->GetFrameID();
+				//이전 플라나 포인트로 생성된 포인트에 대해서 트래킹에 성공한 포인트에 한해서 현재 평면 벡터에 포함시킴.
+				for (int i = 0; i < mpPrevFrame->mvpPlanes[0]->tmpMPs.size(); i++) {
+					UVR_SLAM::MapPoint* pMP = mpPrevFrame->mvpPlanes[0]->tmpMPs[i];
+					if (!pMP)
+						continue;
+					if (pMP->isDeleted())
+						continue;
+					if (pMP->GetNumConnectedFrames() > 1){
+						mpPrevFrame->mvpPlanes[0]->mvpMPs.push_back(pMP);
+						nPrevTest2++;
+					}
+				}
+				mpPrevFrame->mvpPlanes[0]->tmpMPs.clear();
+				
 				UpdatePlane(mpPrevFrame->mvpPlanes[0], nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+				
 				////이전 프레임의 포인트 중에서 얼마나 트래킹이 되는지 확인
 				auto mvpPrevMPs = mpPrevFrame->GetMapPoints();
 				int nPrevPlaneID = mpPrevFrame->mvpPlanes[0]->mnPlaneID;
@@ -145,8 +173,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 						nPrevTest++;
 				}
 				////이전 프레임의 포인트 중에서 얼마나 트래킹이 되는지 확인
-					
-			}
+				pmat = mpPrevFrame->mvpPlanes[0]->matPlaneParam.t();
+			}else
+				pmat = cv::Mat::zeros(1, 4, CV_32FC1);
 			////이전 키프레임에서 추정한 맵포인트 업데이트
 			///////////////////////////////////////////
 			
@@ -188,7 +217,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			bool bMaxFloorY = false;
 
 			//////////////////////////////////////////////////////////////////////////////////
-			////
+			////전체 레이블링
 			for (int i = 0; i < segmented.rows; i++) {
 				for (int j = 0; j < segmented.cols; j++) {
 					seg_color.at<Vec3b>(i, j) = UVR_SLAM::ObjectColors::mvObjectLabelColors[segmented.at<uchar>(i, j)];
@@ -234,8 +263,8 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			////여기는 시각화로 보낼 수 있으면 보내는게 좋을 듯.
 			/*cv::resize(seg_color, seg_color, colorimg.size());
 			cv::addWeighted(seg_color, 0.4, colorimg, 0.6, 0.0, colorimg);
-			cv::imshow("Output::Segmentation", colorimg);
 			cv::imshow("object : ", imgObject);*/
+			cv::imshow("Output::Segmentation", seg_color);
 			////기존의 칼라이미지와 세그멘테이션 결과를 합치는 부분
 
 			////////////////////바닥과 벽을 나누는 함수.
@@ -305,7 +334,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 						cv::Mat estimated = invT*temp;
 						UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, estimated.rowRange(0, 3), cv::Mat(), UVR_SLAM::PLANE_MP);
-						mvpDummys.push_back(pNewMP);
+						//mvpDummys.push_back(pNewMP);
 					}
 					//}
 
@@ -315,6 +344,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				}
 
 			}
+			
 			
 			//////////max depth & dummy points test
 			///////////////////////////////////////////////////////////////////
@@ -444,8 +474,10 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					//else
 					//cv::line(graph, from, to, cv::Scalar(0, 0, 255));
 				}
+				//해당 라인은 타겟 프레임에 설정함.
+				mpTargetFrame->SetLines(lines);
 			}
-
+			
 			//////라인 생성 및 테스트
 			{
 				if (mpPrevFrame && bMaxFloorY && mpPrevFrame->mvpPlanes.size() > 0) {
@@ -465,7 +497,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					K.at<float>(0, 2) /= 2.0;
 					K.at<float>(1, 2) /= 2.0;
 
-					auto normal1 = mpPrevFrame->mvpPlanes[0]->normal.clone();
+					cv::Mat normal1;
+					float dist1;
+					mpPrevFrame->mvpPlanes[0]->GetParam(normal1, dist1);
 					cv::Mat invP1 = invT.t()*mpPrevFrame->mvpPlanes[0]->matPlaneParam.clone();
 
 					///////////////////////////////////////////
@@ -561,47 +595,47 @@ void UVR_SLAM::PlaneEstimator::Run() {
 						mvpDummys.push_back(pNewMP);*/
 
 					}
-					///////////////////////////////////////////
-					//////create wall planar mp
-					auto mvpOPs = mpTargetFrame->GetObjectVector();
-					auto mvpMPs = mpTargetFrame->GetMapPoints();
-					for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
-						/*if (mvpMPs[i])
-							continue;*/
-						if (mvpMPs[i]) {
-							if (mvpMPs[i]->GetMapPointType() == MapPointType::PLANE_MP)
-								continue;
-						}
-						auto type = mvpOPs[i];
-						auto pt = mpTargetFrame->mvKeyPoints[i].pt;
-						if (type != ObjectType::OBJECT_WALL)
-							continue;
-						int pid = pmask.at<uchar>(pt.y/2, pt.x/2);
-						if (pid == 0)
-							continue;
-						cv::Mat plane = matPlane.row(pid - 1).t();
-						cv::Mat invP = invT.t()*plane;
-						cv::Mat temp = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
-						temp = mK.inv()*temp;
-						cv::Mat matDepth = -invP.at<float>(3) / (invP.rowRange(0, 3).t()*temp);
-						float depth = matDepth.at<float>(0);
-						if (depth < 0){
-							//depth *= -1.0;
-							continue;
-						}
-						temp *= depth;
-						temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
+					/////////////////////////////////////////////
+					////////create wall planar mp
+					//auto mvpOPs = mpTargetFrame->GetObjectVector();
+					//auto mvpMPs = mpTargetFrame->GetMapPoints();
+					//for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
+					//	/*if (mvpMPs[i])
+					//		continue;*/
+					//	if (mvpMPs[i]) {
+					//		if (mvpMPs[i]->GetMapPointType() == MapPointType::PLANE_MP)
+					//			continue;
+					//	}
+					//	auto type = mvpOPs[i];
+					//	auto pt = mpTargetFrame->mvKeyPoints[i].pt;
+					//	if (type != ObjectType::OBJECT_WALL)
+					//		continue;
+					//	int pid = pmask.at<uchar>(pt.y/2, pt.x/2);
+					//	if (pid == 0)
+					//		continue;
+					//	cv::Mat plane = matPlane.row(pid - 1).t();
+					//	cv::Mat invP = invT.t()*plane;
+					//	cv::Mat temp = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
+					//	temp = mK.inv()*temp;
+					//	cv::Mat matDepth = -invP.at<float>(3) / (invP.rowRange(0, 3).t()*temp);
+					//	float depth = matDepth.at<float>(0);
+					//	if (depth < 0){
+					//		//depth *= -1.0;
+					//		continue;
+					//	}
+					//	temp *= depth;
+					//	temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
 
-						cv::Mat estimated = invT*temp;
-						UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, estimated.rowRange(0, 3), mpTargetFrame->matDescriptor.row(i), UVR_SLAM::PLANE_MP);
-						pNewMP->SetObjectType(ObjectType::OBJECT_WALL);
-						pNewMP->AddFrame(mpTargetFrame, i);
-						pNewMP->UpdateNormalAndDepth();
-						pNewMP->mnFirstKeyFrameID = mpTargetFrame->GetKeyFrameID();
-						mpSystem->mlpNewMPs.push_back(pNewMP);
-						mvpDummys.push_back(pNewMP);
-					}
-					//////create wall planar mp
+					//	cv::Mat estimated = invT*temp;
+					//	UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, estimated.rowRange(0, 3), mpTargetFrame->matDescriptor.row(i), UVR_SLAM::PLANE_MP);
+					//	pNewMP->SetObjectType(ObjectType::OBJECT_WALL);
+					//	pNewMP->AddFrame(mpTargetFrame, i);
+					//	pNewMP->UpdateNormalAndDepth();
+					//	pNewMP->mnFirstKeyFrameID = mpTargetFrame->GetKeyFrameID();
+					//	mpSystem->mlpNewMPs.push_back(pNewMP);
+					//	mvpDummys.push_back(pNewMP);
+					//}
+					////////create wall planar mp
 					mpFrameWindow->SetDummyPoints(mvpDummys);
 					////마스킹
 					/*maskImg.convertTo(maskImg, CV_8UC3);
@@ -687,7 +721,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 						auto mps = mpFrameWindow->GetLocalMap();
 
 
-						cv::Mat Rcw = CalcPlaneRotationMatrix(pPlane2->matPlaneParam);
+						/*cv::Mat Rcw = CalcPlaneRotationMatrix(pPlane2->matPlaneParam);
 						cv::Mat tempP = Rcw.t()*pPlane2->normal;
 						std::cout << "Normal : " << tempP.t() << " " << pPlane2->normal.t() << pPlane2->distance << std::endl;
 
@@ -707,36 +741,18 @@ void UVR_SLAM::PlaneEstimator::Run() {
 							cv::Mat tempX = Rcw.t()*pMP->GetWorldPos();
 							pMP->SetWorldPos(tempX);
 
-						}
-						//for (int j = 0; j < pPlane2->mvpMPs.size(); j++) {
-						//	UVR_SLAM::MapPoint* pMP = pPlane2->mvpMPs[j];
-						//	if (!pMP)
-						//		continue;
-						//	if (pMP->isDeleted())
-						//		continue;
-						//	//std::cout << "X::" << pMP->GetWorldPos() << std::endl;
-						//	cv::Mat tempX = pMP->GetWorldPos();
-						//	cv::Mat tx = tempX.clone();
-
-						//	cv::Mat mval1 = pPlane2->normal.t()*tempX;
-						//	float val1 = mval1.at<float>(0) + pPlane2->distance;
-
-						//	pMP->SetWorldPos(Rcw.t()*tempX);
-						//	tempX = Rcw.t()*tempX;
-						//	
-						//	tempX = tempP.t()*tempX;
-						//	float val = tempX.at<float>(0);
-						//	std::cout << "abc : " << val + pPlane2->distance <<", "<<val1<<mval1<< tx.t()<<pMP->GetWorldPos().t()<<pMP->mnMapPointID<< std::endl;
-						//}
-
-						pPlane2->normal = tempP.clone();
+						}*/
+						
+						/*pPlane2->normal = tempP.clone();
 						tempP.copyTo(pPlane2->matPlaneParam.rowRange(0, 3));
-						mpTargetFrame->mvpPlanes.push_back(pPlane2);
-						SetFloorPlaneInitialization(true);
+						
 
 						cv::Mat R, t;
 						mpFrameWindow->GetPose(R, t);
-						mpFrameWindow->SetPose(R*Rcw, t);
+						mpFrameWindow->SetPose(R*Rcw, t);*/
+
+						mpTargetFrame->mvpPlanes.push_back(pPlane2);
+						SetFloorPlaneInitialization(true);
 
 						mpSystem->mbLocalMapUpdateEnd = true;
 						lock.unlock();
@@ -779,6 +795,45 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			lockPlanar.unlock();
 			mpSystem->cvUsePlanarMP.notify_all();
 			////Planar MP 생성 완료
+
+			////projection test
+			//if(bInitFloorPlane)
+			//{
+			//	auto mvpKFs = mpTargetFrame->GetConnectedKFs(10);
+			//	for (int i = 0; i < mvpKFs.size(); i++) {
+			//		cv::Mat img1 = mpTargetFrame->GetOriginalImage();
+			//		cv::Mat img2 = mvpKFs[i]->GetOriginalImage();
+
+			//		cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
+
+			//		cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
+			//		cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
+
+			//		cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+			//		img1.copyTo(debugging(mergeRect1));
+			//		img2.copyTo(debugging(mergeRect2));
+
+			//		auto mvpMPs = mpTargetFrame->mvpPlanes[0]->mvpMPs;
+
+			//		//cv::Mat R, t;
+			//		//mpPrevFrame->GetPose(R, t);
+
+			//		for (int j = 0; j < mvpMPs.size(); j++) {
+			//			UVR_SLAM::MapPoint* pMP = mvpMPs[j];
+			//			if (!pMP)
+			//				continue;
+			//			if (pMP->isDeleted())
+			//				continue;
+			//			cv::Point2f pt1 = mpTargetFrame->Projection(pMP->GetWorldPos());
+			//			cv::Point2f pt2 = mvpKFs[i]->Projection(pMP->GetWorldPos());
+			//			cv::line(debugging, pt1, pt2 + ptBottom, cv::Scalar(255), 1);
+			//		}
+			//		std::stringstream ss;
+			//		ss << mStrPath.c_str() << "/floor_" << mpTargetFrame->GetFrameID() <<"_"<< mvpKFs[i]->GetFrameID()<< ".jpg";
+			//		imwrite(ss.str(), debugging);
+			//	}
+			//	
+			//}
 			//////////////////////////////////////////////////////////////////////////////
 
 			//////현재 키프레임에서 바닥 평면 추정
@@ -991,7 +1046,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float letime = leduration / 1000.0;
 			std::stringstream ss;
-			ss << "Layout : "<<mpTargetFrame->GetKeyFrameID()<<" time = " << letime <<", "<<line_time<<"::"<<lines.size()<<"::"<< nPrevTest <<"::"<< mpTargetFrame->mspWallMPs.size() << ", " << mpTargetFrame->mspFloorMPs.size();
+			ss <<std::fixed<< std::setprecision(3) << "Layout:"<<mpTargetFrame->GetKeyFrameID()<<" t=" << letime <<":"<<pmat.at<float>(0)<<" "<<pmat.at<float>(1)<<" "<< pmat.at<float>(2) <<" "<< pmat.at<float>(3) <<"::"<<line_time<<"::"<<lines.size()<<"::"<< nPrevTest<<", "<< nPrevTest2 <<"::"<< mpTargetFrame->mspWallMPs.size() << ", " << mpTargetFrame->mspFloorMPs.size();
 			mpSystem->SetPlaneString(ss.str());
 			
 			//////test
@@ -1071,6 +1126,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				case ObjectType::OBJECT_NONE:
 					//cv::circle(vImg, mpTargetFrame->mvKeyPoints[j].pt, 1, cv::Scalar(0, 0, 0), -1);
 					break;
+				case ObjectType::OBJECT_FLOOR:
+					cv::circle(vImg, mpTargetFrame->mvKeyPoints[j].pt, 1, cv::Scalar(0, 255, 255), -1);
+					break;
 				}
 				
 				/*UVR_SLAM::MapPoint* pMP = mvpMPs[j];
@@ -1131,7 +1189,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				cv::addWeighted(a, 0.7, temp, 0.3, 0.0, vImg(rect));	
 			}
 
-			if (nPrevTest < 100) {
+			if (nPrevTest < 20) {
 				cv::Mat temp = cv::Mat::zeros(50, 50, CV_8UC3);
 				cv::Point2f pt1 = cv::Point(50*2, vImg.rows - temp.rows);
 				cv::Point2f pt2 = cv::Point(50*3, vImg.rows);
@@ -1140,6 +1198,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				cv::Mat a = vImg(rect);
 				cv::addWeighted(a, 0.7, temp, 0.3, 0.0, vImg(rect));
 			}
+			
 			/*sss.str("");
 			sss << mStrPath.c_str() << "/plane.jpg";
 			cv::imwrite(sss.str(), vImg);*/
@@ -1223,9 +1282,10 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 		pPlane->matPlaneParam = pParam.clone();
 		pPlane->mnPlaneID = ++nPlaneID;
 
-		pPlane->normal = pParam.rowRange(0, 3);
-		pPlane->distance = pParam.at<float>(3);
-		pPlane->norm = sqrt(pPlane->normal.dot(pPlane->normal));
+		cv::Mat normal = pParam.rowRange(0, 3);
+		float dist = pParam.at<float>(3);
+		pPlane->SetParam(normal, dist);
+		//pPlane->norm = sqrt(pPlane->normal.dot(pPlane->normal));
 
 		for (int i = 0; i < mMat.rows; i++) {
 			int checkIdx = paramStatus.at<uchar>(i);
@@ -1352,12 +1412,10 @@ void UVR_SLAM::PlaneEstimator::UpdatePlane(PlaneInformation* pPlane, int nTarget
 		if (X.at<float>(1) > 0.0)
 			X *= -1.0;
 
-		std::cout << "Update::" << pPlane->matPlaneParam.t() << ", " << X.t() <<", "<<pPlane->mvpMPs.size()<<", "<<nReject<< std::endl;
+		//std::cout << "Update::" << pPlane->matPlaneParam.t() << ", " << X.t() <<", "<<pPlane->mvpMPs.size()<<", "<<nReject<< std::endl;
 
 		pPlane->matPlaneParam = X.clone();
-		pPlane->normal = X.rowRange(0, 3);
-		pPlane->distance = X.at<float>(3);
-		pPlane->norm = sqrt(pPlane->normal.dot(pPlane->normal));
+		pPlane->SetParam(X.rowRange(0, 3), X.at<float>(3));
 		return;
 	}
 	else
@@ -1452,9 +1510,7 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 		pPlane->matPlaneParam = pParam.clone();
 		pPlane->mnPlaneID = ++nPlaneID;
 
-		pPlane->normal = pParam.rowRange(0, 3);
-		pPlane->distance = pParam.at<float>(3);
-		pPlane->norm = sqrt(pPlane->normal.dot(pPlane->normal));
+		pPlane->SetParam(pParam.rowRange(0, 3), pParam.at<float>(3));
 
 		for (int i = 0; i < mMat.rows; i++) {
 			int checkIdx = paramStatus.at<uchar>(i);
@@ -1719,10 +1775,10 @@ void UVR_SLAM::PlaneEstimator::CreatePlanarMapPoints(std::vector<UVR_SLAM::MapPo
 		temp *= depth;
 		temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
 
-		if (maxDepth < depth)
+		/*if (maxDepth < depth)
 			maxDepth = depth;
 		if (minDepth > depth)
-			minDepth = depth;
+			minDepth = depth;*/
 
 		cv::Mat estimated = invT*temp;
 		if (pMP) {
@@ -1736,12 +1792,13 @@ void UVR_SLAM::PlaneEstimator::CreatePlanarMapPoints(std::vector<UVR_SLAM::MapPo
 			pNewMP->UpdateNormalAndDepth();
 			pNewMP->mnFirstKeyFrameID = mpTargetFrame->GetKeyFrameID();
 			mpSystem->mlpNewMPs.push_back(pNewMP);
-			pPlane->mvpMPs.push_back(pNewMP);
+			//pPlane->mvpMPs.push_back(pNewMP);
+			pPlane->tmpMPs.push_back(pNewMP);
 			//mpFrameWindow->AddMapPoint(pNewMP, nTargetID);
 		}
 	}
 
-	cv::Mat R, t;
+	/*cv::Mat R, t;
 	mpTargetFrame->GetPose(R, t);
 
 	for (int j = 0; j < mvpMPs.size(); j++) {
@@ -1760,7 +1817,7 @@ void UVR_SLAM::PlaneEstimator::CreatePlanarMapPoints(std::vector<UVR_SLAM::MapPo
 		}
 	}
 
-	mpTargetFrame->SetDepthRange(minDepth, maxDepth);
+	mpTargetFrame->SetDepthRange(minDepth, maxDepth);*/
 }
 
 void UVR_SLAM::PlaneEstimator::CreateWallMapPoints(std::vector<UVR_SLAM::MapPoint*> mvpMPs, std::vector<UVR_SLAM::ObjectType> mvpOPs, UVR_SLAM::PlaneInformation* pPlane, cv::Mat invT, int wtype,int MinX, int MaxX, bool b1, bool b2) {

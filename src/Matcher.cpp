@@ -24,6 +24,46 @@ UVR_SLAM::Matcher::~Matcher(){}
 
 const double nn_match_ratio = 0.7f; // Nearest-neighbour matching ratio
 
+int UVR_SLAM::Matcher::MatchingWithLabeling(std::vector<cv::KeyPoint> kps1, std::vector<cv::KeyPoint> kps2,cv::Mat desc1, cv::Mat desc2, std::vector<int> idxs1, std::vector<int> idxs2, std::vector<cv::DMatch>& amatches) {
+
+	std::vector<bool> vbTemp(kps2.size(), true);
+	std::vector< std::vector<cv::DMatch> > tempmatches;
+	matcher->knnMatch(desc1, desc2, tempmatches, 2);
+	
+	int n = 0;
+	float thresh_diff = 30.0; //25.0
+
+	for (unsigned long i = 0; i < tempmatches.size(); i++) {
+		if (tempmatches[i][0].distance < nn_match_ratio * tempmatches[i][1].distance) {
+			int idx1 = idxs1[tempmatches[i][0].queryIdx];
+			int idx2 = idxs2[tempmatches[i][0].trainIdx];
+			cv::Point2f pt1 = kps1[idx1].pt;
+			cv::Point2f pt2 = kps2[idx2].pt;
+			float diffX = abs(pt1.x - pt2.x);
+			if (diffX > thresh_diff) { //25
+				continue;
+			}
+			if (vbTemp[idx2]) {
+				vbTemp[idx2] = false;
+			}
+			else {
+				continue;
+			}
+			cv::DMatch matchInfo;
+			matchInfo.queryIdx = idx1;
+			matchInfo.trainIdx = idx2;
+			amatches.push_back(matchInfo);
+
+			//pCurr->mPlaneDescriptor.push_back(pCurr->matDescriptor.row(idx2));
+			//pCurr->mPlaneIdxs.push_back(idx2);
+			//pCurr->mLabelStatus.at<uchar>(idx2) = (int)ObjectType::OBJECT_FLOOR;
+			n++;
+		}
+	}
+	//std::cout << "matching test : " << n << ", " << desc1.rows << ", " << desc2.rows << std::endl;
+	return n;
+}
+
 int UVR_SLAM::Matcher::MatchingWithLabeling(UVR_SLAM::Frame* pKF, UVR_SLAM::Frame* pCurr) {
 
 	cv::Mat img1 = pKF->GetOriginalImage();
@@ -651,6 +691,149 @@ int UVR_SLAM::Matcher::MatchingForFuse(const std::vector<UVR_SLAM::MapPoint*> &v
 			{
 				pMP->AddFrame(pKF, bestIdx);
 				pKF->AddMP(pMP, bestIdx);
+			}
+			nFused++;
+		}
+	}
+	return nFused;
+}
+
+
+//pkf가 pneighkf이고
+//targetkf가 vpmps
+int UVR_SLAM::Matcher::MatchingForFuse(UVR_SLAM::Frame *pTargetKF, UVR_SLAM::Frame *pNeighKF, float th) {
+
+	auto vpMapPoints = pTargetKF->GetMapPoints();
+	std::vector<bool> vbTemp(pNeighKF->mvKeyPoints.size(), true);
+	cv::Mat Rcw = pNeighKF->GetRotation();
+	cv::Mat tcw = pNeighKF->GetTranslation();
+
+	const float &fx = pNeighKF->fx;
+	const float &fy = pNeighKF->fy;
+	const float &cx = pNeighKF->cx;
+	const float &cy = pNeighKF->cy;
+	//const float &bf = pKF->mbf;
+
+	cv::Mat Ow = pNeighKF->GetCameraCenter();
+	int nFused = 0;
+	const int nMPs = vpMapPoints.size();
+
+	auto mvpTargetOPs = pTargetKF->GetObjectVector();
+	auto mvpNeighOPs = pNeighKF->GetObjectVector();
+
+	for (int i = 0; i < nMPs; i++)
+	{
+		UVR_SLAM::MapPoint* pMP = vpMapPoints[i];
+
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted() || pMP->isInFrame(pNeighKF))
+			continue;
+
+		cv::Mat p3Dw = pMP->GetWorldPos();
+		cv::Mat p3Dc = Rcw*p3Dw + tcw;
+
+		// Depth must be positive
+		if (p3Dc.at<float>(2)<0.0f)
+			continue;
+
+		const float invz = 1 / p3Dc.at<float>(2);
+		const float x = p3Dc.at<float>(0)*invz;
+		const float y = p3Dc.at<float>(1)*invz;
+
+		const float u = fx*x + cx;
+		const float v = fy*y + cy;
+
+		// Point must be inside the image
+		if (!pNeighKF->isInImage(u, v))
+			continue;
+
+		//const float ur = u - invz;
+
+		//const float maxDistance = pMP->GetMaxDistance();
+		//const float minDistance = pMP->GetMinDistance();
+		//cv::Mat PO = p3Dw - Ow;
+		//const float dist3D = cv::norm(PO);
+
+		//// Depth must be inside the scale pyramid of the image
+		//if (dist3D<minDistance || dist3D>maxDistance)
+		//	continue;
+
+		//// Viewing angle must be less than 60 deg
+		//cv::Mat Pn = pMP->GetNormal();
+
+		//if (PO.dot(Pn)<0.5*dist3D)
+		//	continue;
+
+		//int nPredictedLevel = pMP->PredictScale(dist3D, pKF);
+		//const float radius = th*pKF->mvScaleFactors[nPredictedLevel];
+
+		const std::vector<size_t> vIndices = pNeighKF->GetFeaturesInArea(u, v, th, 0, pNeighKF->mnScaleLevels);
+
+		if (vIndices.empty())
+			continue;
+
+		// Match to the most similar keypoint in the radius
+
+		const cv::Mat dMP = pMP->GetDescriptor();
+
+		int bestDist = 256;
+		int bestIdx = -1;
+		for (std::vector<size_t>::const_iterator vit = vIndices.begin(), vend = vIndices.end(); vit != vend; vit++)
+		{
+			const size_t idx = *vit;
+
+			const cv::KeyPoint &kp = pNeighKF->mvKeyPoints[idx];
+
+			if (mvpTargetOPs[i] != mvpNeighOPs[idx])
+				continue;
+
+			const int &kpLevel = kp.octave;
+
+			const float &kpx = kp.pt.x;
+			const float &kpy = kp.pt.y;
+			const float ex = u - kpx;
+			const float ey = v - kpy;
+			const float e2 = ex*ex + ey*ey;
+
+			if (e2*pNeighKF->mvInvLevelSigma2[kpLevel]>5.99)
+				continue;
+
+			const cv::Mat &dKF = pNeighKF->matDescriptor.row(idx);
+
+			const int dist = DescriptorDistance(dMP, dKF);
+
+			if (dist<bestDist)
+			{
+				bestDist = dist;
+				bestIdx = idx;
+			}
+		}//for matching
+
+		 // If there is already a MapPoint replace otherwise add new measurement
+		if (bestDist <= TH_LOW)
+		{
+
+			if (vbTemp[bestIdx])
+				vbTemp[bestIdx] = false;
+			else
+				continue;
+
+			MapPoint* pMPinKF = pNeighKF->mvpMPs[bestIdx];
+			if (pMPinKF)
+			{
+				if (!pMPinKF->isDeleted())
+				{
+					if (pMPinKF->GetConnedtedFrames()>pMP->GetConnedtedFrames())
+						pMP->Fuse(pMPinKF);
+					else
+						pMPinKF->Fuse(pMP);
+				}
+			}
+			else
+			{
+				pMP->AddFrame(pNeighKF, bestIdx);
+				pNeighKF->AddMP(pMP, bestIdx);
 			}
 			nFused++;
 		}

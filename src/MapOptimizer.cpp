@@ -49,6 +49,12 @@ void UVR_SLAM::MapOptimizer::InsertKeyFrame(UVR_SLAM::Frame *pKF)
 	mKFQueue.push(pKF);
 }
 
+void UVR_SLAM::MapOptimizer::StopBA(bool b)
+{
+	std::unique_lock<std::mutex> lock(mMutexNewKFs);
+	mbStopBA = b;
+}
+
 bool UVR_SLAM::MapOptimizer::CheckNewKeyFrames()
 {
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
@@ -68,13 +74,18 @@ void UVR_SLAM::MapOptimizer::Run() {
 	while (1) {
 		if (CheckNewKeyFrames()) {
 			SetDoingProcess(true);
+			
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
 			mStrPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
 
 			mbStopBA = false;
-			Optimization::LocalBundleAdjustment(mpTargetFrame, mpFrameWindow, &mbStopBA);
-
+			
+			if(mpTargetFrame->mvpPlanes.size() > 0)
+				Optimization::LocalBundleAdjustmentWithPlane(mpTargetFrame, mpFrameWindow, &mbStopBA);
+			else
+				Optimization::LocalBundleAdjustment(mpTargetFrame, mpFrameWindow, &mbStopBA);
+			
 			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
 			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float letime = leduration / 1000.0;

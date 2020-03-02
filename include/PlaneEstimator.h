@@ -30,13 +30,18 @@ namespace UVR_SLAM {
 	};
 	class PlaneInformation {
 	public:
-		cv::Mat matPlaneParam;
 		int mnPlaneID;
 		int mnFrameID;
 		int mnCount;
 		ObjectType mnPlaneType; //바닥, 벽, 천장
 		std::vector<MapPoint*> mvpMPs;
+		std::vector<MapPoint*> tmpMPs; //이전에 만들어진 포인트 중에서 여러개 연결된 경우
 
+		cv::Mat matPlaneParam;
+		void SetParam(cv::Mat n, float d);
+		void GetParam(cv::Mat& n, float& d);
+	private:
+		std::mutex mMutexParam;
 		cv::Mat normal;
 		float distance;
 		float norm;

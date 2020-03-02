@@ -233,7 +233,6 @@ cv::Mat res;
 void OnBegin(const happyhttp::Response* r, void* userdata)
 {
 	ss.str("");
-	//printf("BEGIN (%d %s)\n", r->getstatus(), r->getreason());
 	count = 0;
 }
 
@@ -241,14 +240,11 @@ void OnData(const happyhttp::Response* r, void* userdata, const unsigned char* d
 {
 	ss.write((const char*)data, n);
 	count += n;
-	//fwrite(data, 1, n, (FILE*)ss);
 }
 
 void OnComplete(const happyhttp::Response* r, void* userdata)
 {
 	res = JSONConverter::ConvertStringToLabel(ss.str().c_str(), count);
-	//res = JSONConverter::ConvertStringToImage(ss.str().c_str(), count);
-	//printf("COMPLETE (%d bytes)\n", count);
 }
 
 
@@ -259,7 +255,7 @@ void JSONConverter::Init() {
 	
 }
 
-bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& dst,int mnFrameID) {
+bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& dst,int mnFrameID, int& stat) {
 	
 	std::string strJSON = ConvertImageToJSONStr(mnFrameID, img);
 	
@@ -278,18 +274,18 @@ bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& 
 	//else if (document.HasMember("image") && document["image"].IsArray()) {
 	//	std::cout << "success array " << std::endl;
 	//}
-	
+
+	stat = 1;
 	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
 
 	mpConnection->setcallbacks(OnBegin, OnData, OnComplete, 0);
-	
 	mpConnection->request("POST",
 		"/api/predict",
 		headers,
 		(const unsigned char*)strJSON.c_str(),
 		strlen(strJSON.c_str())
 	);
-	
+
 	while (mpConnection->outstanding())
 		mpConnection->pump();
 	

@@ -45,6 +45,20 @@ namespace g2o {
 	private:
 	};
 
+	class PlaneBAEdgeOnlyMapPoint : public BaseUnaryEdge<1, double, VertexSBAPointXYZ> {
+	public:
+		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+		PlaneBAEdgeOnlyMapPoint();
+		bool read(std::istream& is);
+		bool write(std::ostream& os) const;
+		void computeError();
+		virtual void linearizeOplus();
+		Vector3d normal;
+		double dist;
+		Vector3d Xw;
+	};
+
 	class PlaneBAEdge : public BaseBinaryEdge<1, double, PlaneVertex, VertexSBAPointXYZ> {
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW

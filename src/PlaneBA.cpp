@@ -18,6 +18,36 @@ bool PlaneVertex::write(std::ostream& os) const {
 	}
 	return os.good();
 }
+//new edge
+PlaneBAEdgeOnlyMapPoint::PlaneBAEdgeOnlyMapPoint() {
+
+}
+bool PlaneBAEdgeOnlyMapPoint::read(std::istream& is) {
+	return true;
+}
+
+bool PlaneBAEdgeOnlyMapPoint::write(std::ostream& os) const {
+	return true;
+}
+
+void PlaneBAEdgeOnlyMapPoint::computeError() {
+	const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
+	Vector3d param2 = v2->estimate();
+
+	//Vector3d normal = param1.head(3).normalized();
+	//double dist = param1[3] / param1.head(3).squaredNorm();
+
+	_error[0] = normal.dot(param2) + dist;
+	
+}
+void PlaneBAEdgeOnlyMapPoint::linearizeOplus() {
+	//const PlaneVertex* v1 = static_cast<const PlaneVertex*>(_vertices[0]);
+	const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
+
+	//Vector6d param1 = v1->estimate(); //평면
+	//Vector3d param2 = v2->estimate(); //맵포인트
+	_jacobianOplusXi = normal;
+}
 //Edge
 PlaneBAEdge::PlaneBAEdge() {
 
