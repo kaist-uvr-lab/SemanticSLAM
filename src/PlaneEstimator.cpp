@@ -338,8 +338,8 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					}
 					//}
 
-					mpFrameWindow->ClearDummyMPs();
-					mpFrameWindow->SetDummyPoints(mvpDummys);
+					//mpFrameWindow->ClearDummyMPs();
+					//mpFrameWindow->SetDummyPoints(mvpDummys);
 					mpTargetFrame->SetDepthRange(0.0, maxDepth);
 				}
 

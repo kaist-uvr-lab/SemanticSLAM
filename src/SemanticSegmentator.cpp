@@ -69,7 +69,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 	while (1) {
 		std::string mStrDirPath;
 		if (CheckNewKeyFrames()) {
-			waitKey(1);
+			
 			SetBoolDoingProcess(true);
 			ProcessNewKeyFrame();
 			mStrDirPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());

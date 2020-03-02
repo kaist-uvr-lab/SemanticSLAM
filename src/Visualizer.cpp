@@ -291,72 +291,73 @@ void UVR_SLAM::Visualizer::Run() {
 			}
 
 			///////////line visualization
-			for (int k = 0; k < mvpWindowFrames.size(); k++) {
-				auto lines = mvpWindowFrames[k]->Getlines();
-				if (lines.size() == 0)
-					continue;
-				if (mvpWindowFrames[k]->mvpPlanes.size() == 0) {
-					continue;
-				}
-				UVR_SLAM::PlaneInformation* aplane = mvpWindowFrames[k]->mvpPlanes[0];
-				
-				cv::Mat K = mvpWindowFrames[k]->mK.clone();
-				K.at<float>(0, 0) /= 2.0;
-				K.at<float>(1, 1) /= 2.0;
-				K.at<float>(0, 2) /= 2.0;
-				K.at<float>(1, 2) /= 2.0;
-				
-				cv::Mat R, t;
-				mvpWindowFrames[k]->GetPose(R, t);
-				cv::Mat T = cv::Mat::eye(4, 4, CV_32FC1);
-				R.copyTo(T.rowRange(0, 3).colRange(0, 3));
-				t.copyTo(T.col(3).rowRange(0, 3));
-				cv::Mat invT = T.inv();
-				
-				cv::Mat planeParam = aplane->matPlaneParam.clone();
-				cv::Mat invP1 = invT.t()*planeParam;
+			//for (int k = 0; k < mvpWindowFrames.size(); k++) {
+			//	auto lines = mvpWindowFrames[k]->Getlines();
+			//	if (lines.size() == 0)
+			//		continue;
+			//	if (mvpWindowFrames[k]->mvpPlanes.size() == 0) {
+			//		continue;
+			//	}
+			//	UVR_SLAM::PlaneInformation* aplane = mvpWindowFrames[k]->mvpPlanes[0];
+			//	
+			//	cv::Mat K = mvpWindowFrames[k]->mK.clone();
+			//	K.at<float>(0, 0) /= 2.0;
+			//	K.at<float>(1, 1) /= 2.0;
+			//	K.at<float>(0, 2) /= 2.0;
+			//	K.at<float>(1, 2) /= 2.0;
+			//	
+			//	cv::Mat R, t;
+			//	mvpWindowFrames[k]->GetPose(R, t);
+			//	cv::Mat T = cv::Mat::eye(4, 4, CV_32FC1);
+			//	R.copyTo(T.rowRange(0, 3).colRange(0, 3));
+			//	t.copyTo(T.col(3).rowRange(0, 3));
+			//	cv::Mat invT = T.inv();
+			//	
+			//	cv::Mat planeParam = aplane->matPlaneParam.clone();
+			//	cv::Mat invP1 = invT.t()*planeParam;
 
-				int nPts = 15;
-				for (int i = 0; i < lines.size(); i++) {
-					Vec4i v = lines[i];
-					Point2f from(v[0], v[1]);
-					Point2f to(v[2], v[3]);
+			//	int nPts = 15;
+			//	for (int i = 0; i < lines.size(); i++) {
+			//		Vec4i v = lines[i];
+			//		Point2f from(v[0], v[1]);
+			//		Point2f to(v[2], v[3]);
 
-					cv::Point2f diff = to - from;
+			//		cv::Point2f diff = to - from;
 
-					for (int j = 0; j < nPts; j++) {
+			//		for (int j = 0; j < nPts; j++) {
 
-						cv::Point2f pt(from.x + diff.x / nPts * j, from.y + diff.y / nPts * j);
-						cv::Mat temp = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
-						temp = K.inv()*temp;
-						cv::Mat matDepth = -invP1.at<float>(3) / (invP1.rowRange(0, 3).t()*temp);
-						float depth = matDepth.at<float>(0);
-						if (depth < 0)
-							depth *= -1.0;
-						temp *= depth;
-						temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
-						cv::Mat estimated = invT*temp;
+			//			cv::Point2f pt(from.x + diff.x / nPts * j, from.y + diff.y / nPts * j);
+			//			cv::Mat temp = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
+			//			temp = K.inv()*temp;
+			//			cv::Mat matDepth = -invP1.at<float>(3) / (invP1.rowRange(0, 3).t()*temp);
+			//			float depth = matDepth.at<float>(0);
+			//			if (depth < 0)
+			//				depth *= -1.0;
+			//			temp *= depth;
+			//			temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
+			//			cv::Mat estimated = invT*temp;
 
-						cv::Point2f tpt = cv::Point2f(estimated.at<float>(0) * mnVisScale, -estimated.at<float>(2) * mnVisScale);
-						tpt += mVisMidPt;
-						cv::circle(tempVis, tpt, 2, cv::Scalar(255, 0, 255), -1);
-					}//lines
-				}
-			}
+			//			cv::Point2f tpt = cv::Point2f(estimated.at<float>(0) * mnVisScale, -estimated.at<float>(2) * mnVisScale);
+			//			tpt += mVisMidPt;
+			//			cv::circle(tempVis, tpt, 2, cv::Scalar(255, 0, 255), -1);
+			//		}//lines
+			//	}
+			//}
 			///////////line visualization
 
-			//dummy for test
-			auto mvpDummys = mpFrameWindow->GetDummyPoints();
+			///////////
+			////dummy for test
+			//auto mvpDummys = mpFrameWindow->GetDummyPoints();
 
-			for (int i = 0; i < mvpDummys.size(); i++) {
-				
-				UVR_SLAM::MapPoint* pMP = mvpDummys[i];
-				cv::Mat x3D = pMP->GetWorldPos();
-				cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
-				tpt += mVisMidPt;
-				cv::circle(tempVis, tpt, 3, cv::Scalar(255,0,255), -1);
-				//allDummyPts.push_back(pMP);
-			}
+			//for (int i = 0; i < mvpDummys.size(); i++) {
+			//	
+			//	UVR_SLAM::MapPoint* pMP = mvpDummys[i];
+			//	cv::Mat x3D = pMP->GetWorldPos();
+			//	cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
+			//	tpt += mVisMidPt;
+			//	cv::circle(tempVis, tpt, 3, cv::Scalar(255,0,255), -1);
+			//	//allDummyPts.push_back(pMP);
+			//}
 
 			/*for (int i = 0; i < allDummyPts.size(); i++) {
 
@@ -366,6 +367,10 @@ void UVR_SLAM::Visualizer::Run() {
 				tpt += mVisMidPt;
 				cv::circle(tempVis, tpt, 3, cv::Scalar(255,0,255), -1);
 			}*/
+			////dummy for test
+			///////////
+			
+
 
 			//fuse time text 
 			std::stringstream ss;

@@ -135,7 +135,7 @@ void UVR_SLAM::LocalMapper::Run() {
 				}
 			}
 
-			mpFrameWindow->CalcFrameDistanceWithBOW(mpTargetFrame);
+			//mpFrameWindow->CalcFrameDistanceWithBOW(mpTargetFrame);
 
 			//프레임 내에서 삭제 되는 녀석과 업데이트 되는 녀석의 분리가 필요함.
 
