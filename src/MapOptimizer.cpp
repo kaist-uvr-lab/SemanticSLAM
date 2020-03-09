@@ -91,6 +91,8 @@ void UVR_SLAM::MapOptimizer::Run() {
 			float letime = leduration / 1000.0;
 			mpSystem->SetMapOptimizerTime(letime);
 
+
+
 			//Á¾·á
 			SetDoingProcess(false);
 		}

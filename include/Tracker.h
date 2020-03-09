@@ -45,7 +45,7 @@ namespace UVR_SLAM {
 		int mnMaxFrames, mnMinFrames;
 		int mnWidth, mnHeight;
 		int mnMatching;
-		cv::Mat mK;
+		cv::Mat mK, mK2;
 		bool mbInitializing;
 		bool mbFirstFrameAfterInit;
 		bool mbInitilized;

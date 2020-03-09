@@ -33,7 +33,7 @@ UVR_SLAM::Tracker::Tracker(std::string strPath) : mbInitializing(false), mbFirst
 
 	mnWidth = fs["Image.width"];
 	mnHeight = fs["Image.height"];
-
+	mK2 = (cv::Mat_<float>(3, 3) << fx, 0, 0, 0, fy, 0, -fy*cx, -fx*cy, fx*fy); //line projection
 	fs.release();
 }
 UVR_SLAM::Tracker::~Tracker() {}
@@ -285,6 +285,64 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			}
 		}
 		
+		//////////////////////////////////////////////////////////////////////////////
+		//////////////line test
+		/*auto lines = mpRefKF->Getlines();
+		bool bLine = lines.size() > 0;
+		bool bPlane = mpRefKF->mvpPlanes.size() > 0;
+		if (bLine && bPlane) {
+			
+			auto plane = mpRefKF->mvpPlanes[0];
+			cv::Mat normal1;
+			float dist1;
+			plane->GetParam(normal1, dist1);
+			cv::Mat K = mK.clone();
+			K.at<float>(0, 0) /= 2.0;
+			K.at<float>(1, 1) /= 2.0;
+			K.at<float>(0, 2) /= 2.0;
+			K.at<float>(1, 2) /= 2.0;
+
+			cv::Mat T = cv::Mat::eye(4, 4, CV_32FC1);
+			R.copyTo(T.rowRange(0, 3).colRange(0, 3));
+			t.copyTo(T.col(3).rowRange(0, 3));
+
+			cv::Mat planeParam = plane->matPlaneParam.clone();
+			cv::Mat invT = T.inv();
+			cv::Mat invP = invT.t()*planeParam;
+			cv::Mat invK = K.inv();
+
+			cv::Mat R, t;
+			pCurr->GetPose(R, t);
+			
+			for (int i = 0; i < lines.size(); i++) {
+				cv::Mat param = UVR_SLAM::PlaneInformation::PlaneWallEstimator(lines[i], normal1, invP, invT, invK);
+				float m;
+				cv::Mat mLine = UVR_SLAM::PlaneInformation::FlukerLineProjection(planeParam, param, R, t, mK2, m);
+				cv::Point2f sPt, ePt;
+				UVR_SLAM::PlaneInformation::CalcFlukerLinePoints(sPt, ePt, 0.0, mnHeight, mLine);
+				cv::line(vis, sPt, ePt, cv::Scalar(0, 255, 0), 3);
+				std::cout << "tttt::" << param.t() << std::endl;
+			}
+		}*/
+		
+		auto wallParams = mpRefKF->GetWallParams();
+		
+		if (wallParams.size() > 0 && mpRefKF->mvpPlanes.size() > 0) {
+			auto plane = mpRefKF->mvpPlanes[0];
+			cv::Mat planeParam = plane->matPlaneParam.clone();
+			for (int i = 0; i < wallParams.size(); i++) {
+				float m;
+				cv::Mat mLine = UVR_SLAM::PlaneInformation::FlukerLineProjection(wallParams[i], planeParam, R, t, mK2, m);
+				cv::Point2f sPt, ePt;
+				UVR_SLAM::PlaneInformation::CalcFlukerLinePoints(sPt, ePt, 0.0, mnHeight, mLine);
+				cv::line(vis, sPt, ePt, cv::Scalar(0, 255, 0), 3);
+				//std::cout << "tttt::" << wallParams[i].t() << std::endl;
+			}
+		}
+		
+		//////////////line test
+		//////////////////////////////////////////////////////////////////////////////
+
 		//속도 및 에러 출력
 		/*std::stringstream ss;
 		ss << std::setw(5) << "Tracker TIME : " << tttt << " || " << mnMatching<<" Local Map : "<<mvpLocalMPs.size();

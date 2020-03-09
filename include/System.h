@@ -207,6 +207,9 @@ namespace UVR_SLAM {
 		void SetSegmentationString(std::string str);
 		std::string GetSegmentationString();
 
+		void SetMapOptimizerString(std::string str);
+		std::string GetMapOptimizerString();
+
 	private:
 		std::mutex mMutexPlaneString;
 		std::string mStrPlaneString;
@@ -214,6 +217,8 @@ namespace UVR_SLAM {
 		std::string mStrTrackerString;
 		std::mutex mMutexSegmentationString;
 		std::string mStrSegmentationString;
+		std::mutex mMutexMapOptimizer;
+		std::string mStrMapOptimizer;
 	////////////////////////////////////////////////////////////////////////
 	public:
 		void AddGlobalFrame(Frame* pF);

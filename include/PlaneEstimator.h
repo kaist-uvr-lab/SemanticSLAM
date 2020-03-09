@@ -28,6 +28,10 @@ namespace UVR_SLAM {
 			return slope;
 		}
 	};
+	class PlaneOperator {
+	public:
+		
+	};
 	class PlaneInformation {
 	public:
 		int mnPlaneID;
@@ -55,8 +59,16 @@ namespace UVR_SLAM {
 		float CalcPlaneDistance(cv::Mat X);
 		//플루커 라인 관련 함수들
 		cv::Mat FlukerLineProjection(PlaneInformation* P, cv::Mat R, cv::Mat t, cv::Mat K, float& m);
-		void CalcFlukerLinePoints(cv::Point2f& sPt, cv::Point2f& ePt, float f1, float f2, cv::Mat mLine);
-		cv::Point2f CalcLinePoint(float y, cv::Mat mLine);
+		
+		//테스트
+		static float CalcCosineSimilarity(cv::Mat P1, cv::Mat P2);
+		static float CalcPlaneDistance(cv::Mat X1, cv::Mat X2);
+		static cv::Mat PlaneWallEstimator(cv::Vec4i line, cv::Mat normal1, cv::Mat invP, cv::Mat invT, cv::Mat invK);
+		static cv::Mat PlaneWallEstimator(UVR_SLAM::Frame* pCurrF, UVR_SLAM::Frame* pTargetF);
+		static cv::Mat CreatePlanarMapPoint(cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK);
+		static cv::Mat FlukerLineProjection(cv::Mat P1, cv::Mat P2, cv::Mat R, cv::Mat t, cv::Mat K, float& m);
+		static void CalcFlukerLinePoints(cv::Point2f& sPt, cv::Point2f& ePt, float f1, float f2, cv::Mat mLine);
+		static cv::Point2f CalcLinePoint(float y, cv::Mat mLine);
 	};
 
 	class PlaneEstimator {
@@ -93,6 +105,8 @@ namespace UVR_SLAM {
 		bool PlaneInitialization(PlaneInformation* pPlane, std::vector<MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 		bool PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, UVR_SLAM::PlaneInformation* GroundPlane, int type, std::vector<UVR_SLAM::MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 		bool ConnectedComponentLabeling(cv::Mat img, cv::Mat& dst, cv::Mat& stat);
+	public:
+		cv::Mat mK2;
 	private:
 
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
@@ -104,7 +118,7 @@ namespace UVR_SLAM {
 		float mfThreshPlaneRatio;
 		float mfThreshNormal;
 
-		cv::Mat mK, mK2;//
+		cv::Mat mK;//
 		System* mpSystem;
 		std::mutex mMutexDoingProcess;
 		bool mbDoingProcess;

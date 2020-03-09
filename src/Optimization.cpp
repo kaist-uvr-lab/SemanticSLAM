@@ -758,13 +758,17 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 		for (std::vector<MapPoint*>::iterator vit = vpMPs.begin(), vend = vpMPs.end(); vit != vend; vit++)
 		{
 			MapPoint* pMP = *vit;
-			if (pMP)
-				if (!pMP->isDeleted())
-					if (pMP->mnLocalBAID != nTargetID)
-					{
-						lLocalMapPoints.push_back(pMP);
-						pMP->mnLocalBAID = nTargetID;
-					}
+			if (!pMP)
+				continue;
+			if (pMP->isDeleted()) {
+				continue;
+			}
+			if (pMP->GetNumConnectedFrames() == 1)
+				continue;
+			if (pMP->mnLocalBAID == nTargetID)
+				continue;
+			lLocalMapPoints.push_back(pMP);
+			pMP->mnLocalBAID = nTargetID;
 		}
 	}
 
@@ -1054,13 +1058,17 @@ void UVR_SLAM::Optimization::LocalBundleAdjustmentWithPlane(UVR_SLAM::Frame *pKF
 		for (std::vector<MapPoint*>::iterator vit = vpMPs.begin(), vend = vpMPs.end(); vit != vend; vit++)
 		{
 			MapPoint* pMP = *vit;
-			if (pMP)
-				if (!pMP->isDeleted())
-					if (pMP->mnLocalBAID != nTargetID)
-					{
-						lLocalMapPoints.push_back(pMP);
-						pMP->mnLocalBAID = nTargetID;
-					}
+			if (!pMP)
+				continue;
+			if (pMP->isDeleted()) {
+				continue;
+			}
+			if (pMP->GetNumConnectedFrames() == 1)
+				continue;
+			if (pMP->mnLocalBAID == nTargetID)
+				continue;
+			lLocalMapPoints.push_back(pMP);
+			pMP->mnLocalBAID = nTargetID;
 		}
 	}
 

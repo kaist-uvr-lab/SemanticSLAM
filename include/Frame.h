@@ -159,9 +159,13 @@ namespace UVR_SLAM {
 	public:
 		void SetLines(std::vector<cv::Vec4i> lines);
 		std::vector<cv::Vec4i> Getlines();
+		std::vector<cv::Mat> GetWallParams();
+		void SetWallParams(std::vector<cv::Mat> vParams);
 	private:
 		std::vector<cv::Vec4i> mvLines;
+		std::vector<cv::Mat> mvWallParams;
 		std::mutex mMutexLines;
+		std::mutex mMutexWallParams;
 ////LINE
 //////////////////////////
 

@@ -750,3 +750,11 @@ bool UVR_SLAM::Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit)
 	return true;
 }
 
+std::vector<cv::Mat> UVR_SLAM::Frame::GetWallParams() {
+	std::unique_lock<std::mutex>(mMutexWallParams);
+	return std::vector<cv::Mat>(mvWallParams.begin(), mvWallParams.end());
+}
+void UVR_SLAM::Frame::SetWallParams(std::vector<cv::Mat> vParams){
+	std::unique_lock<std::mutex>(mMutexWallParams);
+	mvWallParams = std::vector<cv::Mat>(vParams.begin(), vParams.end());
+}

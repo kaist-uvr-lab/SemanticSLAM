@@ -457,7 +457,10 @@ void UVR_SLAM::LocalMapper::UpdateKFs() {
 	mpFrameWindow->AddFrame(mpTargetFrame);
 	int n = mpTargetFrame->GetFrameID();
 	for (auto iter = mvpConnectedKFs.begin(); iter != mvpConnectedKFs.end(); iter++) {
-		mpFrameWindow->AddFrame(*iter);
+		auto pKFi = *iter;
+		mpFrameWindow->AddFrame(pKFi);
+		if (pKFi->GetFrameID() == mpTargetFrame->GetFrameID())
+			std::cout << "??????????????" << std::endl;
 		(*iter)->mnLocalMapFrameID = n;
 	}
 }

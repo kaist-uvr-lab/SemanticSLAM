@@ -478,6 +478,97 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				mpTargetFrame->SetLines(lines);
 			}
 			
+			//////////////////////////////////////////////////////////////
+			//WallLineTest
+			if (bInitFloorPlane && mpPrevFrame) {
+				auto mvFrames = mpTargetFrame->GetConnectedKFs(10);
+				//mvFrames.push_back(mpTargetFrame);
+				std::vector<cv::Mat> wallParams;
+				std::vector<cv::Mat> twallParams;
+				std::map<int, int> mapWallParams;
+				std::map<int, std::vector<UVR_SLAM::Frame*>> mapWallParamFrames;
+				cv::Mat K = mK.clone();
+				K.at<float>(0, 0) /= 2.0;
+				K.at<float>(1, 1) /= 2.0;
+				K.at<float>(0, 2) /= 2.0;
+				K.at<float>(1, 2) /= 2.0;
+				for (int k = 0; k < mvFrames.size(); k++) {
+					auto plane = mvFrames[k]->mvpPlanes[0];
+					cv::Mat normal1;
+					float dist1;
+					plane->GetParam(normal1, dist1);
+					cv::Mat planeParam = plane->matPlaneParam.clone();
+
+					cv::Mat R, t;
+					mvFrames[k]->GetPose(R, t);
+					cv::Mat T = cv::Mat::eye(4, 4, CV_32FC1);
+					R.copyTo(T.rowRange(0, 3).colRange(0, 3));
+					t.copyTo(T.col(3).rowRange(0, 3));
+
+					cv::Mat invT = T.inv();
+					cv::Mat invP = invT.t()*planeParam;
+					cv::Mat invK = K.inv();
+
+					for (int i = 0; i < lines.size(); i++) {
+						cv::Mat param = UVR_SLAM::PlaneInformation::PlaneWallEstimator(lines[i], normal1, invP, invT, invK);
+
+						//비교 후 추가
+						if (mapWallParams.empty()) {
+							mapWallParams.insert(std::make_pair(wallParams.size(), 0));
+							mapWallParamFrames.insert(std::make_pair(wallParams.size(), std::vector<UVR_SLAM::Frame*>()));
+							mapWallParamFrames[0].push_back(mvFrames[k]);
+							wallParams.push_back(param);
+						}
+						else {
+							bool bInsert = true;
+							for (int j = 0; j < wallParams.size(); j++) {
+								float normal = PlaneInformation::CalcCosineSimilarity(wallParams[j], param);
+								float dist = PlaneInformation::CalcPlaneDistance(wallParams[j], param);
+								/*if (normal < 0.98 || dist > 0.01) {
+									continue;
+								}*/
+								////아예 노말이 다르다.
+								////노말이
+								if (normal > 0.97 && dist < 0.01) {
+									//겹치는 것/
+									bInsert = false;
+									mapWallParams[j]++;
+									mapWallParamFrames[j].push_back(mvFrames[k]);
+								}
+								else if (normal > 0.97 && (dist <0.1 && dist >= 0.01)) {
+									//얘는 추가x
+									bInsert = false;
+								}
+							}
+							if (bInsert) {
+								mapWallParams.insert(std::make_pair(wallParams.size(), 1));
+								mapWallParamFrames.insert(std::make_pair(wallParams.size(), std::vector<UVR_SLAM::Frame*>()));
+								mapWallParamFrames[wallParams.size()].push_back(mvFrames[k]);
+								wallParams.push_back(param);
+							}
+						}
+						
+					}//for
+				}
+				for (auto iter = mapWallParams.begin(); iter != mapWallParams.end(); iter++) {
+					int idx = iter->first;
+					int count = iter->second;
+					if (count > 3){
+						twallParams.push_back(wallParams[idx]);
+						std::cout << "param : " << wallParams[idx].t() << ", " << count << std::endl;
+						for (int aa = 0; aa < count; aa++) {
+							std::cout << "frame test : " << mapWallParamFrames[idx][aa]->GetFrameID() << std::endl;
+						}
+					}
+				}
+				mpTargetFrame->SetWallParams(twallParams);
+			}
+			
+			//WallLineTest
+			//////////////////////////////////////////////////////////////
+
+
+
 			//////라인 생성 및 테스트
 			{
 				if (mpPrevFrame && bMaxFloorY && mpPrevFrame->mvpPlanes.size() > 0) {
@@ -550,7 +641,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 						}
 						{
 							///////////////////////////////////////////
-							////평면 파라메터 추정
+							////평면 벽 파라메터 추정
 							cv::Mat normal2 = tempvec[0]->GetWorldPos() - tempvec[nPts - 1]->GetWorldPos();
 							float norm2 = sqrt(normal2.dot(normal2));
 							normal2 /= norm2;
@@ -564,7 +655,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 							matPlane.push_back(normal3.t());
 							if (i == 0)
 								pTestWall->matPlaneParam = normal3.clone();
-							////평면 파라메터 추정
+							////평면 벽 파라메터 추정
 							///////////////////////////////////////////
 						}
 
@@ -1561,6 +1652,40 @@ void UVR_SLAM::PlaneEstimator::reversePlaneSign(cv::Mat& param) {
 //////////////////////////////////////////////////////////////////////
 
 //플루커 라인 프로젝션 관련 함수
+cv::Mat UVR_SLAM::PlaneInformation::FlukerLineProjection(cv::Mat P1, cv::Mat P2, cv::Mat R, cv::Mat t, cv::Mat K, float& m) {
+	cv::Mat PLw1, Lw1, NLw1;
+	PLw1 = P1*P2.t() - P2*P1.t();
+	Lw1 = cv::Mat::zeros(6, 1, CV_32FC1);
+	Lw1.at<float>(3) = PLw1.at<float>(2, 1);
+	Lw1.at<float>(4) = PLw1.at<float>(0, 2);
+	Lw1.at<float>(5) = PLw1.at<float>(1, 0);
+	NLw1 = PLw1.col(3).rowRange(0, 3);
+	NLw1.copyTo(Lw1.rowRange(0, 3));
+
+	//Line projection test : Ni
+	cv::Mat T2 = cv::Mat::zeros(6, 6, CV_32FC1);
+	R.copyTo(T2.rowRange(0, 3).colRange(0, 3));
+	R.copyTo(T2.rowRange(3, 6).colRange(3, 6));
+	cv::Mat tempSkew = cv::Mat::zeros(3, 3, CV_32FC1);
+	tempSkew.at<float>(0, 1) = -t.at<float>(2);
+	tempSkew.at<float>(1, 0) = t.at<float>(2);
+	tempSkew.at<float>(0, 2) = t.at<float>(1);
+	tempSkew.at<float>(2, 0) = -t.at<float>(1);
+	tempSkew.at<float>(1, 2) = -t.at<float>(0);
+	tempSkew.at<float>(2, 1) = t.at<float>(0);
+	tempSkew *= R;
+	tempSkew.copyTo(T2.rowRange(0, 3).colRange(3, 6));
+	cv::Mat Lc = T2*Lw1;
+	cv::Mat Nc = Lc.rowRange(0, 3);
+	cv::Mat res = K*Nc;
+	if (res.at<float>(0) < 0)
+		res *= -1;
+	if (res.at<float>(0) != 0)
+		m = res.at<float>(1) / res.at<float>(0);
+	else
+		m = 9999.0;
+	return res.clone();
+}
 cv::Mat UVR_SLAM::PlaneInformation::FlukerLineProjection(PlaneInformation* P, cv::Mat R, cv::Mat t, cv::Mat K, float& m) {
 	cv::Mat PLw1, Lw1, NLw1;
 	PLw1 = this->matPlaneParam*P->matPlaneParam.t() - P->matPlaneParam*this->matPlaneParam.t();
@@ -1746,6 +1871,25 @@ float UVR_SLAM::PlaneInformation::CalcPlaneDistance(PlaneInformation* p) {
 
 float UVR_SLAM::PlaneInformation::CalcPlaneDistance(cv::Mat X) {
 	return X.dot(this->normal) + distance;
+}
+
+float UVR_SLAM::PlaneInformation::CalcCosineSimilarity(cv::Mat P1, cv::Mat P2){
+	cv::Mat normal1 = P1.rowRange(0, 3);
+	cv::Mat normal2 = P2.rowRange(0, 3);
+	float d1 = sqrt(normal1.dot(normal1));
+	float d2 = sqrt(normal2.dot(normal2));
+	if (CheckZero(d1) || CheckZero(d2))
+		return 0.0;
+	return abs(normal1.dot(normal2)) / (d1*d2);
+}
+
+//두 평면의 거리를 비교
+float UVR_SLAM::PlaneInformation::CalcPlaneDistance(cv::Mat X1, cv::Mat X2){
+	float d1 = abs(X1.at<float>(3));
+	float d2 = abs(X2.at<float>(3));
+
+	return abs(d1 - d2);
+
 }
 
 void UVR_SLAM::PlaneEstimator::CreatePlanarMapPoints(std::vector<UVR_SLAM::MapPoint*> mvpMPs, std::vector<UVR_SLAM::ObjectType> mvpOPs, UVR_SLAM::PlaneInformation* pPlane, cv::Mat invT) {
@@ -1958,4 +2102,39 @@ bool UVR_SLAM::PlaneEstimator::isFloorPlaneInitialized() {
 void UVR_SLAM::PlaneEstimator::SetFloorPlaneInitialization(bool b){
 	std::unique_lock<std::mutex> lockTemp(mMutexInitFloorPlane);
 	mbInitFloorPlane = b;
+}
+
+cv::Mat UVR_SLAM::PlaneInformation::PlaneWallEstimator(cv::Vec4i line, cv::Mat normal1, cv::Mat invP, cv::Mat invT, cv::Mat invK) {
+	
+	Point2f from(line[0], line[1]);
+	Point2f to(line[2], line[3]);
+
+	cv::Mat s = CreatePlanarMapPoint(from, invP, invT, invK);
+	cv::Mat e = CreatePlanarMapPoint(to, invP, invT, invK);
+
+	cv::Mat normal2 = s - e;
+	normal2 = normal2.rowRange(0, 3);
+	float norm2 = sqrt(normal2.dot(normal2));
+	normal2 /= norm2;
+	auto normal3 = normal1.cross(normal2);
+	float norm3 = sqrt(normal3.dot(normal3));
+	normal3 /= norm3;
+
+	cv::Mat matDist = normal3.t()*s.rowRange(0, 3);
+
+	normal3.push_back(-matDist);
+	return normal3;  
+}
+//3차원값? 4차원으로?ㄴ
+cv::Mat UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK){
+	cv::Mat temp1 = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
+	temp1 = invK*temp1;
+	cv::Mat matDepth1 = -invP.at<float>(3) / (invP.rowRange(0, 3).t()*temp1);
+	float depth = matDepth1.at<float>(0);
+	if (depth < 0)
+		depth *= -1.0;
+	temp1 *= depth;
+	temp1.push_back(cv::Mat::ones(1, 1, CV_32FC1));
+	cv::Mat estimated = invT*temp1;
+	return estimated.rowRange(0,3);
 }
