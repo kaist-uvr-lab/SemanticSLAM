@@ -32,6 +32,19 @@ namespace UVR_SLAM {
 	public:
 		
 	};
+
+	class WallPlane{
+	public:
+		cv::Mat param;
+	};
+
+	class Line {
+	public:
+		cv::Point2f from,to;
+		UVR_SLAM::Frame* mFrame;
+		int mnPlaneID;
+	};
+
 	class PlaneInformation {
 	public:
 		int mnPlaneID;

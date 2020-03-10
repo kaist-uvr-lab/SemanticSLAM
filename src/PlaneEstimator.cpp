@@ -479,6 +479,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			}
 			
 			//////////////////////////////////////////////////////////////
+			//////LINE 추가 과정.
 			//WallLineTest
 			if (bInitFloorPlane && mpPrevFrame) {
 				auto mvFrames = mpTargetFrame->GetConnectedKFs(10);
