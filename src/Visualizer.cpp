@@ -4,9 +4,13 @@
 #include <MapPoint.h>
 #include <System.h>
 #include <PlaneEstimator.h>
+#include <Map.h>
+#include <plane.h>
 
 UVR_SLAM::Visualizer::Visualizer() {}
-UVR_SLAM::Visualizer::Visualizer(int w, int h, int scale) :mnWidth(w), mnHeight(h), mnVisScale(scale), mnFontFace(2), mfFontScale(0.6){}
+UVR_SLAM::Visualizer::Visualizer(int w, int h, int scale, Map* pMap) :mnWidth(w), mnHeight(h), mnVisScale(scale), mnFontFace(2), mfFontScale(0.6){
+	mpMap = pMap;
+}
 UVR_SLAM::Visualizer::~Visualizer() {}
 
 void CalcLineEquation(cv::Point2f pt1, cv::Point2f pt2, float& slope, float& dist) {
@@ -213,7 +217,7 @@ void UVR_SLAM::Visualizer::Run() {
 
 			//////////////////////////////////////////////////////////////////////////////
 			/////////////전체 포인트 출력
-			auto mvpGlobalFrames = mpSystem->GetGlobalFrames();
+			auto mvpGlobalFrames = mpMap->GetFrames();
 			for (int i = 0; i < mvpGlobalFrames.size(); i++) {
 				UVR_SLAM::Frame* pF = mvpGlobalFrames[i];
 				auto mvpMPs = pF->GetMapPoints();
@@ -308,104 +312,103 @@ void UVR_SLAM::Visualizer::Run() {
 				}*/
 			}
 
-			///////////line visualization
-			//std::cout << "LINE TEST" << std::endl;
-			RNG rng(12345);
-			for (int k = 0; k < mvpWindowFrames.size(); k++) {
-				auto lines = mvpWindowFrames[k]->Getlines();
-				if (lines.size() == 0)
-					continue;
-				if (mvpWindowFrames[k]->mvpPlanes.size() == 0) {
-					continue;
-				}
+			/////////////line visualization
+			////std::cout << "LINE TEST" << std::endl;
+			//RNG rng(12345);
+			//for (int k = 0; k < mvpWindowFrames.size(); k++) {
+			//	auto lines = mvpWindowFrames[k]->Getlines();
+			//	if (lines.size() == 0)
+			//		continue;
+			//	if (mvpWindowFrames[k]->mvpPlanes.size() == 0) {
+			//		continue;
+			//	}
 
-				cv::Mat normal1;
-				float dist1;
-				mvpWindowFrames[k]->mvpPlanes[0]->GetParam(normal1, dist1);
+			//	cv::Mat normal1;
+			//	float dist1;
+			//	mvpWindowFrames[k]->mvpPlanes[0]->GetParam(normal1, dist1);
 
-				UVR_SLAM::PlaneInformation* aplane = mvpWindowFrames[k]->mvpPlanes[0];
-				
-				int kid = mvpWindowFrames[k]->GetKeyFrameID();
+			//	UVR_SLAM::PlaneInformation* aplane = mvpWindowFrames[k]->mvpPlanes[0];
+			//	
+			//	int kid = mvpWindowFrames[k]->GetKeyFrameID();
 
-				cv::Mat K = mvpWindowFrames[k]->mK.clone();
-				K.at<float>(0, 0) /= 2.0;
-				K.at<float>(1, 1) /= 2.0;
-				K.at<float>(0, 2) /= 2.0;
-				K.at<float>(1, 2) /= 2.0;
-				
-				cv::Mat R, t;
-				mvpWindowFrames[k]->GetPose(R, t);
-				cv::Mat T = cv::Mat::eye(4, 4, CV_32FC1);
-				R.copyTo(T.rowRange(0, 3).colRange(0, 3));
-				t.copyTo(T.col(3).rowRange(0, 3));
-				cv::Mat invT = T.inv();
-				
-				cv::Mat planeParam = aplane->matPlaneParam.clone();
-				cv::Mat invP1 = invT.t()*planeParam;
+			//	cv::Mat K = mvpWindowFrames[k]->mK.clone();
+			//	K.at<float>(0, 0) /= 2.0;
+			//	K.at<float>(1, 1) /= 2.0;
+			//	K.at<float>(0, 2) /= 2.0;
+			//	K.at<float>(1, 2) /= 2.0;
+			//	
+			//	cv::Mat R, t;
+			//	mvpWindowFrames[k]->GetPose(R, t);
+			//	cv::Mat T = cv::Mat::eye(4, 4, CV_32FC1);
+			//	R.copyTo(T.rowRange(0, 3).colRange(0, 3));
+			//	t.copyTo(T.col(3).rowRange(0, 3));
+			//	cv::Mat invT = T.inv();
+			//	
+			//	cv::Mat planeParam = aplane->matPlaneParam.clone();
+			//	cv::Mat invP1 = invT.t()*planeParam;
 
-				int nPts = 15;
-				for (int i = 0; i < lines.size(); i++) {
-					Vec4i v = lines[i];
-					Point2f from(v[0], v[1]);
-					Point2f to(v[2], v[3]);
+			//	int nPts = 15;
+			//	for (int i = 0; i < lines.size(); i++) {
+			//		Point2f from = lines[i]->from;
+			//		Point2f to = lines[i]->to;
 
-					cv::Point2f diff = to - from;
-					diff.x /= nPts;
-					diff.y /= nPts;
-					cv::Mat s, e;
-					cv::Point2f spt, ept;
+			//		cv::Point2f diff = to - from;
+			//		diff.x /= nPts;
+			//		diff.y /= nPts;
+			//		cv::Mat s, e;
+			//		cv::Point2f spt, ept;
 
-					cv::Scalar color(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
+			//		cv::Scalar color(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
 
-					for (int j = 0; j < nPts; j++) {
+			//		for (int j = 0; j < nPts; j++) {
 
-						cv::Point2f pt(from.x + diff.x * j, from.y + diff.y * j);
-						cv::Mat temp = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
-						temp = K.inv()*temp;
-						cv::Mat matDepth = -invP1.at<float>(3) / (invP1.rowRange(0, 3).t()*temp);
-						float depth = matDepth.at<float>(0);
-						if (depth < 0)
-							depth *= -1.0;
-						temp *= depth;
-						temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
-						cv::Mat estimated = invT*temp;
+			//			cv::Point2f pt(from.x + diff.x * j, from.y + diff.y * j);
+			//			cv::Mat temp = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
+			//			temp = K.inv()*temp;
+			//			cv::Mat matDepth = -invP1.at<float>(3) / (invP1.rowRange(0, 3).t()*temp);
+			//			float depth = matDepth.at<float>(0);
+			//			if (depth < 0)
+			//				depth *= -1.0;
+			//			temp *= depth;
+			//			temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
+			//			cv::Mat estimated = invT*temp;
 
-						cv::Point2f tpt = cv::Point2f(estimated.at<float>(0) * mnVisScale, -estimated.at<float>(2) * mnVisScale);
-						tpt += mVisMidPt;
-						cv::circle(tempVis, tpt, 4, color, -1);
-						if (j == 0){
-							s = estimated.clone();
-							spt = tpt;
-						}
-						else if(j == nPts-1){
-							e = estimated.clone();
-							ept = tpt;
-						}
-					}//lines
+			//			cv::Point2f tpt = cv::Point2f(estimated.at<float>(0) * mnVisScale, -estimated.at<float>(2) * mnVisScale);
+			//			tpt += mVisMidPt;
+			//			cv::circle(tempVis, tpt, 4, color, -1);
+			//			if (j == 0){
+			//				s = estimated.clone();
+			//				spt = tpt;
+			//			}
+			//			else if(j == nPts-1){
+			//				e = estimated.clone();
+			//				ept = tpt;
+			//			}
+			//		}//lines
 
-					 ///////////////////////////////////////////
-					 ////평면 벽 파라메터 추정
-					cv::Mat normal2 = s - e;
-					normal2 = normal2.rowRange(0, 3);
-					float norm2 = sqrt(normal2.dot(normal2));
-					normal2 /= norm2;
-					auto normal3 = normal1.cross(normal2);
-					float norm3 = sqrt(normal3.dot(normal3));
-					normal3 /= norm3;
+			//		 ///////////////////////////////////////////
+			//		 ////평면 벽 파라메터 추정
+			//		cv::Mat normal2 = s - e;
+			//		normal2 = normal2.rowRange(0, 3);
+			//		float norm2 = sqrt(normal2.dot(normal2));
+			//		normal2 /= norm2;
+			//		auto normal3 = normal1.cross(normal2);
+			//		float norm3 = sqrt(normal3.dot(normal3));
+			//		normal3 /= norm3;
 
-					cv::Mat matDist = normal3.t()*s.rowRange(0, 3);
+			//		cv::Mat matDist = normal3.t()*s.rowRange(0, 3);
 
-					normal3.push_back(-matDist);
-					////평면 벽 파라메터 추정
-					///////////////////////////////////////////
+			//		normal3.push_back(-matDist);
+			//		////평면 벽 파라메터 추정
+			//		///////////////////////////////////////////
 
-					/*cv::Mat line = e - s;
-					float dist, slope;
-					CalcLineEquation(spt, ept, slope, dist);
-					std::cout <<"keyframe ::"<< kid << " line : " <<normal3.t()<< std::endl;*/
-				}
-			}
-			///////////line visualization
+			//		/*cv::Mat line = e - s;
+			//		float dist, slope;
+			//		CalcLineEquation(spt, ept, slope, dist);
+			//		std::cout <<"keyframe ::"<< kid << " line : " <<normal3.t()<< std::endl;*/
+			//	}
+			//}
+			/////////////line visualization
 
 			///////////
 			////dummy for test

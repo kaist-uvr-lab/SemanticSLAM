@@ -62,6 +62,7 @@ namespace UVR_SLAM {
 	class PlaneEstimator;
 	class Visualizer;
 	class MapOptimizer;
+	class Map;
 	class System {
 	public:
 
@@ -96,6 +97,8 @@ namespace UVR_SLAM {
 		Optimization *mpOptimizer;
 		Matcher* mpMatcher;
 		Initializer* mpInitializer;
+
+		Map* mpMap;
 
 		SemanticSegmentator* mpSegmentator;
 		std::thread *mptLayoutEstimator;
@@ -220,15 +223,7 @@ namespace UVR_SLAM {
 		std::mutex mMutexMapOptimizer;
 		std::string mStrMapOptimizer;
 	////////////////////////////////////////////////////////////////////////
-	public:
-		void AddGlobalFrame(Frame* pF);
-		std::vector<Frame*> GetLoopFrames();
-		std::vector<Frame*> GetGlobalFrames();
-		void ClearGlobalFrames();
-	private:
-		std::mutex mMutexGlobalFrames;
-		std::vector<Frame*> mvpGlobalFrames;
-		std::vector<Frame*> mvpLoopFrames;
+	
 	};
 }
 

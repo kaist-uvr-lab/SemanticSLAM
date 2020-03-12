@@ -32,6 +32,7 @@ namespace UVR_SLAM {
 	//class MapPoint;
 	class ORBextractor;
 	class PlaneInformation;
+	class Line;
 	class Frame {
 	public:
 		Frame(cv::Mat _src, int w, int h, cv::Mat mK);
@@ -157,15 +158,15 @@ namespace UVR_SLAM {
 //////////////////////////
 ////LINE
 	public:
-		void SetLines(std::vector<cv::Vec4i> lines);
-		std::vector<cv::Vec4i> Getlines();
+		void SetLines(std::vector<Line*> lines);
+		std::vector<Line*> Getlines();
 		std::vector<cv::Mat> GetWallParams();
 		void SetWallParams(std::vector<cv::Mat> vParams);
 	private:
-		std::vector<cv::Vec4i> mvLines;
-		std::vector<cv::Mat> mvWallParams;
 		std::mutex mMutexLines;
+		std::vector<Line*> mvLines;
 		std::mutex mMutexWallParams;
+		std::vector<cv::Mat> mvWallParams;
 ////LINE
 //////////////////////////
 

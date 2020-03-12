@@ -15,13 +15,14 @@ namespace UVR_SLAM {
 	class LocalMapper;
 	class Visualizer;
 	class System;
+	class Map;
 	class MapOptimizer;
 	class Tracker {
 	public:
 
 		Tracker();
 		Tracker(int w, int h, cv::Mat _K);
-		Tracker(std::string strPath);
+		Tracker(Map* pMap, std::string strPath);
 		virtual ~Tracker();
 	public:
 		//void Run();
@@ -50,6 +51,7 @@ namespace UVR_SLAM {
 		bool mbFirstFrameAfterInit;
 		bool mbInitilized;
 		System* mpSystem;
+		Map* mpMap;
 		Frame* mpRefKF;
 		Matcher* mpMatcher;
 		Initializer* mpInitializer;

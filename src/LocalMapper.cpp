@@ -2,6 +2,7 @@
 #include <Frame.h>
 #include <FrameWindow.h>
 #include <System.h>
+#include <Map.h>
 #include <MapPoint.h>
 #include <Matcher.h>
 #include <Optimization.h>
@@ -14,7 +15,9 @@
 #include <direct.h>
 
 UVR_SLAM::LocalMapper::LocalMapper(){}
-UVR_SLAM::LocalMapper::LocalMapper(int w, int h):mnWidth(w), mnHeight(h), mbStopBA(false), mbDoingProcess(false), mbStopLocalMapping(false), mpTargetFrame(nullptr), mpPrevKeyFrame(nullptr), mpPPrevKeyFrame(nullptr){}
+UVR_SLAM::LocalMapper::LocalMapper(Map* pMap, int w, int h):mnWidth(w), mnHeight(h), mbStopBA(false), mbDoingProcess(false), mbStopLocalMapping(false), mpTargetFrame(nullptr), mpPrevKeyFrame(nullptr), mpPPrevKeyFrame(nullptr){
+	mpMap = pMap;
+}
 UVR_SLAM::LocalMapper::~LocalMapper() {}
 
 void UVR_SLAM::LocalMapper::SetSystem(System* pSystem) {
@@ -175,8 +178,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			
 			
 			mpFrameWindow->SetLocalMap(mpTargetFrame->GetFrameID());
-			mpSystem->AddGlobalFrame(mpTargetFrame);
-			
+			mpMap->AddFrame(mpTargetFrame);
 			//set dir
 			
 			

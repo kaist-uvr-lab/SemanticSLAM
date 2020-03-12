@@ -1,4 +1,5 @@
 #include <System.h>
+#include <Map.h>
 #include <FrameWindow.h>
 #include <Initializer.h>
 #include <SemanticSegmentator.h>
@@ -107,6 +108,9 @@ void UVR_SLAM::System::Init() {
 	mpPoseORBExtractor = new UVR_SLAM::ORBextractor(mnFeatures, mfScaleFactor, mnLevels, mfIniThFAST, mfMinThFAST);
 	mpORBExtractor = mpInitORBExtractor;
 
+	//Map
+	mpMap = new UVR_SLAM::Map();
+
 	//FrameWindow
 	mpFrameWindow = new UVR_SLAM::FrameWindow(15);
 	mpFrameWindow->SetSystem(this);
@@ -118,7 +122,7 @@ void UVR_SLAM::System::Init() {
 	mpMatcher = new UVR_SLAM::Matcher(DescriptorMatcher::create("BruteForce-Hamming"), mnWidth, mnHeight);
 
 	//Visualizer
-	mpVisualizer = new Visualizer(mnWidth, mnHeight, mnVisScale);
+	mpVisualizer = new Visualizer(mnWidth, mnHeight, mnVisScale, mpMap);
 	mpVisualizer->Init();
 	mpVisualizer->SetFrameWindow(mpFrameWindow);
 	mpVisualizer->SetSystem(this);
@@ -130,7 +134,7 @@ void UVR_SLAM::System::Init() {
 	mpInitializer->SetFrameWindow(mpFrameWindow);
 
 	//PlaneEstimator
-	mpPlaneEstimator = new UVR_SLAM::PlaneEstimator(mstrFilePath, mK, mKforPL, mnWidth, mnHeight);
+	mpPlaneEstimator = new UVR_SLAM::PlaneEstimator(mpMap,mstrFilePath, mK, mKforPL, mnWidth, mnHeight);
 	mpPlaneEstimator->SetSystem(this);
 	mpPlaneEstimator->SetFrameWindow(mpFrameWindow);
 	mpPlaneEstimator->SetMatcher(mpMatcher);
@@ -144,7 +148,7 @@ void UVR_SLAM::System::Init() {
 	mptLayoutEstimator = new std::thread(&UVR_SLAM::SemanticSegmentator::Run, mpSegmentator);
 
 	//local mapping thread
-	mpLocalMapper = new UVR_SLAM::LocalMapper(mnWidth, mnHeight);
+	mpLocalMapper = new UVR_SLAM::LocalMapper(mpMap, mnWidth, mnHeight);
 	mpLocalMapper->SetFrameWindow(mpFrameWindow);
 	mpLocalMapper->SetMatcher(mpMatcher);
 	mpLocalMapper->SetPlaneEstimator(mpPlaneEstimator);
@@ -163,7 +167,7 @@ void UVR_SLAM::System::Init() {
 	mptMapOptimizer = new std::thread(&UVR_SLAM::MapOptimizer::Run, mpMapOptimizer);
 
 	//tracker thread
-	mpTracker = new UVR_SLAM::Tracker(mstrFilePath);
+	mpTracker = new UVR_SLAM::Tracker(mpMap, mstrFilePath);
 	//mptTracker = new std::thread(&UVR_SLAM::Tracker::Run, mpTracker);
 	mpTracker->SetMatcher(mpMatcher);
 	mpTracker->SetInitializer(mpInitializer);
@@ -215,7 +219,7 @@ void UVR_SLAM::System::Reset() {
 	mbInitialized = false;
 	mpInitializer->Init();
 	mpFrameWindow->ClearLocalMapFrames();
-	ClearGlobalFrames();
+	mpMap->ClearFrames();
 	mlpNewMPs.clear();
 	//mpLocalMapper->mlpNewMPs.clear();
 	nKeyFrameID = 0;
@@ -354,25 +358,4 @@ void UVR_SLAM::System::SetSegmentationString(std::string str) {
 std::string UVR_SLAM::System::GetSegmentationString() {
 	std::unique_lock<std::mutex> lock(mMutexSegmentationString);
 	return mStrSegmentationString;
-}
-
-void UVR_SLAM::System::AddGlobalFrame(Frame* pF){
-	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
-	mvpGlobalFrames.push_back(pF);
-	if (mvpGlobalFrames.size() % 5 == 0) {
-		mvpLoopFrames.push_back(pF);
-	}
-}
-std::vector<UVR_SLAM::Frame*> UVR_SLAM::System::GetGlobalFrames(){
-	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
-	return std::vector<UVR_SLAM::Frame*>(mvpGlobalFrames.begin(), mvpGlobalFrames.end());
-}
-std::vector<UVR_SLAM::Frame*> UVR_SLAM::System::GetLoopFrames() {
-	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
-	return std::vector<UVR_SLAM::Frame*>(mvpLoopFrames.begin(), mvpLoopFrames.end());
-}
-void UVR_SLAM::System::ClearGlobalFrames(){
-	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
-	mvpGlobalFrames.clear();
-	mvpLoopFrames.clear();
 }

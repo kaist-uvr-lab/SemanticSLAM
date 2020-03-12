@@ -251,8 +251,8 @@ void UVR_SLAM::FrameWindow::ClearDummyMPs(){
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool UVR_SLAM::FrameWindow::CalcFrameDistanceWithBOW(UVR_SLAM::Frame* pF) {
-	
-	std::chrono::high_resolution_clock::time_point t_start = std::chrono::high_resolution_clock::now();
+	/////200310
+	/*std::chrono::high_resolution_clock::time_point t_start = std::chrono::high_resolution_clock::now();
 
 	bool res = true;
 	auto mvpKFs = mpSystem->GetLoopFrames();
@@ -280,7 +280,9 @@ bool UVR_SLAM::FrameWindow::CalcFrameDistanceWithBOW(UVR_SLAM::Frame* pF) {
 	std::chrono::high_resolution_clock::time_point t_end = std::chrono::high_resolution_clock::now();
 	auto du_test = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count();
 	double t_test = du_test / 1000.0;
-	std::cout << "loop test :: " << t_test << std::endl;
+	std::cout << "loop test :: " << t_test << std::endl;*/
+
+
 	////UVR_SLAM::Frame* pF1 = mpDeque.front();
 	////UVR_SLAM::Frame* pF2 = mpDeque.back();
 	//////std::cout << "Frame Type = " << (int)pF1->GetType()<<", "<<(int)pF2->GetType() <<", "<<pF2->CheckFrameType(UVR_SLAM::FLAG_SEGMENTED_FRAME)<<", "<<pF1->CheckFrameType(UVR_SLAM::FLAG_SEGMENTED_FRAME)<< std::endl;
@@ -298,7 +300,10 @@ bool UVR_SLAM::FrameWindow::CalcFrameDistanceWithBOW(UVR_SLAM::Frame* pF) {
 	//	//std::cout << "DBOW::SCORE::" <<score<< std::endl;
 	//}
 	////std::cout << "BOW check::" << res << std::endl;
-	return res;
+	
+
+	//return res;
+	return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

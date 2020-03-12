@@ -1,5 +1,7 @@
 #include <Tracker.h>
 #include <System.h>
+#include <Map.h>
+#include <Plane.h>
 #include <FrameWindow.h>
 #include <Matcher.h>
 #include <Initializer.h>
@@ -13,7 +15,7 @@
 
 UVR_SLAM::Tracker::Tracker() {}
 UVR_SLAM::Tracker::Tracker(int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false){}
-UVR_SLAM::Tracker::Tracker(std::string strPath) : mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false) {
+UVR_SLAM::Tracker::Tracker(Map* pMap, std::string strPath) : mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false) {
 	FileStorage fs(strPath, FileStorage::READ);
 
 	float fx = fs["Camera.fx"];
@@ -35,6 +37,8 @@ UVR_SLAM::Tracker::Tracker(std::string strPath) : mbInitializing(false), mbFirst
 	mnHeight = fs["Image.height"];
 	mK2 = (cv::Mat_<float>(3, 3) << fx, 0, 0, 0, fy, 0, -fy*cx, -fx*cy, fx*fy); //line projection
 	fs.release();
+
+	mpMap = pMap;
 }
 UVR_SLAM::Tracker::~Tracker() {}
 
@@ -324,24 +328,26 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				std::cout << "tttt::" << param.t() << std::endl;
 			}
 		}*/
-		
-		auto wallParams = mpRefKF->GetWallParams();
-		
+		//////////////line test
+
+		////////////////////////////////////////////////////////////////////////
+		//////////////Wall Line TEST
+		auto wallParams = mpMap->GetWallPlanes();//mpRefKF->GetWallParams();
 		if (wallParams.size() > 0 && mpRefKF->mvpPlanes.size() > 0) {
 			auto plane = mpRefKF->mvpPlanes[0];
 			cv::Mat planeParam = plane->matPlaneParam.clone();
 			for (int i = 0; i < wallParams.size(); i++) {
 				float m;
-				cv::Mat mLine = UVR_SLAM::PlaneInformation::FlukerLineProjection(wallParams[i], planeParam, R, t, mK2, m);
+				cv::Mat mLine = UVR_SLAM::PlaneInformation::FlukerLineProjection(wallParams[i]->GetParam(), planeParam, R, t, mK2, m);
 				cv::Point2f sPt, ePt;
 				UVR_SLAM::PlaneInformation::CalcFlukerLinePoints(sPt, ePt, 0.0, mnHeight, mLine);
 				cv::line(vis, sPt, ePt, cv::Scalar(0, 255, 0), 3);
 				//std::cout << "tttt::" << wallParams[i].t() << std::endl;
 			}
 		}
+		//////////////Wall Line TEST
+		////////////////////////////////////////////////////////////////////////
 		
-		//////////////line test
-		//////////////////////////////////////////////////////////////////////////////
 
 		//속도 및 에러 출력
 		/*std::stringstream ss;

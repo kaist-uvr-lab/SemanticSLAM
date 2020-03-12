@@ -14,11 +14,12 @@ namespace UVR_SLAM {
 	class Matcher;
 	class MapPoint;
 	class System;
+	class Map;
 	class MapOptimizer;
 	class LocalMapper {
 	public:
 		LocalMapper();
-		LocalMapper(int w, int h);
+		LocalMapper(Map* pMap, int w, int h);
 		virtual ~LocalMapper();
 	public:
 		void Run();
@@ -70,6 +71,7 @@ namespace UVR_SLAM {
 		std::vector<MapPoint*> mvpDeletedMPs;
 		SemanticSegmentator* mpSegmentator;
 		System* mpSystem;
+		Map* mpMap;
 		MapOptimizer* mpMapOptimizer;
 		PlaneEstimator* mpPlaneEstimator;
 		FrameWindow* mpFrameWindow;

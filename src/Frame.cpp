@@ -5,6 +5,7 @@
 #include <Frame.h>
 #include <System.h>
 #include <ORBextractor.h>
+#include <Plane.h>
 
 bool UVR_SLAM::Frame::mbInitialComputations = true;
 float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
@@ -431,13 +432,13 @@ std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> UVR_SLAM::Frame::GetConn
 	return std::multimap<int, UVR_SLAM::Frame*, std::greater<int>>(mmpConnectedKFs.begin(), mmpConnectedKFs.end());
 }
 
-void UVR_SLAM::Frame::SetLines(std::vector<cv::Vec4i> lines) {
+void UVR_SLAM::Frame::SetLines(std::vector<Line*> lines) {
 	std::unique_lock<std::mutex> lock(mMutexLines);
-	mvLines = std::vector<cv::Vec4i>(lines.begin(), lines.end());
+	mvLines = std::vector<Line*>(lines.begin(), lines.end());
 }
-std::vector<cv::Vec4i> UVR_SLAM::Frame::Getlines() {
+std::vector<UVR_SLAM::Line*> UVR_SLAM::Frame::Getlines() {
 	std::unique_lock<std::mutex> lock(mMutexLines);
-	return std::vector<cv::Vec4i>(mvLines.begin(), mvLines.end());
+	return std::vector<Line*>(mvLines.begin(), mvLines.end());
 }
 
 //std::vector<UVR_SLAM::Frame*> UVR_SLAM::Frame::GetConnectedKFs(int n) {
