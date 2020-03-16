@@ -32,6 +32,7 @@ namespace UVR_SLAM {
 	//class MapPoint;
 	class ORBextractor;
 	class PlaneInformation;
+	class PlaneProcessInformation;
 	class Line;
 	class Frame {
 	public:
@@ -158,6 +159,7 @@ namespace UVR_SLAM {
 //////////////////////////
 ////LINE
 	public:
+		PlaneProcessInformation* mpPlaneInformation;
 		void SetLines(std::vector<Line*> lines);
 		std::vector<Line*> Getlines();
 		std::vector<cv::Mat> GetWallParams();

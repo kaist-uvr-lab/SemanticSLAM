@@ -10,6 +10,7 @@ namespace UVR_SLAM {
 	class Frame;
 
 	class WallPlane;
+	class PlaneInformation;
 
 	class Map {
 	public:
@@ -24,6 +25,7 @@ namespace UVR_SLAM {
 		void AddFrame(Frame* pF);
 		std::vector<Frame*> GetFrames();
 		void ClearFrames();
+		void ClearWalls();
 	private:
 		std::mutex mMutexGlobalFrames;
 		std::vector<Frame*> mvpGlobalFrames;
@@ -51,7 +53,7 @@ namespace UVR_SLAM {
 		std::mutex mMutexWallPlanes;
 		std::vector<WallPlane*> mvpWallPlanes;
 	public:
-
+		UVR_SLAM::PlaneInformation* mpFloorPlane;
 ////평면 관리
 ////////////////////////////////
 ////////////////////////////////

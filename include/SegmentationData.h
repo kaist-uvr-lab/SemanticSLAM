@@ -9,6 +9,7 @@ namespace UVR_SLAM {
 		OBJECT_FLOOR = 4,
 		OBJECT_WALL = 1,
 		OBJECT_CEILING = 6,
+		OBJECT_PERSON = 13,
 		OBJECT_NONE = 0
 	};
 	const cv::Vec3b COLOR_NONE = cv::Vec3b(0, 0, 0);

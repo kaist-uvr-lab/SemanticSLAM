@@ -220,6 +220,7 @@ void UVR_SLAM::System::Reset() {
 	mpInitializer->Init();
 	mpFrameWindow->ClearLocalMapFrames();
 	mpMap->ClearFrames();
+	mpMap->ClearWalls();
 	mlpNewMPs.clear();
 	//mpLocalMapper->mlpNewMPs.clear();
 	nKeyFrameID = 0;

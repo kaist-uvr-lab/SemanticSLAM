@@ -954,7 +954,7 @@ int UVR_SLAM::LocalMapper::Test() {
 			if (mpTargetFrame->mvpMPs[idx1])
 				continue;
 			//if (mvpCurrOPs[idx1] != mvpPrevOPs[idx2] || mvpCurrOPs[idx1] == ObjectType::OBJECT_FLOOR || mvpPrevOPs[idx2] == ObjectType::OBJECT_FLOOR)
-			if (mvpCurrOPs[idx1] != mvpPrevOPs[idx2])
+			if ((mvpCurrOPs[idx1] != mvpPrevOPs[idx2]) || mvpCurrOPs[idx1] == ObjectType::OBJECT_PERSON || mvpPrevOPs[idx2] == ObjectType::OBJECT_PERSON)
 				continue;
 			cv::KeyPoint kp1 = mpTargetFrame->mvKeyPoints[idx1];
 			cv::KeyPoint kp2 = pKF->mvKeyPoints[idx2];

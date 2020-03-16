@@ -26,6 +26,11 @@ void UVR_SLAM::Map::ClearFrames() {
 	mvpLoopFrames.clear();
 }
 
+void UVR_SLAM::Map::ClearWalls() {
+	std::unique_lock<std::mutex> lock(mMutexWallPlanes);
+	mvpWallPlanes.clear();
+}
+
 bool UVR_SLAM::Map::isFloorPlaneInitialized() {
 	std::unique_lock<std::mutex> lockTemp(mMutexInitFloorPlane);
 	return mbInitFloorPlane;

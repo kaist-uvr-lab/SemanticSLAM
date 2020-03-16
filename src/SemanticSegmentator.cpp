@@ -120,13 +120,13 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 
 			////////////////////////////////////////////////
 			//////디버깅을 위한 이미지 저장
-			//std::stringstream ss;
-			//ss << mStrDirPath.c_str() << "/segmentation.jpg";
-			//cv::imwrite(ss.str(), segmented);
-			//ss.str("");
-			//ss << mStrDirPath.c_str() << "/segmentation_color.jpg";
-			//cv::imwrite(ss.str(), colorimg);
-			//cv::waitKey(1);
+			std::stringstream ss;
+			ss << mStrDirPath.c_str() << "/segmentation.jpg";
+			cv::imwrite(ss.str(), segmented);
+			ss.str("");
+			ss << mStrDirPath.c_str() << "/segmentation_color.jpg";
+			cv::imwrite(ss.str(), colorimg);
+			cv::waitKey(1);
 			//////디버깅을 위한 이미지 저장
 			////////////////////////////////////////////////
 			
@@ -241,6 +241,7 @@ void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked, int ratio) {
 			}
 			break;
 		case 4:
+		case 29: //rug
 			type = ObjectType::OBJECT_FLOOR;
 			if (bMP){
 				mpTargetFrame->mspFloorMPs.insert(pMP);
@@ -259,6 +260,8 @@ void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked, int ratio) {
 				mpFrameWindow->mspCeilMPs.insert(pMP);
 			}
 			break;
+		case 13:
+			type = ObjectType::OBJECT_PERSON;
 		default:
 			break;
 		}

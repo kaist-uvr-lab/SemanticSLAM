@@ -333,10 +333,14 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		////////////////////////////////////////////////////////////////////////
 		//////////////Wall Line TEST
 		auto wallParams = mpMap->GetWallPlanes();//mpRefKF->GetWallParams();
+		int nkid = mpRefKF->GetKeyFrameID();
 		if (wallParams.size() > 0 && mpRefKF->mvpPlanes.size() > 0) {
 			auto plane = mpRefKF->mvpPlanes[0];
 			cv::Mat planeParam = plane->matPlaneParam.clone();
 			for (int i = 0; i < wallParams.size(); i++) {
+				int nid = wallParams[i]->GetRecentKeyFrameID();
+				if (nid + 2 < nkid)
+					continue;
 				float m;
 				cv::Mat mLine = UVR_SLAM::PlaneInformation::FlukerLineProjection(wallParams[i]->GetParam(), planeParam, R, t, mK2, m);
 				cv::Point2f sPt, ePt;

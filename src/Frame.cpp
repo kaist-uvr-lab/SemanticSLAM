@@ -14,8 +14,8 @@ float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeig
 
 static int nFrameID = 0;
 
-UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0),
-mvpPlanes(){
+UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), 
+mpPlaneInformation(nullptr),mvpPlanes(){
 	matOri = _src.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
 	matFrame.convertTo(matFrame, CV_8UC1);
@@ -24,7 +24,8 @@ mvpPlanes(){
 	SetFrameID();
 }
 UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0)
-, mvpPlanes() {
+, mpPlaneInformation(nullptr), mvpPlanes() 
+{
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
@@ -35,7 +36,8 @@ UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), 
 }
 
 UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0)
-, mvpPlanes() {
+, mpPlaneInformation(nullptr), mvpPlanes()
+{
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);

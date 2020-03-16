@@ -10,6 +10,8 @@
 namespace UVR_SLAM {
 
 	class System;
+	class WallPlane;
+	class PlaneProcessInformation;
 	class Map;
 	class Frame;
 	class Line;
@@ -34,9 +36,7 @@ namespace UVR_SLAM {
 	public:
 		
 	};
-
 	
-
 	class PlaneInformation {
 	public:
 		int mnPlaneID;
@@ -68,6 +68,7 @@ namespace UVR_SLAM {
 		//Å×½ºÆ®
 		static float CalcCosineSimilarity(cv::Mat P1, cv::Mat P2);
 		static float CalcPlaneDistance(cv::Mat X1, cv::Mat X2);
+		static cv::Mat PlaneWallEstimator(cv::Mat s, cv::Mat e, cv::Mat normal1, cv::Mat invP, cv::Mat invT, cv::Mat invK);
 		static cv::Mat PlaneWallEstimator(Line* line, cv::Mat normal1, cv::Mat invP, cv::Mat invT, cv::Mat invK);
 		static cv::Mat PlaneWallEstimator(cv::Vec4i line, cv::Mat normal1, cv::Mat invP, cv::Mat invT, cv::Mat invK);
 		static cv::Mat PlaneWallEstimator(UVR_SLAM::Frame* pCurrF, UVR_SLAM::Frame* pTargetF);
@@ -75,6 +76,7 @@ namespace UVR_SLAM {
 		static cv::Mat FlukerLineProjection(cv::Mat P1, cv::Mat P2, cv::Mat R, cv::Mat t, cv::Mat K, float& m);
 		static void CalcFlukerLinePoints(cv::Point2f& sPt, cv::Point2f& ePt, float f1, float f2, cv::Mat mLine);
 		static cv::Point2f CalcLinePoint(float y, cv::Mat mLine);
+		static cv::Mat PlaneLineEstimator(WallPlane* pWall, PlaneInformation* pFloor);
 	};
 
 	class PlaneEstimator {

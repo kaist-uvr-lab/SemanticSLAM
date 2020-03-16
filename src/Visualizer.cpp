@@ -168,6 +168,12 @@ void UVR_SLAM::Visualizer::Run() {
 
 	std::vector<UVR_SLAM::MapPoint*> allDummyPts;
 
+	std::vector<cv::Scalar> colors;
+	auto tempColors = UVR_SLAM::ObjectColors::mvObjectLabelColors;
+	for (int i = 0; i < tempColors.size(); i++) {
+		colors.push_back(cv::Scalar(tempColors[i].val[0], tempColors[i].val[1], tempColors[i].val[2]));
+	}
+	
 	while (1) {
 
 		if (isDoingProcess()) {
@@ -313,9 +319,53 @@ void UVR_SLAM::Visualizer::Run() {
 			}
 
 			/////////////line visualization
-			////std::cout << "LINE TEST" << std::endl;
-			//RNG rng(12345);
+			//std::cout << "LINE TEST" << std::endl;
+			RNG rng(12345);
+
+			if (mpMap->isFloorPlaneInitialized() && mvpWindowFrames.size() > 0) {
+				auto mvpWalls = mpMap->GetWallPlanes();
+				UVR_SLAM::PlaneInformation* aplane = mpMap->mpFloorPlane;
+				cv::Mat planeParam = aplane->matPlaneParam.clone();
+
+				cv::Mat K = mvpWindowFrames[0]->mK.clone();
+				/*K.at<float>(0, 0) /= 2.0;
+				K.at<float>(1, 1) /= 2.0;
+				K.at<float>(0, 2) /= 2.0;
+				K.at<float>(1, 2) /= 2.0;*/
+				cv::Mat invK = K.inv();
+
+				for (int i = 0; i < mvpWalls.size(); i++) {
+					auto mvpLines = mvpWalls[i]->GetLines();
+					
+					for (int j = 0; j < mvpLines.size(); j++) {
+
+						auto mpFrame = mvpLines[j]->mpFrame;
+						cv::Mat invP, invK, invT;
+						mpFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
+						
+						auto mat = mvpLines[j]->GetLinePts();
+						for (int k = 0; k < mat.rows; k++) {
+							cv::Point2f topt = cv::Point2f(mat.at<float>(0) * mnVisScale, -mat.at<float>(1) * mnVisScale);
+							topt += mVisMidPt;
+							cv::circle(tempVis, topt, 3, cv::Scalar(255, 255, 0), -1);
+						}
+/*
+						cv::Mat from = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mvpLines[j]->from, invP, invT, invK);
+						cv::Mat to   = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mvpLines[j]->to  , invP, invT, invK);
+
+						cv::Point2f frompt = cv::Point2f(from.at<float>(0) * mnVisScale, -from.at<float>(2) * mnVisScale);
+						frompt += mVisMidPt;
+						cv::Point2f topt = cv::Point2f(to.at<float>(0) * mnVisScale, -to.at<float>(2) * mnVisScale);
+						topt += mVisMidPt;
+
+						cv::line(tempVis, frompt, topt, ObjectColors::mvObjectLabelColors[mvpWalls[i]->mnPlaneID-1],3);
+*/
+					}
+				}
+			}
+
 			//for (int k = 0; k < mvpWindowFrames.size(); k++) {
+
 			//	auto lines = mvpWindowFrames[k]->Getlines();
 			//	if (lines.size() == 0)
 			//		continue;
