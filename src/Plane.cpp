@@ -60,14 +60,15 @@ void UVR_SLAM::Line::SetLinePts() {
 	std::unique_lock<std::mutex> lock(mMutexLinePts);
 	cv::Point2f diffPt = to - from;
 	
-	int nPts = 20;
-	float scale = 0.3;
+	int nPts = 30;
+	float scale = 0.7;
 	diffPt.x *= (scale / nPts);
 	diffPt.y *= (scale / nPts);
-
+	//std::cout <<"to::"<< to << ", " << from << std::endl;
 	for (int i = 0; i < nPts; i++) {
-		cv::Point2f pt(from.x + diffPt.x*i, from.y + diffPt.y*i);
-		cv::Mat s = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(from, invP, invT, invK);
+		cv::Point2f pt(to.x - diffPt.x*i, to.y - diffPt.y*i);
+		cv::Mat s = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(pt, invP, invT, invK);
+		//std::cout << i << " :: " << pt <<" "<<s.t()<< std::endl;
 		cv::Mat temp = cv::Mat::zeros(1, 3, CV_32FC1);
 		temp.at<float>(0) = s.at<float>(0);
 		temp.at<float>(1) = s.at<float>(2);

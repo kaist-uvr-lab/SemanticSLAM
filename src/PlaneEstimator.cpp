@@ -585,7 +585,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 								if (normal > 0.97) {
 									//겹치는 것/
 
-									if (dist < 0.05 && normal > 0.9995) {
+									if (dist < 0.02 && normal > 0.9995) {
 										bInsert = false;
 										mvWallPlanes[j]->AddLine(mvpCurrLines[li]);
 										mvWallPlanes[j]->AddFrame(mpTargetFrame);
@@ -721,7 +721,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 							//////아예 노말이 다르다.
 							//////노말이
-							if (normal > 0.9995 && dist < 0.05) {
+							if (normal > 0.9995 && dist < 0.02) {
 							//if (normal > 0.99) {
 								mvWallPlanes[j]->AddLine(mvpLines[i]);
 								mvWallPlanes[j]->AddFrame(mvFrames[k]);
@@ -774,9 +774,10 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				///////새로운 평면 검출
 
 				for (int i = 0; i < mvWallPlanes.size(); i++) {
-					/*if (mvWallPlanes[i]->mnPlaneID > 0) {
+					if (mvWallPlanes[i]->mnPlaneID > 0) {
 						std::cout << mvWallPlanes[i]->mnPlaneID << "::" <<mvWallPlanes[i]->GetNumFrames()<<", "<< mvWallPlanes[i]->GetSize() <<"::"<<mvWallPlanes[i]->GetParam().t()<< std::endl;
 					}
+					/*
 					else {
 						std::cout << mvWallPlanes[i]->mnPlaneID << "::" << mvWallPlanes[i]->GetNumFrames() << ", " << mvWallPlanes[i]->GetSize() << "::" << mvWallPlanes[i]->GetParam().t() << std::endl;
 					}*/
