@@ -17,12 +17,13 @@ namespace UVR_SLAM {
 	class LocalMapper;
 	class FrameWindow;
 	class System;
+	class Map;
 	class SemanticSegmentator;
 	class Initializer {
 	public:
 		Initializer();
 		Initializer(cv::Mat _K);
-		Initializer(System* pSystem, cv::Mat _K);
+		Initializer(System* pSystem, Map* pMap, cv::Mat _K);
 		virtual ~Initializer();
 	public:
 		void Init();
@@ -45,6 +46,7 @@ namespace UVR_SLAM {
 		SemanticSegmentator* mpSegmentator;
 		FrameWindow* mpFrameWindow;
 		LocalMapper* mpLocalMapper;
+		Map* mpMap;
 		bool mbInit;
 		Matcher* mpMatcher;
 		cv::Mat mK;

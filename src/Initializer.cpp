@@ -2,6 +2,7 @@
 #include <FrameWindow.h>
 #include <LocalMapper.h>
 #include <System.h>
+#include <Map.h>
 #include <MatrixOperator.h>
 #include <SemanticSegmentator.h>
 #include <PlaneEstimator.h>
@@ -12,7 +13,8 @@ int N_thresh_init_triangulate = 60; //80
 
 UVR_SLAM::Initializer::Initializer() :mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr) {
 }
-UVR_SLAM::Initializer::Initializer(System* pSystem, cv::Mat _K) : mpSystem(pSystem), mK(_K), mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr) {
+UVR_SLAM::Initializer::Initializer(System* pSystem, Map* pMap, cv::Mat _K) : mpSystem(pSystem), mK(_K), mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr) {
+	mpMap = pMap;
 }
 UVR_SLAM::Initializer::Initializer(cv::Mat _K):mK(_K),mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr){
 }
@@ -233,7 +235,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			}
 			UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
 			bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.2);
-			if (abs(pFloor->matPlaneParam.at<float>(1)) < 0.97)
+			if (abs(pFloor->matPlaneParam.at<float>(1)) < 0.98)//98
 			{
 				mbInit = false;
 				bReset = true;
@@ -246,6 +248,12 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpFrameWindow->SetLastFrameID(mpInitFrame2->GetFrameID());
 			mpFrameWindow->mnLastMatches = nMatch;
 
+			//평면 설정하가ㅣ
+			//mpInitFrame1->mvpPlanes.push_back(pFloor);
+			//mpInitFrame2->mvpPlanes.push_back(pFloor);
+			/*mpMap->SetFloorPlaneInitialization(true);
+			mpMap->mpFloorPlane = pFloor;*/
+
 			//mpSegmentator->InsertKeyFrame(mpInitFrame1);
 
 			//mpLocalMapper->InsertKeyFrame(mpInitFrame1);
@@ -255,16 +263,17 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 			/////////////////////////////////////////////////////////////////////////////////////////////////////
 			////////////////////rotation test
-			/*cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(pFloor->matPlaneParam).clone();
+			cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(pFloor->matPlaneParam).clone();
 			cv::Mat normal;
 			float dist;
 			pFloor->GetParam(normal, dist);
 			cv::Mat tempP = Rcw.t()*normal;
-
+			
 			mpInitFrame1->GetPose(R, t);
 			mpInitFrame1->SetPose(R*Rcw, t);
 			mpInitFrame2->GetPose(R, t);
 			mpInitFrame2->SetPose(R*Rcw, t);
+
 			for (int i = 0; i < mvpMPs.size(); i++) {
 				UVR_SLAM::MapPoint* pMP = mvpMPs[i];
 				if (!pMP)
@@ -273,7 +282,40 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 					continue;
 				cv::Mat tempX = Rcw.t()*pMP->GetWorldPos();
 				pMP->SetWorldPos(tempX);
-			}*/
+
+			}
+			pFloor->SetParam(tempP, dist);
+
+			////plane 변환 테스트
+			//float planeDist = 0.0;
+			//pFloor->SetParam(tempP, dist);
+			//std::cout << "plane : " << pFloor->mvpMPs.size() <<", "<<mvpFloorMPs.size()<< std::endl;
+			//for (int i = 0; i < pFloor->mvpMPs.size(); i++) {
+			//	UVR_SLAM::MapPoint* pMP = pFloor->mvpMPs[i];
+			//	planeDist += (dist+ pMP->GetWorldPos().dot(tempP));
+			//}
+			//std::cout << "sum plane dist : " << planeDist << ", " << std::endl;
+
+			//cv::Mat newR, newT;
+			//mpInitFrame2->GetPose(newR, newT);
+			//cv::Mat tempVis = mpInitFrame2->GetOriginalImage();
+			//for (int i = 0; i < mvpMPs.size(); i++) {
+			//	UVR_SLAM::MapPoint* pMP = mvpMPs[i];
+			//	if (!pMP)
+			//		continue;
+			//	if (pMP->isDeleted())
+			//		continue;
+			//	cv::Mat p3D = mvpMPs[i]->GetWorldPos();
+			//	cv::Mat temp = newR*p3D + newT;
+			//	std::cout << temp.t() << mK << std::endl;
+			//	temp = mK*temp;
+			//	std::cout << temp << std::endl;
+			//	cv::Point2f pt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
+			//	cv::circle(tempVis, pt, 2, cv::Scalar(255, 0, 0), -1);
+			//	cv::circle(tempVis, mpInitFrame2->mvKeyPoints[i].pt, 2, cv::Scalar(0, 0, 255), -1);
+			//}
+			//imshow("testestestset::", tempVis); cv::waitKey(1000);
+			
 			////////////////////rotation test
 			/////////////////////////////////////////////////////////////////////////////////////////////////////
 			

@@ -151,9 +151,12 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			bool bInitFloorPlane = mpMap->isFloorPlaneInitialized();//true;
 			int nPrevTest2 = 0;
 			cv::Mat pmat;
-			if (bInitFloorPlane) {
+			if (bInitFloorPlane && mpPrevFrame) {
+				std::cout << "?????????????????????????????" << std::endl;
 				int nPrevID = mpPrevFrame->GetFrameID();
 				//이전 플라나 포인트로 생성된 포인트에 대해서 트래킹에 성공한 포인트에 한해서 현재 평면 벡터에 포함시킴.
+				std::cout << "test::1" << std::endl;
+				std::cout << mpPrevFrame->mvpPlanes[0]->tmpMPs.size() << std::endl;
 				for (int i = 0; i < mpPrevFrame->mvpPlanes[0]->tmpMPs.size(); i++) {
 					UVR_SLAM::MapPoint* pMP = mpPrevFrame->mvpPlanes[0]->tmpMPs[i];
 					if (!pMP)

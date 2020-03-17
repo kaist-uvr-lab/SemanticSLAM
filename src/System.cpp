@@ -129,7 +129,7 @@ void UVR_SLAM::System::Init() {
 	mptVisualizer = new std::thread(&UVR_SLAM::Visualizer::Run, mpVisualizer);
 
 	//initializer
-	mpInitializer = new UVR_SLAM::Initializer(this, mK);
+	mpInitializer = new UVR_SLAM::Initializer(this, mpMap, mK);
 	mpInitializer->SetMatcher(mpMatcher);
 	mpInitializer->SetFrameWindow(mpFrameWindow);
 
