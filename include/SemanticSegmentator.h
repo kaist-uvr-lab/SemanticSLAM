@@ -14,6 +14,7 @@ namespace UVR_SLAM {
 	class System;
 	class FrameWindow;
 	class PlaneEstimator;
+	class LocalMapper;
 	class SemanticSegmentator {
 	public:
 		SemanticSegmentator();
@@ -29,6 +30,7 @@ namespace UVR_SLAM {
 		void SetSystem(System* pSystem);
 		void SetFrameWindow(FrameWindow* pFrameWindow);
 		void SetPlaneEstimator(PlaneEstimator* pEstimator);
+		void SetLocalMapper(LocalMapper* pEstimator);
 		void SetTargetFrame(Frame* pFrame);
 		void SetBoolDoingProcess(bool b);
 		bool isDoingProcess();
@@ -54,6 +56,7 @@ namespace UVR_SLAM {
 		Frame* mpTargetFrame, *mpPrevTargetFrame;
 		FrameWindow* mpFrameWindow;
 		PlaneEstimator* mpPlaneEstimator;
+		LocalMapper* mpLocalMapper;
 		std::string ip;
 		int port;
 	};

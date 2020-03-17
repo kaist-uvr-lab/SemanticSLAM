@@ -77,6 +77,11 @@ namespace UVR_SLAM {
 		static void CalcFlukerLinePoints(cv::Point2f& sPt, cv::Point2f& ePt, float f1, float f2, cv::Mat mLine);
 		static cv::Point2f CalcLinePoint(float y, cv::Mat mLine);
 		static cv::Mat PlaneLineEstimator(WallPlane* pWall, PlaneInformation* pFloor);
+
+		static bool calcUnitNormalVector(cv::Mat& X);
+		static bool PlaneInitialization(PlaneInformation* pPlane, std::vector<MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
+
+		static cv::Mat CalcPlaneRotationMatrix(cv::Mat P);
 	};
 
 	class PlaneEstimator {
@@ -102,12 +107,11 @@ namespace UVR_SLAM {
 
 	private:
 
-		cv::Mat CalcPlaneRotationMatrix(cv::Mat P);
+		
 
-		bool calcUnitNormalVector(cv::Mat& X);
+		
 		void reversePlaneSign(cv::Mat& param);
 		void UpdatePlane(PlaneInformation* pPlane, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
-		bool PlaneInitialization(PlaneInformation* pPlane, std::vector<MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 		bool PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, UVR_SLAM::PlaneInformation* GroundPlane, int type, std::vector<UVR_SLAM::MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 		bool ConnectedComponentLabeling(cv::Mat img, cv::Mat& dst, cv::Mat& stat);
 	public:

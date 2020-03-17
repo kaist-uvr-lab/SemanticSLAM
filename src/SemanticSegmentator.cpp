@@ -3,6 +3,7 @@
 #include <SegmentationData.h>
 #include <FrameWindow.h>
 #include <PlaneEstimator.h>
+#include <LocalMapper.h>
 
 std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
 
@@ -41,7 +42,6 @@ UVR_SLAM::SemanticSegmentator::~SemanticSegmentator(){}
 
 void UVR_SLAM::SemanticSegmentator::InsertKeyFrame(UVR_SLAM::Frame *pKF)
 {
-	mpSystem->SetDirPath(pKF->GetKeyFrameID());
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
 	//std::cout << "Segmentator::" << mKFQueue.size() << std::endl;
 	mKFQueue.push(pKF);
@@ -59,6 +59,7 @@ void UVR_SLAM::SemanticSegmentator::ProcessNewKeyFrame()
 	mpTargetFrame = mKFQueue.front();
 	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
 	mpSystem->SetSegFrameID(mpTargetFrame->GetKeyFrameID());
+	mpSystem->SetDirPath(mpTargetFrame->GetKeyFrameID());
 	mKFQueue.pop();
 }
 
@@ -85,7 +86,12 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseSegmentation);
 			mpSystem->mbSegmentationEnd = false;
 			//insert kyeframe to plane estimator
-			mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
+			if (mpSystem->isInitialized()) {
+				//std::cout << "insert??????????" << std::endl;
+				mpLocalMapper->InsertKeyFrame(mpTargetFrame);
+				mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
+			}
+			
 			//request post
 			//리사이즈 안하면 칼라이미지로
 			int status = 0;
@@ -124,7 +130,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			ss << mStrDirPath.c_str() << "/segmentation.jpg";
 			cv::imwrite(ss.str(), segmented);
 			ss.str("");
-			ss << mStrDirPath.c_str() << "/segmentation_color.jpg";
+			ss << mStrDirPath.c_str() << "/segmentation_color_"<<mpTargetFrame->GetFrameID()<<".jpg";
 			cv::imwrite(ss.str(), colorimg);
 			cv::waitKey(1);
 			//////디버깅을 위한 이미지 저장
@@ -145,6 +151,9 @@ void UVR_SLAM::SemanticSegmentator::SetPlaneEstimator(UVR_SLAM::PlaneEstimator* 
 }
 void UVR_SLAM::SemanticSegmentator::SetTargetFrame(Frame* pFrame) {
 	mpTargetFrame = pFrame;
+}
+void UVR_SLAM::SemanticSegmentator::SetLocalMapper(LocalMapper* pEstimator) {
+	mpLocalMapper = pEstimator;
 }
 void UVR_SLAM::SemanticSegmentator::SetBoolDoingProcess(bool b) {
 	std::unique_lock<std::mutex> lockTemp(mMutexDoingProcess);

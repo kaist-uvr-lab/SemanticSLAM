@@ -1020,7 +1020,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				auto mvpFrameFloorMPs = std::vector<UVR_SLAM::MapPoint*>(mpTargetFrame->mspFloorMPs.begin(), mpTargetFrame->mspFloorMPs.end());
 				if (mpTargetFrame->mspFloorMPs.size() > 10) {
 					UVR_SLAM::PlaneInformation* pTemp = new UVR_SLAM::PlaneInformation();
-					bLocalFloor = PlaneInitialization(pPlane2, mvpFrameFloorMPs, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+					bLocalFloor = UVR_SLAM::PlaneInformation::PlaneInitialization(pPlane2, mvpFrameFloorMPs, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
 					//평면을 찾은 경우 현재 평면을 교체하던가 수정을 해야 함.
 					if (bLocalFloor) {
 
@@ -1629,7 +1629,7 @@ cv::Mat UVR_SLAM::PlaneInformation::PlaneLineEstimator(WallPlane* pWall, PlaneIn
 } 
 
 //평면 추정 관련 함수들
-bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, std::vector<UVR_SLAM::MapPoint*> vpMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio) {
+bool UVR_SLAM::PlaneInformation::PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, std::vector<UVR_SLAM::MapPoint*> vpMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio) {
 	//RANSAC
 	int max_num_inlier = 0;
 	cv::Mat best_plane_param;
@@ -1672,6 +1672,7 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 		cv::SVD::compute(arandomPts, w, u, vt, cv::SVD::FULL_UV);
 		X = vt.row(3).clone();
 		cv::transpose(X, X);
+
 		calcUnitNormalVector(X);
 		//reversePlaneSign(X);
 
@@ -1777,7 +1778,7 @@ void UVR_SLAM::PlaneEstimator::UpdatePlane(PlaneInformation* pPlane, int nTarget
 		cv::SVD::compute(arandomPts, w, u, vt, cv::SVD::FULL_UV);
 		X = vt.row(3).clone();
 		cv::transpose(X, X);
-		calcUnitNormalVector(X);
+		UVR_SLAM::PlaneInformation::calcUnitNormalVector(X);
 		if (X.at<float>(1) > 0.0)
 			X *= -1.0;
 
@@ -1826,7 +1827,7 @@ void UVR_SLAM::PlaneEstimator::UpdatePlane(PlaneInformation* pPlane, int nTarget
 		cv::SVD::compute(tempMat, w, u, vt, cv::SVD::FULL_UV);
 		X = vt.row(3).clone();
 		cv::transpose(X, X);
-		calcUnitNormalVector(X);
+		UVR_SLAM::PlaneInformation::calcUnitNormalVector(X);
 		if (X.at<float>(1) > 0.0)
 			X *= -1.0;
 
@@ -1888,7 +1889,7 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 		cv::SVD::compute(arandomPts, w, u, vt, cv::SVD::FULL_UV);
 		X = vt.row(3).clone();
 		cv::transpose(X, X);
-		calcUnitNormalVector(X);
+		UVR_SLAM::PlaneInformation::calcUnitNormalVector(X);
 
 		float val = GroundPlane->CalcCosineSimilarity(X);
 		//std::cout << "cos::" << val << std::endl;
@@ -1956,7 +1957,7 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 	}
 }
 
-bool UVR_SLAM::PlaneEstimator::calcUnitNormalVector(cv::Mat& X) {
+bool UVR_SLAM::PlaneInformation::calcUnitNormalVector(cv::Mat& X) {
 	float sum = sqrt(X.at<float>(0, 0)*X.at<float>(0, 0) + X.at<float>(1, 0)*X.at<float>(1, 0) + X.at<float>(2, 0)*X.at<float>(2, 0));
 	//cout<<"befor X : "<<X<<endl;
 	if (sum != 0) {
@@ -2386,7 +2387,7 @@ bool UVR_SLAM::PlaneEstimator::ConnectedComponentLabeling(cv::Mat img, cv::Mat& 
 	return true;
 }
 
-cv::Mat UVR_SLAM::PlaneEstimator::CalcPlaneRotationMatrix(cv::Mat P) {
+cv::Mat UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(cv::Mat P) {
 	//euler zxy
 	cv::Mat Nidealfloor = cv::Mat::zeros(3, 1, CV_32FC1);
 	cv::Mat normal = P.rowRange(0, 3);
@@ -2401,16 +2402,17 @@ cv::Mat UVR_SLAM::PlaneEstimator::CalcPlaneRotationMatrix(cv::Mat P) {
 	cv::Mat R = UVR_SLAM::MatrixOperator::RotationMatrixFromEulerAngles(d1, d2, 0.0, "ZXY");
 	
 	
+	///////////한번 더 돌리는거 테스트
 	/*cv::Mat R1 = UVR_SLAM::MatrixOperator::RotationMatrixFromEulerAngle(d1, 'z');
 	cv::Mat R2 = UVR_SLAM::MatrixOperator::RotationMatrixFromEulerAngle(d2, 'x');
-
 	cv::Mat Nnew = R2.t()*R1.t()*normal;
 	float d3 = atan2(Nnew.at<float>(0), Nnew.at<float>(2));
 	cv::Mat Rfinal = UVR_SLAM::MatrixOperator::RotationMatrixFromEulerAngles(d1, d2, d3, "ZXY");*/
+	///////////한번 더 돌리는거 테스트
 	
-	cv::Mat test1 = R*Nidealfloor;
+	/*cv::Mat test1 = R*Nidealfloor;
 	cv::Mat test3 = R.t()*normal;
-	std::cout << "ATEST::" << P.t() << test1.t() << test3.t()<< std::endl;
+	std::cout << "ATEST::" << P.t() << test1.t() << test3.t()<< std::endl;*/
 	
 	
 	/*

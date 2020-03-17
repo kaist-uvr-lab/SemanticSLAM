@@ -4,6 +4,7 @@
 #include <System.h>
 #include <MatrixOperator.h>
 #include <SemanticSegmentator.h>
+#include <PlaneEstimator.h>
 
 //추후 파라메터화. 귀찮아.
 int N_matching_init_therah = 120; //80
@@ -46,9 +47,15 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 	
 	if (!mpInitFrame1) {
 		mpInitFrame1 = pFrame;
+		mpSegmentator->InsertKeyFrame(mpInitFrame1);
 		return mbInit;
 	}
 	else {
+
+		//세그멘테이션 중인 동안 대기
+		if (mpSegmentator->isDoingProcess())
+			return mbInit;
+
 		//매칭이 적으면 mpInitFrame1을 mpInitFrame2로 교체
 		cv::Mat F;
 		std::vector<cv::DMatch> tempMatches, resMatches;
@@ -61,6 +68,9 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		if (count < N_matching_init_therah) {
 			delete mpInitFrame1;
 			mpInitFrame1 = mpInitFrame2;
+			if (mpInitFrame1->matSegmented.rows == 0) {
+				mpSegmentator->InsertKeyFrame(mpInitFrame1);
+			}
 			return mbInit;
 		}
 
@@ -115,11 +125,14 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		cv::RNG rng = cv::RNG(12345);
 
 		if (resIDX > 0 && vCandidates[resIDX]->nGood > N_thresh_init_triangulate) {
+
+			mpSegmentator->InsertKeyFrame(mpInitFrame2);
+
 			std::cout << vCandidates[resIDX]->nGood << std::endl;
 			mpInitFrame1->SetPose(vCandidates[resIDX]->R0, vCandidates[resIDX]->t0);
 			mpInitFrame2->SetPose(vCandidates[resIDX]->R, vCandidates[resIDX]->t); //두번째 프레임은 median depth로 변경해야 함.
 
-			//키프레임으로 설정
+			////키프레임으로 설정
 			mpInitFrame1->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 			mpInitFrame2->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 
@@ -196,18 +209,77 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 				pMP->IncreaseVisible(2);
 			}
 
+			
+
+			//////////
+			//바닥 인식 및 이것 저것 테스트
+			
+			while (mpSegmentator->isDoingProcess()) {
+			}
+			int count = 0;
+			auto mvpMPs = mpInitFrame2->GetMapPoints();
+			std::vector<UVR_SLAM::MapPoint*> mvpFloorMPs;
+			auto mvpOPs = mpInitFrame2->GetObjectVector();
+			for (int i = 0; i < mvpMPs.size(); i++) {
+				UVR_SLAM::MapPoint* pMP = mvpMPs[i];
+				if (!pMP)
+					continue;
+				if (pMP->isDeleted())
+					continue;
+				if (mvpOPs[i] == UVR_SLAM::ObjectType::OBJECT_FLOOR) {
+					count++;
+					mvpFloorMPs.push_back(pMP);
+				}
+			}
+			UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
+			bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.2);
+			if (abs(pFloor->matPlaneParam.at<float>(1)) < 0.97)
+			{
+				mbInit = false;
+				bReset = true;
+				return mbInit;
+			}
+
 			//윈도우 로컬맵, 포즈 설정
 			mpFrameWindow->SetPose(R, t*invMedianDepth);
 			mpFrameWindow->SetLocalMap(mpInitFrame2->GetFrameID());
 			mpFrameWindow->SetLastFrameID(mpInitFrame2->GetFrameID());
 			mpFrameWindow->mnLastMatches = nMatch;
 
-			mpSegmentator->InsertKeyFrame(mpInitFrame1);
-			mpSegmentator->InsertKeyFrame(mpInitFrame2);
-			mpLocalMapper->InsertKeyFrame(mpInitFrame1);
-			mpLocalMapper->InsertKeyFrame(mpInitFrame2);
-			
+			//mpSegmentator->InsertKeyFrame(mpInitFrame1);
+
+			//mpLocalMapper->InsertKeyFrame(mpInitFrame1);
+			//mpLocalMapper->InsertKeyFrame(mpInitFrame2);
+
 			mbInit = true;
+
+			/////////////////////////////////////////////////////////////////////////////////////////////////////
+			////////////////////rotation test
+			/*cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(pFloor->matPlaneParam).clone();
+			cv::Mat normal;
+			float dist;
+			pFloor->GetParam(normal, dist);
+			cv::Mat tempP = Rcw.t()*normal;
+
+			mpInitFrame1->GetPose(R, t);
+			mpInitFrame1->SetPose(R*Rcw, t);
+			mpInitFrame2->GetPose(R, t);
+			mpInitFrame2->SetPose(R*Rcw, t);
+			for (int i = 0; i < mvpMPs.size(); i++) {
+				UVR_SLAM::MapPoint* pMP = mvpMPs[i];
+				if (!pMP)
+					continue;
+				if (pMP->isDeleted())
+					continue;
+				cv::Mat tempX = Rcw.t()*pMP->GetWorldPos();
+				pMP->SetWorldPos(tempX);
+			}*/
+			////////////////////rotation test
+			/////////////////////////////////////////////////////////////////////////////////////////////////////
+			
+			std::cout << "세그멘테이션 끝::" << count <<"::"<<pFloor->matPlaneParam.t()<< std::endl;
+
+
 
 			//if (mbInit) {
 			//	//test

@@ -209,7 +209,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			mpRefKF = pCurr;
 			pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 			mpSegmentator->InsertKeyFrame(pCurr);
-			mpLocalMapper->InsertKeyFrame(pCurr);
+			//mpLocalMapper->InsertKeyFrame(pCurr);
 		}
 		std::chrono::high_resolution_clock::time_point check_end = std::chrono::high_resolution_clock::now();
 

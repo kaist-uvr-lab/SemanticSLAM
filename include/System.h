@@ -76,6 +76,7 @@ namespace UVR_SLAM {
 
 	public:
 		void SetBoolInit(bool b);
+		bool isInitialized();
 		void Reset();
 		void SetCurrFrame(cv::Mat img);
 		void Track();
@@ -163,6 +164,8 @@ namespace UVR_SLAM {
 		std::mutex mMutexUseLocalMapping;
 		std::condition_variable cvUseLocalMapping;
 		bool mbLocalMappingEnd;
+
+		std::mutex mMutexInitialized;
 
 		//layoutestimation
 		//1 max depth

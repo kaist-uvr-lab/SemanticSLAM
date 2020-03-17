@@ -183,6 +183,7 @@ void UVR_SLAM::System::Init() {
 	mpTracker->SetSegmentator(mpSegmentator);
 	mpTracker->SetVisualizer(mpVisualizer);
 	mpPlaneEstimator->SetInitializer(mpInitializer);
+	mpSegmentator->SetLocalMapper(mpLocalMapper);
 
 	//Time
 	mnSegID = mnLoalMapperID = mnPlaneID = mnMapOptimizerID = 0;
@@ -227,8 +228,15 @@ void UVR_SLAM::System::Reset() {
 }
 
 void UVR_SLAM::System::SetBoolInit(bool b) {
+	std::unique_lock<std::mutex> lock(mMutexInitialized);
 	mbInitialized = b;
 }
+
+bool UVR_SLAM::System::isInitialized() {
+	std::unique_lock<std::mutex> lock(mMutexInitialized);
+	return mbInitialized;
+}
+
 void UVR_SLAM::System::InitDirPath() {
 	std::unique_lock<std::mutex> lock(mMutexDirPath);
 	//확인용 폴더 생성하기 위한 것
