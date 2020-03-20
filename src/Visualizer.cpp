@@ -256,7 +256,7 @@ void UVR_SLAM::Visualizer::Run() {
 			if (mpMap->isFloorPlaneInitialized() && mvpWindowFrames.size() > 0) {
 				auto mvpWalls = mpMap->GetWallPlanes();
 				UVR_SLAM::PlaneInformation* aplane = mpMap->mpFloorPlane;
-				cv::Mat planeParam = aplane->matPlaneParam.clone();
+				cv::Mat planeParam = aplane->GetParam();
 
 				cv::Mat K = mvpWindowFrames[0]->mK.clone();
 				/*K.at<float>(0, 0) /= 2.0;

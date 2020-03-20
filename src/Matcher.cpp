@@ -235,7 +235,7 @@ int UVR_SLAM::Matcher::MatchingWithPrevFrame(UVR_SLAM::Frame* pPrev, UVR_SLAM::F
 		}
 	}
 
-	cv::Mat img1 = pPrev->GetOriginalImage();
+	/*cv::Mat img1 = pPrev->GetOriginalImage();
 	cv::Mat img2 = pCurr->GetOriginalImage();
 	cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
 
@@ -281,7 +281,7 @@ int UVR_SLAM::Matcher::MatchingWithPrevFrame(UVR_SLAM::Frame* pPrev, UVR_SLAM::F
 			cv::circle(debugging, pCurr->mvKeyPoints[vMatchInfos[i].trainIdx].pt + ptBottom, 3, cv::Scalar(255, 0, 0), -1);
 			cv::line(debugging, pPrev->mvKeyPoints[idx].pt, pCurr->mvKeyPoints[vMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 255, 0));
 		}
-	}
+	}*/
 
 	/*std::vector<cv::DMatch> vMatchInfosObj;
 	if (pPrev->mPlaneDescriptor.rows > 0) {
@@ -315,10 +315,9 @@ int UVR_SLAM::Matcher::MatchingWithPrevFrame(UVR_SLAM::Frame* pPrev, UVR_SLAM::F
 			cv::line(debugging, pPrev->mvKeyPoints[idx1].pt, pCurr->mvKeyPoints[idx2].pt + ptBottom, cv::Scalar(0, 255, 255));
 		}
 
-	}*/
-
+	}
 	cv::imshow("Output::Matching", debugging);
-	//waitKey(0);
+	*/
 
 	return count;
 }

@@ -20,6 +20,7 @@ namespace UVR_SLAM {
 
 			void Calculate();
 			void GetInformation(cv::Mat& pInvP, cv::Mat& pInvT, cv::Mat& pInvK);
+			PlaneInformation* GetFloorPlane();
 		private:
 			std::mutex mMutexProessor;
 			Frame* mpFrame;
@@ -37,6 +38,7 @@ namespace UVR_SLAM {
 		int mnPlaneID;
 		UVR_SLAM::Frame* mpFrame;
 		cv::Point2f from, to;
+		cv::Mat mLineEqu;
 	private:
 		std::mutex mMutexLinePts;
 		cv::Mat mvLinePts;

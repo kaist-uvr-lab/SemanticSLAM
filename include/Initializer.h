@@ -27,6 +27,7 @@ namespace UVR_SLAM {
 		virtual ~Initializer();
 	public:
 		void Init();
+		void Reset();
 		void SetLocalMapper(LocalMapper* pMapper);
 		void SetMatcher(Matcher* pMatcher);
 		void SetFrameWindow(FrameWindow* pWindow);

@@ -11,6 +11,8 @@
 #include <MatrixOperator.h>
 #include <PlaneBA.h>
 #include <PlaneEstimator.h>
+#include <Plane.h>
+#include <Map.h>
 
 #include "g2o/core/block_solver.h"
 #include "g2o/core/optimization_algorithm_levenberg.h"
@@ -1029,7 +1031,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 
 }
 
-void UVR_SLAM::Optimization::LocalBundleAdjustmentWithPlane(UVR_SLAM::Frame *pKF, UVR_SLAM::FrameWindow* pWindow, bool* pbStopFlag)
+void UVR_SLAM::Optimization::LocalBundleAdjustmentWithPlane(UVR_SLAM::Map* pMap, UVR_SLAM::Frame *pKF, UVR_SLAM::FrameWindow* pWindow, bool* pbStopFlag)
 {
 	// Local KeyFrames: First Breath Search from Current Keyframe
 	std::list<UVR_SLAM::Frame*> lLocalKeyFrames;
@@ -1184,10 +1186,10 @@ void UVR_SLAM::Optimization::LocalBundleAdjustmentWithPlane(UVR_SLAM::Frame *pKF
 	const float thHuberMono = sqrt(5.991);
 	const float thHuberStereo = sqrt(7.815);
 
-	int nPlaneID = pKF->mvpPlanes[0]->mnPlaneID;
+	int nPlaneID = pMap->mpFloorPlane->mnPlaneID;
 	cv::Mat normal;
 	float dist;
-	pKF->mvpPlanes[0]->GetParam(normal, dist);
+	pMap->mpFloorPlane->GetParam(normal, dist);
 
 	for (auto lit = lLocalMapPoints.begin(), lend = lLocalMapPoints.end(); lit != lend; lit++)
 	{

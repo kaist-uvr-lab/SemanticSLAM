@@ -46,14 +46,16 @@ namespace UVR_SLAM {
 		std::vector<MapPoint*> mvpMPs;
 		std::vector<MapPoint*> tmpMPs; //이전에 만들어진 포인트 중에서 여러개 연결된 경우
 
-		cv::Mat matPlaneParam;
+		
 		void SetParam(cv::Mat n, float d);
 		void GetParam(cv::Mat& n, float& d);
+		cv::Mat GetParam();
 	private:
 		std::mutex mMutexParam;
 		cv::Mat normal;
 		float distance;
 		float norm;
+		cv::Mat matPlaneParam;
 	public:
 		float CalcOverlapMPs(PlaneInformation* p, int nID);
 		void Merge(PlaneInformation* p, int nID, float thresh);
@@ -82,6 +84,8 @@ namespace UVR_SLAM {
 		static bool PlaneInitialization(PlaneInformation* pPlane, std::vector<MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 
 		static cv::Mat CalcPlaneRotationMatrix(cv::Mat P);
+		static void CreatePlanarMapPoints(Frame* pF, System* pSystem);
+		static void CreateWallMapPoints(Frame* pF, WallPlane* pWall, Line* pLine, System* pSystem);
 	};
 
 	class PlaneEstimator {

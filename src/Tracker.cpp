@@ -147,12 +147,12 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		
 	}
 	else {
+		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 		std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
 		while (!mpSystem->mbLocalMapUpdateEnd){
 			mpSystem->cvUseLocalMap.wait(lock);
 		}
 		mpSystem->mbTrackingEnd = false;
-		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 		
 		//pCurr->SetPose(pPrev->GetRotation(), pPrev->GetTranslation());
 		pCurr->SetPose(mpFrameWindow->GetRotation(), mpFrameWindow->GetTranslation());
@@ -164,6 +164,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mpSystem->mbTrackingEnd = true;
 		lock.unlock();
 		mpSystem->cvUseLocalMap.notify_one();
+
+		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		//이전 프레임에 포함된 맵포인트와 현재 프레임의 키포인트를 매칭하는 과정.
 		//빠른 속도를 위해 이전 프레임에서 추적되는 맵포인트를 디스크립터로 만듬.
@@ -205,46 +207,54 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 		//std::cout << "cam : " << pCurr->GetCameraCenter().t() << std::endl;
 
-		if (CheckNeedKeyFrame(pCurr)) {
+		/*if (!mpSegmentator->isDoingProcess()) {
 			mpRefKF = pCurr;
-			pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 			mpSegmentator->InsertKeyFrame(pCurr);
+		}*/
+		if (CheckNeedKeyFrame(pCurr)) {
+			//pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 			//mpLocalMapper->InsertKeyFrame(pCurr);
+			mpRefKF = pCurr;
+			mpSegmentator->InsertKeyFrame(pCurr);
 		}
-		std::chrono::high_resolution_clock::time_point check_end = std::chrono::high_resolution_clock::now();
-
-		//시간 체크
-		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
-		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end-tracking_start).count();
-
-		auto duration_matching = std::chrono::duration_cast<std::chrono::milliseconds>(matching_end - matching_start).count();
-		auto duration_optimize = std::chrono::duration_cast<std::chrono::milliseconds>(optimize_end - optimize_start).count();
-
-		double tttt = duration / 1000.0;
-		//tttt = 1.0 /tttt;
-
-		double t_matching = duration_matching / 1000.0;
-		double t_optimize = duration_optimize / 1000.0;
-		//bool bBow =  mpFrameWindow->CalcFrameDistanceWithBOW(pCurr);
-
-		auto duration_matching2 = std::chrono::duration_cast<std::chrono::milliseconds>(matching_end2 - matching_start2).count();
-		double t_matching2 = duration_matching2 / 1000.0;
-
-		auto duration_optimize2 = std::chrono::duration_cast<std::chrono::milliseconds>(optimize_end2 - optimize_start2).count();
-		double t_optimize2 = duration_optimize2 / 1000.0;
-
-		auto duration_count = std::chrono::duration_cast<std::chrono::milliseconds>(count_end - count_start).count();
-		double t_count = duration_count / 1000.0;
-
-		auto duration_check = std::chrono::duration_cast<std::chrono::milliseconds>(check_end - check_start).count();
-		double t_check = duration_check / 1000.0;
-
-		//update tracking results
+		////update tracking results
 		mpFrameWindow->mnLastMatches = mnMatching;
+
+		std::chrono::high_resolution_clock::time_point check_end = std::chrono::high_resolution_clock::now();
+		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+		double tttt = duration / 1000.0;
+		//std::cout << "tracking::time::" << tttt << std::endl;
+		////tttt = 1.0 /tttt;
+		///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+		////시간 체크
+		
+		
+
+		//auto duration_matching = std::chrono::duration_cast<std::chrono::milliseconds>(matching_end - matching_start).count();
+		//auto duration_optimize = std::chrono::duration_cast<std::chrono::milliseconds>(optimize_end - optimize_start).count();
+
+		
+
+		//double t_matching = duration_matching / 1000.0;
+		//double t_optimize = duration_optimize / 1000.0;
+		////bool bBow =  mpFrameWindow->CalcFrameDistanceWithBOW(pCurr);
+
+		//auto duration_matching2 = std::chrono::duration_cast<std::chrono::milliseconds>(matching_end2 - matching_start2).count();
+		//double t_matching2 = duration_matching2 / 1000.0;
+
+		//auto duration_optimize2 = std::chrono::duration_cast<std::chrono::milliseconds>(optimize_end2 - optimize_start2).count();
+		//double t_optimize2 = duration_optimize2 / 1000.0;
+
+		//auto duration_count = std::chrono::duration_cast<std::chrono::milliseconds>(count_end - count_start).count();
+		//double t_count = duration_count / 1000.0;
+
+		//auto duration_check = std::chrono::duration_cast<std::chrono::milliseconds>(check_end - check_start).count();
+		//double t_check = duration_check / 1000.0;
 
 		//일단 테스트
 		cv::Mat vis = pCurr->GetOriginalImage();
-		//cvtColor(vis, vis, CV_RGBA2BGR);
 		vis.convertTo(vis, CV_8UC3);
 
 		auto mvpMPs = pCurr->GetMapPoints();
@@ -288,78 +298,77 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				}
 			}
 		}
-		
-		//////////////////////////////////////////////////////////////////////////////
-		//////////////line test
-		/*auto lines = mpRefKF->Getlines();
-		bool bLine = lines.size() > 0;
-		bool bPlane = mpRefKF->mvpPlanes.size() > 0;
-		if (bLine && bPlane) {
-			
-			auto plane = mpRefKF->mvpPlanes[0];
-			cv::Mat normal1;
-			float dist1;
-			plane->GetParam(normal1, dist1);
-			cv::Mat K = mK.clone();
-			K.at<float>(0, 0) /= 2.0;
-			K.at<float>(1, 1) /= 2.0;
-			K.at<float>(0, 2) /= 2.0;
-			K.at<float>(1, 2) /= 2.0;
+		//
+		////////////////////////////////////////////////////////////////////////////////
+		////////////////line test
+		///*auto lines = mpRefKF->Getlines();
+		//bool bLine = lines.size() > 0;
+		//bool bPlane = mpRefKF->mvpPlanes.size() > 0;
+		//if (bLine && bPlane) {
+		//	
+		//	auto plane = mpRefKF->mvpPlanes[0];
+		//	cv::Mat normal1;
+		//	float dist1;
+		//	plane->GetParam(normal1, dist1);
+		//	cv::Mat K = mK.clone();
+		//	K.at<float>(0, 0) /= 2.0;
+		//	K.at<float>(1, 1) /= 2.0;
+		//	K.at<float>(0, 2) /= 2.0;
+		//	K.at<float>(1, 2) /= 2.0;
 
-			cv::Mat T = cv::Mat::eye(4, 4, CV_32FC1);
-			R.copyTo(T.rowRange(0, 3).colRange(0, 3));
-			t.copyTo(T.col(3).rowRange(0, 3));
+		//	cv::Mat T = cv::Mat::eye(4, 4, CV_32FC1);
+		//	R.copyTo(T.rowRange(0, 3).colRange(0, 3));
+		//	t.copyTo(T.col(3).rowRange(0, 3));
 
-			cv::Mat planeParam = plane->matPlaneParam.clone();
-			cv::Mat invT = T.inv();
-			cv::Mat invP = invT.t()*planeParam;
-			cv::Mat invK = K.inv();
+		//	cv::Mat planeParam = plane->matPlaneParam.clone();
+		//	cv::Mat invT = T.inv();
+		//	cv::Mat invP = invT.t()*planeParam;
+		//	cv::Mat invK = K.inv();
 
-			cv::Mat R, t;
-			pCurr->GetPose(R, t);
-			
-			for (int i = 0; i < lines.size(); i++) {
-				cv::Mat param = UVR_SLAM::PlaneInformation::PlaneWallEstimator(lines[i], normal1, invP, invT, invK);
-				float m;
-				cv::Mat mLine = UVR_SLAM::PlaneInformation::FlukerLineProjection(planeParam, param, R, t, mK2, m);
-				cv::Point2f sPt, ePt;
-				UVR_SLAM::PlaneInformation::CalcFlukerLinePoints(sPt, ePt, 0.0, mnHeight, mLine);
-				cv::line(vis, sPt, ePt, cv::Scalar(0, 255, 0), 3);
-				std::cout << "tttt::" << param.t() << std::endl;
-			}
-		}*/
-		//////////////line test
+		//	cv::Mat R, t;
+		//	pCurr->GetPose(R, t);
+		//	
+		//	for (int i = 0; i < lines.size(); i++) {
+		//		cv::Mat param = UVR_SLAM::PlaneInformation::PlaneWallEstimator(lines[i], normal1, invP, invT, invK);
+		//		float m;
+		//		cv::Mat mLine = UVR_SLAM::PlaneInformation::FlukerLineProjection(planeParam, param, R, t, mK2, m);
+		//		cv::Point2f sPt, ePt;
+		//		UVR_SLAM::PlaneInformation::CalcFlukerLinePoints(sPt, ePt, 0.0, mnHeight, mLine);
+		//		cv::line(vis, sPt, ePt, cv::Scalar(0, 255, 0), 3);
+		//		std::cout << "tttt::" << param.t() << std::endl;
+		//	}
+		//}*/
+		////////////////line test
 
-		////////////////////////////////////////////////////////////////////////
-		//////////////Wall Line TEST
-		auto wallParams = mpMap->GetWallPlanes();//mpRefKF->GetWallParams();
-		int nkid = mpRefKF->GetKeyFrameID();
-		if (wallParams.size() > 0 && mpRefKF->mvpPlanes.size() > 0) {
-			auto plane = mpRefKF->mvpPlanes[0];
-			cv::Mat planeParam = plane->matPlaneParam.clone();
-			for (int i = 0; i < wallParams.size(); i++) {
-				int nid = wallParams[i]->GetRecentKeyFrameID();
-				if (nid + 2 < nkid)
-					continue;
-				float m;
-				cv::Mat mLine = UVR_SLAM::PlaneInformation::FlukerLineProjection(wallParams[i]->GetParam(), planeParam, R, t, mK2, m);
-				cv::Point2f sPt, ePt;
-				UVR_SLAM::PlaneInformation::CalcFlukerLinePoints(sPt, ePt, 0.0, mnHeight, mLine);
-				cv::line(vis, sPt, ePt, cv::Scalar(0, 255, 0), 3);
-				//std::cout << "tttt::" << wallParams[i].t() << std::endl;
-			}
-		}
-		//////////////Wall Line TEST
-		////////////////////////////////////////////////////////////////////////
-		
+		//////////////////////////////////////////////////////////////////////////
+		////////////////Wall Line TEST
+		//auto wallParams = mpMap->GetWallPlanes();//mpRefKF->GetWallParams();
+		//int nkid = mpRefKF->GetKeyFrameID();
+		//if (wallParams.size() > 0 && mpRefKF->mvpPlanes.size() > 0) {
+		//	auto plane = mpRefKF->mvpPlanes[0];
+		//	cv::Mat planeParam = plane->matPlaneParam.clone();
+		//	for (int i = 0; i < wallParams.size(); i++) {
+		//		int nid = wallParams[i]->GetRecentKeyFrameID();
+		//		if (nid + 2 < nkid)
+		//			continue;
+		//		float m;
+		//		cv::Mat mLine = UVR_SLAM::PlaneInformation::FlukerLineProjection(wallParams[i]->GetParam(), planeParam, R, t, mK2, m);
+		//		cv::Point2f sPt, ePt;
+		//		UVR_SLAM::PlaneInformation::CalcFlukerLinePoints(sPt, ePt, 0.0, mnHeight, mLine);
+		//		cv::line(vis, sPt, ePt, cv::Scalar(0, 255, 0), 3);
+		//		//std::cout << "tttt::" << wallParams[i].t() << std::endl;
+		//	}
+		//}
+		////////////////Wall Line TEST
+		//////////////////////////////////////////////////////////////////////////
+		//
 
-		//속도 및 에러 출력
-		/*std::stringstream ss;
-		ss << std::setw(5) << "Tracker TIME : " << tttt << " || " << mnMatching<<" Local Map : "<<mvpLocalMPs.size();
-		mpSystem->SetTrackerString(ss.str());*/
+		////속도 및 에러 출력
+		///*std::stringstream ss;
+		//ss << std::setw(5) << "Tracker TIME : " << tttt << " || " << mnMatching<<" Local Map : "<<mvpLocalMPs.size();
+		//mpSystem->SetTrackerString(ss.str());*/
 		
 		cv::imshow("Output::Tracking", vis);
-		
 		mpVisualizer->SetMPs(pCurr->GetMapPoints());
 		//visualizer thread
 		if (!mpVisualizer->isDoingProcess()) {
@@ -416,22 +425,22 @@ void UVR_SLAM::Tracker::CalcMatchingCount(UVR_SLAM::Frame* pF) {
 			pF->mvTrackedIdxs.push_back(i);
 			pMP->SetDescriptor(pF->matDescriptor.row(i));
 
-			//floor, wall descriptor update
-			if (pF->mLabelStatus.at<uchar>(i) == 0) {
-				auto type = pMP->GetObjectType();
-				switch (type) {
-				case ObjectType::OBJECT_FLOOR:
-					pF->mLabelStatus.at<uchar>(i) = (int)ObjectType::OBJECT_FLOOR;
-					pF->mPlaneDescriptor.push_back(pF->matDescriptor.row(i));
-					pF->mPlaneIdxs.push_back(i);
-					break;
-				case ObjectType::OBJECT_WALL:
-					pF->mLabelStatus.at<uchar>(i) = (int)ObjectType::OBJECT_WALL;
-					pF->mWallDescriptor.push_back(pF->matDescriptor.row(i));
-					pF->mWallIdxs.push_back(i);
-					break;
-				}
-			}
+			////floor, wall descriptor update
+			//if (pF->mLabelStatus.at<uchar>(i) == 0) {
+			//	auto type = pMP->GetObjectType();
+			//	switch (type) {
+			//	case ObjectType::OBJECT_FLOOR:
+			//		pF->mLabelStatus.at<uchar>(i) = (int)ObjectType::OBJECT_FLOOR;
+			//		pF->mPlaneDescriptor.push_back(pF->matDescriptor.row(i));
+			//		pF->mPlaneIdxs.push_back(i);
+			//		break;
+			//	case ObjectType::OBJECT_WALL:
+			//		pF->mLabelStatus.at<uchar>(i) = (int)ObjectType::OBJECT_WALL;
+			//		pF->mWallDescriptor.push_back(pF->matDescriptor.row(i));
+			//		pF->mWallIdxs.push_back(i);
+			//		break;
+			//	}
+			//}
 			
 		}
 		else {

@@ -4,8 +4,9 @@
 #include <FrameWindow.h>
 #include <MapPoint.h>
 #include <Optimization.h>
+#include <Map.h>
 
-UVR_SLAM::MapOptimizer::MapOptimizer(std::string strPath) : mpTargetFrame(nullptr), mbStopBA(false)
+UVR_SLAM::MapOptimizer::MapOptimizer(std::string strPath, Map* pMap) : mpTargetFrame(nullptr), mbStopBA(false)
 {
 	cv::FileStorage fs(strPath, cv::FileStorage::READ);
 	float fx = fs["Camera.fx"];
@@ -23,6 +24,8 @@ UVR_SLAM::MapOptimizer::MapOptimizer(std::string strPath) : mpTargetFrame(nullpt
 	mnHeight = fs["Image.height"];
 
 	fs.release();
+
+	mpMap = pMap;
 }
 UVR_SLAM::MapOptimizer::~MapOptimizer() {}
 
@@ -81,8 +84,8 @@ void UVR_SLAM::MapOptimizer::Run() {
 
 			mbStopBA = false;
 			
-			if(mpTargetFrame->mvpPlanes.size() > 0)
-				Optimization::LocalBundleAdjustmentWithPlane(mpTargetFrame, mpFrameWindow, &mbStopBA);
+			if(mpMap->isFloorPlaneInitialized())
+				Optimization::LocalBundleAdjustmentWithPlane(mpMap,mpTargetFrame, mpFrameWindow, &mbStopBA);
 			else
 				Optimization::LocalBundleAdjustment(mpTargetFrame, mpFrameWindow, &mbStopBA);
 			

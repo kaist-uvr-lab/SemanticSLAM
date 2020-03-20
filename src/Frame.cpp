@@ -479,15 +479,13 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	mDistCoef = _d.clone();
 
 	//tempDesc와 tempKPs는 이미지에서 겹치는 키포인트를 제거하기 위함.
-	cv::Mat tempDesc;
 	//ExtractORB(matFrame, mvKeyPoints, matDescriptor);
-	
+	//////여기에서 중복되는 키포인트들 제거하기
+	cv::Mat tempDesc;
 	{
 		ExtractORB(matFrame, mvTempKPs, tempDesc);
 		matDescriptor = cv::Mat::zeros(0, tempDesc.cols, tempDesc.type());
 	}
-
-	//////여기에서 중복되는 키포인트들 제거하기
 	cv::Mat overlap = cv::Mat::zeros(matFrame.size(), CV_8UC1);
 	for (int i = 0; i < mvTempKPs.size(); i++) {
 		if (!CheckKeyPointOverlap(overlap, mvTempKPs[i].pt)) {
@@ -527,12 +525,12 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
 	mvbMPInliers = std::vector<bool>(mvKeyPoints.size(), false);
 	mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);
-	mvMapObjects = std::vector<std::multimap<ObjectType, int, std::greater<int>>>(mvKeyPoints.size());
+	//mvMapObjects = std::vector<std::multimap<ObjectType, int, std::greater<int>>>(mvKeyPoints.size());
 	//파트별 매칭을 위한 것.
-	mWallDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
+	/*mWallDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
 	mObjectDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
 	mPlaneDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
-	mLabelStatus = cv::Mat::zeros(mvKeyPoints.size(), 1, CV_8UC1);
+	mLabelStatus = cv::Mat::zeros(mvKeyPoints.size(), 1, CV_8UC1);*/
 }
 
 void UVR_SLAM::Frame::ExtractORB(const cv::Mat &im, std::vector<cv::KeyPoint>& vKPs, cv::Mat& desc)
@@ -760,4 +758,14 @@ std::vector<cv::Mat> UVR_SLAM::Frame::GetWallParams() {
 void UVR_SLAM::Frame::SetWallParams(std::vector<cv::Mat> vParams){
 	std::unique_lock<std::mutex>(mMutexWallParams);
 	mvWallParams = std::vector<cv::Mat>(vParams.begin(), vParams.end());
+}
+
+void UVR_SLAM::Frame::Reset() {
+	mTrackedDescriptor = cv::Mat::zeros(0, matDescriptor.rows, matDescriptor.type());
+	mvTrackedIdxs.clear();
+	mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
+	mvbMPInliers = std::vector<bool>(mvKeyPoints.size(), false);
+	mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);
+	mnInliers = 0;
+	mmpConnectedKFs.clear();
 }

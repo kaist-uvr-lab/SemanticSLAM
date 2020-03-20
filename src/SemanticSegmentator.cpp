@@ -59,7 +59,6 @@ void UVR_SLAM::SemanticSegmentator::ProcessNewKeyFrame()
 	mpTargetFrame = mKFQueue.front();
 	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
 	mpSystem->SetSegFrameID(mpTargetFrame->GetKeyFrameID());
-	mpSystem->SetDirPath(mpTargetFrame->GetKeyFrameID());
 	mKFQueue.pop();
 }
 
@@ -98,9 +97,6 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			JSONConverter::RequestPOST(ip, port, resized_color, segmented, mpTargetFrame->GetFrameID(), status);
 			//cv::resize(segmented, segmented, colorimg.size());
 			
-			int n1 = mpTargetFrame->mPlaneDescriptor.rows;
-			int n2 = mpTargetFrame->mWallDescriptor.rows;
-
 			int nRatio = colorimg.rows / segmented.rows;
 			//ratio 버전이 아닌 다르게
 			ObjectLabeling(segmented, nRatio);
@@ -185,7 +181,6 @@ void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked, int ratio) {
 	//오브젝트 및 맵포인트 정보 획득
 	std::vector<UVR_SLAM::ObjectType> vObjTypes(mpTargetFrame->mvKeyPoints.size(), UVR_SLAM::OBJECT_NONE);
 	auto mvpMPs = mpTargetFrame->GetMapPoints();
-	auto mvMapObject = mpTargetFrame->mvMapObjects;
 	//다른 프레임들과의 매칭 결과를 반영해야 함.
 
 	for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
@@ -243,11 +238,11 @@ void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked, int ratio) {
 				mpTargetFrame->mspWallMPs.insert(pMP);
 				mpFrameWindow->mspWallMPs.insert(pMP);
 			}
-			if (mpTargetFrame->mLabelStatus.at<uchar>(i) == 0) {
+			/*if (mpTargetFrame->mLabelStatus.at<uchar>(i) == 0) {
 				mpTargetFrame->mLabelStatus.at<uchar>(i) = val;
 				mpTargetFrame->mWallDescriptor.push_back(mpTargetFrame->matDescriptor.row(i));
 				mpTargetFrame->mWallIdxs.push_back(i);
-			}
+			}*/
 			break;
 		case 4:
 		case 29: //rug
@@ -256,11 +251,11 @@ void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked, int ratio) {
 				mpTargetFrame->mspFloorMPs.insert(pMP);
 				mpFrameWindow->mspFloorMPs.insert(pMP);
 			}
-			if (mpTargetFrame->mLabelStatus.at<uchar>(i) == 0) {
+			/*if (mpTargetFrame->mLabelStatus.at<uchar>(i) == 0) {
 				mpTargetFrame->mLabelStatus.at<uchar>(i) = val;
 				mpTargetFrame->mPlaneDescriptor.push_back(mpTargetFrame->matDescriptor.row(i));
 				mpTargetFrame->mPlaneIdxs.push_back(i);
-			}
+			}*/
 			break;
 		case 6:
 			type = ObjectType::OBJECT_CEILING;

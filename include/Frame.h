@@ -60,6 +60,8 @@ namespace UVR_SLAM {
 		void RemoveMP(int idx);
 		std::vector<UVR_SLAM::MapPoint*> GetMapPoints();
 		
+		void Reset();
+
 		//UVR_SLAM::MapPoint* GetMapPoint(int idx);
 		//void SetMapPoint(UVR_SLAM::MapPoint* pMP, int idx);
 		//bool GetBoolInlier(int idx);

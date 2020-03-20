@@ -12,9 +12,10 @@ namespace UVR_SLAM {
 	class Frame;
 	class FrameWindow;
 	class MapPoint;
+	class Map;
 	class MapOptimizer {
 	public:
-		MapOptimizer(std::string strPath);
+		MapOptimizer(std::string strPath, Map* pMap);
 		virtual ~MapOptimizer();
 	
 		void InsertKeyFrame(UVR_SLAM::Frame *pKF);
@@ -37,6 +38,7 @@ namespace UVR_SLAM {
 		bool mbDoingProcess;
 		Frame* mpTargetFrame;
 		FrameWindow* mpFrameWindow;
+		Map* mpMap;
 	};
 }
 

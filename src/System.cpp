@@ -161,7 +161,7 @@ void UVR_SLAM::System::Init() {
 	//loop closing thread
 
 	//map optimizer
-	mpMapOptimizer = new UVR_SLAM::MapOptimizer(mstrFilePath);
+	mpMapOptimizer = new UVR_SLAM::MapOptimizer(mstrFilePath, mpMap);
 	mpMapOptimizer->SetFrameWindow(mpFrameWindow);
 	mpMapOptimizer->SetSystem(this);
 	mptMapOptimizer = new std::thread(&UVR_SLAM::MapOptimizer::Run, mpMapOptimizer);
@@ -218,13 +218,15 @@ void UVR_SLAM::System::Track() {
 
 void UVR_SLAM::System::Reset() {
 	mbInitialized = false;
-	mpInitializer->Init();
+	mpInitializer->Reset();
 	mpFrameWindow->ClearLocalMapFrames();
 	mpMap->ClearFrames();
 	mpMap->ClearWalls();
 	mlpNewMPs.clear();
 	//mpLocalMapper->mlpNewMPs.clear();
 	nKeyFrameID = 0;
+	//frame reset
+
 }
 
 void UVR_SLAM::System::SetBoolInit(bool b) {

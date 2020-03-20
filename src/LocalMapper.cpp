@@ -50,6 +50,8 @@ void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
 
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
 	mpTargetFrame = mKFQueue.front();
+	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+	mpSystem->SetDirPath(mpTargetFrame->GetKeyFrameID());
 	mpTargetFrame->SetBowVec(mpSystem->fvoc);
 	mpSystem->SetLocalMapperFrameID(mpTargetFrame->GetKeyFrameID());
 	mKFQueue.pop();
@@ -144,7 +146,7 @@ void UVR_SLAM::LocalMapper::Run() {
 
 			std::chrono::high_resolution_clock::time_point t_start = std::chrono::high_resolution_clock::now();
 			
-			int nCreateMP = Test();
+			//int nCreateMP = Test();
 			
 			std::chrono::high_resolution_clock::time_point t_end = std::chrono::high_resolution_clock::now();
 			auto du_test = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count();
@@ -332,35 +334,35 @@ void UVR_SLAM::LocalMapper::Run() {
 				//////현재 키프레임의 맵포인트와 키포인트 출력
 
 				//////local map 텍스트 출력
-				//std::ofstream f;
-				//sss.str("");
-				//sss<<strLocalPath.c_str() << "/localmap.txt";
-				//f.open(sss.str().c_str());
+				std::ofstream f;
+				sss.str("");
+				sss<<strLocalPath.c_str() << "/localmap.txt";
+				f.open(sss.str().c_str());
 
-				//for (int j = 0; j < mvpMPs.size(); j++) {
-				//	UVR_SLAM::MapPoint* pMP = mvpMPs[j];
-				//	if (!pMP) {
-				//		continue;
-				//	}
-				//	if (pMP->isDeleted()) {
-				//		continue;
-				//	}
-				//	cv::Mat Xw = pMP->GetWorldPos();
-				//	f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2)<<std::endl;
-				//}
-				//////local map 텍스트 출력
-				//////키프레임 포즈 출력
-				//f.close();
-				//sss.str("");
-				//sss << strLocalPath.c_str() << "/pose.txt";
-				//f.open(sss.str().c_str());
-				//cv::Mat tempr = mpTargetFrame->GetRotation();
-				//cv::Mat tempt = mpTargetFrame->GetTranslation();
-				//f << tempr.at<float>(0,0) << " " << tempr.at<float>(0,1) << " " << tempr.at<float>(0,2)<<std::endl;
-				//f << tempr.at<float>(1, 0) << " " << tempr.at<float>(1, 1) << " " << tempr.at<float>(1, 2) << std::endl;
-				//f << tempr.at<float>(2, 0) << " " << tempr.at<float>(2, 1) << " " << tempr.at<float>(2, 2) << std::endl;
-				//f << tempt.at<float>(0) << " " << tempt.at<float>(1) << " " << tempt.at<float>(2);
-				//f.close();
+				for (int j = 0; j < mvpMPs.size(); j++) {
+					UVR_SLAM::MapPoint* pMP = mvpMPs[j];
+					if (!pMP) {
+						continue;
+					}
+					if (pMP->isDeleted()) {
+						continue;
+					}
+					cv::Mat Xw = pMP->GetWorldPos();
+					f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2)<<std::endl;
+				}
+				f.close();
+				////local map 텍스트 출력
+				////키프레임 포즈 출력
+				sss.str("");
+				sss << strLocalPath.c_str() << "/pose.txt";
+				f.open(sss.str().c_str());
+				cv::Mat tempr = mpTargetFrame->GetRotation();
+				cv::Mat tempt = mpTargetFrame->GetTranslation();
+				f << tempr.at<float>(0,0) << " " << tempr.at<float>(0,1) << " " << tempr.at<float>(0,2)<<std::endl;
+				f << tempr.at<float>(1, 0) << " " << tempr.at<float>(1, 1) << " " << tempr.at<float>(1, 2) << std::endl;
+				f << tempr.at<float>(2, 0) << " " << tempr.at<float>(2, 1) << " " << tempr.at<float>(2, 2) << std::endl;
+				f << tempt.at<float>(0) << " " << tempt.at<float>(1) << " " << tempt.at<float>(2);
+				f.close();
 				//////키프레임 포즈 출력
 
 				////save image

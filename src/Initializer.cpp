@@ -6,6 +6,7 @@
 #include <MatrixOperator.h>
 #include <SemanticSegmentator.h>
 #include <PlaneEstimator.h>
+#include <Plane.h>
 
 //추후 파라메터화. 귀찮아.
 int N_matching_init_therah = 120; //80
@@ -27,6 +28,14 @@ void UVR_SLAM::Initializer::Init() {
 	mpInitFrame2 = nullptr;
 	mbInit = false;
 }
+
+void UVR_SLAM::Initializer::Reset() {
+	mpInitFrame1->Reset();
+	mpInitFrame2 = nullptr;
+	mbInit = false;
+}
+
+
 
 void UVR_SLAM::Initializer::SetLocalMapper(LocalMapper* pMapper) {
 	mpLocalMapper = pMapper;
@@ -75,7 +84,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			}
 			return mbInit;
 		}
-
+		
 		//F찾기
 		std::vector<bool> mvInliers;
 		float score;
@@ -84,7 +93,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpMatcher->FindFundamental(mpInitFrame1, mpInitFrame2, tempMatches, mvInliers, score, F);
 			F.convertTo(F, CV_32FC1);
 		}
-
+		
 		if ((int)tempMatches.size() < 8 || F.empty()) {
 			F.release();
 			F = cv::Mat::zeros(0, 0, CV_32FC1);
@@ -110,7 +119,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		vCandidates.push_back(mC2);
 		vCandidates.push_back(mC3);
 		vCandidates.push_back(mC4);
-		
 		SetCandidatePose(F, resMatches, vCandidates);
 		int resIDX = SelectCandidatePose(vCandidates);
 
@@ -123,7 +131,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		vis1.copyTo(debugging(mergeRect1));
 		vis2.copyTo(debugging(mergeRect2));
 		//cvtColor(vis1, vis1, CV_8UC3);
-
 		cv::RNG rng = cv::RNG(12345);
 
 		if (resIDX > 0 && vCandidates[resIDX]->nGood > N_thresh_init_triangulate) {
@@ -185,12 +192,16 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 			//calculate median depth
 			float medianDepth;
+			std::cout << "check::7" << std::endl;
 			mpInitFrame1->ComputeSceneMedianDepth(medianDepth);
 			float invMedianDepth = 1.0f / medianDepth;
 
 			if (medianDepth < 0.0 || mpInitFrame2->TrackedMapPoints(1) < 100){
 				mbInit = false;
 				bReset = true;
+				std::cout << "Reset" << std::endl;
+				while (mpSegmentator->isDoingProcess()) {
+				}
 				return mbInit;
 			}
 			//포즈 업데이트
@@ -210,8 +221,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 				pMP->IncreaseFound(2);
 				pMP->IncreaseVisible(2);
 			}
-
-			
 
 			//////////
 			//바닥 인식 및 이것 저것 테스트
@@ -235,10 +244,12 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			}
 			UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
 			bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.2);
-			if (abs(pFloor->matPlaneParam.at<float>(1)) < 0.98)//98
+			cv::Mat param = pFloor->GetParam();
+			if (!bRes || abs(param.at<float>(1)) < 0.98)//98
 			{
 				mbInit = false;
 				bReset = true;
+				std::cout << "Reset" << std::endl;
 				return mbInit;
 			}
 
@@ -248,32 +259,25 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpFrameWindow->SetLastFrameID(mpInitFrame2->GetFrameID());
 			mpFrameWindow->mnLastMatches = nMatch;
 
-			//평면 설정하가ㅣ
-			//mpInitFrame1->mvpPlanes.push_back(pFloor);
-			//mpInitFrame2->mvpPlanes.push_back(pFloor);
-			/*mpMap->SetFloorPlaneInitialization(true);
-			mpMap->mpFloorPlane = pFloor;*/
-
-			//mpSegmentator->InsertKeyFrame(mpInitFrame1);
-
-			//mpLocalMapper->InsertKeyFrame(mpInitFrame1);
-			//mpLocalMapper->InsertKeyFrame(mpInitFrame2);
-
-			mbInit = true;
-
 			/////////////////////////////////////////////////////////////////////////////////////////////////////
 			////////////////////rotation test
-			cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(pFloor->matPlaneParam).clone();
+			cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(param).clone();
 			cv::Mat normal;
 			float dist;
 			pFloor->GetParam(normal, dist);
 			cv::Mat tempP = Rcw.t()*normal;
-			
+			if (tempP.at<float>(0) < 0.00001)
+				tempP.at<float>(0) = 0.0;
+			if (tempP.at<float>(2) < 0.00001)
+				tempP.at<float>(2) = 0.0;
+
+			//카메라 자세 변환
 			mpInitFrame1->GetPose(R, t);
 			mpInitFrame1->SetPose(R*Rcw, t);
 			mpInitFrame2->GetPose(R, t);
 			mpInitFrame2->SetPose(R*Rcw, t);
 
+			//전체 맵포인트 변환
 			for (int i = 0; i < mvpMPs.size(); i++) {
 				UVR_SLAM::MapPoint* pMP = mvpMPs[i];
 				if (!pMP)
@@ -282,9 +286,15 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 					continue;
 				cv::Mat tempX = Rcw.t()*pMP->GetWorldPos();
 				pMP->SetWorldPos(tempX);
-
 			}
+			//평면 파라메터 변환
 			pFloor->SetParam(tempP, dist);
+
+			//바닥 맵포인트 바로 생성
+			//인포메이션 바로 생성하기.
+			mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
+			mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
+			UVR_SLAM::PlaneInformation::CreatePlanarMapPoints(mpInitFrame2, mpSystem);
 
 			////plane 변환 테스트
 			//float planeDist = 0.0;
@@ -319,40 +329,22 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			////////////////////rotation test
 			/////////////////////////////////////////////////////////////////////////////////////////////////////
 			
-			std::cout << "세그멘테이션 끝::" << count <<"::"<<pFloor->matPlaneParam.t()<< std::endl;
+			//평면 설정하기
+			pFloor->mnFrameID = mpInitFrame2->GetFrameID();
+			pFloor->mnPlaneType = ObjectType::OBJECT_FLOOR;
+			//mpInitFrame1->mvpPlanes.push_back(pFloor);
+			//mpInitFrame2->mvpPlanes.push_back(pFloor);
+			mpMap->SetFloorPlaneInitialization(true);
+			mpMap->mpFloorPlane = pFloor;
 
+			//mpSegmentator->InsertKeyFrame(mpInitFrame1);
 
+			//mpLocalMapper->InsertKeyFrame(mpInitFrame1);
+			//mpLocalMapper->InsertKeyFrame(mpInitFrame2);
 
-			//if (mbInit) {
-			//	//test
-			//	for (int i = 0; i < vCandidates[resIDX]->vbTriangulated.size(); i++) {
-			//		if (!vCandidates[resIDX]->vbTriangulated[i])
-			//			continue;
-			//		int idx1 = resMatches[i].queryIdx;
-			//		int idx2 = resMatches[i].trainIdx;
+			mbInit = true;
 
-			//		UVR_SLAM::MapPoint* pMP = mpInitFrame1->mvpMPs[idx1];
-			//		cv::Mat pCam1;
-			//		cv::Point2f p2D1;
-			//		bool bProjection1 = pMP->Projection(p2D1, pCam1, mpInitFrame1->GetRotation(), mpInitFrame1->GetTranslation(), mpInitFrame1->mK, w, h);
-			//		cv::Mat pCam2;
-			//		cv::Point2f p2D2;
-			//		bool bProjection2 = pMP->Projection(p2D2, pCam2, mpInitFrame2->GetRotation(), mpInitFrame2->GetTranslation(), mpInitFrame2->mK, w, h);
-
-			//		cv::Scalar color(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
-
-			//		circle(debugging, p2D1, 2, color, -1);
-			//		line(debugging, p2D1, mpInitFrame1->mvKeyPoints[idx1].pt, cv::Scalar(0, 255, 255));
-
-			//		circle(debugging, p2D2+ ptBottom, 2, color, -1);
-			//		line(debugging, p2D2+ ptBottom, mpInitFrame2->mvKeyPoints[idx2].pt+ ptBottom, cv::Scalar(0, 255, 255));
-
-			//		//line(debugging, p2D1, p2D2 + ptBottom, cv::Scalar(255, 255, 0), 1);
-			//		/*imshow("Initialization::Results::Frame::1", vis1);
-			//		imshow("Initialization::Results::Frame::2", vis2);
-			//		cv::waitKey(0);*/
-			//	}
-			//}
+			std::cout << "세그멘테이션 끝::" << count <<"::"<<pFloor->GetParam().t()<< std::endl;
 			std::cout << "Initializer::" << nMatch << std::endl;
 		}
 
@@ -377,10 +369,15 @@ void UVR_SLAM::Initializer::SetCandidatePose(cv::Mat F, std::vector<cv::DMatch> 
 	vCandidates[1]->SetRt(R2, t1);
 	vCandidates[2]->SetRt(R1, t2);
 	vCandidates[3]->SetRt(R2, t2);
-	CheckRT(Matches, vCandidates[0], th);
+
+#pragma  omp parallel for
+	for (int i = 0; i < 4; i++) {
+		CheckRT(Matches, vCandidates[i], th);
+	}
+	/*CheckRT(Matches, vCandidates[0], th);
 	CheckRT(Matches, vCandidates[1], th);
 	CheckRT(Matches, vCandidates[2], th);
-	CheckRT(Matches, vCandidates[3], th);
+	CheckRT(Matches, vCandidates[3], th);*/
 }
 
 void UVR_SLAM::Initializer::DecomposeE(cv::Mat E, cv::Mat &R1, cv::Mat& R2, cv::Mat& t1, cv::Mat& t2){
