@@ -6,6 +6,9 @@
 #include <FrameWindow.h>
 #include <MatrixOperator.h>
 #include <gms_matcher.h>
+#include <PlaneEstimator.h>
+#include <Plane.h>
+#include <Map.h>
 
 UVR_SLAM::Matcher::Matcher(){}
 UVR_SLAM::Matcher::Matcher(cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h)
@@ -2098,4 +2101,187 @@ int UVR_SLAM::Matcher::GMSMatching(Frame* pFrame1, Frame* pFrame2, std::vector<c
 	imshow("matcher::gms", debugging); cv::waitKey(1);
 		
 	return vMatchInfo.size();
+}
+
+
+
+cv::Point2f CalcLinePoint(float y, Point3f mLine) {
+	float x = 0.0;
+	if (mLine.x != 0)
+		x = (-mLine.z - mLine.y*y) / mLine.x;
+	return cv::Point2f(x, y);
+}
+
+////이것은 바닥만 매칭.
+////벽의 경우 이것과 비슷한 걸로
+int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps, std::vector<cv::DMatch>& vMatches, cv::Mat& debugging){
+
+	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+
+	/////debug
+	cv::Mat img1 = f2->GetOriginalImage();
+	cv::Mat img2 = f1->GetOriginalImage();
+	cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
+
+	cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
+	//cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	img1.copyTo(debugging(mergeRect1));
+	img2.copyTo(debugging(mergeRect2));
+	/////debug
+		
+	auto mvpOPs1 = f1->GetObjectVector();
+	auto mvpOPs2 = f2->GetObjectVector();
+
+	//Fundamental matrix 및 keyframe pose 계산
+	cv::Mat Rcurr, Tcurr, Rprev, Tprev;
+	f1->GetPose(Rprev, Tprev);
+	f2->GetPose(Rcurr, Tcurr);
+	cv::Mat mK = f1->mK.clone();
+	cv::Mat F12 = CalcFundamentalMatrix(Rcurr, Tcurr, Rprev, Tprev, mK);
+
+	cv::Mat invP1, invT1, invK, invP2, invT2;
+	f1->mpPlaneInformation->Calculate();
+	f2->mpPlaneInformation->Calculate();
+	f1->mpPlaneInformation->GetInformation(invP1, invT1, invK);
+	f2->mpPlaneInformation->GetInformation(invP2, invT2, invK);
+
+	//벽의 경우
+	//cv::Mat invPwawll = invT.t()*pWall->GetParam();
+
+	std::vector<Point2f> vPts1, vPts2;
+	std::vector<cv::Mat> vX3Ds;
+	//std::vector<bool> vbs;
+	
+	std::cout << "matching::start" << std::endl;
+	//std::vector<cv::DMatch> vMatches;
+	int n1 = 0;
+	int n2 = 0;
+	//매칭 확인하기
+	for (int i = 0; i < f2->mvKeyPoints.size(); i++) {
+		if (f2->mvpMPs[i])
+			continue;
+		if (mvpOPs2[i] != ObjectType::OBJECT_FLOOR)
+			continue;
+
+		cv::Mat X3D;
+		bool bRes = PlaneInformation::CreatePlanarMapPoint(f2->mvKeyPoints[i].pt, invP2, invT2, invK, X3D);
+		if (!bRes)
+			continue;
+		vPts1.push_back(f2->mvKeyPoints[i].pt);
+		vX3Ds.push_back(X3D);
+
+		////매칭 수행하기
+		//이미지 프로젝션
+		cv::Mat temp = Rprev*X3D + Tprev;
+		temp = f1->mK*temp;
+		cv::Point2f tpt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
+		//인접한 특징 찾기
+		std::vector<size_t> vIndices = f1->GetFeaturesInArea(tpt.x, tpt.y, 3.0);
+		if (vIndices.empty())
+			continue;
+		cv::Mat desc1 = f2->matDescriptor.row(i);
+		//매칭 수행
+		//디스크립터 또는 에피폴라 라인으로 매칭
+		
+		float nMinDist = FLT_MAX;
+		int bestIdx = -1;
+		int count = 0;
+		for (std::vector<size_t>::const_iterator vit = vIndices.begin(), vend = vIndices.end(); vit != vend; vit++)
+		{
+			const size_t idx = *vit;
+
+			//const cv::Mat &d = pF->matDescriptor.row(idx);
+			cv::KeyPoint kp = f1->mvKeyPoints[idx];
+			float sigma = f1->mvLevelSigma2[kp.octave];
+			float epiDist;
+			if (!CheckEpiConstraints(F12, tpt, kp.pt, sigma, epiDist))
+				continue;
+			count++;
+			/*cv::Mat desc2 = f1->matDescriptor.row(idx);
+			int descDist = DescriptorDistance(desc1, desc2);
+			if (nMinDist > descDist && descDist < 50) {
+				nMinDist = descDist;
+				bestIdx = idx;
+			}*/
+			if (epiDist < nMinDist) {
+				nMinDist = epiDist;
+				bestIdx = idx;
+			}
+		}
+		if(count > 0)
+			n1++;
+		
+		if (bestIdx > 0) {
+			if (f1->mvpMPs[bestIdx])
+				continue;
+			cv::DMatch tempMatch;
+			tempMatch.queryIdx = i;
+			tempMatch.trainIdx = bestIdx;
+			vMatches.push_back(tempMatch);
+			vPlanarMaps.push_back(X3D);
+		}
+		cv::circle(debugging, f2->mvKeyPoints[i].pt, 3, cv::Scalar(255, 0, 255), -1);
+	}
+	n2 = vMatches.size();
+
+	if (vPts1.size() < 10){
+		std::cout << "epi::error::" << vPts1.size() << std::endl;
+		return 0;
+	}
+	
+	std::cout << "matching test : " << n2 << " " << n1 << std::endl;
+	
+	/////debug
+	for (int i = 0; i < vMatches.size(); i++) {
+		int idx1 = vMatches[i].queryIdx;
+		int idx2 = vMatches[i].trainIdx;
+		cv::line(debugging, f2->mvKeyPoints[idx1].pt, f1->mvKeyPoints[idx2].pt + ptBottom, cv::Scalar(0, 0, 255));
+	}
+	imshow("matching test : ", debugging);
+	cv::waitKey(1);
+	////debug
+
+	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	double tttt = duration / 1000.0;
+	std::cout << "epitime::" << tttt << std::endl;
+	return 0;
+
+	for (int i = 0; i < f1->mvKeyPoints.size(); i++) {
+		//if (mvpOPs2[i] == ObjectType::OBJECT_FLOOR)
+		vPts2.push_back(f1->mvKeyPoints[i].pt);
+	}
+	vector<cv::Point3f> lines[2];
+	cv::computeCorrespondEpilines(vPts1, 2, F12, lines[0]);
+	cv::computeCorrespondEpilines(vPts2, 1, F12, lines[1]);
+	std::cout << "lines:::" << lines[0].size() <<", "<<vPts1.size()<<lines[0][0]<< std::endl;
+
+	cv::Mat vis1 = f1->GetOriginalImage();
+	cv::Mat vis2 = f2->GetOriginalImage();
+
+	for (int i = 0; i < vPts1.size(); i++) {
+		cv::Mat temp =  Rprev*vX3Ds[i] + Tprev;
+		temp = f1->mK*temp;
+		cv::Point2f tpt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
+		//cv::Point2f spt = CalcLinePoint(0.0, lines[0][i]);
+		//cv::Point2f ept = CalcLinePoint(vis2.rows, lines[0][i]);
+		cv::circle(vis2, vPts1[i], 2, cv::Scalar(0, 0, 255), -1);
+		cv::circle(vis1, tpt, 2, cv::Scalar(0, 0, 255), -1);
+		//cv::line(vis2, spt, ept, cv::Scalar(255, 0, 0), 1);
+	}
+	/*
+	for (int i = 0; i < vPts2.size(); i++) {
+		cv::circle(vis2, vPts2[i], 2, cv::Scalar(0, 0, 255), -1);
+	}*/
+	cv::imshow("epitest::1", vis1);
+	cv::imshow("epitest::2", vis2);
+	cv::waitKey(1);
+
+	/*std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	double tttt = duration / 1000.0;
+	std::cout << "epitime::" << tttt<<std::endl;
+	return 0;*/
 }

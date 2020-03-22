@@ -79,9 +79,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		if (count < N_matching_init_therah) {
 			delete mpInitFrame1;
 			mpInitFrame1 = mpInitFrame2;
-			if (mpInitFrame1->matSegmented.rows == 0) {
-				mpSegmentator->InsertKeyFrame(mpInitFrame1);
-			}
+			if(!mpInitFrame1->CheckFrameType(UVR_SLAM::FLAG_SEGMENTED_FRAME))
+			mpSegmentator->InsertKeyFrame(mpInitFrame1);
 			return mbInit;
 		}
 		
@@ -155,12 +154,21 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			//mpFrameWindow->push_back(mpInitFrame1);
 			//mpFrameWindow->push_back(mpInitFrame2);
 
+
+			//객체 세그멘테이션 될 때가지 웨이트
+			while (mpSegmentator->isDoingProcess()) {
+			}
+
 			//맵포인트 생성 및 키프레임과 연결
 			int nMatch = 0;
 			std::vector<MapPoint*> vpMPs;
 			std::vector<UVR_SLAM::Frame*> vpKFs;
 			vpKFs.push_back(mpInitFrame1);
 			vpKFs.push_back(mpInitFrame2);
+
+			auto mvpOPs1 = mpInitFrame1->GetObjectVector();
+			auto mvpOPs2 = mpInitFrame2->GetObjectVector();
+			std::vector<int> idxs;
 			for (int i = 0; i < vCandidates[resIDX]->mvX3Ds.size(); i++) {
 				if (vCandidates[resIDX]->vbTriangulated[i]) {
 					int idx1 = resMatches[i].queryIdx;
@@ -181,7 +189,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 					mpSystem->mlpNewMPs.push_back(pNewMP);
 
 					nMatch++;
-
+					idxs.push_back(i);
 					vpMPs.push_back(pNewMP);
 				}
 			}
@@ -192,7 +200,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 			//calculate median depth
 			float medianDepth;
-			std::cout << "check::7" << std::endl;
 			mpInitFrame1->ComputeSceneMedianDepth(medianDepth);
 			float invMedianDepth = 1.0f / medianDepth;
 
@@ -200,8 +207,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 				mbInit = false;
 				bReset = true;
 				std::cout << "Reset" << std::endl;
-				while (mpSegmentator->isDoingProcess()) {
-				}
+				/*while (mpSegmentator->isDoingProcess()) {
+				}*/
 				return mbInit;
 			}
 			//포즈 업데이트
@@ -221,30 +228,52 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 				pMP->IncreaseFound(2);
 				pMP->IncreaseVisible(2);
 			}
-
+			
 			//////////
 			//바닥 인식 및 이것 저것 테스트
 			
-			while (mpSegmentator->isDoingProcess()) {
-			}
+			
 			int count = 0;
 			auto mvpMPs = mpInitFrame2->GetMapPoints();
 			std::vector<UVR_SLAM::MapPoint*> mvpFloorMPs;
-			auto mvpOPs = mpInitFrame2->GetObjectVector();
-			for (int i = 0; i < mvpMPs.size(); i++) {
+			//auto mvpOPs = mpInitFrame2->GetObjectVector();
+			///////////////두 프레임에서 작동하도록 변경.
+			/*for (int i = 0; i < mvpMPs.size(); i++) {
 				UVR_SLAM::MapPoint* pMP = mvpMPs[i];
 				if (!pMP)
 					continue;
 				if (pMP->isDeleted())
 					continue;
-				if (mvpOPs[i] == UVR_SLAM::ObjectType::OBJECT_FLOOR) {
+				if (mvpOPs2[i] == UVR_SLAM::ObjectType::OBJECT_FLOOR) {
+					count++;
+					mvpFloorMPs.push_back(pMP);
+				}
+			}*/
+			for (int i = 0; i < vpMPs.size(); i++) {
+				UVR_SLAM::MapPoint* pMP = vpMPs[i];
+				if (!pMP)
+					continue;
+				if (pMP->isDeleted())
+					continue;
+				int idx1 = resMatches[idxs[i]].queryIdx;
+				int idx2 = resMatches[idxs[i]].trainIdx;
+				//if (mvpOPs2[idx2] == UVR_SLAM::ObjectType::OBJECT_FLOOR && mvpOPs1[idx1] == UVR_SLAM::ObjectType::OBJECT_FLOOR) {
+				if (mvpOPs2[idx2] == UVR_SLAM::ObjectType::OBJECT_FLOOR) {
 					count++;
 					mvpFloorMPs.push_back(pMP);
 				}
 			}
+			std::cout << "floor point ::" << count << std::endl;
+			if (count < 20)
+				return mbInit;
+			
+			/////////////////////////
+			//평면 검출을 초기화 과정에 추가
 			UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
 			bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.2);
 			cv::Mat param = pFloor->GetParam();
+			if(bRes)
+				std::cout <<"Init::param::"<< param.t() << std::endl;
 			if (!bRes || abs(param.at<float>(1)) < 0.98)//98
 			{
 				mbInit = false;
@@ -294,7 +323,29 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			//인포메이션 바로 생성하기.
 			mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
 			mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
-			UVR_SLAM::PlaneInformation::CreatePlanarMapPoints(mpInitFrame2, mpSystem);
+
+			////매칭 테스트
+			std::vector<cv::DMatch> vMatches;
+			std::vector<cv::Mat> vPlanarMaps;
+			cv::Mat debugImg;
+			mpMatcher->MatchingWithEpiPolarGeometry(mpInitFrame1, mpInitFrame2, pFloor, vPlanarMaps, vMatches, debugImg);
+			for (int i = 0; i < vMatches.size(); i++) {
+				int idx1 = vMatches[i].trainIdx;
+				int idx2 = vMatches[i].queryIdx;
+
+				UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[i], mpInitFrame2->matDescriptor.row(idx2), UVR_SLAM::PLANE_MP);
+				pNewMP->SetPlaneID(pFloor->mnPlaneID);
+				pNewMP->SetObjectType(pFloor->mnPlaneType);
+				pNewMP->AddFrame(mpInitFrame1, idx1);
+				pNewMP->AddFrame(mpInitFrame2, idx2);
+				pNewMP->UpdateNormalAndDepth();
+				pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
+				mpSystem->mlpNewMPs.push_back(pNewMP);
+				pFloor->tmpMPs.push_back(pNewMP);
+				//mpFrameWindow->AddMapPoint(pNewMP, nTargetID);
+			}
+			////매칭 테스트
+			//UVR_SLAM::PlaneInformation::CreatePlanarMapPoints(mpInitFrame2, mpSystem);
 
 			////plane 변환 테스트
 			//float planeDist = 0.0;

@@ -192,15 +192,16 @@ void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked, int ratio) {
 		int val = masked.at<uchar>(pt);
 		UVR_SLAM::ObjectType type = vObjTypes[i];
 		
-		bool bMP = false;
-		UVR_SLAM::MapPoint* pMP = mvpMPs[i];
-		if (pMP) {
-			if (!pMP->isDeleted()) {
-				if (mpTargetFrame->isInFrustum(pMP, 0.5)) {
-					bMP = true;
-				}
-			}
-		}
+		////object type 인식
+		//bool bMP = false;
+		//UVR_SLAM::MapPoint* pMP = mvpMPs[i];
+		//if (pMP) {
+		//	if (!pMP->isDeleted()) {
+		//		if (mpTargetFrame->isInFrustum(pMP, 0.5)) {
+		//			bMP = true;
+		//		}
+		//	}
+		//}
 
 		////find object type in map
 		//auto val2 = static_cast<ObjectType>(val);
@@ -234,10 +235,13 @@ void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked, int ratio) {
 		//case 94://막대기
 		case 101://포스터
 			type = ObjectType::OBJECT_WALL;
-			if (bMP){
-				mpTargetFrame->mspWallMPs.insert(pMP);
-				mpFrameWindow->mspWallMPs.insert(pMP);
-			}
+			////맵포인트에 추가
+			//if (bMP){
+			//	mpTargetFrame->mspWallMPs.insert(pMP);
+			//	mpFrameWindow->mspWallMPs.insert(pMP);
+			//}
+			//레이블별 인덱스 설정
+			//사용 안함.
 			/*if (mpTargetFrame->mLabelStatus.at<uchar>(i) == 0) {
 				mpTargetFrame->mLabelStatus.at<uchar>(i) = val;
 				mpTargetFrame->mWallDescriptor.push_back(mpTargetFrame->matDescriptor.row(i));
@@ -247,10 +251,13 @@ void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked, int ratio) {
 		case 4:
 		case 29: //rug
 			type = ObjectType::OBJECT_FLOOR;
-			if (bMP){
-				mpTargetFrame->mspFloorMPs.insert(pMP);
-				mpFrameWindow->mspFloorMPs.insert(pMP);
-			}
+			////맵포인트에 추가
+			//if (bMP){
+			//	mpTargetFrame->mspFloorMPs.insert(pMP);
+			//	mpFrameWindow->mspFloorMPs.insert(pMP);
+			//}
+			//레이블별 인덱스 설정
+			//사용 안함.
 			/*if (mpTargetFrame->mLabelStatus.at<uchar>(i) == 0) {
 				mpTargetFrame->mLabelStatus.at<uchar>(i) = val;
 				mpTargetFrame->mPlaneDescriptor.push_back(mpTargetFrame->matDescriptor.row(i));
@@ -259,10 +266,11 @@ void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked, int ratio) {
 			break;
 		case 6:
 			type = ObjectType::OBJECT_CEILING;
-			if (bMP){
-				mpTargetFrame->mspCeilMPs.insert(pMP);
-				mpFrameWindow->mspCeilMPs.insert(pMP);
-			}
+			////맵포인트에 추가
+			//if (bMP){
+			//	mpTargetFrame->mspCeilMPs.insert(pMP);
+			//	mpFrameWindow->mspCeilMPs.insert(pMP);
+			//}
 			break;
 		case 13:
 			type = ObjectType::OBJECT_PERSON;
@@ -270,9 +278,9 @@ void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked, int ratio) {
 			break;
 		}
 		vObjTypes[i] = type;
-		if (bMP) {
+		/*if (bMP) {
 			pMP->SetObjectType(type);
-		}
+		}*/
 	}
 	mpTargetFrame->SetObjectVector(vObjTypes);
 

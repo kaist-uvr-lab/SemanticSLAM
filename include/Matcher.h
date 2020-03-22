@@ -12,6 +12,8 @@ namespace UVR_SLAM {
 	class MapPoint;
 	class Frame;
 	class FrameWindow;
+	class PlaneInformation;
+	class Map;
 	class Matcher {
 	public:
 		Matcher();
@@ -56,6 +58,8 @@ namespace UVR_SLAM {
 		int FeatureMatchingWithSemanticFrames(Frame* pSemantic, Frame* pFrame);
 		
 		
+		int MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps, std::vector<cv::DMatch>& vMatches, cv::Mat& debugging);
+
 	public:
 		//Epipolar geometry to create new map points
 		bool CheckEpiConstraints(cv::Mat F12, cv::Point2f pt1, cv::Point2f pt2, float sigma, float& res);
