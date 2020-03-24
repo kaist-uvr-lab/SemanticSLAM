@@ -15,11 +15,12 @@ namespace UVR_SLAM {
 	class FrameWindow;
 	class PlaneEstimator;
 	class LocalMapper;
+	class Map;
 	class SemanticSegmentator {
 	public:
 		SemanticSegmentator();
 		SemanticSegmentator(std::string _ip, int _port, int nWidth, int nHeight);
-		SemanticSegmentator(const std::string & strSettingPath);
+		SemanticSegmentator(Map* pMap, const std::string & strSettingPath);
 		virtual ~SemanticSegmentator();
 	public:
 		void InsertKeyFrame(UVR_SLAM::Frame *pKF);
@@ -50,6 +51,7 @@ namespace UVR_SLAM {
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
 		std::mutex mMutexNewKFs;
 		bool mbOn;
+		Map* mpMap;
 		System* mpSystem;
 		std::mutex mMutexDoingProcess;
 		bool mbDoingProcess;

@@ -2,8 +2,17 @@
 #include "Frame.h"
 #include "Plane.h"
 
-UVR_SLAM::Map::Map():mbInitFloorPlane(false), mbInitWallPlane(false){}
+UVR_SLAM::Map::Map():mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr){}
 UVR_SLAM::Map::~Map(){}
+
+void UVR_SLAM::Map::SetCurrFrame(Frame* pF) {
+	std::unique_lock<std::mutex> lock(mMutexCurrFrame);
+	mpCurrFrame = pF;
+}
+UVR_SLAM::Frame* UVR_SLAM::Map::GetCurrFrame() {
+	std::unique_lock<std::mutex> lock(mMutexCurrFrame);
+	return mpCurrFrame;
+}
 
 void UVR_SLAM::Map::AddFrame(Frame* pF) {
 	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);

@@ -12,7 +12,8 @@
 int UVR_SLAM::System::nKeyFrameID = 0;
 
 UVR_SLAM::System::System(){}
-UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapUpdateEnd(true), mbSegmentationEnd(false), mbLocalMappingEnd(false), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false){
+UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapUpdateEnd(true), mbSegmentationEnd(false), mbLocalMappingEnd(false), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false), 
+mStrSegmentationString("Segmentation"), mStrPlaneString("PE"){
 	LoadParameter(strFilePath);
 	LoadVocabulary();
 	Init();
@@ -141,7 +142,7 @@ void UVR_SLAM::System::Init() {
 	mptPlaneEstimator = new std::thread(&UVR_SLAM::PlaneEstimator::Run, mpPlaneEstimator);
 
 	//layout estimating thread
-	mpSegmentator = new UVR_SLAM::SemanticSegmentator(mstrFilePath);
+	mpSegmentator = new UVR_SLAM::SemanticSegmentator(mpMap,mstrFilePath);
 	mpSegmentator->SetSystem(this);
 	mpSegmentator->SetFrameWindow(mpFrameWindow);
 	mpSegmentator->SetPlaneEstimator(mpPlaneEstimator);
@@ -222,6 +223,7 @@ void UVR_SLAM::System::Reset() {
 	mpFrameWindow->ClearLocalMapFrames();
 	mpMap->ClearFrames();
 	mpMap->ClearWalls();
+	mpMap->SetCurrFrame(nullptr);
 	mlpNewMPs.clear();
 	//mpLocalMapper->mlpNewMPs.clear();
 	nKeyFrameID = 0;

@@ -61,6 +61,7 @@ namespace UVR_SLAM {
 		std::vector<UVR_SLAM::MapPoint*> GetMapPoints();
 		
 		void Reset();
+		float CalcDiffZ(UVR_SLAM::Frame* pF);
 
 		//UVR_SLAM::MapPoint* GetMapPoint(int idx);
 		//void SetMapPoint(UVR_SLAM::MapPoint* pMP, int idx);
@@ -134,10 +135,13 @@ namespace UVR_SLAM {
 		ObjectType GetObjectType(int idx);
 		std::vector<ObjectType> GetObjectVector();
 		void SetObjectVector(std::vector<ObjectType> vObjTypes);
+		void SetBoolSegmented(bool b);
+		bool isSegmented();
 	private:
 		std::mutex mMutexObjectTypes;
 		std::vector<ObjectType> mvObjectTypes; //모든 키포인트에 대해서 미리 정의된 레이블인지 재할당
-
+		bool bSegmented;
+		std::mutex mMutexSegmented;
 	private:
 		int mnKeyFrameID;
 		int mnFrameID;

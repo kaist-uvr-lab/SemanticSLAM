@@ -3,6 +3,7 @@
 //
 
 #include <Frame.h>
+#include <MatrixOperator.h>
 #include <System.h>
 #include <ORBextractor.h>
 #include <Plane.h>
@@ -15,7 +16,7 @@ float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeig
 static int nFrameID = 0;
 
 UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), 
-mpPlaneInformation(nullptr),mvpPlanes(){
+mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false){
 	matOri = _src.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
 	matFrame.convertTo(matFrame, CV_8UC1);
@@ -24,7 +25,7 @@ mpPlaneInformation(nullptr),mvpPlanes(){
 	SetFrameID();
 }
 UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0)
-, mpPlaneInformation(nullptr), mvpPlanes() 
+, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
@@ -36,7 +37,7 @@ UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), 
 }
 
 UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0)
-, mpPlaneInformation(nullptr), mvpPlanes()
+, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
@@ -203,6 +204,15 @@ void UVR_SLAM::Frame::SetObjectType(UVR_SLAM::ObjectType type, int idx){
 UVR_SLAM::ObjectType UVR_SLAM::Frame::GetObjectType(int idx){
 	std::unique_lock<std::mutex> lockMP(mMutexObjectTypes);
 	return mvObjectTypes[idx];
+}
+
+void UVR_SLAM::Frame::SetBoolSegmented(bool b) {
+	std::unique_lock<std::mutex> lockMP(mMutexSegmented);
+	bSegmented = b;
+}
+bool UVR_SLAM::Frame::isSegmented() {
+	std::unique_lock<std::mutex> lockMP(mMutexSegmented);
+	return bSegmented;
 }
 
 std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Frame::GetMapPoints() {
@@ -765,7 +775,18 @@ void UVR_SLAM::Frame::Reset() {
 	mvTrackedIdxs.clear();
 	mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
 	mvbMPInliers = std::vector<bool>(mvKeyPoints.size(), false);
-	mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);
+	//mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);
 	mnInliers = 0;
 	mmpConnectedKFs.clear();
 }
+
+float UVR_SLAM::Frame::CalcDiffZ(UVR_SLAM::Frame* pF) {
+	cv::Mat DirZ1 = R.row(2);
+	cv::Mat DirZ2 = pF->GetRotation().row(2);
+	float dist1 = sqrt(DirZ1.dot(DirZ1));
+	float dist2 = sqrt(DirZ2.dot(DirZ2));
+	float val = DirZ1.dot(DirZ2);
+	val = acos(val / (dist1*dist2))*UVR_SLAM::MatrixOperator::rad2deg;
+	return val;
+}
+
