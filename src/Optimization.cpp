@@ -1008,12 +1008,14 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 
 		//remove
 		int nConnectedThresh = 2;
-		if (pMP->GetMapPointType() == UVR_SLAM::MapPointType::PLANE_MP){
-			//바로 만들어진 포인트는 삭제 금지.
-			if (pMP->mnFirstKeyFrameID == nTargetID)
-				continue;
-			nConnectedThresh = 1;
-		}
+		//////////////평면일 경우 쓰레시값 조절
+		//if (pMP->GetMapPointType() == UVR_SLAM::MapPointType::PLANE_MP){
+		//	//바로 만들어진 포인트는 삭제 금지.
+		//	if (pMP->mnFirstKeyFrameID == nTargetID)
+		//		continue;
+		//	nConnectedThresh = 1;
+		//}
+		//////////////평면일 경우 쓰레시값 조절
 		//else if (pMP->isNewMP())
 		//	nConnectedThresh = 1;
 		if (pMP->GetNumConnectedFrames() < nConnectedThresh) {
@@ -1384,8 +1386,10 @@ void UVR_SLAM::Optimization::LocalBundleAdjustmentWithPlane(UVR_SLAM::Map* pMap,
 			continue;
 		//remove
 		int nConnectedThresh = 2;
-		if (pMP->GetMapPointType() == UVR_SLAM::MapPointType::PLANE_MP)
-			nConnectedThresh = 1;
+		/////////평면인경우 쓰레시 홀딩 조절
+		//if (pMP->GetMapPointType() == UVR_SLAM::MapPointType::PLANE_MP)
+		//	nConnectedThresh = 1;
+		/////////평면인경우 쓰레시 홀딩 조절
 		//else if (pMP->isNewMP())
 		//	nConnectedThresh = 1;
 		if (pMP->GetNumConnectedFrames() < nConnectedThresh) {

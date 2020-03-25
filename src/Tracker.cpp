@@ -222,20 +222,29 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				//}
 			}
 			else {
+
+				cv::line(vis, p2D, pCurr->mvKeyPoints[i].pt, cv::Scalar(255, 255, 0), 2);
+				
 				int nObservations = pMP->GetConnedtedFrames().size();
-				/*if (nObservations > 5)
+				if (nObservations > 13)
+					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 0), -1);
+				else if (nObservations > 10)
+					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 255), -1);
+				else if (nObservations > 7)
 					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(0, 0, 255), -1);
+				else if (nObservations > 5)
+					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 255), -1);
 				else if(nObservations > 3)
 					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 0), -1);
 				else
-					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 255), -1);*/
+					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 255, 0), -1);
 				UVR_SLAM::ObjectType type = pMP->GetObjectType();
-				cv::line(vis, p2D, pCurr->mvKeyPoints[i].pt, cv::Scalar(255, 255, 0), 2);
-				if (type != OBJECT_NONE)
+				
+				/*if (type != OBJECT_NONE)
 					circle(vis, p2D, 3, UVR_SLAM::ObjectColors::mvObjectLabelColors[type], -1);
 				if (pMP->GetMapPointType() == MapPointType::PLANE_MP) {
 					circle(vis, p2D, 2, cv::Scalar(255, 0, 255), -1);
-				}
+				}*/
 			}
 		}
 		

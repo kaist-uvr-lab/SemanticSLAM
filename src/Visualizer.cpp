@@ -36,6 +36,10 @@ cv::Point2f sPt = cv::Point2f(0, 0);
 cv::Point2f ePt = cv::Point2f(0, 0);
 cv::Point2f mPt = cv::Point2f(0, 0);
 cv::Mat M = cv::Mat::zeros(0, 0, CV_64FC1);
+int mnMode = 0;
+int mnMaxMode = 3;
+int mnAxis1 = 0;
+int mnAxis2 = 2;
 
 int nScale;
 int UVR_SLAM::Visualizer::GetScale(){
@@ -65,7 +69,26 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 		M.at<double>(0, 2) = mPt.x;
 		M.at<double>(1, 2) = mPt.y;
 	}
-	else if (event == cv::EVENT_MOUSEWHEEL) {
+	else if (event == cv::EVENT_RBUTTONDOWN) {
+		mnMode++;
+		mnMode %= mnMaxMode;
+
+		switch (mnMode) {
+		case 0:
+			mnAxis1 = 0;
+			mnAxis2 = 2;
+			break;
+		case 1:
+			mnAxis1 = 1;
+			mnAxis2 = 2;
+			break;
+		case 2:
+			mnAxis1 = 0;
+			mnAxis2 = 1;
+			break;
+		}
+
+	}else if (event == cv::EVENT_MOUSEWHEEL) {
 		//std::cout << "Wheel event detection" << std::endl;
 		if (flags > 0) {
 			//scroll up
@@ -197,30 +220,6 @@ void UVR_SLAM::Visualizer::Run() {
 			cv::Scalar color2 = cv::Scalar(0, 255, 0);
 			cv::Scalar color3 = cv::Scalar(0, 0, 0);
 
-			/*if (mpFrameWindow->GetQueueSize() > 0) {
-
-			if (M.rows > 0) {
-			cv::warpAffine(mVisPoseGraph, mVisPoseGraph, M, mVisPoseGraph.size(), cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(255,255,255));
-			M = cv::Mat::zeros(0, 0, CV_64FC1);
-			}
-
-			UVR_SLAM::Frame* pF = mpFrameWindow->GetQueueLastFrame();
-			for (int i = 0; i < pF->mvKeyPoints.size(); i++) {
-			if (!pF->GetBoolInlier(i))
-			continue;
-			UVR_SLAM::MapPoint* pMP = pF->GetMapPoint(i);
-			if (!pMP)
-			continue;
-			if (pMP->isDeleted())
-			continue;
-			cv::Mat x3D = pMP->GetWorldPos();
-			cv::Point2f tpt2 = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
-			tpt2 += mVisMidPt;
-			cv::circle(mVisPoseGraph, tpt2, 2, color3, -1);
-
-			}
-			}*/
-
 			//////////////////////////////////////////////////////////////////////////////
 			/////////////전체 포인트 출력
 			auto mvpGlobalFrames = mpMap->GetFrames();
@@ -234,7 +233,7 @@ void UVR_SLAM::Visualizer::Run() {
 					if (pMP->isDeleted())
 						continue;
 					cv::Mat x3D = pMP->GetWorldPos();
-					cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
+					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
 					tpt += mVisMidPt;
 					cv::circle(tempVis, tpt, 2,cv::Scalar(0,0,0), -1);
 				}
@@ -259,10 +258,6 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::Mat planeParam = aplane->GetParam();
 
 				cv::Mat K = mvpWindowFrames[0]->mK.clone();
-				/*K.at<float>(0, 0) /= 2.0;
-				K.at<float>(1, 1) /= 2.0;
-				K.at<float>(0, 2) /= 2.0;
-				K.at<float>(1, 2) /= 2.0;*/
 				cv::Mat invK = K.inv();
 
 				for (int i = 0; i < mvpWalls.size(); i++) {
@@ -276,9 +271,9 @@ void UVR_SLAM::Visualizer::Run() {
 
 						auto mat = mvpLines[j]->GetLinePts();
 						for (int k = 0; k < mat.rows; k++) {
-							cv::Point2f topt = cv::Point2f(mat.row(k).at<float>(0) * mnVisScale, -mat.row(k).at<float>(1) * mnVisScale);
+							cv::Point2f topt = cv::Point2f(mat.row(k).at<float>(mnAxis1) * mnVisScale, -mat.row(k).at<float>(mnAxis2) * mnVisScale);
 							topt += mVisMidPt;
-							cv::circle(tempVis, topt, 3, ObjectColors::mvObjectLabelColors[mvpWalls[i]->mnPlaneID + 10], -1);
+							//cv::circle(tempVis, topt, 3, ObjectColors::mvObjectLabelColors[mvpWalls[i]->mnPlaneID + 10], -1);
 						}
 						/*
 						cv::Mat from = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mvpLines[j]->from, invP, invT, invK);
@@ -305,7 +300,7 @@ void UVR_SLAM::Visualizer::Run() {
 				if (pMP->isDeleted())
 					continue;
 				cv::Mat x3D = pMP->GetWorldPos();
-				cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
+				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
 
 				/*if (pMP->GetNumConnectedFrames() == 1 && mvpWindowFrames[0]->GetKeyFrameID() == pMP->mnFirstKeyFrameID) {
 					cv::circle(tempVis, tpt, 4, cv::Scalar(0, 255, 255), -1);
@@ -324,7 +319,7 @@ void UVR_SLAM::Visualizer::Run() {
 			for (int i = 0; i < mvpWindowFrames.size(); i++) {
 				//cv::Mat t2 = mvpWindowFrames[i + 1]->GetTranslation();
 				cv::Mat t1 = mvpWindowFrames[i]->GetCameraCenter();
-				cv::Point2f pt1 = cv::Point2f(t1.at<float>(0)* mnVisScale, -t1.at<float>(2)* mnVisScale);
+				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, -t1.at<float>(mnAxis2)* mnVisScale);
 				//cv::Point2f pt2 = cv::Point2f(t2.at<float>(0)* mnVisScale, t2.at<float>(2)* mnVisScale);
 				pt1 += mVisMidPt;
 				//pt2 += mVisMidPt;
@@ -333,12 +328,12 @@ void UVR_SLAM::Visualizer::Run() {
 				else{
 					cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
 					cv::Mat directionZ = mvpWindowFrames[i]->GetRotation().row(2);
-					cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(0)* mnVisScale/10.0, -directionZ.at<float>(2)* mnVisScale / 10.0)+pt1;
+					cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(mnAxis1)* mnVisScale/10.0, -directionZ.at<float>(mnAxis2)* mnVisScale / 10.0)+pt1;
 					cv::line(tempVis, pt1, dirPtZ, cv::Scalar(0, 0, 255), 2);
 
 					cv::Mat directionX = mvpWindowFrames[i]->GetRotation().row(0);
-					cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(0)* mnVisScale / 10.0, -directionX.at<float>(2)* mnVisScale / 10.0);
-					cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(0)* mnVisScale / 10.0, -directionX.at<float>(2)* mnVisScale / 10.0);
+					cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
+					cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
 					cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
 				}
 				//cv::line(tempVis, pt1, pt2, cv::Scalar(0, 0, 0), 2);
@@ -355,7 +350,7 @@ void UVR_SLAM::Visualizer::Run() {
 				if (pMP->isDeleted())
 					continue;
 				cv::Mat x3D = pMP->GetWorldPos();
-				cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) * mnVisScale, -x3D.at<float>(2) * mnVisScale);
+				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
 				tpt += mVisMidPt;
 
 				/*if (pMP->GetNumConnectedFrames() == 1 && mvpWindowFrames[0]->GetKeyFrameID() == pMP->mnFirstKeyFrameID) {
@@ -368,6 +363,8 @@ void UVR_SLAM::Visualizer::Run() {
 				}*/
 			}
 
+			//save map
+			//mpSystem->GetDirPath(mpMap->GetCurrFrame()->GetKeyFrameID());
 			
 
 			//fuse time text 

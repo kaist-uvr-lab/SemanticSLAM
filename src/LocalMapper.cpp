@@ -50,9 +50,9 @@ void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
 
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
 	mpTargetFrame = mKFQueue.front();
-	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+	/*mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 	mpSystem->SetDirPath(mpTargetFrame->GetKeyFrameID());
-	mpTargetFrame->SetBowVec(mpSystem->fvoc);
+	mpTargetFrame->SetBowVec(mpSystem->fvoc);*/
 	mpSystem->SetLocalMapperFrameID(mpTargetFrame->GetKeyFrameID());
 	mKFQueue.pop();
 	mpFrameWindow->SetLastFrameID(mpTargetFrame->GetFrameID());
@@ -101,6 +101,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			//mpSystem->mbLocalMappingEnd = false;
 
 			ProcessNewKeyFrame();
+			std::cout << "localmapping::" << mpTargetFrame->GetFrameID() <<", "<<mpTargetFrame->GetKeyFrameID()<< std::endl;
 			CalculateKFConnections();
 			UpdateKFs();
 			////이전 프레임에서 생성된 맵포인트 중 삭제
@@ -131,14 +132,14 @@ void UVR_SLAM::LocalMapper::Run() {
 				}
 			}
 
-			//lock
-			//plane estimation에서 맵포인트를 생성할 때까지 락.
-			{
-				std::unique_lock<std::mutex> lock(mpSystem->mMutexUsePlanarMP);
-				while (!mpSystem->mbPlanarMPEnd) {
-					mpSystem->cvUsePlanarMP.wait(lock);
-				}
-			}
+			////lock
+			////plane estimation에서 맵포인트를 생성할 때까지 락.
+			//{
+			//	std::unique_lock<std::mutex> lock(mpSystem->mMutexUsePlanarMP);
+			//	while (!mpSystem->mbPlanarMPEnd) {
+			//		mpSystem->cvUsePlanarMP.wait(lock);
+			//	}
+			//}
 
 			//mpFrameWindow->CalcFrameDistanceWithBOW(mpTargetFrame);
 
@@ -176,8 +177,6 @@ void UVR_SLAM::LocalMapper::Run() {
 			{
 				FuseMapPoints();
 			}
-			
-			
 			
 			mpFrameWindow->SetLocalMap(mpTargetFrame->GetFrameID());
 			mpMap->AddFrame(mpTargetFrame);
@@ -411,7 +410,7 @@ void UVR_SLAM::LocalMapper::NewMapPointMaginalization() {
 		int nMPThresh = mnMPThresh;
 		float fRatio = mfRatio;
 		if (pMP->GetMapPointType() == UVR_SLAM::PLANE_MP) {
-			nMPThresh = 0;
+			//nMPThresh = 0;
 			fRatio = 0.01;
 		}
 		
@@ -430,7 +429,8 @@ void UVR_SLAM::LocalMapper::NewMapPointMaginalization() {
 			bBad = true;
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}*/
-		else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= nMPThresh != UVR_SLAM::PLANE_MP)
+		//else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= nMPThresh != UVR_SLAM::PLANE_MP)
+		else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= nMPThresh)
 		{
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}

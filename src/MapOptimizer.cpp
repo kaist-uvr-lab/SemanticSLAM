@@ -84,10 +84,10 @@ void UVR_SLAM::MapOptimizer::Run() {
 
 			mbStopBA = false;
 			
-			if(mpMap->isFloorPlaneInitialized())
+			/*if(mpMap->isFloorPlaneInitialized())
 				Optimization::LocalBundleAdjustmentWithPlane(mpMap,mpTargetFrame, mpFrameWindow, &mbStopBA);
-			else
-				Optimization::LocalBundleAdjustment(mpTargetFrame, mpFrameWindow, &mbStopBA);
+			else*/
+			//Optimization::LocalBundleAdjustment(mpTargetFrame, mpFrameWindow, &mbStopBA);
 			
 			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
 			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();

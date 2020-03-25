@@ -3,6 +3,7 @@
 #include <SegmentationData.h>
 #include <FrameWindow.h>
 #include <PlaneEstimator.h>
+#include <Plane.h>
 #include <LocalMapper.h>
 #include <Map.h>
 
@@ -60,6 +61,12 @@ void UVR_SLAM::SemanticSegmentator::ProcessNewKeyFrame()
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
 	mpTargetFrame = mKFQueue.front();
 	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
+	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+	mpSystem->SetDirPath(mpTargetFrame->GetKeyFrameID());
+	mpTargetFrame->SetBowVec(mpSystem->fvoc);
+	if (mpMap->isFloorPlaneInitialized()) {
+		mpTargetFrame->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpTargetFrame, mpMap->mpFloorPlane);
+	}
 	mpSystem->SetSegFrameID(mpTargetFrame->GetKeyFrameID());
 	mKFQueue.pop();
 }
@@ -71,9 +78,10 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 	while (1) {
 		std::string mStrDirPath;
 		if (CheckNewKeyFrames()) {
-			std::cout << "segmentation::start" << std::endl;
+			
 			SetBoolDoingProcess(true);
 			ProcessNewKeyFrame();
+			std::cout << "segmentation::start::" << mpTargetFrame->GetFrameID() << ", " << mpTargetFrame->GetKeyFrameID() << std::endl;
 			mStrDirPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
 
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();

@@ -2117,7 +2117,7 @@ cv::Point2f CalcLinePoint(float y, Point3f mLine) {
 int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps, std::vector<cv::DMatch>& vMatches, cv::Mat& debugging){
 
 	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
-
+	std::cout << "match::0" << std::endl;
 	/////debug
 	cv::Mat img1 = f2->GetOriginalImage();
 	cv::Mat img2 = f1->GetOriginalImage();
@@ -2133,20 +2133,27 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 		
 	auto mvpOPs1 = f1->GetObjectVector();
 	auto mvpOPs2 = f2->GetObjectVector();
-
+	
 	//Fundamental matrix 및 keyframe pose 계산
 	cv::Mat Rcurr, Tcurr, Rprev, Tprev;
 	f1->GetPose(Rprev, Tprev);
 	f2->GetPose(Rcurr, Tcurr);
 	cv::Mat mK = f1->mK.clone();
 	cv::Mat F12 = CalcFundamentalMatrix(Rcurr, Tcurr, Rprev, Tprev, mK);
-
+	
 	cv::Mat invP1, invT1, invK, invP2, invT2;
+	if (!f1->mpPlaneInformation || !f2->mpPlaneInformation) {
+		//왜 에러인지 알아야 함.
+		std::cout << "error case!!!!!!!!" << std::endl;
+		return 0;
+	}
+	std::cout << "match::1" << std::endl;
 	f1->mpPlaneInformation->Calculate();
 	f2->mpPlaneInformation->Calculate();
+	
 	f1->mpPlaneInformation->GetInformation(invP1, invT1, invK);
 	f2->mpPlaneInformation->GetInformation(invP2, invT2, invK);
-
+	std::cout << "match::2" << std::endl;
 	//벽의 경우
 	//cv::Mat invPwawll = invT.t()*pWall->GetParam();
 
@@ -2154,46 +2161,33 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 	std::vector<cv::Mat> vX3Ds;
 	//std::vector<bool> vbs;
 	
-	std::cout << "matching::start" << std::endl;
 	//std::vector<cv::DMatch> vMatches;
 	int n1 = 0;
 	int n2 = 0;
 	//매칭 확인하기
 	for (int i = 0; i < f2->mvKeyPoints.size(); i++) {
-		if (mvpOPs2[i] != ObjectType::OBJECT_FLOOR)
+		if (mvpOPs2[i] != ObjectType::OBJECT_FLOOR && mvpOPs2[i] != ObjectType::OBJECT_WALL && mvpOPs2[i] != ObjectType::OBJECT_CEILING)
 			continue;
-		if (vPlanarMaps[i].rows == 0)
-			continue;
+		
 		if(f2->mvpMPs[i])
 			cv::circle(debugging, f2->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 255), -1);
 		else
 			cv::circle(debugging, f2->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 0), -1);
-
-		cv::Mat X3D = vPlanarMaps[i];
-		/*
-		bool bCreated = false;
-		bool bRes = true;
-		if (f2->mvpMPs[i]){
-			X3D = f2->mvpMPs[i]->GetWorldPos();
-		}
-		else {
-			bRes = PlaneInformation::CreatePlanarMapPoint(f2->mvKeyPoints[i].pt, invP2, invT2, invK, X3D);
-			if (bRes) {
-				bCreated = true;
-				vPts1.push_back(f2->mvKeyPoints[i].pt);
-				vX3Ds.push_back(X3D);
-			}
-		}
-		if (!bRes)
-			continue;*/
 		
+		if (vPlanarMaps[i].rows == 0)
+			continue;
+		
+		cv::Mat X3D = vPlanarMaps[i];
+				
 		////매칭 수행하기
 		//이미지 프로젝션
 		cv::Mat temp = Rprev*X3D + Tprev;
 		temp = f1->mK*temp;
 		cv::Point2f tpt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
+		cv::circle(debugging, tpt+ ptBottom, 2, cv::Scalar(0, 0, 255), -1);
+
 		//인접한 특징 찾기
-		std::vector<size_t> vIndices = f1->GetFeaturesInArea(tpt.x, tpt.y, 3.0);
+		std::vector<size_t> vIndices = f1->GetFeaturesInArea(tpt.x, tpt.y, 5.0);
 		if (vIndices.empty())
 			continue;
 		cv::Mat desc1 = f2->matDescriptor.row(i);
@@ -2206,34 +2200,35 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 		for (std::vector<size_t>::const_iterator vit = vIndices.begin(), vend = vIndices.end(); vit != vend; vit++)
 		{
 			const size_t idx = *vit;
-
+			if (mvpOPs1[idx] != ObjectType::OBJECT_FLOOR && mvpOPs1[idx] != ObjectType::OBJECT_WALL && mvpOPs1[idx] != ObjectType::OBJECT_CEILING)
+				continue;
 			//const cv::Mat &d = pF->matDescriptor.row(idx);
 			cv::KeyPoint kp = f1->mvKeyPoints[idx];
 			float sigma = f1->mvLevelSigma2[kp.octave];
 			float epiDist;
-			if (!CheckEpiConstraints(F12, tpt, kp.pt, sigma, epiDist) && mvpOPs1[idx] != ObjectType::OBJECT_FLOOR)
+			if (!CheckEpiConstraints(F12, tpt, kp.pt, sigma, epiDist) || (mvpOPs1[idx] != mvpOPs2[i]))
 				continue;
 			
-			cv::Mat desc2 = f1->matDescriptor.row(idx);
+			/*cv::Mat desc2 = f1->matDescriptor.row(idx);
 			int descDist = DescriptorDistance(desc1, desc2);
-			if (nMinDist > descDist && descDist < TH_HIGH) {
+			if (nMinDist > descDist) {
 				nMinDist = descDist;
 				bestIdx = idx;
-			}
-			/*if (epiDist < nMinDist) {
+			}*/
+			if (epiDist < nMinDist) {
 				nMinDist = epiDist;
 				bestIdx = idx;
-			}*/
+			}
 		}
-		
-		if (bestIdx > 0) {
+		if(bestIdx >=0){
+		//if (nMinDist < TH_HIGH) {
 			/*if (f1->mvpMPs[bestIdx])
 				continue;*/
 			cv::DMatch tempMatch;
 			tempMatch.queryIdx = i;
 			tempMatch.trainIdx = bestIdx;
 			vMatches.push_back(tempMatch);
-			vPlanarMaps.push_back(X3D);
+			//vPlanarMaps.push_back(X3D);
 		}
 		
 	}
@@ -2250,7 +2245,7 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 	for (int i = 0; i < vMatches.size(); i++) {
 		int idx1 = vMatches[i].queryIdx;
 		int idx2 = vMatches[i].trainIdx;
-		if(f2->mvpMPs[idx2])
+		if(f2->mvpMPs[idx1])
 			cv::line(debugging, f2->mvKeyPoints[idx1].pt, f1->mvKeyPoints[idx2].pt + ptBottom, cv::Scalar(0, 255, 255));
 		else
 			cv::line(debugging, f2->mvKeyPoints[idx1].pt, f1->mvKeyPoints[idx2].pt + ptBottom, cv::Scalar(0, 255, 0));
@@ -2348,7 +2343,7 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* pKF, Frame* pF, std::
 		if (count > 0)
 			n1++;
 
-		if (bestIdx > 0) {
+		if (bestIdx >= 0) {
 			if (pF->mvpMPs[bestIdx])
 				continue;
 			cv::DMatch tempMatch;

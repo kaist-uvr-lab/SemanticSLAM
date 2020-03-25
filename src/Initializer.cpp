@@ -233,7 +233,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			//////////
 			//바닥 인식 및 이것 저것 테스트
 			
-			
 			int count = 0;
 			auto mvpMPs = mpInitFrame2->GetMapPoints();
 			std::vector<UVR_SLAM::MapPoint*> mvpFloorMPs;
@@ -335,9 +334,10 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
 
 			////매칭 테스트
+			cv::Mat debugImg;
 			std::vector<cv::DMatch> vMatches;
 			std::vector<cv::Mat> vPlanarMaps;
-			cv::Mat debugImg;
+			vPlanarMaps = std::vector<cv::Mat>(mpInitFrame2->mvKeyPoints.size(), cv::Mat::zeros(0, 0, CV_8UC1));
 			UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mpInitFrame2, pFloor, vPlanarMaps);
 			mpMatcher->MatchingWithEpiPolarGeometry(mpInitFrame1, mpInitFrame2, pFloor, vPlanarMaps, vMatches, debugImg);
 			

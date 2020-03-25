@@ -88,7 +88,7 @@ namespace UVR_SLAM {
 		static bool CreatePlanarMapPoint(cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK, cv::Mat& X3D);
 		static bool CreatePlanarMapPoint(cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK, cv::Mat fNormal, float fDist,cv::Mat& X3D);
 		static void CreatePlanarMapPoints(Frame* pF, System* pSystem);
-		static void CreateWallMapPoints(Frame* pF, WallPlane* pWall, Line* pLine, System* pSystem);
+		static void CreateWallMapPoints(Frame* pF, WallPlane* pWall, Line* pLine, std::vector<cv::Mat>& vPlanarMaps, System* pSystem);
 	};
 
 	class PlaneEstimator {
