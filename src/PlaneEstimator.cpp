@@ -16,7 +16,7 @@ static int nPlaneID = 0;
 UVR_SLAM::PlaneEstimator::PlaneEstimator() :mbDoingProcess(false), mnProcessType(0), mpLayoutFrame(nullptr){
 }
 UVR_SLAM::PlaneEstimator::PlaneEstimator(Map* pMap,std::string strPath,cv::Mat K, cv::Mat K2, int w, int h) : mK(K), mK2(K2),mbDoingProcess(false), mnWidth(w), mnHeight(h), mnProcessType(0), mpLayoutFrame(nullptr),
-mpPrevFrame(nullptr), mpTargetFrame(nullptr)
+mpPrevFrame(nullptr), mpPPrevFrame(nullptr), mpTargetFrame(nullptr)
 {
 	cv::FileStorage fSettings(strPath, cv::FileStorage::READ);
 	mnRansacTrial = fSettings["Layout.trial"];
@@ -95,6 +95,7 @@ bool UVR_SLAM::PlaneEstimator::CheckNewKeyFrames()
 void UVR_SLAM::PlaneEstimator::ProcessNewKeyFrame()
 {
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
+	mpPPrevFrame = mpPrevFrame;
 	mpPrevFrame = mpTargetFrame;
 	mpTargetFrame = mKFQueue.front();
 	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
@@ -106,7 +107,10 @@ void UVR_SLAM::PlaneEstimator::ProcessNewKeyFrame()
 
 	mKFQueue.pop();
 }
-
+void UVR_SLAM::PlaneEstimator::Reset() {
+	mpPPrevFrame = nullptr;
+	mpPrevFrame = nullptr;
+}
 ///////////////////////////////////////////////////////////////////////////////
 
 void UVR_SLAM::PlaneEstimator::Run() {
@@ -133,7 +137,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				mpSystem->mbPlaneEstimationEnd = true;
 				lockPlanar.unlock();
 				mpSystem->cvUsePlaneEstimation.notify_all();
-				std::cout << "pe::end::" << mpTargetFrame->GetFrameID() << std::endl;
+				//std::cout << "pe::end::" << mpTargetFrame->GetFrameID() << std::endl;
 				continue;
 			}
 
@@ -605,11 +609,18 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				//뒤의 프렝미이 현재 프레임으로 현재프레임에서 포인트를 생성함.
 
 				cv::Mat debugImg;
-				auto mvpKFs = mpTargetFrame->GetConnectedKFs(5);
+				
+				std::vector<UVR_SLAM::Frame*> mvpKFs;
+				mvpKFs.push_back(mpPrevFrame);
+				mvpKFs.push_back(mpPPrevFrame);
 				for (int ki = 0; ki < mvpKFs.size(); ki++) {
 					std::vector<cv::DMatch> vMatches;
 					UVR_SLAM::Frame* pKFi = mvpKFs[ki];
 					mpMatcher->MatchingWithEpiPolarGeometry(pKFi, mpTargetFrame, pFloor, vPlanarMaps, vMatches, debugImg);
+
+					std::stringstream ss;
+					ss << mStrPath << "/" << mpTargetFrame->GetKeyFrameID() << "_" << pKFi->GetKeyFrameID() << ".jpg";
+					imwrite(ss.str(), debugImg);
 
 					for (int i = 0; i < vMatches.size(); i++) {
 						int idx1 = vMatches[i].trainIdx;

@@ -81,7 +81,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			
 			SetBoolDoingProcess(true);
 			ProcessNewKeyFrame();
-			std::cout << "segmentation::start::" << mpTargetFrame->GetFrameID() << ", " << mpTargetFrame->GetKeyFrameID() << std::endl;
+			//std::cout << "segmentation::start::" << mpTargetFrame->GetFrameID() << ", " << mpTargetFrame->GetKeyFrameID() << std::endl;
 			mStrDirPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
 
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
@@ -133,7 +133,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 
 			//////////////////////
 			////lock
-			std::cout << "seg::s" << std::endl;
+			//std::cout << "seg::s" << std::endl;
 			////plane estimation에서 맵포인트를 생성할 때까지 락.
 			{
 				std::unique_lock<std::mutex> lock(mpSystem->mMutexUsePlaneEstimation);
@@ -141,7 +141,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 					mpSystem->cvUsePlaneEstimation.wait(lock);
 				}
 			}
-			std::cout << "seg::e" << std::endl;
+			//std::cout << "seg::e" << std::endl;
 			////lock
 			//시간체크
 			std::chrono::high_resolution_clock::time_point p_end = std::chrono::high_resolution_clock::now();
@@ -169,7 +169,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//cv::waitKey(1);
 			////////디버깅을 위한 이미지 저장
 			//////////////////////////////////////////////////
-			std::cout << "segmentation::end" << std::endl;
+			//std::cout << "segmentation::end" << std::endl;
 			SetBoolDoingProcess(false);
 		}
 	}

@@ -184,7 +184,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 
 		float angle = mpRefKF->CalcDiffZ(pCurr);
-		std::cout << "angle : " << angle << std::endl;
+		//std::cout << "angle : " << angle << std::endl;
 		if (CheckNeedKeyFrame(pCurr)) {
 			if (!mpSegmentator->isDoingProcess()) {
 				mpSegmentator->InsertKeyFrame(pCurr);

@@ -22,6 +22,7 @@ namespace UVR_SLAM {
 		LocalMapper(Map* pMap, int w, int h);
 		virtual ~LocalMapper();
 	public:
+		void Reset();
 		void Run();
 		void SetSystem(System* pSystem);
 		void SetPlaneEstimator(PlaneEstimator* pPlaneEstimator);

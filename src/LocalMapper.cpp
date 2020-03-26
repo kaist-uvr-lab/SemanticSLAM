@@ -87,7 +87,10 @@ void UVR_SLAM::LocalMapper::SetDoingProcess(bool flag){
 //	std::unique_lock<std::mutex> lock(mMutexNewKFs);
 //	mbStopBA = true;
 //}
-
+void UVR_SLAM::LocalMapper::Reset() {
+	mpPrevKeyFrame = nullptr;
+	mpPPrevKeyFrame = nullptr;
+}
 void UVR_SLAM::LocalMapper::Run() {
 
 	while (1) {
@@ -147,7 +150,7 @@ void UVR_SLAM::LocalMapper::Run() {
 
 			std::chrono::high_resolution_clock::time_point t_start = std::chrono::high_resolution_clock::now();
 			
-			//int nCreateMP = Test();
+			int nCreateMP = Test();
 			
 			std::chrono::high_resolution_clock::time_point t_end = std::chrono::high_resolution_clock::now();
 			auto du_test = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count();

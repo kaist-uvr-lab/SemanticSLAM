@@ -2118,16 +2118,16 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 
 	//std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 	///////debug
-	//cv::Mat img1 = f2->GetOriginalImage();
-	//cv::Mat img2 = f1->GetOriginalImage();
-	//cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
+	cv::Mat img1 = f2->GetOriginalImage();
+	cv::Mat img2 = f1->GetOriginalImage();
+	cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
 
-	//cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
-	//cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
-	////cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
-	//debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
-	//img1.copyTo(debugging(mergeRect1));
-	//img2.copyTo(debugging(mergeRect2));
+	cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
+	//cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	img1.copyTo(debugging(mergeRect1));
+	img2.copyTo(debugging(mergeRect2));
 	///////debug
 		
 	auto mvpOPs1 = f1->GetObjectVector();
@@ -2162,14 +2162,19 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 	int n1 = 0;
 	int n2 = 0;
 	//매칭 확인하기
+	for (int i = 0; i < f1->mvKeyPoints.size(); i++) {
+		if (mvpOPs1[i] != ObjectType::OBJECT_FLOOR && mvpOPs1[i] != ObjectType::OBJECT_WALL && mvpOPs1[i] != ObjectType::OBJECT_CEILING)
+			continue;
+		cv::circle(debugging, f1->mvKeyPoints[i].pt + ptBottom, 2, cv::Scalar(255, 0, 0), -1);
+	}
 	for (int i = 0; i < f2->mvKeyPoints.size(); i++) {
 		if (mvpOPs2[i] != ObjectType::OBJECT_FLOOR && mvpOPs2[i] != ObjectType::OBJECT_WALL && mvpOPs2[i] != ObjectType::OBJECT_CEILING)
 			continue;
 		
-		/*if(f2->mvpMPs[i])
+		if (f2->mvpMPs[i])
 			cv::circle(debugging, f2->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 255), -1);
 		else
-			cv::circle(debugging, f2->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 0), -1)*/;
+			cv::circle(debugging, f2->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 0), -1);
 		
 		if (vPlanarMaps[i].rows == 0)
 			continue;
@@ -2181,7 +2186,7 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 		cv::Mat temp = Rprev*X3D + Tprev;
 		temp = f1->mK*temp;
 		cv::Point2f tpt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
-		//cv::circle(debugging, tpt+ ptBottom, 2, cv::Scalar(0, 0, 255), -1);
+		cv::circle(debugging, tpt+ ptBottom, 2, cv::Scalar(0, 0, 255), -1);
 
 		//인접한 특징 찾기
 		std::vector<size_t> vIndices = f1->GetFeaturesInArea(tpt.x, tpt.y, 5.0);
@@ -2239,16 +2244,16 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 	//std::cout << "matching test : " << n2 << " " << n1 << std::endl;
 	
 	///////debug
-	//for (int i = 0; i < vMatches.size(); i++) {
-	//	int idx1 = vMatches[i].queryIdx;
-	//	int idx2 = vMatches[i].trainIdx;
-	//	if(f2->mvpMPs[idx1])
-	//		cv::line(debugging, f2->mvKeyPoints[idx1].pt, f1->mvKeyPoints[idx2].pt + ptBottom, cv::Scalar(0, 255, 255));
-	//	else
-	//		cv::line(debugging, f2->mvKeyPoints[idx1].pt, f1->mvKeyPoints[idx2].pt + ptBottom, cv::Scalar(0, 255, 0));
-	//}
-	//imshow("matching test : ", debugging);
-	//cv::waitKey(1);
+	for (int i = 0; i < vMatches.size(); i++) {
+		int idx1 = vMatches[i].queryIdx;
+		int idx2 = vMatches[i].trainIdx;
+		if(f2->mvpMPs[idx1])
+			cv::line(debugging, f2->mvKeyPoints[idx1].pt, f1->mvKeyPoints[idx2].pt + ptBottom, cv::Scalar(0, 255, 255));
+		else
+			cv::line(debugging, f2->mvKeyPoints[idx1].pt, f1->mvKeyPoints[idx2].pt + ptBottom, cv::Scalar(0, 255, 0));
+	}
+	imshow("matching test : ", debugging);
+	cv::waitKey(1);
 	//////debug
 
 	//std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();

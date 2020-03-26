@@ -221,6 +221,8 @@ void UVR_SLAM::System::Reset() {
 	mbInitialized = false;
 	mpInitializer->Reset();
 	mpFrameWindow->ClearLocalMapFrames();
+	mpPlaneEstimator->Reset();
+	mpLocalMapper->Reset();
 	mpMap->ClearFrames();
 	mpMap->ClearWalls();
 	mpMap->SetCurrFrame(nullptr);

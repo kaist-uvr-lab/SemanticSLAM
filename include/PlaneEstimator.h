@@ -103,6 +103,7 @@ namespace UVR_SLAM {
 
 		void CreatePlanarMapPoints(std::vector<UVR_SLAM::MapPoint*> mvpMPs, std::vector<UVR_SLAM::ObjectType> mvpOPs, UVR_SLAM::PlaneInformation* pPlane, cv::Mat invT);
 		void CreateWallMapPoints(std::vector<UVR_SLAM::MapPoint*> mvpMPs, std::vector<UVR_SLAM::ObjectType> mvpOPs, UVR_SLAM::PlaneInformation* pPlane, cv::Mat invT, int wtype,int MinX, int MaxX, bool b1, bool b2);
+		void Reset();
 		void Run();
 		void SetSystem(System* pSystem);
 		void SetFrameWindow(FrameWindow* pFrameWindow);
@@ -141,7 +142,7 @@ namespace UVR_SLAM {
 		bool mbDoingProcess;
 		int mnProcessType;
 		Frame* mpLayoutFrame;
-		Frame* mpTargetFrame, *mpPrevFrame;
+		Frame* mpTargetFrame, *mpPrevFrame, *mpPPrevFrame;
 		FrameWindow* mpFrameWindow;
 		Initializer* mpInitializer;
 		Matcher* mpMatcher;
