@@ -228,7 +228,7 @@ void UVR_SLAM::System::Reset() {
 	mpMap->SetCurrFrame(nullptr);
 	mlpNewMPs.clear();
 	//mpLocalMapper->mlpNewMPs.clear();
-	nKeyFrameID = 0;
+	nKeyFrameID = 1;
 	//frame reset
 
 }

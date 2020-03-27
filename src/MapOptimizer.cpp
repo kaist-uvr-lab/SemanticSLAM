@@ -77,25 +77,22 @@ void UVR_SLAM::MapOptimizer::Run() {
 	while (1) {
 		if (CheckNewKeyFrames()) {
 			SetDoingProcess(true);
-			
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
+			std::cout << "ba::start::" << mpTargetFrame->GetFrameID() << std::endl;
 			mStrPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
-
 			mbStopBA = false;
-			
+			std::cout << "ba::1" << std::endl;
 			/*if(mpMap->isFloorPlaneInitialized())
 				Optimization::LocalBundleAdjustmentWithPlane(mpMap,mpTargetFrame, mpFrameWindow, &mbStopBA);
 			else*/
 			Optimization::LocalBundleAdjustment(mpTargetFrame, mpFrameWindow, &mbStopBA);
-			
+			std::cout << "ba::2" << std::endl;
 			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
 			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float letime = leduration / 1000.0;
 			mpSystem->SetMapOptimizerTime(letime);
-
-
-
+			std::cout << "ba::end::" << mpTargetFrame->GetKeyFrameID() << std::endl;
 			//Á¾·á
 			SetDoingProcess(false);
 		}

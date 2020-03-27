@@ -88,6 +88,7 @@ void UVR_SLAM::LocalMapper::SetDoingProcess(bool flag){
 //	mbStopBA = true;
 //}
 void UVR_SLAM::LocalMapper::Reset() {
+	mpTargetFrame = mpPrevKeyFrame;
 	mpPrevKeyFrame = nullptr;
 	mpPPrevKeyFrame = nullptr;
 }
@@ -104,7 +105,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			//mpSystem->mbLocalMappingEnd = false;
 
 			ProcessNewKeyFrame();
-			std::cout << "localmapping::" << mpTargetFrame->GetFrameID() <<", "<<mpTargetFrame->GetKeyFrameID()<< std::endl;
+			std::cout << "lm::start::" << mpTargetFrame->GetFrameID() <<", "<<mpTargetFrame->GetKeyFrameID()<< std::endl;
 			CalculateKFConnections();
 			UpdateKFs();
 			////이전 프레임에서 생성된 맵포인트 중 삭제
@@ -197,11 +198,11 @@ void UVR_SLAM::LocalMapper::Run() {
 			//BA에서는 최근 생성된 맵포인트까지 반영을 해야 함.
 
 			if (mpMapOptimizer->isDoingProcess()) {
-				
+				std::cout << "lm::ba::busy" << std::endl;
 				mpMapOptimizer->StopBA(true);
 			}
 			else {
-				
+				std::cout << "lm::ba::idle" << std::endl;
 				mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
 			}
 			
@@ -371,7 +372,7 @@ void UVR_SLAM::LocalMapper::Run() {
 				///////////////////////////////디버깅용
 				//////////////////////////////////////////////////////////////////////////////////////
 			}
-			
+			std::cout << "lm::end::" <<mpTargetFrame->GetKeyFrameID()<< std::endl;
 			StopLocalMapping(false);
 			SetDoingProcess(false);
 			

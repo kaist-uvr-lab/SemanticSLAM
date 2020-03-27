@@ -63,6 +63,10 @@ void UVR_SLAM::Frame::SetFrameID() {
 void UVR_SLAM::Frame::SetKeyFrameID() {
 	mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 }
+void UVR_SLAM::Frame::SetKeyFrameID(int n) {
+	UVR_SLAM::System::nKeyFrameID = n;
+	mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
+}
 int UVR_SLAM::Frame::GetKeyFrameID() {
 	return mnKeyFrameID;
 }

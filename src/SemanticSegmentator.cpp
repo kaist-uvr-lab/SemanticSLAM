@@ -59,6 +59,7 @@ bool UVR_SLAM::SemanticSegmentator::CheckNewKeyFrames()
 void UVR_SLAM::SemanticSegmentator::ProcessNewKeyFrame()
 {
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
+	mpPrevTargetFrame = mpTargetFrame;
 	mpTargetFrame = mKFQueue.front();
 	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
 	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
@@ -81,7 +82,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			
 			SetBoolDoingProcess(true);
 			ProcessNewKeyFrame();
-			//std::cout << "segmentation::start::" << mpTargetFrame->GetFrameID() << ", " << mpTargetFrame->GetKeyFrameID() << std::endl;
+			std::cout << "segmentation::start::" << mpTargetFrame->GetFrameID() << ", " << mpTargetFrame->GetKeyFrameID() << std::endl;
 			mStrDirPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
 
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
@@ -152,7 +153,11 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//////////////////////////////////////////////
 			//////디버깅 값 전달
 			std::stringstream ssa;
-			ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() << " : " << tttt << "||" << tttt2 << std::endl;
+			/*if (mpPrevTargetFrame)
+				ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() << "=" << mpPrevTargetFrame->GetFrameID() << ", " << mpTargetFrame->GetFrameID() << " : " << tttt << "||" << tttt2 << std::endl;
+			else
+				ssa << "Seg";*/
+			ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() <<" : " << tttt << "||" << tttt2 << std::endl;
 			//ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() << " : " << tttt << ", " << tttt5 << "||" << n1 << ", " << n2 << "::" << numOfLables;
 			mpSystem->SetSegmentationString(ssa.str());
 			//////디버깅 값 전달
@@ -169,7 +174,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//cv::waitKey(1);
 			////////디버깅을 위한 이미지 저장
 			//////////////////////////////////////////////////
-			//std::cout << "segmentation::end" << std::endl;
+			std::cout << "segmentation::end::" << mpTargetFrame->GetKeyFrameID() << ", " << mpTargetFrame->GetFrameID() << std::endl;
 			SetBoolDoingProcess(false);
 		}
 	}

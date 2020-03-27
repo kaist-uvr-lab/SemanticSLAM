@@ -52,6 +52,8 @@ namespace UVR_SLAM {
 		void SetFrameType(int n);
 		unsigned char GetFrameType();
 		int GetKeyFrameID();
+		void SetKeyFrameID();
+		void SetKeyFrameID(int n);
 		void SetPose(cv::Mat _R, cv::Mat _t);
 		void GetPose(cv::Mat&_R, cv::Mat& _t);
 		cv::Mat GetRotation();
@@ -127,7 +129,7 @@ namespace UVR_SLAM {
 		//void Increase();
 		//void Decrease();
 		void SetFrameID();
-		void SetKeyFrameID();
+		
 		
 		//object
 	public:

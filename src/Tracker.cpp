@@ -31,7 +31,7 @@ UVR_SLAM::Tracker::Tracker(Map* pMap, std::string strPath) : mbInitializing(fals
 
 	float fps = fs["Camera.fps"];
 	mnMaxFrames = fps;
-	mnMinFrames = fps / 3;
+	mnMinFrames = fps / 7 ;//3
 
 	mnWidth = fs["Image.width"];
 	mnHeight = fs["Image.height"];
@@ -75,6 +75,7 @@ void UVR_SLAM::Tracker::SetPlaneEstimator(UVR_SLAM::PlaneEstimator* pEstimator) 
 }
 
 bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr) {
+	std::cout << "tracker::" << mnMatching << std::endl;
 	int nMinObs = 3;
 	if (mpFrameWindow->GetLocalMapFrames().size() <= 2)
 		nMinObs = 2;
@@ -172,8 +173,11 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		//이전 프레임에 포함된 맵포인트와 현재 프레임의 키포인트를 매칭하는 과정.
 		//빠른 속도를 위해 이전 프레임에서 추적되는 맵포인트를 디스크립터로 만듬.
 		int nInitMatching = mpMatcher->MatchingWithPrevFrame(pPrev, pCurr, mvMatchInfo);
+		std::cout << "tracker::initmatching::" << nInitMatching << std::endl;
 		mnMatching = Optimization::PoseOptimization(pCurr);
-		mpMatcher->MatchingWithLocalMap(pCurr, mvpLocalMPs, mLocalMapDesc, 5.0);
+		std::cout << "tracker::Pose::" << mnMatching << std::endl;
+		mnMatching = mpMatcher->MatchingWithLocalMap(pCurr, mvpLocalMPs, mLocalMapDesc, 5.0);
+		std::cout << "tracker::localmap::matching::" << mnMatching << std::endl;
 		//mpRefKF = mpMap->GetCurrFrame();
 		//std::vector<cv::DMatch> tempMatches;
 		//mpMatcher->MatchingWithEpiPolarGeometry(mpRefKF, pCurr, tempMatches);
@@ -190,6 +194,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				mpSegmentator->InsertKeyFrame(pCurr);
 			}
 		}
+		/*if (!mpSegmentator->isDoingProcess()) {
+			mpSegmentator->InsertKeyFrame(pCurr);
+		}*/
 		////update tracking results
 		mpFrameWindow->mnLastMatches = mnMatching;
 

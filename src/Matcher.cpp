@@ -2112,11 +2112,29 @@ cv::Point2f CalcLinePoint(float y, Point3f mLine) {
 	return cv::Point2f(x, y);
 }
 
+float CalcSSD(cv::Mat src1, cv::Mat src2) {
+	cv::Mat diff = abs(src1 - src2);
+	float sum = 0.0;
+	int num = diff.cols*diff.rows*diff.channels();
+	for (int x = 0; x < diff.cols; x++) {
+		for (int y = 0; y < diff.rows; y++) {
+			cv::Vec3b temp = diff.at<Vec3b>(y, x);
+			sum += temp.val[0];
+			sum += temp.val[1];
+			sum += temp.val[2];
+		}
+	}
+	return sum / num;
+}
+
 ////이것은 바닥만 매칭.
 ////벽의 경우 이것과 비슷한 걸로
-int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps, std::vector<cv::DMatch>& vMatches, cv::Mat& debugging){
+int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps, std::vector<bool>& vbInliers, std::vector<cv::DMatch>& vMatches, cv::Mat& debugging){
 
-	//std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+	vbInliers = std::vector<bool>(f2->mvKeyPoints.size(), false);
+	vMatches = std::vector<cv::DMatch>(vbInliers.size());
+	
+	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 	///////debug
 	cv::Mat img1 = f2->GetOriginalImage();
 	cv::Mat img2 = f1->GetOriginalImage();
@@ -2162,19 +2180,19 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 	int n1 = 0;
 	int n2 = 0;
 	//매칭 확인하기
-	for (int i = 0; i < f1->mvKeyPoints.size(); i++) {
+	/*for (int i = 0; i < f1->mvKeyPoints.size(); i++) {
 		if (mvpOPs1[i] != ObjectType::OBJECT_FLOOR && mvpOPs1[i] != ObjectType::OBJECT_WALL && mvpOPs1[i] != ObjectType::OBJECT_CEILING)
 			continue;
 		cv::circle(debugging, f1->mvKeyPoints[i].pt + ptBottom, 2, cv::Scalar(255, 0, 0), -1);
-	}
+	}*/
 	for (int i = 0; i < f2->mvKeyPoints.size(); i++) {
 		if (mvpOPs2[i] != ObjectType::OBJECT_FLOOR && mvpOPs2[i] != ObjectType::OBJECT_WALL && mvpOPs2[i] != ObjectType::OBJECT_CEILING)
 			continue;
 		
 		if (f2->mvpMPs[i])
-			cv::circle(debugging, f2->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 255), -1);
+			cv::circle(debugging, f2->mvKeyPoints[i].pt, 3, cv::Scalar(0, 255, 255), 1);
 		else
-			cv::circle(debugging, f2->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 0), -1);
+			cv::circle(debugging, f2->mvKeyPoints[i].pt, 3, cv::Scalar(0, 255, 0), 1);
 		
 		if (vPlanarMaps[i].rows == 0)
 			continue;
@@ -2186,7 +2204,27 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 		cv::Mat temp = Rprev*X3D + Tprev;
 		temp = f1->mK*temp;
 		cv::Point2f tpt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
-		cv::circle(debugging, tpt+ ptBottom, 2, cv::Scalar(0, 0, 255), -1);
+		cv::circle(debugging, tpt+ ptBottom, 3, cv::Scalar(0, 0, 255), 1);
+
+		cv::Mat temp2 = Rcurr*X3D + Tcurr;
+		temp2 = f1->mK*temp2;
+		cv::Point2f tpt2(temp2.at<float>(0) / temp2.at<float>(2), temp2.at<float>(1) / temp2.at<float>(2));
+		cv::circle(debugging, tpt2, 3, cv::Scalar(0, 0, 255), 1);
+
+		////calc ssd
+		cv::Rect rect1 = cv::Rect(f2->mvKeyPoints[i].pt.x-1, f2->mvKeyPoints[i].pt.y-1, 3, 3);
+		cv::Rect rect2 = cv::Rect(tpt.x-1, tpt.y - 1, 3, 3);
+		float val = CalcSSD(img1(rect1), img2(rect2));
+		if (val < 30.0) {
+			cv::circle(debugging, tpt + ptBottom, 3, cv::Scalar(255, 0, 0), 1);
+		}
+		else {
+			cv::circle(debugging, tpt + ptBottom, 3, cv::Scalar(0, 255, 0), 1);
+		}
+
+		
+		std::cout << "ssd::" << val << std::endl;
+		////calc ssd
 
 		//인접한 특징 찾기
 		std::vector<size_t> vIndices = f1->GetFeaturesInArea(tpt.x, tpt.y, 5.0);
@@ -2229,8 +2267,10 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 			cv::DMatch tempMatch;
 			tempMatch.queryIdx = i;
 			tempMatch.trainIdx = bestIdx;
-			vMatches.push_back(tempMatch);
-			//vPlanarMaps.push_back(X3D);
+
+			vbInliers[i] = true;
+			vMatches[i] = tempMatch;
+			//cv::line(debugging, tpt + ptBottom, f1->mvKeyPoints[bestIdx].pt + ptBottom, cv::Scalar(0, 255, 0));
 		}
 		
 	}
@@ -2244,22 +2284,22 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 	//std::cout << "matching test : " << n2 << " " << n1 << std::endl;
 	
 	///////debug
-	for (int i = 0; i < vMatches.size(); i++) {
+	/*for (int i = 0; i < vMatches.size(); i++) {
 		int idx1 = vMatches[i].queryIdx;
 		int idx2 = vMatches[i].trainIdx;
 		if(f2->mvpMPs[idx1])
 			cv::line(debugging, f2->mvKeyPoints[idx1].pt, f1->mvKeyPoints[idx2].pt + ptBottom, cv::Scalar(0, 255, 255));
 		else
 			cv::line(debugging, f2->mvKeyPoints[idx1].pt, f1->mvKeyPoints[idx2].pt + ptBottom, cv::Scalar(0, 255, 0));
-	}
+	}*/
 	imshow("matching test : ", debugging);
 	cv::waitKey(1);
 	//////debug
 
-	//std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
-	//auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
-	//double tttt = duration / 1000.0;
-	////std::cout << "epitime::" << tttt << std::endl;
+	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	double tttt = duration / 1000.0;
+	std::cout << "epitime::" << tttt << std::endl;
 	return 0;
 
 }
