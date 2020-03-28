@@ -2212,6 +2212,7 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 		cv::circle(debugging, tpt2, 3, cv::Scalar(0, 0, 255), 1);
 
 		////calc ssd
+		//여기 바운더리 에러 수정하기
 		cv::Rect rect1 = cv::Rect(f2->mvKeyPoints[i].pt.x-1, f2->mvKeyPoints[i].pt.y-1, 3, 3);
 		cv::Rect rect2 = cv::Rect(tpt.x-1, tpt.y - 1, 3, 3);
 		float val = CalcSSD(img1(rect1), img2(rect2));
