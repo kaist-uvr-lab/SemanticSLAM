@@ -2112,6 +2112,13 @@ cv::Point2f CalcLinePoint(float y, Point3f mLine) {
 	return cv::Point2f(x, y);
 }
 
+bool CheckBoundary(float x, float y, int rows, int cols){
+	if (x < 0 || y < 0 || y >= rows || x >= cols) {
+		return false;
+	}
+	return true;
+}
+
 float CalcSSD(cv::Mat src1, cv::Mat src2) {
 	cv::Mat diff = abs(src1 - src2);
 	float sum = 0.0;
@@ -2212,17 +2219,27 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 		cv::circle(debugging, tpt2, 3, cv::Scalar(0, 0, 255), 1);
 
 		////calc ssd
+		//여기 바운더리 에러 수정하기
+		
+		bool b1 = CheckBoundary(f2->mvKeyPoints[i].pt.x - 1, f2->mvKeyPoints[i].pt.y - 1, img1.rows, img1.cols);
+		bool b2 = CheckBoundary(f2->mvKeyPoints[i].pt.x + 1, f2->mvKeyPoints[i].pt.y + 1, img1.rows, img1.cols);
+		bool b3 = CheckBoundary(tpt.x - 1, tpt.y - 1, img1.rows, img1.cols);
+		bool b4 = CheckBoundary(tpt.x + 1, tpt.y + 1, img1.rows, img1.cols);
 		cv::Rect rect1 = cv::Rect(f2->mvKeyPoints[i].pt.x-1, f2->mvKeyPoints[i].pt.y-1, 3, 3);
 		cv::Rect rect2 = cv::Rect(tpt.x-1, tpt.y - 1, 3, 3);
-		float val = CalcSSD(img1(rect1), img2(rect2));
-		if (val < 30.0) {
-			cv::circle(debugging, tpt + ptBottom, 3, cv::Scalar(255, 0, 0), 1);
+		float val = FLT_MAX;
+		if (b1 && b2 && b3 && b4) {
+			val = CalcSSD(img1(rect1), img2(rect2));
+			if (val < 30.0) {
+				cv::circle(debugging, tpt + ptBottom, 3, cv::Scalar(255, 0, 0), 1);
+			}
+			else {
+				cv::circle(debugging, tpt + ptBottom, 3, cv::Scalar(0, 255, 0), 1);
+			}
 		}
 		else {
 			cv::circle(debugging, tpt + ptBottom, 3, cv::Scalar(0, 255, 0), 1);
 		}
-
-		
 		std::cout << "ssd::" << val << std::endl;
 		////calc ssd
 
