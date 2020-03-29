@@ -12,7 +12,8 @@ namespace UVR_SLAM {
 
 	const enum MapPointType {
 		NORMAL_MP,
-		PLANE_MP
+		PLANE_MP,
+		PLANE_DENSE_MP
 	};
 
 	class Frame;
