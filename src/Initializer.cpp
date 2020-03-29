@@ -348,7 +348,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			cv::Mat debugImg;
 			std::vector<cv::DMatch> vMatches;
 			std::vector<cv::Mat> vPlanarMaps;
-			std::vector<bool> vbInliers;
+			std::vector<int> vbInliers;
 			vPlanarMaps = std::vector<cv::Mat>(mpInitFrame2->mvKeyPoints.size(), cv::Mat::zeros(0, 0, CV_8UC1));
 			UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mpInitFrame2, pFloor, vPlanarMaps);
 			mpMatcher->MatchingWithEpiPolarGeometry(mpInitFrame1, mpInitFrame2, pFloor, vPlanarMaps, vbInliers, vMatches, debugImg);
@@ -358,16 +358,17 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			imwrite(ss.str(), debugImg);
 
 			for (int i = 0; i < vMatches.size(); i++) {
-				if (vbInliers[i]) {
+				if (vbInliers[i] == 1) {
 					int idx1 = vMatches[i].trainIdx;
 					int idx2 = vMatches[i].queryIdx;
 					UVR_SLAM::MapPoint* pNewMP;
 					if (mpInitFrame2->mvpMPs[idx2]) {
 						pNewMP = mpInitFrame2->mvpMPs[idx2];
 						pNewMP->SetWorldPos(vPlanarMaps[idx2]);
+						pNewMP->SetMapPointType(UVR_SLAM::MapPointType::PLANE_SPARSE_MP);
 					}
 					else {
-						pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[idx2], mpInitFrame2->matDescriptor.row(idx2), UVR_SLAM::PLANE_MP);
+						pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[idx2], mpInitFrame2->matDescriptor.row(idx2), UVR_SLAM::MapPointType::PLANE_SPARSE_MP);
 						pNewMP->SetPlaneID(pFloor->mnPlaneID);
 						pNewMP->SetObjectType(pFloor->mnPlaneType);
 						pNewMP->AddFrame(mpInitFrame1, idx1);
@@ -382,7 +383,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 				else {
 					if (vPlanarMaps[i].rows == 0)
 						continue;
-					UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[i], mpInitFrame2->matDescriptor.row(i), UVR_SLAM::PLANE_MP);
+					UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[i], mpInitFrame2->matDescriptor.row(i), UVR_SLAM::MapPointType::PLANE_SPARSE_MP);
 					pNewMP->SetPlaneID(pFloor->mnPlaneID);
 					pNewMP->SetObjectType(pFloor->mnPlaneType);
 					pNewMP->AddFrame(mpInitFrame2, i);

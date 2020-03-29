@@ -59,6 +59,10 @@ int UVR_SLAM::MapPoint::GetPlaneID() {
 	return mnPlaneID;
 }
 
+void UVR_SLAM::MapPoint::SetMapPointType(UVR_SLAM::MapPointType type) {
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
+	mnType = type;
+}
 UVR_SLAM::MapPointType UVR_SLAM::MapPoint::GetMapPointType() {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	return mnType;
@@ -196,7 +200,8 @@ void UVR_SLAM::MapPoint::Delete() {
 	for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
 		UVR_SLAM::Frame* pF = iter->first;
 		int idx = iter->second;
-		pF->RemoveMP(idx);
+		if(GetMapPointType() != PLANE_DENSE_MP)
+			pF->RemoveMP(idx);
 	}
 	//...std::cout << "Delete=" << mmpF;
 }

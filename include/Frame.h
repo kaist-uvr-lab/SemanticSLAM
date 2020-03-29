@@ -106,7 +106,13 @@ namespace UVR_SLAM {
 		cv::Mat mTrackedDescriptor, mNotTrackedDescriptor;
 		std::vector<int> mvTrackedIdxs, mvNotTrackedIdxs;
 	public:
+		std::vector<UVR_SLAM::MapPoint*> mvpDenseMPs;
+		//densemp의 index저장, 
+		//테스트시 32FC_3 : ve3f. 이게 제대로 동작하면 이후에는 
+		cv::Mat mDenseMap; 
+
 		std::vector<UVR_SLAM::MapPoint*> mvpMPs;
+		
 		std::vector<bool> mvbMPInliers;
 		std::vector<cv::KeyPoint> mvKeyPoints, mvKeyPointsUn, mvkInliers, mvTempKPs;
 		cv::Mat matDescriptor;

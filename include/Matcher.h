@@ -58,7 +58,7 @@ namespace UVR_SLAM {
 		int FeatureMatchingWithSemanticFrames(Frame* pSemantic, Frame* pFrame);
 		
 		
-		int MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps, std::vector<bool>& vbInliers, std::vector<cv::DMatch>& vMatches, cv::Mat& debugging);
+		int MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps, std::vector<int>& vbInliers, std::vector<cv::DMatch>& vMatches, cv::Mat& debugging);
 		int MatchingWithEpiPolarGeometry(Frame* pKF, Frame* pF, std::vector<cv::DMatch>& vMatches);
 	public:
 		//Epipolar geometry to create new map points

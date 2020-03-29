@@ -107,12 +107,15 @@ void UVR_SLAM::LocalMapper::Run() {
 			ProcessNewKeyFrame();
 			std::cout << "lm::start::" << mpTargetFrame->GetFrameID() <<", "<<mpTargetFrame->GetKeyFrameID()<< std::endl;
 			CalculateKFConnections();
+			std::cout << "lm::1" << std::endl;
 			UpdateKFs();
+			std::cout << "lm::2" << std::endl;
 			////이전 프레임에서 생성된 맵포인트 중 삭제
 			//프레임 윈도우 내의 로컬 맵 포인트 중 new인 애들만 수행
 			NewMapPointMaginalization();
+			std::cout << "lm::3" << std::endl;
 			UpdateMPs();
-
+			std::cout << "lm::4" << std::endl;
 			////unlock
 			//mpSystem->mbLocalMappingEnd = true;
 			//lock.unlock();
@@ -413,11 +416,10 @@ void UVR_SLAM::LocalMapper::NewMapPointMaginalization() {
 
 		int nMPThresh = mnMPThresh;
 		float fRatio = mfRatio;
-		if (pMP->GetMapPointType() == UVR_SLAM::PLANE_MP) {
+		if (pMP->GetMapPointType() == UVR_SLAM::MapPointType::PLANE_SPARSE_MP) {
 			//nMPThresh = 0;
 			fRatio = 0.01;
 		}
-		
 		bool bBad = false;
 		if (pMP->isDeleted()) {
 			//already deleted

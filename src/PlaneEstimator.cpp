@@ -183,7 +183,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			int nPrevTest2 = 0;
 			cv::Mat pmat;
 			if (bInitFloorPlane) {
-
+				std::cout << "pe::update::start" << std::endl;
 				////이전 플라나 포인트로 생성된 포인트에 대해서 트래킹에 성공한 포인트에 한해서 현재 평면 벡터에 포함시킴.
 				for (int i = 0; i < pFloor->tmpMPs.size(); i++) {
 					UVR_SLAM::MapPoint* pMP = pFloor->tmpMPs[i];
@@ -199,6 +199,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				pFloor->tmpMPs.clear();
 				UpdatePlane(pFloor, nTargetID, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
 				pmat = pFloor->GetParam().t();
+				std::cout << "pe::update::end" << std::endl;
 			}else
 				pmat = cv::Mat::zeros(1, 4, CV_32FC1);
 			////이전 키프레임에서 추정한 맵포인트 업데이트
@@ -627,7 +628,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				mvpKFs.push_back(mpPPrevFrame);
 				for (int ki = 0; ki < mvpKFs.size(); ki++) {
 					std::vector<cv::DMatch> vMatches;
-					std::vector<bool> vbInliers;
+					std::vector<int> vbInliers;
 					UVR_SLAM::Frame* pKFi = mvpKFs[ki];
 					std::cout << "pe::matching::0" << std::endl;
 					mpMatcher->MatchingWithEpiPolarGeometry(pKFi, mpTargetFrame, pFloor, vPlanarMaps, vbInliers,vMatches, debugImg);
@@ -637,9 +638,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					std::cout << "pe::kf::" << pKFi->GetKeyFrameID() << std::endl;
 					ss << mStrPath << "/" << mpTargetFrame->GetKeyFrameID() << "_" << pKFi->GetKeyFrameID() << ".jpg";
 					imwrite(ss.str(), debugImg);
-					std::cout << "pe::matching::2" << std::endl;
+					std::cout << "pe::matching::2::"<<vbInliers.size() << std::endl;
 					for (int i = 0; i < vbInliers.size(); i++) {
-						if (vbInliers[i]) {
+						if (vbInliers[i] == 1) {
 							int idx1 = vMatches[i].trainIdx;
 							int idx2 = vMatches[i].queryIdx;
 
@@ -651,7 +652,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 							if (!b1 && !b2)
 							{
-								UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, vPlanarMaps[idx2], mpTargetFrame->matDescriptor.row(idx2), UVR_SLAM::PLANE_MP);
+								std::cout << "??" << std::endl;
+								UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, vPlanarMaps[idx2], mpTargetFrame->matDescriptor.row(idx2), UVR_SLAM::MapPointType::PLANE_SPARSE_MP);
+								std::cout << "123123123??" << std::endl;
 								pNewMP->SetPlaneID(pFloor->mnPlaneID);
 								pNewMP->SetObjectType(pFloor->mnPlaneType);
 								pNewMP->AddFrame(pKFi, idx1);
@@ -682,7 +685,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 						else {
 							if (vPlanarMaps[i].rows == 0)
 								continue;
-							UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, vPlanarMaps[i], mpTargetFrame->matDescriptor.row(i), UVR_SLAM::PLANE_MP);
+							UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, vPlanarMaps[i], mpTargetFrame->matDescriptor.row(i), UVR_SLAM::PLANE_SPARSE_MP);
 							pNewMP->SetPlaneID(pFloor->mnPlaneID);
 							pNewMP->SetObjectType(pFloor->mnPlaneType);
 							pNewMP->AddFrame(mpTargetFrame, i);
@@ -1607,7 +1610,7 @@ void UVR_SLAM::PlaneEstimator::CreatePlanarMapPoints(std::vector<UVR_SLAM::MapPo
 			pMP->SetWorldPos(estimated.rowRange(0, 3));
 		}
 		else {
-			UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, estimated.rowRange(0, 3), mpTargetFrame->matDescriptor.row(j), UVR_SLAM::PLANE_MP);
+			UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, estimated.rowRange(0, 3), mpTargetFrame->matDescriptor.row(j), UVR_SLAM::PLANE_SPARSE_MP);
 			pNewMP->SetPlaneID(pPlane->mnPlaneID);
 			pNewMP->SetObjectType(pPlane->mnPlaneType);
 			pNewMP->AddFrame(mpTargetFrame, j);
@@ -1685,7 +1688,7 @@ void UVR_SLAM::PlaneEstimator::CreateWallMapPoints(std::vector<UVR_SLAM::MapPoin
 			pMP->SetWorldPos(estimated.rowRange(0, 3));
 		}
 		else {
-			UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, estimated.rowRange(0, 3), mpTargetFrame->matDescriptor.row(j), UVR_SLAM::PLANE_MP);
+			UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, estimated.rowRange(0, 3), mpTargetFrame->matDescriptor.row(j), UVR_SLAM::PLANE_SPARSE_MP);
 			pNewMP->SetPlaneID(pPlane->mnPlaneID);
 			pNewMP->SetObjectType(pPlane->mnPlaneType);
 			pNewMP->AddFrame(mpTargetFrame, j);
@@ -1905,7 +1908,7 @@ void UVR_SLAM::PlaneInformation::CreatePlanarMapPoints(Frame* pF, System* pSyste
 			pMP->SetWorldPos(estimated.rowRange(0, 3));
 		}
 		else {
-			UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(pF, estimated.rowRange(0, 3), pF->matDescriptor.row(j), UVR_SLAM::PLANE_MP);
+			UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(pF, estimated.rowRange(0, 3), pF->matDescriptor.row(j), UVR_SLAM::PLANE_SPARSE_MP);
 			pNewMP->SetPlaneID(pPlane->mnPlaneID);
 			pNewMP->SetObjectType(pPlane->mnPlaneType);
 			pNewMP->AddFrame(pF, j);

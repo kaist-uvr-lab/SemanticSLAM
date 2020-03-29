@@ -2129,9 +2129,10 @@ float CalcSSD(cv::Mat src1, cv::Mat src2) {
 
 ////이것은 바닥만 매칭.
 ////벽의 경우 이것과 비슷한 걸로
-int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps, std::vector<bool>& vbInliers, std::vector<cv::DMatch>& vMatches, cv::Mat& debugging){
+int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps, std::vector<int>& vbInliers, std::vector<cv::DMatch>& vMatches, cv::Mat& debugging){
 
-	vbInliers = std::vector<bool>(f2->mvKeyPoints.size(), false);
+	vbInliers = std::vector<int>(f2->mvKeyPoints.size(), 0);
+	std::cout << "geo::" << vbInliers.size() << std::endl;
 	vMatches = std::vector<cv::DMatch>(vbInliers.size());
 	
 	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
@@ -2269,7 +2270,7 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneI
 			tempMatch.queryIdx = i;
 			tempMatch.trainIdx = bestIdx;
 
-			vbInliers[i] = true;
+			vbInliers[i] = 1;
 			vMatches[i] = tempMatch;
 			//cv::line(debugging, tpt + ptBottom, f1->mvKeyPoints[bestIdx].pt + ptBottom, cv::Scalar(0, 255, 0));
 		}

@@ -12,7 +12,8 @@ namespace UVR_SLAM {
 
 	const enum MapPointType {
 		NORMAL_MP,
-		PLANE_MP
+		PLANE_SPARSE_MP,
+		PLANE_DENSE_MP
 	};
 
 	class Frame;
@@ -46,6 +47,7 @@ namespace UVR_SLAM {
 		bool Projection(cv::Point2f& _P2D, cv::Mat& _Pcam, cv::Mat R, cv::Mat t, cv::Mat K, int w, int h);
 		bool isSeen();
 
+		void SetMapPointType(UVR_SLAM::MapPointType type);
 		MapPointType GetMapPointType();
 
 		void SetPlaneID(int nid);
