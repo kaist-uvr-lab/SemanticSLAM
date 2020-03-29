@@ -120,6 +120,8 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 	std::vector<UVR_SLAM::PlaneInformation*> mvpPlanes;
 
+	UVR_SLAM::Frame* pTestF = nullptr;
+
 	while (1) {
 		if (CheckNewKeyFrames()) {
 			
@@ -224,6 +226,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			///////////////Conneted Component Labeling & object labeling
 			//image
 			cv::Mat segmented = mpTargetFrame->matSegmented.clone();
+			std::cout <<"seg::size::"<< segmented.size() << std::endl;
 			std::chrono::high_resolution_clock::time_point saa = std::chrono::high_resolution_clock::now();
 			cv::Mat imgStructure = cv::Mat::zeros(segmented.size(), CV_8UC1);
 			cv::Mat imgWall = cv::Mat::zeros(segmented.size(), CV_8UC1);
@@ -266,13 +269,13 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					case 4:
 					case 29: //rug
 						imgFloor.at<uchar>(i, j) = 255;
-						imgStructure.at<uchar>(i, j) = 100;
+						imgStructure.at<uchar>(i, j) = 150;
 						/*if (i < minY) {
 						minY = i;
 						}*/
 						break;
 					case 6:
-						imgStructure.at<uchar>(i, j) = 150;
+						imgStructure.at<uchar>(i, j) = 100;
 						imgCeil.at<uchar>(i, j) = 255;
 						/*if (i > maxY) {
 						maxY = i;
@@ -280,6 +283,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 						break;
 					default:
 						imgObject.at<uchar>(i, j) = 255;
+						imgStructure.at<uchar>(i, j) = 50;
 						break;
 					}
 				}
@@ -518,7 +522,19 @@ void UVR_SLAM::PlaneEstimator::Run() {
 								UVR_SLAM::PlaneInformation::CalcFlukerLinePoints(sPt, ePt, 0.0, mnHeight, mLine);
 								cv::line(vImg, sPt, ePt, ObjectColors::mvObjectLabelColors[mvWallPlanes[minIdx]->mnPlaneID + 10], 1);
 
-							}
+								if (!pTestF) {
+									pTestF = mpTargetFrame;
+									UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(pTestF->mDenseMap, imgStructure, pTestF, mvWallPlanes[minIdx], mvpCurrLines[li]);
+								}
+								else {
+									cv::Mat debugging;
+									mpMatcher->DenseMatchingWithEpiPolarGeometry(pTestF->mDenseMap, pTestF, mpTargetFrame, debugging);
+									std::stringstream ss;
+									ss << mStrPath << "/dense_" << pTestF->GetKeyFrameID() << "_" << mpTargetFrame->GetKeyFrameID() << ".jpg";
+									imwrite(ss.str(), debugging);
+								}//if
+
+							}//if connect
 						}
 					}
 				}
@@ -1940,6 +1956,66 @@ void UVR_SLAM::PlaneInformation::CreatePlanarMapPoints(Frame* pF, System* pSyste
 	mpTargetFrame->SetDepthRange(minDepth, maxDepth);*/
 }
 
+void UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(cv::Mat& dense_map, cv::Mat label_map, Frame* pF, WallPlane* pWall, Line* pLine) {
+	
+	dense_map = cv::Mat::zeros(pF->mnMaxX, pF->mnMaxY, CV_32FC3);
+	cv::resize(label_map, label_map, pF->GetOriginalImage().size());
+	int nTargetID = pF->GetFrameID();
+	cv::Mat invT, invPfloor, invK;
+	pF->mpPlaneInformation->Calculate();
+	pF->mpPlaneInformation->GetInformation(invPfloor, invT, invK);
+	cv::Mat invPwawll = invT.t()*pWall->GetParam();
+
+	auto pFloor = pF->mpPlaneInformation->GetFloorPlane();
+	cv::Mat matFloorParam = pFloor->GetParam();
+	cv::Mat normal;
+	float dist;
+	pFloor->GetParam(normal, dist);
+
+	int wsize = 20;
+	int inc = wsize / 2;
+	int mX = pF->mnMaxX - inc;
+	int mY = pF->mnMaxY - inc;
+	for (int x = inc; x < mX; x += wsize) {
+		for (int y = inc; y < mY; y+= wsize) {
+			cv::Point2f pt(x, y);
+			int label = label_map.at<uchar>(y,x);
+			if (label == 255) {
+				if (x < pLine->to.x || x > pLine->from.x)
+					continue;
+				cv::Mat temp = (cv::Mat_<float>(3, 1) << x, y, 1);
+				temp = invK*temp;
+				cv::Mat matDepth = -invPwawll.at<float>(3) / (invPwawll.rowRange(0, 3).t()*temp);
+				float depth = matDepth.at<float>(0);
+				if (depth < 0.0) {
+					//depth *= -1.0;
+					continue;
+				}
+				temp *= depth;
+				temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
+
+				cv::Mat estimated = invT*temp;
+				estimated = estimated.rowRange(0, 3);
+				//check on floor
+				float val = estimated.dot(normal) + dist;
+
+				if (val < 0.0)
+					continue;
+
+				dense_map.at<Vec3f>(y, x) = cv::Vec3f(estimated.at<float>(0), estimated.at<float>(1), estimated.at<float>(2));
+			}
+			else if (label == 150) {
+				cv::Mat X3D;
+				bool bRes = PlaneInformation::CreatePlanarMapPoint(pt, invPfloor, invT, invK, X3D);
+				if (bRes)
+				{
+					dense_map.at<Vec3f>(y, x) = cv::Vec3f(X3D.at<float>(0), X3D.at<float>(1), X3D.at<float>(2));
+				}
+			}
+		}
+	}
+}
+
 void UVR_SLAM::PlaneInformation::CreateWallMapPoints(Frame* pF, WallPlane* pWall, Line* pLine, std::vector<cv::Mat>& vPlanarMaps, System* pSystem) {
 
 	int nTargetID = pF->GetFrameID();
@@ -1989,7 +2065,7 @@ void UVR_SLAM::PlaneInformation::CreateWallMapPoints(Frame* pF, WallPlane* pWall
 		if (val < 0.0)
 			continue;
 		count++;
-		std::cout << val << estimated.t()<< std::endl;
+		std::cout <<"planar::"<< val << estimated.t()<< std::endl;
 		vPlanarMaps[j] = estimated.clone();
 
 		//if (pMP) {

@@ -2136,6 +2136,274 @@ float CalcSSD(cv::Mat src1, cv::Mat src2) {
 
 ////이것은 바닥만 매칭.
 ////벽의 경우 이것과 비슷한 걸로
+//f1이 과거 f2가 현재 프레임
+int UVR_SLAM::Matcher::DenseMatchingWithEpiPolarGeometry(cv::Mat mDenseMap, Frame* f1, Frame* f2, cv::Mat& debugging) {
+
+	///////debug
+	cv::Mat img1 = f2->GetOriginalImage();
+	cv::Mat img2 = f1->GetOriginalImage();
+	cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
+
+	cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
+	//cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	img1.copyTo(debugging(mergeRect1));
+	img2.copyTo(debugging(mergeRect2));
+	///////debug
+
+	cv::Mat Rcurr, Tcurr, Rprev, Tprev;
+	f1->GetPose(Rprev, Tprev);
+	f2->GetPose(Rcurr, Tcurr);
+	cv::Mat mK = f1->mK.clone();
+
+	int wsize = 20;
+	int inc = wsize / 2;
+	int mX = f1->mnMaxX - inc;
+	int mY = f1->mnMaxY - inc;
+	for (int x = inc; x < mX; x += wsize) {
+		for (int y = inc; y < mY; y += wsize) {
+			cv::Point2f pt(x, y);
+			Vec3f aval = mDenseMap.at<Vec3f>(y, x);
+			
+			if (aval.val[0] == 0.0 &&  aval.val[1] == 0.0 && aval.val[2] == 0.0)
+				continue;
+
+			cv::Mat X3D = cv::Mat(aval);
+			cv::Mat temp2 = Rprev*X3D + Tprev;
+			temp2 = f1->mK*temp2;
+			cv::Point2f tpt2(temp2.at<float>(0) / temp2.at<float>(2), temp2.at<float>(1) / temp2.at<float>(2));
+			cv::circle(debugging, tpt2 + ptBottom, 3, cv::Scalar(0, 0, 255), 1);
+			//cv::circle(debugging, pt + ptBottom, 3, cv::Scalar(0, 255, 0), 1);
+
+			//pt는 기존에 만들어진 이미지
+			//tpt는 현재 프레임에 프로젝션된 이미지
+			////매칭 수행하기
+			//이미지 프로젝션
+			cv::Mat temp = Rcurr*X3D + Tcurr;
+			temp = f1->mK*temp;
+			cv::Point2f tpt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
+			if (temp.at<float>(2) < 0.0) {
+				cv::circle(debugging, tpt, 3, cv::Scalar(0, 0, 0), 1);
+				continue;
+			}
+
+			if (CheckBoundary(tpt.x, tpt.y, img1.rows, img1.cols)) {
+				cv::circle(debugging, tpt, 3, cv::Scalar(0, 0, 255), 1);
+			}
+			else
+				continue;
+
+			bool b1 = CheckBoundary(pt.x - 1, pt.y - 1, img1.rows, img1.cols);
+			bool b2 = CheckBoundary(pt.x + 1, pt.y + 1, img1.rows, img1.cols);
+			bool b3 = CheckBoundary(tpt.x - 1, tpt.y - 1, img1.rows, img1.cols);
+			bool b4 = CheckBoundary(tpt.x + 1, tpt.y + 1, img1.rows, img1.cols);
+			cv::Rect rect1 = cv::Rect(pt.x - 1, pt.y - 1, 3, 3);
+			cv::Rect rect2 = cv::Rect(tpt.x - 1, tpt.y - 1, 3, 3);
+			float val = FLT_MAX;
+			if (b1 && b2 && b3 && b4) {
+				val = CalcSSD(img2(rect1), img1(rect2));
+				if (val < 30.0) {
+					cv::circle(debugging, tpt, 3, cv::Scalar(255, 0, 0), 1);
+					cv::line(debugging, pt + ptBottom, tpt, cv::Scalar(255, 0, 255), 1);
+				}
+				else {
+					cv::circle(debugging, tpt, 3, cv::Scalar(0, 255, 0), 1);
+					cv::circle(debugging, pt + ptBottom, 3, cv::Scalar(0, 255, 0), 1);
+				}
+			}
+			else {
+				cv::circle(debugging, tpt, 3, cv::Scalar(0, 255, 0), 1);
+			}
+		}
+	}
+
+	cv::imshow("dense", debugging); waitKey(1);
+	return 0;
+	//vbInliers = std::vector<bool>(f2->mvKeyPoints.size(), false);
+	//vMatches = std::vector<cv::DMatch>(vbInliers.size());
+
+	//std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+	/////////debug
+	//cv::Mat img1 = f2->GetOriginalImage();
+	//cv::Mat img2 = f1->GetOriginalImage();
+	//cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
+
+	//cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
+	//cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
+	////cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	//debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	//img1.copyTo(debugging(mergeRect1));
+	//img2.copyTo(debugging(mergeRect2));
+	/////////debug
+
+	//auto mvpOPs1 = f1->GetObjectVector();
+	//auto mvpOPs2 = f2->GetObjectVector();
+
+	////Fundamental matrix 및 keyframe pose 계산
+	//cv::Mat Rcurr, Tcurr, Rprev, Tprev;
+	//f1->GetPose(Rprev, Tprev);
+	//f2->GetPose(Rcurr, Tcurr);
+	//cv::Mat mK = f1->mK.clone();
+	//cv::Mat F12 = CalcFundamentalMatrix(Rcurr, Tcurr, Rprev, Tprev, mK);
+
+	//cv::Mat invP1, invT1, invK, invP2, invT2;
+	//if (!f1->mpPlaneInformation || !f2->mpPlaneInformation) {
+	//	//왜 에러인지 알아야 함.
+	//	std::cout << "error case!!!!!!!!" << std::endl;
+	//	return 0;
+	//}
+	//f1->mpPlaneInformation->Calculate();
+	//f2->mpPlaneInformation->Calculate();
+
+	//f1->mpPlaneInformation->GetInformation(invP1, invT1, invK);
+	//f2->mpPlaneInformation->GetInformation(invP2, invT2, invK);
+	////벽의 경우
+	////cv::Mat invPwawll = invT.t()*pWall->GetParam();
+
+	//std::vector<Point2f> vPts1, vPts2;
+	//std::vector<cv::Mat> vX3Ds;
+	////std::vector<bool> vbs;
+
+	////std::vector<cv::DMatch> vMatches;
+	//int n1 = 0;
+	//int n2 = 0;
+	////매칭 확인하기
+	///*for (int i = 0; i < f1->mvKeyPoints.size(); i++) {
+	//if (mvpOPs1[i] != ObjectType::OBJECT_FLOOR && mvpOPs1[i] != ObjectType::OBJECT_WALL && mvpOPs1[i] != ObjectType::OBJECT_CEILING)
+	//continue;
+	//cv::circle(debugging, f1->mvKeyPoints[i].pt + ptBottom, 2, cv::Scalar(255, 0, 0), -1);
+	//}*/
+	//for (int i = 0; i < f2->mvKeyPoints.size(); i++) {
+	//	if (mvpOPs2[i] != ObjectType::OBJECT_FLOOR && mvpOPs2[i] != ObjectType::OBJECT_WALL && mvpOPs2[i] != ObjectType::OBJECT_CEILING)
+	//		continue;
+
+	//	if (f2->mvpMPs[i])
+	//		cv::circle(debugging, f2->mvKeyPoints[i].pt, 3, cv::Scalar(0, 255, 255), 1);
+	//	else
+	//		cv::circle(debugging, f2->mvKeyPoints[i].pt, 3, cv::Scalar(0, 255, 0), 1);
+
+	//	if (vPlanarMaps[i].rows == 0)
+	//		continue;
+
+	//	cv::Mat X3D = vPlanarMaps[i];
+
+	//	////매칭 수행하기
+	//	//이미지 프로젝션
+	//	cv::Mat temp = Rprev*X3D + Tprev;
+	//	temp = f1->mK*temp;
+	//	cv::Point2f tpt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
+	//	cv::circle(debugging, tpt + ptBottom, 3, cv::Scalar(0, 0, 255), 1);
+
+	//	cv::Mat temp2 = Rcurr*X3D + Tcurr;
+	//	temp2 = f1->mK*temp2;
+	//	cv::Point2f tpt2(temp2.at<float>(0) / temp2.at<float>(2), temp2.at<float>(1) / temp2.at<float>(2));
+	//	cv::circle(debugging, tpt2, 3, cv::Scalar(0, 0, 255), 1);
+
+	//	////calc ssd
+	//	//여기 바운더리 에러 수정하기
+
+	//	bool b1 = CheckBoundary(f2->mvKeyPoints[i].pt.x - 1, f2->mvKeyPoints[i].pt.y - 1, img1.rows, img1.cols);
+	//	bool b2 = CheckBoundary(f2->mvKeyPoints[i].pt.x + 1, f2->mvKeyPoints[i].pt.y + 1, img1.rows, img1.cols);
+	//	bool b3 = CheckBoundary(tpt.x - 1, tpt.y - 1, img1.rows, img1.cols);
+	//	bool b4 = CheckBoundary(tpt.x + 1, tpt.y + 1, img1.rows, img1.cols);
+	//	cv::Rect rect1 = cv::Rect(f2->mvKeyPoints[i].pt.x - 1, f2->mvKeyPoints[i].pt.y - 1, 3, 3);
+	//	cv::Rect rect2 = cv::Rect(tpt.x - 1, tpt.y - 1, 3, 3);
+	//	float val = FLT_MAX;
+	//	if (b1 && b2 && b3 && b4) {
+	//		val = CalcSSD(img1(rect1), img2(rect2));
+	//		if (val < 30.0) {
+	//			cv::circle(debugging, tpt + ptBottom, 3, cv::Scalar(255, 0, 0), 1);
+	//		}
+	//		else {
+	//			cv::circle(debugging, tpt + ptBottom, 3, cv::Scalar(0, 255, 0), 1);
+	//		}
+	//	}
+	//	else {
+	//		cv::circle(debugging, tpt + ptBottom, 3, cv::Scalar(0, 255, 0), 1);
+	//	}
+	//	std::cout << "ssd::" << val << std::endl;
+	//	////calc ssd
+
+	//	//인접한 특징 찾기
+	//	std::vector<size_t> vIndices = f1->GetFeaturesInArea(tpt.x, tpt.y, 5.0);
+	//	if (vIndices.empty())
+	//		continue;
+	//	cv::Mat desc1 = f2->matDescriptor.row(i);
+	//	//매칭 수행
+	//	//디스크립터 또는 에피폴라 라인으로 매칭
+
+	//	float nMinDist = FLT_MAX;
+	//	int bestIdx = -1;
+	//	n1++;
+	//	for (std::vector<size_t>::const_iterator vit = vIndices.begin(), vend = vIndices.end(); vit != vend; vit++)
+	//	{
+	//		const size_t idx = *vit;
+	//		if (mvpOPs1[idx] != ObjectType::OBJECT_FLOOR && mvpOPs1[idx] != ObjectType::OBJECT_WALL && mvpOPs1[idx] != ObjectType::OBJECT_CEILING)
+	//			continue;
+	//		//const cv::Mat &d = pF->matDescriptor.row(idx);
+	//		cv::KeyPoint kp = f1->mvKeyPoints[idx];
+	//		float sigma = f1->mvLevelSigma2[kp.octave];
+	//		float epiDist;
+	//		if (!CheckEpiConstraints(F12, tpt, kp.pt, sigma, epiDist) || (mvpOPs1[idx] != mvpOPs2[i]))
+	//			continue;
+
+	//		/*cv::Mat desc2 = f1->matDescriptor.row(idx);
+	//		int descDist = DescriptorDistance(desc1, desc2);
+	//		if (nMinDist > descDist) {
+	//		nMinDist = descDist;
+	//		bestIdx = idx;
+	//		}*/
+	//		if (epiDist < nMinDist) {
+	//			nMinDist = epiDist;
+	//			bestIdx = idx;
+	//		}
+	//	}
+	//	if (bestIdx >= 0) {
+	//		//if (nMinDist < TH_HIGH) {
+	//		/*if (f1->mvpMPs[bestIdx])
+	//		continue;*/
+	//		cv::DMatch tempMatch;
+	//		tempMatch.queryIdx = i;
+	//		tempMatch.trainIdx = bestIdx;
+
+	//		vbInliers[i] = true;
+	//		vMatches[i] = tempMatch;
+	//		//cv::line(debugging, tpt + ptBottom, f1->mvKeyPoints[bestIdx].pt + ptBottom, cv::Scalar(0, 255, 0));
+	//	}
+
+	//}
+	//n2 = vMatches.size();
+
+	///*if (vPts1.size() < 10){
+	//std::cout << "epi::error::" << vPts1.size() << std::endl;
+	//return 0;
+	//}*/
+
+	////std::cout << "matching test : " << n2 << " " << n1 << std::endl;
+
+	/////////debug
+	///*for (int i = 0; i < vMatches.size(); i++) {
+	//int idx1 = vMatches[i].queryIdx;
+	//int idx2 = vMatches[i].trainIdx;
+	//if(f2->mvpMPs[idx1])
+	//cv::line(debugging, f2->mvKeyPoints[idx1].pt, f1->mvKeyPoints[idx2].pt + ptBottom, cv::Scalar(0, 255, 255));
+	//else
+	//cv::line(debugging, f2->mvKeyPoints[idx1].pt, f1->mvKeyPoints[idx2].pt + ptBottom, cv::Scalar(0, 255, 0));
+	//}*/
+	//imshow("matching test : ", debugging);
+	//cv::waitKey(1);
+	////////debug
+
+	//std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	//auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	//double tttt = duration / 1000.0;
+	//std::cout << "epitime::" << tttt << std::endl;
+	//return 0;
+
+}
+
+
 int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps, std::vector<bool>& vbInliers, std::vector<cv::DMatch>& vMatches, cv::Mat& debugging){
 
 	vbInliers = std::vector<bool>(f2->mvKeyPoints.size(), false);

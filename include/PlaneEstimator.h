@@ -84,6 +84,7 @@ namespace UVR_SLAM {
 		static bool PlaneInitialization(PlaneInformation* pPlane, std::vector<MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 
 		static cv::Mat CalcPlaneRotationMatrix(cv::Mat P);
+		static void CreateDensePlanarMapPoint(cv::Mat& dense_map,cv::Mat label_map, Frame* pTargetF, WallPlane* pWall, Line* pLine);
 		static void CreatePlanarMapPoint(Frame* pTargetF, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps);
 		static bool CreatePlanarMapPoint(cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK, cv::Mat& X3D);
 		static bool CreatePlanarMapPoint(cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK, cv::Mat fNormal, float fDist,cv::Mat& X3D);

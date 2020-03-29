@@ -57,7 +57,7 @@ namespace UVR_SLAM {
 		//얘네들은 확인이 필요함.
 		int FeatureMatchingWithSemanticFrames(Frame* pSemantic, Frame* pFrame);
 		
-		
+		int DenseMatchingWithEpiPolarGeometry(cv::Mat mDenseMap, Frame* f1, Frame* f2, cv::Mat& debugging);
 		int MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps, std::vector<bool>& vbInliers, std::vector<cv::DMatch>& vMatches, cv::Mat& debugging);
 		int MatchingWithEpiPolarGeometry(Frame* pKF, Frame* pF, std::vector<cv::DMatch>& vMatches);
 	public:

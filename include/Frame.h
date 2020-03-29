@@ -106,6 +106,10 @@ namespace UVR_SLAM {
 		cv::Mat mTrackedDescriptor, mNotTrackedDescriptor;
 		std::vector<int> mvTrackedIdxs, mvNotTrackedIdxs;
 	public:
+		//¿œ¥‹ dense map test;
+		cv::Mat mDenseMap;
+		std::vector<UVR_SLAM::MapPoint*> mvpDenseMPs;
+
 		std::vector<UVR_SLAM::MapPoint*> mvpMPs;
 		std::vector<bool> mvbMPInliers;
 		std::vector<cv::KeyPoint> mvKeyPoints, mvKeyPointsUn, mvkInliers, mvTempKPs;
