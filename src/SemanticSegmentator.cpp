@@ -114,7 +114,8 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			
 			int nRatio = colorimg.rows / segmented.rows;
 			//ratio 버전이 아닌 다르게
-			ObjectLabeling(segmented, nRatio);
+			ImageLabeling(segmented, mpTargetFrame->matLabeled);
+			ObjectLabeling(mpTargetFrame->matLabeled, nRatio);
 			
 			mpMap->SetCurrFrame(mpTargetFrame);
 			mpTargetFrame->matSegmented = segmented.clone();
@@ -208,6 +209,45 @@ bool UVR_SLAM::SemanticSegmentator::isRun() {
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //모든 특징점과 트래킹되고 있는 맵포인트를 레이블링함.
+void UVR_SLAM::SemanticSegmentator::ImageLabeling(cv::Mat segmented, cv::Mat& labeld) {
+
+	labeld = cv::Mat::zeros(segmented.size(), CV_8UC1);
+
+	for (int i = 0; i < segmented.rows; i++) {
+		for (int j = 0; j < segmented.cols; j++) {
+			int val = segmented.at<uchar>(i, j);
+			switch (val) {
+			case 1://벽
+			case 9://유리창
+			case 11://캐비넷
+			case 15://문
+			case 23: //그림
+			case 36://옷장
+					//case 43://기둥
+			case 44://갚난
+					//case 94://막대기
+			case 101://포스터
+				labeld.at<uchar>(i, j) = 255;
+				break;
+			case 4:
+			case 29: //rug
+				labeld.at<uchar>(i, j) = 150;
+				break;
+			case 6:
+				labeld.at<uchar>(i, j) = 100;
+				break;
+			case 13: //person, moving object
+				labeld.at<uchar>(i, j) = 20;
+				break;
+			default:
+				labeld.at<uchar>(i, j) = 50;
+				break;
+			}
+		}
+	}
+
+}
+
 void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked, int ratio) {
 
 	//레이블링을 매칭에 이용하기 위한 디스크립터 설정.
@@ -235,95 +275,23 @@ void UVR_SLAM::SemanticSegmentator::ObjectLabeling(cv::Mat masked, int ratio) {
 		int val = masked.at<uchar>(pt);
 		UVR_SLAM::ObjectType type = vObjTypes[i];
 		
-		////object type 인식
-		//bool bMP = false;
-		//UVR_SLAM::MapPoint* pMP = mvpMPs[i];
-		//if (pMP) {
-		//	if (!pMP->isDeleted()) {
-		//		if (mpTargetFrame->isInFrustum(pMP, 0.5)) {
-		//			bMP = true;
-		//		}
-		//	}
-		//}
-
-		////find object type in map
-		//auto val2 = static_cast<ObjectType>(val);
-		//auto iter = mpTargetFrame->mvMapObjects[i].find(val2);
-		//if (iter != mpTargetFrame->mvMapObjects[i].end()) {
-		//	iter->second++;
-		//}
-		//else {
-		//	mpTargetFrame->mvMapObjects[i].insert(std::make_pair(val2, 1));
-		//}
-		//
-		//int maxVal = 0;
-		//
-		//for (std::multimap<ObjectType, int, std::greater<int>>::iterator iter = mpTargetFrame->mvMapObjects[i].begin(); iter != mpTargetFrame->mvMapObjects[i].end(); iter++) {
-		//	//std::cout << "begin ::" << iter->first << ", " << iter->second << std::endl;
-		//	if (maxVal < iter->second) {
-		//		val2 = iter->first;
-		//		maxVal = iter->second;
-		//	}
-		//}
-
 		switch (val) {
-		case 1://벽
-		case 9://유리창
-		case 11://캐비넷
-		case 15://문
-		case 23: //그림
-		case 36://옷장
-		//case 43://기둥
-		case 44://갚난
-		//case 94://막대기
-		case 101://포스터
+		case 255:
 			type = ObjectType::OBJECT_WALL;
-			////맵포인트에 추가
-			//if (bMP){
-			//	mpTargetFrame->mspWallMPs.insert(pMP);
-			//	mpFrameWindow->mspWallMPs.insert(pMP);
-			//}
-			//레이블별 인덱스 설정
-			//사용 안함.
-			/*if (mpTargetFrame->mLabelStatus.at<uchar>(i) == 0) {
-				mpTargetFrame->mLabelStatus.at<uchar>(i) = val;
-				mpTargetFrame->mWallDescriptor.push_back(mpTargetFrame->matDescriptor.row(i));
-				mpTargetFrame->mWallIdxs.push_back(i);
-			}*/
 			break;
-		case 4:
-		case 29: //rug
+		case 150:
 			type = ObjectType::OBJECT_FLOOR;
-			////맵포인트에 추가
-			//if (bMP){
-			//	mpTargetFrame->mspFloorMPs.insert(pMP);
-			//	mpFrameWindow->mspFloorMPs.insert(pMP);
-			//}
-			//레이블별 인덱스 설정
-			//사용 안함.
-			/*if (mpTargetFrame->mLabelStatus.at<uchar>(i) == 0) {
-				mpTargetFrame->mLabelStatus.at<uchar>(i) = val;
-				mpTargetFrame->mPlaneDescriptor.push_back(mpTargetFrame->matDescriptor.row(i));
-				mpTargetFrame->mPlaneIdxs.push_back(i);
-			}*/
 			break;
-		case 6:
+		case 100:
 			type = ObjectType::OBJECT_CEILING;
-			////맵포인트에 추가
-			//if (bMP){
-			//	mpTargetFrame->mspCeilMPs.insert(pMP);
-			//	mpFrameWindow->mspCeilMPs.insert(pMP);
-			//}
 			break;
-		case 13:
+		case 20:
 			type = ObjectType::OBJECT_PERSON;
-		default:
+			break;
+		case 50:
 			break;
 		}
 		vObjTypes[i] = type;
-		/*if (bMP) {
-			pMP->SetObjectType(type);
-		}*/
 	}
 	mpTargetFrame->SetObjectVector(vObjTypes);
 	mpTargetFrame->SetBoolSegmented(true);

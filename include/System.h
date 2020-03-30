@@ -145,6 +145,8 @@ namespace UVR_SLAM {
 		FrameWindow* mpFrameWindow;
 		cv::Mat mK, mKforPL, mD;
 		bool mbInitialized;
+		int mnPatchSize;
+		int mnHalfWindowSize;
 		int mnVisScale;
 		std::string ip;
 		int port;

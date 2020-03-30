@@ -63,6 +63,9 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	mnWidth = fs["Image.width"];
 	mnHeight = fs["Image.height"];
 
+	mnPatchSize = fs["Dense.patch"];
+	mnHalfWindowSize = fs["Dense.window"];
+	
 	std::cout << mK << mD << std::endl;
 
 	fs["VocPath"] >> strVOCPath;

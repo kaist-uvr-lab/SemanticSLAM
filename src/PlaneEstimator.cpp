@@ -10,6 +10,7 @@
 #include <Matcher.h>
 #include <Initializer.h>
 #include <MatrixOperator.h>
+#include <direct.h>
 
 static int nPlaneID = 0;
 
@@ -225,7 +226,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			////////////////////////////////////////////////////////////////////////
 			///////////////Conneted Component Labeling & object labeling
 			//image
-			cv::Mat segmented = mpTargetFrame->matSegmented.clone();
+			cv::Mat segmented = mpTargetFrame->matLabeled.clone();
 			std::cout <<"seg::size::"<< segmented.size() << std::endl;
 			std::chrono::high_resolution_clock::time_point saa = std::chrono::high_resolution_clock::now();
 			cv::Mat imgStructure = cv::Mat::zeros(segmented.size(), CV_8UC1);
@@ -248,43 +249,31 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 			//////////////////////////////////////////////////////////////////////////////////
 			////전체 레이블링
+
 			for (int i = 0; i < segmented.rows; i++) {
 				for (int j = 0; j < segmented.cols; j++) {
 					seg_color.at<Vec3b>(i, j) = UVR_SLAM::ObjectColors::mvObjectLabelColors[segmented.at<uchar>(i, j)];
 					int val = segmented.at<uchar>(i, j);
 					switch (val) {
-					case 1://벽
-					case 9://유리창
-					case 11://캐비넷
-					case 15://문
-					case 23: //그림
-					case 36://옷장
-							//case 43://기둥
-					case 44://갚난
-							//case 94://막대기
-					case 101://포스터
+					case 255:
 						imgWall.at<uchar>(i, j) = 255;
 						imgStructure.at<uchar>(i, j) = 255;
 						break;
-					case 4:
-					case 29: //rug
+					case 150:
 						imgFloor.at<uchar>(i, j) = 255;
 						imgStructure.at<uchar>(i, j) = 150;
-						/*if (i < minY) {
-						minY = i;
-						}*/
 						break;
-					case 6:
+					case 100:
 						imgStructure.at<uchar>(i, j) = 100;
 						imgCeil.at<uchar>(i, j) = 255;
-						/*if (i > maxY) {
-						maxY = i;
-						}*/
 						break;
-					default:
+					case 20:
+						break;
+					case 50:
 						imgObject.at<uchar>(i, j) = 255;
 						imgStructure.at<uchar>(i, j) = 50;
 						break;
+
 					}
 				}
 			}
@@ -524,13 +513,18 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 								if (!pTestF) {
 									pTestF = mpTargetFrame;
-									UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(pTestF->mDenseMap, imgStructure, pTestF, mvWallPlanes[minIdx], mvpCurrLines[li]);
+									UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(pTestF->mDenseMap, imgStructure, pTestF, mvWallPlanes[minIdx], mvpCurrLines[li], mpSystem->mnPatchSize);
+									std::string base = mpSystem->GetDirPath(0);
+									std::stringstream ss;
+									ss << base << "/dense";
+									_mkdir(ss.str().c_str());
 								}
 								else {
 									cv::Mat debugging;
-									mpMatcher->DenseMatchingWithEpiPolarGeometry(pTestF->mDenseMap, pTestF, mpTargetFrame, debugging);
+									mpMatcher->DenseMatchingWithEpiPolarGeometry(pTestF->mDenseMap, pTestF, mpTargetFrame, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
+									std::string base = mpSystem->GetDirPath(0);
 									std::stringstream ss;
-									ss << mStrPath << "/dense_" << pTestF->GetKeyFrameID() << "_" << mpTargetFrame->GetKeyFrameID() << ".jpg";
+									ss << base << "/dense/dense_"<<pTestF->GetKeyFrameID() << "_" << mpTargetFrame->GetKeyFrameID() << ".jpg";
 									imwrite(ss.str(), debugging);
 								}//if
 
@@ -1956,7 +1950,7 @@ void UVR_SLAM::PlaneInformation::CreatePlanarMapPoints(Frame* pF, System* pSyste
 	mpTargetFrame->SetDepthRange(minDepth, maxDepth);*/
 }
 
-void UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(cv::Mat& dense_map, cv::Mat label_map, Frame* pF, WallPlane* pWall, Line* pLine) {
+void UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(cv::Mat& dense_map, cv::Mat label_map, Frame* pF, WallPlane* pWall, Line* pLine, int nPatchSize) {
 	
 	dense_map = cv::Mat::zeros(pF->mnMaxX, pF->mnMaxY, CV_32FC3);
 	cv::resize(label_map, label_map, pF->GetOriginalImage().size());
@@ -1972,12 +1966,11 @@ void UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(cv::Mat& dense_map, c
 	float dist;
 	pFloor->GetParam(normal, dist);
 
-	int wsize = 20;
-	int inc = wsize / 2;
+	int inc = nPatchSize / 2;
 	int mX = pF->mnMaxX - inc;
 	int mY = pF->mnMaxY - inc;
-	for (int x = inc; x < mX; x += wsize) {
-		for (int y = inc; y < mY; y+= wsize) {
+	for (int x = inc; x < mX; x += nPatchSize) {
+		for (int y = inc; y < mY; y+= nPatchSize) {
 			cv::Point2f pt(x, y);
 			int label = label_map.at<uchar>(y,x);
 			if (label == 255) {
