@@ -107,8 +107,17 @@ namespace UVR_SLAM {
 		std::vector<int> mvTrackedIdxs, mvNotTrackedIdxs;
 	public:
 		//일단 dense map test;
-		cv::Mat mDenseMap;
+		std::mutex mMutexDenseMap;
+		cv::Mat mDenseMap, mDenseIndexMap;
+		int mnDenseIdx;
+		std::vector<cv::Mat> mvX3Ds;
 		std::vector<UVR_SLAM::MapPoint*> mvpDenseMPs;
+		std::map<int, UVR_SLAM::MapPoint*> mmpDenseMPs;
+		
+		std::vector<UVR_SLAM::MapPoint*> GetDenseVectors();
+		void AddDenseMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt);
+		void RemoveDenseMP(cv::Point2f pt);
+		//일단 dense map test;
 
 		std::vector<UVR_SLAM::MapPoint*> mvpMPs;
 		std::vector<bool> mvbMPInliers;

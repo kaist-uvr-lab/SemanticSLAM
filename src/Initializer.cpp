@@ -7,6 +7,7 @@
 #include <SemanticSegmentator.h>
 #include <PlaneEstimator.h>
 #include <Plane.h>
+#include <direct.h>
 
 //추후 파라메터화. 귀찮아.
 int N_matching_init_therah = 120; //80
@@ -191,7 +192,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 					mpInitFrame2->mvTrackedIdxs.push_back(idx2);
 
 					//local map에 축
-					mpSystem->mlpNewMPs.push_back(pNewMP);
+					//mpSystem->mlpNewMPs.push_back(pNewMP);
 
 					nMatch++;
 					idxs.push_back(i);
@@ -349,24 +350,60 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			std::vector<cv::DMatch> vMatches;
 			std::vector<cv::Mat> vPlanarMaps;
 			std::vector<bool> vbInliers;
+			std::vector<std::pair<int, cv::Point2f>> vPairs;
 			vPlanarMaps = std::vector<cv::Mat>(mpInitFrame2->mvKeyPoints.size(), cv::Mat::zeros(0, 0, CV_8UC1));
 			UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mpInitFrame2, pFloor, vPlanarMaps);
-			mpMatcher->MatchingWithEpiPolarGeometry(mpInitFrame1, mpInitFrame2, pFloor, vPlanarMaps, vbInliers, vMatches, debugImg);
-			
+			mpMatcher->MatchingWithEpiPolarGeometry(mpInitFrame1, mpInitFrame2, vPlanarMaps, vbInliers, vMatches, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugImg);
+			//mpMatcher->DenseMatchingWithEpiPolarGeometry(mpInitFrame1, mpInitFrame2, vPlanarMaps, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugImg);
+
 			std::stringstream ss;
 			ss << mpSystem->GetDirPath(0) << "/init.jpg";
 			imwrite(ss.str(), debugImg);
+
+			for (int i = 0; i < vPairs.size(); i++) {
+				//기존 평면인지 확인이 어려움.
+				
+				auto idx = vPairs[i].first;
+				auto pt = vPairs[i].second;
+				if (mpInitFrame2->mvpMPs[idx]) {
+					mpInitFrame2->mvpMPs[idx]->Delete();
+				}
+				UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[idx],mpInitFrame2->matDescriptor.row(idx), UVR_SLAM::PLANE_DENSE_MP);
+				pNewMP->SetPlaneID(pFloor->mnPlaneID);
+				pNewMP->SetObjectType(pFloor->mnPlaneType);
+				pNewMP->AddDenseFrame(mpInitFrame1, pt);
+				pNewMP->AddDenseFrame(mpInitFrame2, mpInitFrame2->mvKeyPoints[idx].pt);
+				//pNewMP->AddFrame(mpInitFrame2, idx);
+				pNewMP->UpdateNormalAndDepth();
+				pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
+				mpSystem->mlpNewMPs.push_back(pNewMP);
+				pFloor->tmpMPs.push_back(pNewMP);
+			}
 
 			for (int i = 0; i < vMatches.size(); i++) {
 				if (vbInliers[i]) {
 					int idx1 = vMatches[i].trainIdx;
 					int idx2 = vMatches[i].queryIdx;
-					UVR_SLAM::MapPoint* pNewMP;
-					if (mpInitFrame2->mvpMPs[idx2]) {
+					UVR_SLAM::MapPoint* pNewMP = mpInitFrame2->mvpMPs[idx2];
+					if (pNewMP && pNewMP->isDeleted()) {
+						continue;
+					}
+					if (mpInitFrame2->mvpMPs[idx2] && mpInitFrame1->mvpMPs[idx1]) {
+						std::cout << "init::case::1" << std::endl;
+						pNewMP = mpInitFrame2->mvpMPs[idx2];
+						pNewMP->SetWorldPos(vPlanarMaps[idx2]);
+					}else if (mpInitFrame2->mvpMPs[idx2]) {
+						std::cout << "init::case::2" << std::endl;
 						pNewMP = mpInitFrame2->mvpMPs[idx2];
 						pNewMP->SetWorldPos(vPlanarMaps[idx2]);
 					}
+					else if (mpInitFrame1->mvpMPs[idx1]) {
+						std::cout << "init::case::3" << std::endl;
+						pNewMP = mpInitFrame1->mvpMPs[idx1];
+						pNewMP->SetWorldPos(vPlanarMaps[idx2]);
+					}
 					else {
+						std::cout << "init::case::4" << std::endl;
 						pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[idx2], mpInitFrame2->matDescriptor.row(idx2), UVR_SLAM::PLANE_MP);
 						pNewMP->SetPlaneID(pFloor->mnPlaneID);
 						pNewMP->SetObjectType(pFloor->mnPlaneType);
@@ -380,7 +417,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 					//mpFrameWindow->AddMapPoint(pNewMP, nTargetID);
 				}
 				else {
-					if (vPlanarMaps[i].rows == 0)
+					/*if (vPlanarMaps[i].rows == 0)
 						continue;
 					UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[i], mpInitFrame2->matDescriptor.row(i), UVR_SLAM::PLANE_MP);
 					pNewMP->SetPlaneID(pFloor->mnPlaneID);
@@ -389,7 +426,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 					pNewMP->UpdateNormalAndDepth();
 					pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
 					mpSystem->mlpNewMPs.push_back(pNewMP);
-					pFloor->tmpMPs.push_back(pNewMP);
+					pFloor->tmpMPs.push_back(pNewMP);*/
 				}
 
 				
@@ -447,6 +484,19 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 			mpMap->SetCurrFrame(mpInitFrame2);
 			mbInit = true;
+
+			if (mbInit) {
+				std::string base = mpSystem->GetDirPath(0);
+				std::stringstream ss;
+				ss << base << "/dense";
+				_mkdir(ss.str().c_str());
+				ss.str("");
+				ss << base << "/kfmatching";
+				_mkdir(ss.str().c_str());
+				ss.str("");
+				ss << base << "/tracking";
+				_mkdir(ss.str().c_str());
+			}
 
 			std::cout << "세그멘테이션 끝::" << count <<"::"<<pFloor->GetParam().t()<< std::endl;
 			std::cout << "Initializer::" << nMatch <<"::"<<mpFrameWindow->GetLastFrameID()<< std::endl;

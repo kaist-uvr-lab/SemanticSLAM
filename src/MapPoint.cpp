@@ -6,15 +6,15 @@
 static int nMapPointID = 0;
 
 UVR_SLAM::MapPoint::MapPoint()
-	:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
+	:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
 	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1)
 {}
 UVR_SLAM::MapPoint::MapPoint(UVR_SLAM::Frame* pRefKF,cv::Mat _p3D, cv::Mat _desc)
-:mpRefKF(pRefKF),p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
+:mpRefKF(pRefKF),p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
 , mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1)
 {}
 UVR_SLAM::MapPoint::MapPoint(UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype)
-: mpRefKF(pRefKF), p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
+: mpRefKF(pRefKF), p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
 , mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1)
 {}
 UVR_SLAM::MapPoint::~MapPoint(){}
@@ -312,4 +312,30 @@ int UVR_SLAM::MapPoint::GetIndexInFrame(Frame *pKF)
 		return mmpFrames[pKF];
 	else
 		return -1;
+}
+
+////////////////////////////////////////////
+////Dense
+void UVR_SLAM::MapPoint::AddDenseFrame(UVR_SLAM::Frame* pF, cv::Point2f pt) {
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
+	auto res = mmpDenseFrames.find(pF);
+	if (res == mmpDenseFrames.end()) {
+		mmpDenseFrames.insert(std::pair<UVR_SLAM::Frame*, cv::Point2f>(pF, pt));
+		mnDenseFrames++;
+		pF->AddDenseMP(this, pt);
+	}
+}
+void UVR_SLAM::MapPoint::RemoveDenseFrame(UVR_SLAM::Frame* pKF) {
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
+	auto res = mmpDenseFrames.find(pKF);
+	if (res != mmpDenseFrames.end()) {
+		auto pt = res->second;
+		res = mmpDenseFrames.erase(res);
+		mnDenseFrames--;
+		pKF->RemoveDenseMP(pt);
+	}
+}
+std::map<UVR_SLAM::Frame*, cv::Point2f> UVR_SLAM::MapPoint::GetConnedtedDenseFrames() {
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
+	return std::map<UVR_SLAM::Frame*, cv::Point2f>(mmpDenseFrames.begin(), mmpDenseFrames.end());
 }

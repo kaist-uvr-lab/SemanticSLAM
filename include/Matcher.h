@@ -56,9 +56,10 @@ namespace UVR_SLAM {
 
 		//얘네들은 확인이 필요함.
 		int FeatureMatchingWithSemanticFrames(Frame* pSemantic, Frame* pFrame);
-		
-		int DenseMatchingWithEpiPolarGeometry(cv::Mat mDenseMap, Frame* f1, Frame* f2, int nPatchSize, int nHalfWindowSize, cv::Mat& debugging);
-		int MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps, std::vector<bool>& vbInliers, std::vector<cv::DMatch>& vMatches, cv::Mat& debugging);
+		int DenseMatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, std::vector<cv::Mat>& vPlanarMaps, std::vector<std::pair<int, cv::Point2f>>& mathes, int nPatchSize, int nHalfWindowSize, cv::Mat& debugging);
+		int DenseMatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, std::vector<UVR_SLAM::MapPoint*>& vPlanarMaps, std::vector<std::pair<int, cv::Point2f>>& mathes, int nPatchSize, int nHalfWindowSize, cv::Mat& debugging);
+		int DenseMatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, int nPatchSize, int nHalfWindowSize, cv::Mat& debugging);
+		int MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, std::vector<cv::Mat>& vPlanarMaps, std::vector<bool>& vbInliers, std::vector<cv::DMatch>& vMatches, std::vector<std::pair<int, cv::Point2f>>& mathes, int nPatchSize, int nHalfWindowSize, cv::Mat& debugging);
 		int MatchingWithEpiPolarGeometry(Frame* pKF, Frame* pF, std::vector<cv::DMatch>& vMatches);
 	public:
 		//Epipolar geometry to create new map points

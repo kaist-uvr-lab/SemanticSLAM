@@ -176,11 +176,32 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::cout << "tracker::initmatching::" << nInitMatching << std::endl;
 		mnMatching = Optimization::PoseOptimization(pCurr);
 		std::cout << "tracker::Pose::" << mnMatching << std::endl;
+		///////////////dense test
+		mpRefKF = mpMap->GetCurrFrame();
+		auto mvpDenseMPs =  mpRefKF->GetDenseVectors();
+		cv::Mat debugging;
+		std::vector<std::pair<int, cv::Point2f>> vPairs;
+		int mnDenseMatching = mpMatcher->DenseMatchingWithEpiPolarGeometry(pCurr, mpRefKF, mvpDenseMPs, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
+		std::stringstream ss;
+		ss << mpSystem->GetDirPath(0) << "/tracking/" << mpRefKF->GetKeyFrameID() << "_" << pCurr->GetKeyFrameID() << ".jpg";
+		imwrite(ss.str(), debugging);
+		std::cout << "tracker::dense matching::" << std::endl;
+		///////////////dense test
 		mnMatching = mpMatcher->MatchingWithLocalMap(pCurr, mvpLocalMPs, mLocalMapDesc, 5.0);
 		std::cout << "tracker::localmap::matching::" << mnMatching << std::endl;
-		//mpRefKF = mpMap->GetCurrFrame();
+		
 		//std::vector<cv::DMatch> tempMatches;
 		//mpMatcher->MatchingWithEpiPolarGeometry(mpRefKF, pCurr, tempMatches);
+
+		//////////////
+		/*cv::Mat debugging;
+		mpMatcher->DenseMatchingWithEpiPolarGeometry(mpRefKF, pCurr,mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
+		std::string base = mpSystem->GetDirPath(0);
+		std::stringstream ssss;
+		ssss << base << "/dense/dense_" << mpRefKF->GetKeyFrameID() << "_" << pCurr->GetFrameID() << ".jpg";
+		imwrite(ssss.str(), debugging);*/
+		/////dense
+
 		mnMatching = Optimization::PoseOptimization(pCurr);
 		pCurr->SetInliers(mnMatching);
 		mpFrameWindow->SetPose(pCurr->GetRotation(), pCurr->GetTranslation());

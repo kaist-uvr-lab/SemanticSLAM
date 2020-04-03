@@ -54,6 +54,7 @@ namespace UVR_SLAM {
 		int GetMapPointID();
 		std::map<Frame*, int> GetConnedtedFrames();
 		int GetNumConnectedFrames();
+		
 
 		void SetDelete(bool b);
 		bool isDeleted();
@@ -61,6 +62,13 @@ namespace UVR_SLAM {
 		float GetMaxDistance();
 		float GetMinDistance();
 		cv::Mat GetNormal();
+
+		////////Dense
+		void AddDenseFrame(UVR_SLAM::Frame* pF, cv::Point2f pt); //index in frame
+		void RemoveDenseFrame(UVR_SLAM::Frame* pKF);
+		std::map<Frame*, cv::Point2f> GetConnedtedDenseFrames();
+		int GetNumDensedFrames();
+		////////Dense
 
 	public:
 		int mnMapPointID;
@@ -79,11 +87,11 @@ namespace UVR_SLAM {
 		bool mbSeen;
 		bool mbNewMP;
 		cv::Mat p3D;
-		int mnConnectedFrames;
+		int mnConnectedFrames, mnDenseFrames;
 		
 		cv::Mat desc;
 		std::map<UVR_SLAM::Frame*, int> mmpFrames;
-
+		std::map<UVR_SLAM::Frame*, cv::Point2f> mmpDenseFrames;
 		std::mutex mMutexFeatures;
 		int mnVisible;
 		int mnFound;

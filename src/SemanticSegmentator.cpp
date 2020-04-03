@@ -64,6 +64,7 @@ void UVR_SLAM::SemanticSegmentator::ProcessNewKeyFrame()
 	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
 	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 	mpSystem->SetDirPath(mpTargetFrame->GetKeyFrameID());
+	
 	mpTargetFrame->SetBowVec(mpSystem->fvoc);
 	if (mpMap->isFloorPlaneInitialized()) {
 		mpTargetFrame->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpTargetFrame, mpMap->mpFloorPlane);
@@ -117,7 +118,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			ImageLabeling(segmented, mpTargetFrame->matLabeled);
 			ObjectLabeling(mpTargetFrame->matLabeled, nRatio);
 			
-			mpMap->SetCurrFrame(mpTargetFrame);
+			//mpMap->SetCurrFrame(mpTargetFrame);
 			mpTargetFrame->matSegmented = segmented.clone();
 			////////////////////////////////////////////////////////
 			///////////세그멘테이션이 끝난 것을 알림.

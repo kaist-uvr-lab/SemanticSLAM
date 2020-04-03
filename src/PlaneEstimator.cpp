@@ -10,7 +10,6 @@
 #include <Matcher.h>
 #include <Initializer.h>
 #include <MatrixOperator.h>
-#include <direct.h>
 
 static int nPlaneID = 0;
 
@@ -280,6 +279,11 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			////
 			//////////////////////////////////////////////////////////////////////////////////
 			
+			////////////////////////////////
+			//Dense Map 관련 설정
+			mpTargetFrame->mDenseMap = cv::Mat::zeros(mpTargetFrame->GetOriginalImage().size(), CV_32FC3);
+			cv::resize(imgStructure, imgStructure, mpTargetFrame->mDenseMap.size());
+
 			////기존의 칼라이미지와 세그멘테이션 결과를 합치는 부분
 			////여기는 시각화로 보낼 수 있으면 보내는게 좋을 듯.
 			/*cv::resize(seg_color, seg_color, colorimg.size());
@@ -354,6 +358,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			if (bInitFloorPlane) {
 				//바닥 평면 맵 생성
 				UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mpTargetFrame, pFloor, vPlanarMaps);
+				//바닥 덴스 평면 생성
+				//UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(mpTargetFrame->mDenseMap, imgStructure, mpTargetFrame, mpSystem->mnPatchSize);
+				UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(mpTargetFrame->mvX3Ds, imgStructure, mpTargetFrame, mpSystem->mnPatchSize);
 
 				bool bInitWallPlane = mpMap->isWallPlaneInitialized();
 				auto mvFrames = mpTargetFrame->GetConnectedKFs(10);
@@ -511,22 +518,24 @@ void UVR_SLAM::PlaneEstimator::Run() {
 								UVR_SLAM::PlaneInformation::CalcFlukerLinePoints(sPt, ePt, 0.0, mnHeight, mLine);
 								cv::line(vImg, sPt, ePt, ObjectColors::mvObjectLabelColors[mvWallPlanes[minIdx]->mnPlaneID + 10], 1);
 
-								if (!pTestF) {
-									pTestF = mpTargetFrame;
-									UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(pTestF->mDenseMap, imgStructure, pTestF, mvWallPlanes[minIdx], mvpCurrLines[li], mpSystem->mnPatchSize);
-									std::string base = mpSystem->GetDirPath(0);
-									std::stringstream ss;
-									ss << base << "/dense";
-									_mkdir(ss.str().c_str());
-								}
-								else {
-									cv::Mat debugging;
-									mpMatcher->DenseMatchingWithEpiPolarGeometry(pTestF->mDenseMap, pTestF, mpTargetFrame, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
-									std::string base = mpSystem->GetDirPath(0);
-									std::stringstream ss;
-									ss << base << "/dense/dense_"<<pTestF->GetKeyFrameID() << "_" << mpTargetFrame->GetKeyFrameID() << ".jpg";
-									imwrite(ss.str(), debugging);
-								}//if
+								UVR_SLAM::PlaneInformation::CreateDenseWallPlanarMapPoint(mpTargetFrame->mvX3Ds, imgStructure, mpTargetFrame, mvWallPlanes[minIdx], mvpCurrLines[li], mpSystem->mnPatchSize);
+
+								//if (!pTestF) {
+								//	pTestF = mpTargetFrame;
+								//	UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(pTestF->mDenseMap, imgStructure, pTestF, mvWallPlanes[minIdx], mvpCurrLines[li], mpSystem->mnPatchSize);
+								//	std::string base = mpSystem->GetDirPath(0);
+								//	std::stringstream ss;
+								//	ss << base << "/dense";
+								//	_mkdir(ss.str().c_str());
+								//}
+								//else {
+								//	cv::Mat debugging;
+								//	mpMatcher->DenseMatchingWithEpiPolarGeometry(pTestF->mDenseMap, pTestF, mpTargetFrame, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
+								//	std::string base = mpSystem->GetDirPath(0);
+								//	std::stringstream ss;
+								//	ss << base << "/dense/dense_"<<pTestF->GetKeyFrameID() << "_" << mpTargetFrame->GetKeyFrameID() << ".jpg";
+								//	imwrite(ss.str(), debugging);
+								//}//if
 
 							}//if connect
 						}
@@ -627,6 +636,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			////////매칭 테스트
 			if (bInitFloorPlane) {
 
+				////////////////////////////////
+				//최종 맵포인트 생성 돤계
+				///////////////////////////////
 				//앞의 프레임이 이전 프레임
 				//뒤의 프렝미이 현재 프레임으로 현재프레임에서 포인트를 생성함.
 
@@ -636,18 +648,47 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				mvpKFs.push_back(mpPrevFrame);
 				mvpKFs.push_back(mpPPrevFrame);
 				for (int ki = 0; ki < mvpKFs.size(); ki++) {
+					///////dense
+					//cv::Mat debugging;
+					////mpMatcher->DenseMatchingWithEpiPolarGeometry(mpTargetFrame, mvpKFs[ki], mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
+					//mpMatcher->DenseMatchingWithEpiPolarGeometry(mvpKFs[ki], mpTargetFrame,mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
+					//std::string base = mpSystem->GetDirPath(0);
+					//std::stringstream ssss;
+					//ssss << base << "/dense/dense_"<< mpTargetFrame->GetKeyFrameID() << "_" << mvpKFs[ki]->GetKeyFrameID() << ".jpg";
+					//imwrite(ssss.str(), debugging);
+					///////dense
+
+
 					std::vector<cv::DMatch> vMatches;
 					std::vector<bool> vbInliers;
 					UVR_SLAM::Frame* pKFi = mvpKFs[ki];
 					std::cout << "pe::matching::0" << std::endl;
-					mpMatcher->MatchingWithEpiPolarGeometry(pKFi, mpTargetFrame, pFloor, vPlanarMaps, vbInliers,vMatches, debugImg);
+					std::vector<std::pair<int, cv::Point2f>> vPairs;
+					mpMatcher->MatchingWithEpiPolarGeometry(pKFi, mpTargetFrame, vPlanarMaps, vbInliers,vMatches, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugImg);
+					//mpMatcher->DenseMatchingWithEpiPolarGeometry(pKFi, mpTargetFrame, vPlanarMaps, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugImg);
 					std::cout << "pe::matching::1" << std::endl;
 					std::stringstream ss;
 					std::cout << "pe::" << mStrPath << std::endl;
 					std::cout << "pe::kf::" << pKFi->GetKeyFrameID() << std::endl;
-					ss << mStrPath << "/" << mpTargetFrame->GetKeyFrameID() << "_" << pKFi->GetKeyFrameID() << ".jpg";
+					ss << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << "_" << pKFi->GetKeyFrameID() << ".jpg";
 					imwrite(ss.str(), debugImg);
 					std::cout << "pe::matching::2" << std::endl;
+
+					for (int i = 0; i < vPairs.size(); i++) {
+						//기존 평면인지 확인이 어려움.
+						auto idx = vPairs[i].first;
+						auto pt = vPairs[i].second;
+						UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, vPlanarMaps[idx], mpTargetFrame->matDescriptor.row(idx), UVR_SLAM::PLANE_DENSE_MP);
+						pNewMP->SetPlaneID(pFloor->mnPlaneID);
+						pNewMP->SetObjectType(pFloor->mnPlaneType);
+						pNewMP->AddDenseFrame(pKFi, pt);
+						pNewMP->AddDenseFrame(mpTargetFrame, mpTargetFrame->mvKeyPoints[idx].pt);
+						pNewMP->UpdateNormalAndDepth();
+						pNewMP->mnFirstKeyFrameID = mpTargetFrame->GetKeyFrameID();
+						mpSystem->mlpNewMPs.push_back(pNewMP);
+						pFloor->tmpMPs.push_back(pNewMP); //이것도 바닥과 벽을 나눌 필요가 있음.
+					}
+
 					for (int i = 0; i < vbInliers.size(); i++) {
 						if (vbInliers[i]) {
 							int idx1 = vMatches[i].trainIdx;
@@ -692,19 +733,23 @@ void UVR_SLAM::PlaneEstimator::Run() {
 						else {
 							if (vPlanarMaps[i].rows == 0)
 								continue;
-							UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, vPlanarMaps[i], mpTargetFrame->matDescriptor.row(i), UVR_SLAM::PLANE_MP);
+							/*UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, vPlanarMaps[i], mpTargetFrame->matDescriptor.row(i), UVR_SLAM::PLANE_MP);
 							pNewMP->SetPlaneID(pFloor->mnPlaneID);
 							pNewMP->SetObjectType(pFloor->mnPlaneType);
 							pNewMP->AddFrame(mpTargetFrame, i);
 							pNewMP->UpdateNormalAndDepth();
 							pNewMP->mnFirstKeyFrameID = mpTargetFrame->GetKeyFrameID();
 							mpSystem->mlpNewMPs.push_back(pNewMP);
-							pFloor->tmpMPs.push_back(pNewMP);
+							pFloor->tmpMPs.push_back(pNewMP);*/
 						}
 						
 					}
 					std::cout << "pe::matching::3" << std::endl;
 				}
+				mpMap->SetCurrFrame(mpTargetFrame);
+				//////////////////////////////////////////////////////////////////////////////////
+
+
 				//std::vector<cv::DMatch> vMatches;
 				//////매칭 결과만 획득. 여기에서는 두 프레임 사이의 매칭 결과만 저장. 맵포인트 존재 유무 판단x
 				//mpMatcher->MatchingWithEpiPolarGeometry(mpPrevFrame, mpTargetFrame, pFloor, vPlanarMaps, vMatches, debugImg);
@@ -1025,6 +1070,7 @@ bool UVR_SLAM::PlaneInformation::PlaneInitialization(UVR_SLAM::PlaneInformation*
 	float planeRatio = ((float)max_num_inlier / mMat.rows);
 
 	if (planeRatio > thresh_ratio) {
+		cv::Mat tempMat = cv::Mat::zeros(0, 4, CV_32FC1);
 		cv::Mat pParam = param.clone();
 		pPlane->matPlaneParam = pParam.clone();
 		pPlane->mnPlaneID = ++nPlaneID;
@@ -1047,9 +1093,24 @@ bool UVR_SLAM::PlaneInformation::PlaneInitialization(UVR_SLAM::PlaneInformation*
 				pMP->SetRecentLayoutFrameID(nTargetID);
 				pMP->SetPlaneID(pPlane->mnPlaneID);
 				pPlane->mvpMPs.push_back(pMP);
+				tempMat.push_back(mMat.row(i));
 			}
 		}
 		//평면 정보 생성.
+
+
+		cv::Mat X;
+		cv::Mat w, u, vt;
+		cv::SVD::compute(tempMat, w, u, vt, cv::SVD::FULL_UV);
+		X = vt.row(3).clone();
+		cv::transpose(X, X);
+		UVR_SLAM::PlaneInformation::calcUnitNormalVector(X);
+		if (X.at<float>(1) > 0.0)
+			X *= -1.0;
+
+		//std::cout << "Update::" << pPlane->matPlaneParam.t() << ", " << X.t() <<", "<<pPlane->mvpMPs.size()<<", "<<nReject<< std::endl;
+		pPlane->SetParam(X.rowRange(0, 3), X.at<float>(3));
+
 		return true;
 	}
 	else
@@ -1161,6 +1222,7 @@ void UVR_SLAM::PlaneEstimator::UpdatePlane(PlaneInformation* pPlane, int nTarget
 
 		//std::cout << "Update::" << pPlane->matPlaneParam.t() << ", " << X.t() <<", "<<pPlane->mvpMPs.size()<<", "<<nReject<< std::endl;
 		pPlane->SetParam(X.rowRange(0, 3), X.at<float>(3));
+
 		return;
 	}
 	else
@@ -1949,11 +2011,97 @@ void UVR_SLAM::PlaneInformation::CreatePlanarMapPoints(Frame* pF, System* pSyste
 
 	mpTargetFrame->SetDepthRange(minDepth, maxDepth);*/
 }
+void UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(std::vector<cv::Mat>& vX3Ds, cv::Mat label_map, Frame* pF, int nPatchSize) {
+	//dense_map = cv::Mat::zeros(pF->mnMaxX, pF->mnMaxY, CV_32FC3);
+	//cv::resize(label_map, label_map, pF->GetOriginalImage().size());
+	int nTargetID = pF->GetFrameID();
+	cv::Mat invT, invPfloor, invK;
+	pF->mpPlaneInformation->Calculate();
+	pF->mpPlaneInformation->GetInformation(invPfloor, invT, invK);
 
+	auto pFloor = pF->mpPlaneInformation->GetFloorPlane();
+	cv::Mat matFloorParam = pFloor->GetParam();
+	cv::Mat normal;
+	float dist;
+	pFloor->GetParam(normal, dist);
+
+	int inc = nPatchSize / 2;
+	int mX = pF->mnMaxX - inc;
+	int mY = pF->mnMaxY - inc;
+	for (int x = inc; x < mX; x += nPatchSize) {
+		for (int y = inc; y < mY; y += nPatchSize) {
+			cv::Point2f pt(x, y);
+			int label = label_map.at<uchar>(y, x);
+			if (label == 150) {
+				cv::Mat X3D;
+				bool bRes = PlaneInformation::CreatePlanarMapPoint(pt, invPfloor, invT, invK, X3D);
+				if (bRes)
+				{
+					vX3Ds.push_back(X3D);
+					//dense_map.at<Vec3f>(y, x) = cv::Vec3f(X3D.at<float>(0), X3D.at<float>(1), X3D.at<float>(2));
+				}
+			}
+		}
+	}
+}
+void UVR_SLAM::PlaneInformation::CreateDenseWallPlanarMapPoint(std::vector<cv::Mat>& vX3Ds, cv::Mat label_map, Frame* pF, WallPlane* pWall, Line* pLine, int nPatchSize) {
+
+	//dense_map = cv::Mat::zeros(pF->mnMaxX, pF->mnMaxY, CV_32FC3);
+	//cv::resize(label_map, label_map, pF->GetOriginalImage().size());
+	int nTargetID = pF->GetFrameID();
+	cv::Mat invT, invPfloor, invK;
+	pF->mpPlaneInformation->Calculate();
+	pF->mpPlaneInformation->GetInformation(invPfloor, invT, invK);
+	cv::Mat invPwawll = invT.t()*pWall->GetParam();
+
+	auto pFloor = pF->mpPlaneInformation->GetFloorPlane();
+	cv::Mat matFloorParam = pFloor->GetParam();
+	cv::Mat normal;
+	float dist;
+	pFloor->GetParam(normal, dist);
+
+	int inc = nPatchSize / 2;
+	int mX = pF->mnMaxX - inc;
+	int mY = pF->mnMaxY - inc;
+
+	int sX = (pLine->to.x / nPatchSize)*nPatchSize+nPatchSize;
+	int eX = (pLine->from.x / nPatchSize)*nPatchSize;
+
+	for (int x = sX; x <= eX; x += nPatchSize) {
+		for (int y = inc; y < mY; y += nPatchSize) {
+			cv::Point2f pt(x, y);
+			int label = label_map.at<uchar>(y, x);
+			if (label == 255) {
+				/*if (x < pLine->to.x || x > pLine->from.x)
+					continue;*/
+				cv::Mat temp = (cv::Mat_<float>(3, 1) << x, y, 1);
+				temp = invK*temp;
+				cv::Mat matDepth = -invPwawll.at<float>(3) / (invPwawll.rowRange(0, 3).t()*temp);
+				float depth = matDepth.at<float>(0);
+				if (depth < 0.0) {
+					//depth *= -1.0;
+					continue;
+				}
+				temp *= depth;
+				temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
+
+				cv::Mat estimated = invT*temp;
+				estimated = estimated.rowRange(0, 3);
+				//check on floor
+				float val = estimated.dot(normal) + dist;
+
+				if (val < 0.0)
+					continue;
+				vX3Ds.push_back(estimated);
+				//dense_map.at<Vec3f>(y, x) = cv::Vec3f(estimated.at<float>(0), estimated.at<float>(1), estimated.at<float>(2));
+			}
+		}
+	}
+}
 void UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(cv::Mat& dense_map, cv::Mat label_map, Frame* pF, WallPlane* pWall, Line* pLine, int nPatchSize) {
 	
-	dense_map = cv::Mat::zeros(pF->mnMaxX, pF->mnMaxY, CV_32FC3);
-	cv::resize(label_map, label_map, pF->GetOriginalImage().size());
+	//dense_map = cv::Mat::zeros(pF->mnMaxX, pF->mnMaxY, CV_32FC3);
+	//cv::resize(label_map, label_map, pF->GetOriginalImage().size());
 	int nTargetID = pF->GetFrameID();
 	cv::Mat invT, invPfloor, invK;
 	pF->mpPlaneInformation->Calculate();
@@ -1996,14 +2144,6 @@ void UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(cv::Mat& dense_map, c
 					continue;
 
 				dense_map.at<Vec3f>(y, x) = cv::Vec3f(estimated.at<float>(0), estimated.at<float>(1), estimated.at<float>(2));
-			}
-			else if (label == 150) {
-				cv::Mat X3D;
-				bool bRes = PlaneInformation::CreatePlanarMapPoint(pt, invPfloor, invT, invK, X3D);
-				if (bRes)
-				{
-					dense_map.at<Vec3f>(y, x) = cv::Vec3f(X3D.at<float>(0), X3D.at<float>(1), X3D.at<float>(2));
-				}
 			}
 		}
 	}

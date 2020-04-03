@@ -85,9 +85,12 @@ namespace UVR_SLAM {
 
 		static cv::Mat CalcPlaneRotationMatrix(cv::Mat P);
 		////¹Ù´Ú¸¸ ÀÖÀ» ¶§ µ§½º¸Ê »ý¼º
-		static void CreateDensePlanarMapPoint(cv::Mat& dense_map, cv::Mat label_map, Frame* pTargetF, Line* pLine, int nWindowSize);
+		static void CreateDensePlanarMapPoint(std::vector<cv::Mat>& vX3Ds, cv::Mat label_map, Frame* pTargetF, int nPatchSize);
+		////º® Á¤º¸·Î¸¸ µ§½º¸Ê »ý¼º
+		static void CreateDenseWallPlanarMapPoint(std::vector<cv::Mat>& vX3Ds, cv::Mat label_map, Frame* pF, WallPlane* pWall, Line* pLine, int nPatchSize);
 		////¹Ù´Ú°ú º®ÀÌ ÀÖÀ» ¶§ µ§½º¸Ê »ý¼º
-		static void CreateDensePlanarMapPoint(cv::Mat& dense_map,cv::Mat label_map, Frame* pTargetF, WallPlane* pWall, Line* pLine, int nWindowSize);
+		static void CreateDensePlanarMapPoint(cv::Mat& dense_map,cv::Mat label_map, Frame* pTargetF, WallPlane* pWall, Line* pLine, int nPatchSize);
+		
 		static void CreatePlanarMapPoint(Frame* pTargetF, PlaneInformation* pFloor, std::vector<cv::Mat>& vPlanarMaps);
 		static bool CreatePlanarMapPoint(cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK, cv::Mat& X3D);
 		static bool CreatePlanarMapPoint(cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK, cv::Mat fNormal, float fDist,cv::Mat& X3D);

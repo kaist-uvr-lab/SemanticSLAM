@@ -15,34 +15,41 @@ float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeig
 
 static int nFrameID = 0;
 
+
 UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), 
-mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false){
+mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mnDenseIdx(1){
 	matOri = _src.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
 	matFrame.convertTo(matFrame, CV_8UC1);
+	mDenseMap = cv::Mat::zeros(matFrame.size(), CV_32FC3);
+	mDenseIndexMap = cv::Mat::zeros(matFrame.size(), CV_16UC1);
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
 	SetFrameID();
 }
 UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0)
-, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false)
+, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mnDenseIdx(1)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
 	matFrame.convertTo(matFrame, CV_8UC1);
+	mDenseMap = cv::Mat::zeros(matFrame.size(), CV_32FC3);
+	mDenseIndexMap = cv::Mat::zeros(matFrame.size(), CV_16UC1);
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
 	SetFrameID();
 }
 
 UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0)
-, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false)
+, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mnDenseIdx(1)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
 	matFrame.convertTo(matFrame, CV_8UC1);
+	mDenseMap = cv::Mat::zeros(matFrame.size(), CV_32FC3);
+	mDenseIndexMap = cv::Mat::zeros(matFrame.size(), CV_16UC1);
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
 	SetFrameID();
@@ -794,3 +801,35 @@ float UVR_SLAM::Frame::CalcDiffZ(UVR_SLAM::Frame* pF) {
 	return val;
 }
 
+/////////////////////dense
+void UVR_SLAM::Frame::AddDenseMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt){
+	std::unique_lock<std::mutex>(mMutexDenseMap);
+	int idx = mDenseIndexMap.at<ushort>(pt);
+	if (idx == 0) {
+		mDenseIndexMap.at<ushort>(pt) = mnDenseIdx;
+		mmpDenseMPs[mnDenseIdx++] = pMP;
+	}
+}
+void UVR_SLAM::Frame::RemoveDenseMP(cv::Point2f pt){
+	std::unique_lock<std::mutex>(mMutexDenseMap);
+	int idx = mDenseIndexMap.at<ushort>(pt);
+	if (idx > 0) {
+		auto res = mmpDenseMPs.find(idx);
+		if (res != mmpDenseMPs.end())
+			mmpDenseMPs.erase(res);
+		mDenseIndexMap.at<ushort>(pt) = 0;
+	}
+	
+}
+std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Frame::GetDenseVectors(){
+	std::unique_lock<std::mutex>(mMutexDenseMap);
+
+	std::vector<UVR_SLAM::MapPoint*> tempMPs;
+	for (auto iter = mmpDenseMPs.begin(); iter != mmpDenseMPs.end(); iter++) {
+		UVR_SLAM::MapPoint* pMPi = iter->second;
+		tempMPs.push_back(pMPi);
+	}
+	std::cout <<"dense map::"<< tempMPs.size() << std::endl;
+	return std::vector<UVR_SLAM::MapPoint*>(tempMPs.begin(), tempMPs.end());
+}
+/////////////////////dense
