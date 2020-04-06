@@ -110,7 +110,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			UpdateKFs();
 			////이전 프레임에서 생성된 맵포인트 중 삭제
 			//프레임 윈도우 내의 로컬 맵 포인트 중 new인 애들만 수행
-			NewMapPointMaginalization();
+			NewMapPointMarginalization();
 			UpdateMPs();
 
 			////unlock
@@ -400,7 +400,7 @@ void UVR_SLAM::LocalMapper::SetFrameWindow(UVR_SLAM::FrameWindow* pFrameWindow) 
 //맵포인트가 삭제 되면 현재 프레임에서도 해당 맵포인트를 삭제 해야 하며, 
 //이게 수행되기 전에는 트래킹이 동작하지 않도록 막아야 함.
 //
-void UVR_SLAM::LocalMapper::NewMapPointMaginalization() {
+void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 	//std::cout << "Maginalization::Start" << std::endl;
 	//mvpDeletedMPs.clear();
 	int nMarginalized = 0;

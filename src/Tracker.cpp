@@ -177,13 +177,16 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mnMatching = Optimization::PoseOptimization(pCurr);
 		std::cout << "tracker::Pose::" << mnMatching << std::endl;
 		///////////////dense test
+		//pPrev로 테스트해보기. 바로바로 다음 프레임에 트래킹 결과 추가하기
 		mpRefKF = mpMap->GetCurrFrame();
 		auto mvpDenseMPs =  mpRefKF->GetDenseVectors();
 		cv::Mat debugging;
 		std::vector<std::pair<int, cv::Point2f>> vPairs;
+		std::vector<bool> vbInliers;
 		int mnDenseMatching = mpMatcher->DenseMatchingWithEpiPolarGeometry(pCurr, mpRefKF, mvpDenseMPs, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
+		vbInliers = std::vector<bool>(vPairs.size(), true);
 		std::stringstream ss;
-		ss << mpSystem->GetDirPath(0) << "/tracking/" << mpRefKF->GetKeyFrameID() << "_" << pCurr->GetKeyFrameID() << ".jpg";
+		ss << mpSystem->GetDirPath(0) << "/tracking/" << mpRefKF->GetKeyFrameID() << "_" << pCurr->GetFrameID() << ".jpg";
 		imwrite(ss.str(), debugging);
 		std::cout << "tracker::dense matching::" << std::endl;
 		///////////////dense test
@@ -202,10 +205,10 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		imwrite(ssss.str(), debugging);*/
 		/////dense
 
-		mnMatching = Optimization::PoseOptimization(pCurr);
+		mnMatching = Optimization::PoseOptimization(pCurr, mvpDenseMPs, vPairs, vbInliers);
 		pCurr->SetInliers(mnMatching);
 		mpFrameWindow->SetPose(pCurr->GetRotation(), pCurr->GetTranslation());
-		CalcMatchingCount(pCurr);
+		CalcMatchingCount(pCurr, mvpDenseMPs, vPairs, vbInliers);
 
 
 		float angle = mpRefKF->CalcDiffZ(pCurr);
@@ -229,6 +232,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		//auto mvpOPs = pCurr->GetObjectVector();
 		cv::Mat R = pCurr->GetRotation();
 		cv::Mat t = pCurr->GetTranslation();
+		
 		for (int i = 0; i < mvpMPs.size(); i++) {
 			UVR_SLAM::MapPoint* pMP = mvpMPs[i];
 			
@@ -275,7 +279,15 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				}*/
 			}
 		}
-		
+		for (int i = 0; i < vPairs.size(); i++) {
+			if (!vbInliers[i])
+				continue;
+			auto idx = vPairs[i].first;
+			auto pt = vPairs[i].second;
+			mvpMPs.push_back(mvpDenseMPs[idx]);
+			cv::circle(vis, pt, 2, cv::Scalar(0, 0, 0), -1);
+		}
+
 		////////////////////////////////////////////////////////////////////////////////
 		////////////////line test
 		///*auto lines = mpRefKF->Getlines();
@@ -346,7 +358,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		//mpSystem->SetTrackerString(ss.str());*/
 		
 		cv::imshow("Output::Tracking", vis);
-		mpVisualizer->SetMPs(pCurr->GetMapPoints());
+		//mpVisualizer->SetMPs(pCurr->GetMapPoints());
+		mpVisualizer->SetMPs(mvpMPs);
 
 		//visualizer thread
 		if (!mpVisualizer->isDoingProcess()) {
@@ -367,6 +380,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 //	}
 //}
 
+//사용X
 void UVR_SLAM::Tracker::CalcVisibleCount(UVR_SLAM::Frame* pF) {
 	for (int i = 0; i < pF->mvKeyPoints.size(); i++) {
 		UVR_SLAM::MapPoint* pMP = pF->mvpMPs[i];
@@ -375,6 +389,7 @@ void UVR_SLAM::Tracker::CalcVisibleCount(UVR_SLAM::Frame* pF) {
 		pMP->IncreaseVisible();
 	}
 }
+
 void UVR_SLAM::Tracker::CalcMatchingCount(UVR_SLAM::Frame* pF) {
 
 	//update tracked status
@@ -425,6 +440,57 @@ void UVR_SLAM::Tracker::CalcMatchingCount(UVR_SLAM::Frame* pF) {
 			pF->mNotTrackedDescriptor.push_back(pF->matDescriptor.row(i));
 			pF->mvNotTrackedIdxs.push_back(i);
 			pF->mvpMPs[i] = nullptr;
+		}
+	}
+}
+
+void UVR_SLAM::Tracker::CalcMatchingCount(UVR_SLAM::Frame* pF, std::vector<UVR_SLAM::MapPoint*> vDenseMPs, std::vector<std::pair<int, cv::Point2f>> vPairs, std::vector<bool> vbInliers) {
+
+	//update tracked status
+	pF->mTrackedDescriptor = cv::Mat::zeros(0, pF->matDescriptor.cols, pF->matDescriptor.type());
+	pF->mNotTrackedDescriptor = cv::Mat::zeros(0, pF->matDescriptor.cols, pF->matDescriptor.type());
+
+	for (int i = 0; i < pF->mvKeyPoints.size(); i++) {
+		bool bMatch = true;
+		//if (!pF->GetBoolInlier(i))
+		//continue;
+		UVR_SLAM::MapPoint* pMP = pF->mvpMPs[i];
+		if (!pMP) {
+			pF->mNotTrackedDescriptor.push_back(pF->matDescriptor.row(i));
+			pF->mvNotTrackedIdxs.push_back(i);
+			continue;
+		}
+		if (pMP->isDeleted()) {
+			pF->mNotTrackedDescriptor.push_back(pF->matDescriptor.row(i));
+			pF->mvNotTrackedIdxs.push_back(i);
+			continue;
+		}
+		pMP->IncreaseVisible();
+		if (pF->mvbMPInliers[i]) {
+			pMP->IncreaseFound();
+			pF->mTrackedDescriptor.push_back(pF->matDescriptor.row(i));
+			pF->mvTrackedIdxs.push_back(i);
+			pMP->SetDescriptor(pF->matDescriptor.row(i));
+		}
+		else {
+			pF->mNotTrackedDescriptor.push_back(pF->matDescriptor.row(i));
+			pF->mvNotTrackedIdxs.push_back(i);
+			pF->mvpMPs[i] = nullptr;
+		}
+	}
+	for (int i = 0; i < vPairs.size(); i++) {
+		if (!vbInliers[i])
+			continue;
+		auto idx = vPairs[i].first;
+		auto pt = vPairs[i].second;
+		UVR_SLAM::MapPoint* pMPi = vDenseMPs[idx];
+		if (!pMPi)
+			continue;
+		if (pMPi->isDeleted())
+			continue;
+		pMPi->IncreaseVisible();
+		if (vbInliers[i]) {
+			pMPi->IncreaseFound();
 		}
 	}
 }

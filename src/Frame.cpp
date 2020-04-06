@@ -802,6 +802,15 @@ float UVR_SLAM::Frame::CalcDiffZ(UVR_SLAM::Frame* pF) {
 }
 
 /////////////////////dense
+UVR_SLAM::MapPoint* UVR_SLAM::Frame::GetDenseMP(cv::Point2f pt) {
+	std::unique_lock<std::mutex>(mMutexDenseMap);
+	int idx = mDenseIndexMap.at<ushort>(pt);
+	if (idx == 0) {
+		return nullptr;
+	}
+	return mmpDenseMPs[idx];
+}
+
 void UVR_SLAM::Frame::AddDenseMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt){
 	std::unique_lock<std::mutex>(mMutexDenseMap);
 	int idx = mDenseIndexMap.at<ushort>(pt);
@@ -809,6 +818,9 @@ void UVR_SLAM::Frame::AddDenseMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt){
 		mDenseIndexMap.at<ushort>(pt) = mnDenseIdx;
 		mmpDenseMPs[mnDenseIdx++] = pMP;
 	}
+	/*else {
+		std::cout << "Frame::AddDenseMP::ม฿บน" << std::endl;
+	}*/
 }
 void UVR_SLAM::Frame::RemoveDenseMP(cv::Point2f pt){
 	std::unique_lock<std::mutex>(mMutexDenseMap);
@@ -829,7 +841,7 @@ std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Frame::GetDenseVectors(){
 		UVR_SLAM::MapPoint* pMPi = iter->second;
 		tempMPs.push_back(pMPi);
 	}
-	std::cout <<"dense map::"<< tempMPs.size() << std::endl;
+	//std::cout <<"dense map::"<< tempMPs.size() << std::endl;
 	return std::vector<UVR_SLAM::MapPoint*>(tempMPs.begin(), tempMPs.end());
 }
 /////////////////////dense

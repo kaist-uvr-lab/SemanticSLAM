@@ -186,6 +186,23 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			cv::Mat pmat;
 			if (bInitFloorPlane) {
 
+				////update dense map
+				auto mvpDenseMPs = mpPrevFrame->GetDenseVectors();
+				cv::Mat debugging;
+				std::vector<std::pair<int, cv::Point2f>> vPairs;
+				std::vector<bool> vbInliers;
+				int mnDenseMatching = mpMatcher->DenseMatchingWithEpiPolarGeometry(mpTargetFrame, mpPrevFrame, mvpDenseMPs, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
+				int nInc = 1;
+				if (vPairs.size() > 1000) {
+					nInc = 20;
+				}
+				for (int i = 0; i < vPairs.size(); i+= nInc) {
+					auto idx = vPairs[i].first;
+					auto pt = vPairs[i].second;
+					mpTargetFrame->AddDenseMP(mvpDenseMPs[idx], pt);
+				}
+				////update dense map
+
 				////이전 플라나 포인트로 생성된 포인트에 대해서 트래킹에 성공한 포인트에 한해서 현재 평면 벡터에 포함시킴.
 				for (int i = 0; i < pFloor->tmpMPs.size(); i++) {
 					UVR_SLAM::MapPoint* pMP = pFloor->tmpMPs[i];
@@ -678,15 +695,39 @@ void UVR_SLAM::PlaneEstimator::Run() {
 						//기존 평면인지 확인이 어려움.
 						auto idx = vPairs[i].first;
 						auto pt = vPairs[i].second;
-						UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, vPlanarMaps[idx], mpTargetFrame->matDescriptor.row(idx), UVR_SLAM::PLANE_DENSE_MP);
-						pNewMP->SetPlaneID(pFloor->mnPlaneID);
-						pNewMP->SetObjectType(pFloor->mnPlaneType);
-						pNewMP->AddDenseFrame(pKFi, pt);
-						pNewMP->AddDenseFrame(mpTargetFrame, mpTargetFrame->mvKeyPoints[idx].pt);
-						pNewMP->UpdateNormalAndDepth();
-						pNewMP->mnFirstKeyFrameID = mpTargetFrame->GetKeyFrameID();
-						mpSystem->mlpNewMPs.push_back(pNewMP);
-						pFloor->tmpMPs.push_back(pNewMP); //이것도 바닥과 벽을 나눌 필요가 있음.
+
+						UVR_SLAM::MapPoint* pMP1 = pKFi->GetDenseMP(pt);
+						UVR_SLAM::MapPoint* pMP2 = mpTargetFrame->GetDenseMP(mpTargetFrame->mvKeyPoints[idx].pt);
+
+						bool b1 = pMP1 && !pMP1->isDeleted();
+						bool b2 = pMP2 && !pMP2->isDeleted();
+
+						if (!b1 && !b2) {
+							UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpTargetFrame, vPlanarMaps[idx], mpTargetFrame->matDescriptor.row(idx), UVR_SLAM::PLANE_DENSE_MP);
+							pNewMP->SetPlaneID(pFloor->mnPlaneID);
+							pNewMP->SetObjectType(pFloor->mnPlaneType);
+							pNewMP->AddDenseFrame(pKFi, pt);
+							pNewMP->AddDenseFrame(mpTargetFrame, mpTargetFrame->mvKeyPoints[idx].pt);
+							pNewMP->UpdateNormalAndDepth();
+							pNewMP->mnFirstKeyFrameID = mpTargetFrame->GetKeyFrameID();
+							mpSystem->mlpNewMPs.push_back(pNewMP);
+							pFloor->tmpMPs.push_back(pNewMP); //이것도 바닥과 벽을 나눌 필요가 있음.
+						}
+						else if (b1 && b2) {
+							if (pMP1->mnMapPointID != pMP2->mnMapPointID) {
+								pMP1->Fuse(pMP2);
+								pMP2->SetWorldPos(vPlanarMaps[idx]);
+							}
+						}
+						else if (b1) {
+							pMP1->AddDenseFrame(mpTargetFrame, mpTargetFrame->mvKeyPoints[idx].pt);
+							pMP1->SetWorldPos(vPlanarMaps[idx]);
+						}
+						else if (b2) {
+							pMP2->AddDenseFrame(pKFi, pt);
+							pMP2->SetWorldPos(vPlanarMaps[idx]);
+						}
+						
 					}
 
 					for (int i = 0; i < vbInliers.size(); i++) {
@@ -713,13 +754,10 @@ void UVR_SLAM::PlaneEstimator::Run() {
 								pFloor->tmpMPs.push_back(pNewMP);
 							}
 							else if (b1 && b2) {
-								/*if (pMP1->GetConnedtedFrames() > pMP2->GetConnedtedFrames()) {
-								pMP2->Fuse(pMP1);
+								if(pMP1->mnMapPointID != pMP2->mnMapPointID){
+									pMP1->Fuse(pMP2);
+									pMP2->SetWorldPos(vPlanarMaps[idx2]);
 								}
-								else
-								pMP1->Fuse(pMP2);*/
-								pMP1->Fuse(pMP2);
-								pMP2->SetWorldPos(vPlanarMaps[idx2]);
 							}
 							else if (b1) {
 								pMP1->AddFrame(mpTargetFrame, idx2);

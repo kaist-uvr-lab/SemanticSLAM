@@ -42,7 +42,7 @@ namespace UVR_SLAM {
 		void FuseMapPoints(int nn);
 		int CreateMapPoints();
 		int CreateMapPoints(Frame* pCurrKF, Frame* pLastKF);
-		void NewMapPointMaginalization();
+		void NewMapPointMarginalization();
 		void UpdateKFs();
 		void UpdateMPs();
 		void DeleteMPs();

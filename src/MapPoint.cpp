@@ -324,6 +324,9 @@ void UVR_SLAM::MapPoint::AddDenseFrame(UVR_SLAM::Frame* pF, cv::Point2f pt) {
 		mnDenseFrames++;
 		pF->AddDenseMP(this, pt);
 	}
+	/*else {
+		std::cout << "MP::AddDenseFrame::ม฿บน" << std::endl;
+	}*/
 }
 void UVR_SLAM::MapPoint::RemoveDenseFrame(UVR_SLAM::Frame* pKF) {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);

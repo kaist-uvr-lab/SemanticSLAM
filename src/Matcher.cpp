@@ -2423,7 +2423,8 @@ int UVR_SLAM::Matcher::DenseMatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, s
 		UVR_SLAM::MapPoint* pMPi = vPlanarMaps[i];
 		if (!pMPi)
 			continue;
-
+		if (pMPi->GetMapPointType() != UVR_SLAM::PLANE_DENSE_MP)
+			continue;
 		cv::Mat X3D = pMPi->GetWorldPos();
 
 		////매칭 수행하기
@@ -2436,8 +2437,6 @@ int UVR_SLAM::Matcher::DenseMatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, s
 		float depthCurr;
 		if (!Projection(ptCurr, depthCurr, Rcurr, Tcurr, f1->mK, X3D))
 			continue;
-
-		////일단 매칭 실패한 애들만 저장하도록 변경
 		vPrevPts.push_back(ptPrev);
 		vCurrPts.push_back(ptCurr);
 		//vX3Ds.push_back(X3D);
@@ -2459,7 +2458,11 @@ int UVR_SLAM::Matcher::DenseMatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, s
 	cv::computeCorrespondEpilines(vCurrPts, 2, F12, lines[0]);
 
 	for (int i = 0; i < vCurrPts.size(); i++) {
-
+		//이미지 바운더리 안에 존재하는지 확인
+		bool bc1 = CheckBoundary(vCurrPts[i].x - nHalfWindowSize, vCurrPts[i].y - nHalfWindowSize, img1.rows, img1.cols);
+		bool bc2 = CheckBoundary(vCurrPts[i].x + nHalfWindowSize, vCurrPts[i].y + nHalfWindowSize, img1.rows, img1.cols);
+		if (!bc1 || !bc2)
+			continue;
 		//현재 포인트 매칭을 위한 패치 획득
 		cv::Rect rect = cv::Rect(vCurrPts[i].x - nHalfWindowSize, vCurrPts[i].y - nHalfWindowSize, nFullWindow, nFullWindow);
 		cv::Mat patch = currGray(rect);
@@ -2485,7 +2488,7 @@ int UVR_SLAM::Matcher::DenseMatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, s
 		cv::Point2f minPt;
 		bool bFind = false;
 		//for (float j = val - 5.0; j < val + 5.0; j += 0.5) {
-		for (float j = val - 5.0; j < val + 5.0; j += 1.0) {
+		for (float j = val - 5.0; j < val + 5.0; j += 0.5) {
 			cv::Point2f tpt = CalcLinePoint(j, lines[0][i], opt);
 			//////ssd
 			bool b1 = CheckBoundary(tpt.x - nHalfWindowSize, tpt.y - nHalfWindowSize, img1.rows, img1.cols);
@@ -2507,24 +2510,12 @@ int UVR_SLAM::Matcher::DenseMatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, s
 			cv::circle(debugging, minPt + ptBottom, 1, cv::Scalar(255, 0, 255), 1);
 			cv::line(debugging, minPt + ptBottom, vPrevPts[i] + ptBottom, cv::Scalar(255, 0, 255));
 
-			/*auto temp = std::make_pair(vIdxs[i], minPt);
-			mathes.push_back(temp);*/
-		}
-		//cv::line(debugging, vDepthPts[2*i], vDepthPts[2 * i + 1], cv::Scalar(0, 0, 255), 1);
-		//에피 라인 따라서 매칭
+			vPlanarMaps[vIdxs[i]]->SetRecentTrackingFrameID(f1->GetFrameID());
+			auto temp = std::make_pair(vIdxs[i], minPt);
+			mathes.push_back(temp);
 
-		//////////에피 라인 
-		//cv::Point2f spt, ept;
-		//if (opt) {
-		//	spt = CalcLinePoint(0.0, lines[0][i], opt);
-		//	ept = CalcLinePoint(img1.rows, lines[0][i], opt);
-		//}
-		//else {
-		//	spt = CalcLinePoint(0.0, lines[0][i], opt);
-		//	ept = CalcLinePoint(img1.cols, lines[0][i], opt);
-		//}
-		////cv::line(debugging, spt, ept, cv::Scalar(0, 255, 0), 1);
-		//////////에피 라인 
+			//f1->AddDenseMP(vPlanarMaps[vIdxs[i]], minPt);
+		}
 
 	}
 	//////////////에피폴라 라인 출력
@@ -2943,6 +2934,10 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, std::v
 	for (int i = 0; i < vCurrPts.size(); i++) {
 		
 		//현재 포인트 매칭을 위한 패치 획득
+		bool bc1 = CheckBoundary(vCurrPts[i].x - nHalfWindowSize, vCurrPts[i].y - nHalfWindowSize, img1.rows, img1.cols);
+		bool bc2 = CheckBoundary(vCurrPts[i].x + nHalfWindowSize, vCurrPts[i].y + nHalfWindowSize, img1.rows, img1.cols);
+		if (!bc1 || !bc2)
+			continue;
 		cv::Rect rect = cv::Rect(vCurrPts[i].x - nHalfWindowSize, vCurrPts[i].y - nHalfWindowSize, nFullWindow, nFullWindow);
 		cv::Mat patch = currGray(rect);
 		//현재 포인트 매칭을 위한 패치 획득
@@ -2967,7 +2962,7 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, std::v
 		cv::Point2f minPt;
 		bool bFind = false;
 		//for (float j = val - 5.0; j < val + 5.0; j += 0.5) {
-		for (float j = val - 5.0; j < val + 5.0; j += 1.0) {
+		for (float j = val - 5.0; j < val + 5.0; j += 0.5) {
 			cv::Point2f tpt = CalcLinePoint(j, lines[0][i], opt);
 			//////ssd
 			bool b1 = CheckBoundary(tpt.x - nHalfWindowSize, tpt.y - nHalfWindowSize, img1.rows, img1.cols);

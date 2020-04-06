@@ -115,6 +115,7 @@ namespace UVR_SLAM {
 		std::map<int, UVR_SLAM::MapPoint*> mmpDenseMPs;
 		
 		std::vector<UVR_SLAM::MapPoint*> GetDenseVectors();
+		UVR_SLAM::MapPoint* GetDenseMP(cv::Point2f pt);
 		void AddDenseMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt);
 		void RemoveDenseMP(cv::Point2f pt);
 		//¿œ¥‹ dense map test;
