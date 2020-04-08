@@ -68,6 +68,7 @@ void UVR_SLAM::SemanticSegmentator::ProcessNewKeyFrame()
 	mpTargetFrame->SetBowVec(mpSystem->fvoc);
 	if (mpMap->isFloorPlaneInitialized()) {
 		mpTargetFrame->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpTargetFrame, mpMap->mpFloorPlane);
+		mpTargetFrame->mpPlaneInformation->Calculate();
 	}
 	mpSystem->SetSegFrameID(mpTargetFrame->GetKeyFrameID());
 	mKFQueue.pop();

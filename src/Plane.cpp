@@ -45,13 +45,35 @@ UVR_SLAM::PlaneInformation* UVR_SLAM::PlaneProcessInformation::GetFloorPlane() {
 //PlaneProcessInformation
 /////////////////////////////////////////////////////////////
 
-
-
-
 UVR_SLAM::Line::Line(Frame* pF, cv::Point2f f, cv::Point2f t):from(f), to(t), mnPlaneID(-1){
 	mpFrame = pF;
+	
+	//line equ : from : pt2, to : pt1
+	cv::Point2f diff = from - to;
+	float a = diff.y;
+	float b = -diff.x;
+	float c = diff.x*to.y - diff.y*to.x;
+	mLineEqu = (cv::Mat_<float>(3, 1) << a,b,c);
+	if (a < 0)
+		mLineEqu *= -1.0;
+	//unit vector 계산
+	float dist = sqrt(a*a + b*b);
+	mLineEqu /= dist;
+
+	//기울기
+	if (b == 0) {
+		mfSlope = 9999.0f;
+	}
+	else {
+		mfSlope = a / b;
+	}
 }
 UVR_SLAM::Line::~Line(){}
+
+float UVR_SLAM::Line::CalcLineDistance(cv::Point2f pt) {
+	cv::Mat temp = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
+	return abs(mLineEqu.dot(temp));
+}
 
 //3차원으로 가상의 포인트를 생성.y값은 0으로 해야 2차원의 선을 구할 수 있다.
 void UVR_SLAM::Line::SetLinePts() {
@@ -118,24 +140,29 @@ cv::Mat UVR_SLAM::WallPlane::GetParam() {
 	std::unique_lock<std::mutex> lock(mMutexParam);
 	return param;
 }
-void UVR_SLAM::WallPlane::AddLine(Line* line) {
-	std::unique_lock<std::mutex> lock(mMutexLiens);
+void UVR_SLAM::WallPlane::AddLine(Line* line, Frame* pF) {
+	std::unique_lock<std::mutex> lock(mMutexLines);
 	/*if (line->mnPlaneID > 0)
 		return;*/
 	if (mnPlaneID > 0)
 		line->mnPlaneID = mnPlaneID;
 	mvLines.push_back(line);
-	//AddFrame(line->mpFrame);
-	//line->mnPlaneID = mnPlaneID;
+	mmpLines.insert(std::pair<Frame*, Line*>(pF, line));
 }
 size_t UVR_SLAM::WallPlane::GetSize(){
-	std::unique_lock<std::mutex> lock(mMutexLiens);
+	std::unique_lock<std::mutex> lock(mMutexLines);
 	return mvLines.size();
 }
 std::vector<UVR_SLAM::Line*> UVR_SLAM::WallPlane::GetLines(){
-	std::unique_lock<std::mutex> lock(mMutexLiens);
+	std::unique_lock<std::mutex> lock(mMutexLines);
 	return std::vector<UVR_SLAM::Line*>(mvLines.begin(), mvLines.end());
 }
+
+std::pair<std::multimap<UVR_SLAM::Frame*, UVR_SLAM::Line*>::iterator, std::multimap<UVR_SLAM::Frame*, UVR_SLAM::Line*>::iterator> UVR_SLAM::WallPlane::GetLines(UVR_SLAM::Frame* pF) {
+	std::unique_lock<std::mutex> lock(mMutexLines);
+	return mmpLines.equal_range(pF);
+}
+
 void UVR_SLAM::WallPlane::CreateWall(){
 	mnPlaneID = ++nWallPlaneID;
 	for (int i = 0; i < mvLines.size(); i++) {
@@ -144,19 +171,20 @@ void UVR_SLAM::WallPlane::CreateWall(){
 }
 
 bool UVR_SLAM::WallPlane::isContain(Frame* pF) {
-	std::unique_lock<std::mutex> lock(mMutexFrames);
-	return mspFrames.find(pF) != mspFrames.end();
+	std::unique_lock<std::mutex> lock(mMutexLines);
+	return mmpLines.find(pF) != mmpLines.end();
 }
-int  UVR_SLAM::WallPlane::GetNumFrames() {
-	std::unique_lock<std::mutex> lock(mMutexFrames);
-	return mspFrames.size();
-}
-void UVR_SLAM::WallPlane::AddFrame(Frame* pF){
-	if (!isContain(pF)){
-		std::unique_lock<std::mutex> lock(mMutexFrames);
-		mspFrames.insert(pF);
-	}
-}
+
+//int  UVR_SLAM::WallPlane::GetNumFrames() {
+//	std::unique_lock<std::mutex> lock(mMutexFrames);
+//	return mspFrames.size();
+//}
+//void UVR_SLAM::WallPlane::AddFrame(Frame* pF){
+//	if (!isContain(pF)){
+//		std::unique_lock<std::mutex> lock(mMutexFrames);
+//		mspFrames.insert(pF);
+//	}
+//}
 
 int UVR_SLAM::WallPlane::GetRecentKeyFrameID() {
 	std::unique_lock<std::mutex> lock(mMutexRecentKeyFrameID);

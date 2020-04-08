@@ -34,11 +34,14 @@ namespace UVR_SLAM {
 		virtual ~Line();
 		void SetLinePts();
 		cv::Mat GetLinePts();
+		float CalcLineDistance(cv::Point2f);
 	public:
 		int mnPlaneID;
 		UVR_SLAM::Frame* mpFrame;
 		cv::Point2f from, to;
+		std::vector<Line*> mvpLines;
 		cv::Mat mLineEqu;
+		float mfSlope;
 	private:
 		std::mutex mMutexLinePts;
 		cv::Mat mvLinePts;
@@ -51,22 +54,27 @@ namespace UVR_SLAM {
 		
 	public:
 		void CreateWall();
-		//add, remove line
-		//getlines
-		void AddLine(Line* line);
-		size_t GetSize();
-		std::vector<Line*> GetLines();
-
+		
 		//update param
 		void SetParam(cv::Mat p);
 		cv::Mat GetParam();
 
-		void AddFrame(Frame* pF);
-		bool isContain(Frame* pF);
-		int  GetNumFrames();
-
 		int GetRecentKeyFrameID();
 		void SetRecentKeyFrameID(int id);
+
+		//add, remove line
+		//getlines
+		size_t GetSize();
+		bool isContain(Frame* pF);
+
+		void AddLine(Line* line, Frame* pF);
+		std::vector<Line*> GetLines();
+		std::pair<std::multimap<Frame*, Line*>::iterator, std::multimap<Frame*, Line*>::iterator> GetLines(Frame* pF);
+
+		//int  GetNumFrames();
+		//void AddFrame(Frame* pF);
+
+		
 
 	public:
 		int mnPlaneID;
@@ -75,11 +83,12 @@ namespace UVR_SLAM {
 		std::mutex mMutexParam;
 		cv::Mat param;
 
-		std::mutex mMutexLiens;
+		std::mutex mMutexLines;
 		std::vector<Line*> mvLines;
+		std::multimap<Frame*, Line*> mmpLines;
 
-		std::mutex mMutexFrames;
-		std::set<Frame*> mspFrames;
+		//std::mutex mMutexFrames;
+		//std::set<Frame*> mspFrames;
 
 		std::mutex mMutexRecentKeyFrameID;
 		int mnRecentKeyFrameID;

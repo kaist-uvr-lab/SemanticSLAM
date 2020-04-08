@@ -357,7 +357,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					if (slope > 3.0)
 						continue;
 					Line* line = new Line(mpTargetFrame, from, to);
+					line->SetLinePts();
 					lines.push_back(line);
+					
 					//cv::line(fLineImg, from, to, cv::Scalar(255,0,0));
 					//else
 					//cv::line(graph, from, to, cv::Scalar(0, 0, 255));
@@ -373,15 +375,17 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			//////LINE 추가 과정.
 			//WallLineTest
 			if (bInitFloorPlane) {
-				//바닥 평면 맵 생성
+				//////바닥 평면 맵 생성
 				UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mpTargetFrame, pFloor, vPlanarMaps);
 				//바닥 덴스 평면 생성
 				//UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(mpTargetFrame->mDenseMap, imgStructure, mpTargetFrame, mpSystem->mnPatchSize);
 				UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(mpTargetFrame->mvX3Ds, imgStructure, mpTargetFrame, mpSystem->mnPatchSize);
+				//////바닥 평면 맵 생성
 
 				bool bInitWallPlane = mpMap->isWallPlaneInitialized();
 				auto mvFrames = mpTargetFrame->GetConnectedKFs(10);
 				auto mvWallPlanes = mpMap->GetWallPlanes();
+				std::vector<WallPlane*> mvpNewWallPlanes;
 
 				cv::Mat normal1;
 				float dist1;
@@ -394,7 +398,6 @@ void UVR_SLAM::PlaneEstimator::Run() {
 						mvFrames[i]->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mvFrames[i], plane);*/
 					if (!mvFrames[i]->mpPlaneInformation){
 						std::cout << "error!!!!"<<mpTargetFrame->GetKeyFrameID()<<", "<< mvFrames[i]->GetKeyFrameID() << std::endl;
-
 					}
 					mvFrames[i]->mpPlaneInformation->Calculate();
 				}
@@ -404,248 +407,204 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					////update wall plane parameters
 					for (int i = 0; i < mvWallPlanes.size(); i++) {
 
-						auto lines = mvWallPlanes[i]->GetLines();
-						for (int j = 0; j < lines.size(); j++) {
-							lines[j]->SetLinePts();
+						//업데이트도 기존의 라인이 포함된 경우만 수행함.
+						for (int k = 0; k < mvFrames.size(); k++) {
+							if (mvWallPlanes[i]->isContain(mvFrames[k])) {
+								auto line_iter = mvWallPlanes[i]->GetLines(mvFrames[k]);
+								for (auto iter = line_iter.first; iter != line_iter.second; iter++) {
+									auto line = iter->second;
+									line->SetLinePts();
+								}
+							}
 						}
 						cv::Mat parama = UVR_SLAM::PlaneInformation::PlaneLineEstimator(mvWallPlanes[i], pFloor);
-						//이걸 이제 벽으로 변환해야 함.
-
-						/*
-						cv::Mat R, t;
-						line->mpFrame->GetPose(R, t);
-
-						auto plane = line->mpFrame->mvpPlanes[0];
-						cv::Mat normal1;
-						float dist1;
-						plane->GetParam(normal1, dist1);
-						cv::Mat planeParam = plane->matPlaneParam.clone();
-						
-						Point2f from = line->from;
-						Point2f to = line->to;
-						cv::Mat s = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(from, invP, invT, invK);
-						cv::Mat e = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(to, invP, invT, invK);
-						cv::Mat param = UVR_SLAM::PlaneInformation::PlaneWallEstimator(s,e,normal1, invP, invT, invK);*/
-						
-						/*Line* line = mvWallPlanes[i]->GetLines()[0];
-						cv::Mat invT, invK, invP;
-						line->mpFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
-						cv::Mat param = UVR_SLAM::PlaneInformation::PlaneWallEstimator(line, normal1, invP, invT, invK);*/
 						mvWallPlanes[i]->SetParam(parama);
 					}
 					////update wall plane parameters
 				}
 
-				//현재 라인으로 임시 벽을 생성함.
-				//기존의 벽과 비교.
-				{
-					auto mvpCurrLines = mpTargetFrame->Getlines();
-					//std::cout << "wall::line::" << mvpCurrLines.size() << std::endl;
-					
-					cv::Mat invCurrP, invCurrPlane, invK;
-					mpTargetFrame->mpPlaneInformation->Calculate();
-					mpTargetFrame->mpPlaneInformation->GetInformation(invCurrPlane, invCurrP, invK);
+				////벽면 생성 알고리즘
+				////현재 라인으로 임시 벽을 생성함.
+				////기존의 벽과 비교.
+				//{
+				//	auto mvpCurrLines = mpTargetFrame->Getlines();
+				//	//std::cout << "wall::line::" << mvpCurrLines.size() << std::endl;
+				//	
+				//	cv::Mat invCurrP, invCurrPlane, invK;
+				//	mpTargetFrame->mpPlaneInformation->Calculate();
+				//	mpTargetFrame->mpPlaneInformation->GetInformation(invCurrPlane, invCurrP, invK);
 
-					//현재 프레임으로부터 정보 생성
-					for (int li = 0; li < mvpCurrLines.size(); li++) {
-						cv::Mat param = UVR_SLAM::PlaneInformation::PlaneWallEstimator(mvpCurrLines[li], normal1, invCurrPlane, invCurrP, invK);
+				//	cv::Mat R, t;
+				//	mpTargetFrame->GetPose(R, t);
 
-						if (mvWallPlanes.size() == 0) {
-							UVR_SLAM::WallPlane* tempWallPlane = new UVR_SLAM::WallPlane();
-							tempWallPlane->SetParam(param);
-							tempWallPlane->AddLine(mvpCurrLines[li]);
-							tempWallPlane->AddFrame(mpTargetFrame);
-							tempWallPlane->SetRecentKeyFrameID(mpTargetFrame->GetKeyFrameID());
-							mvWallPlanes.push_back(tempWallPlane);
-						}
-						else {
-							bool bInsert = true;
-							bool bConnect = false;
-							float minDist = FLT_MAX;
-							int   minIdx = 0;
-							for (int j = 0; j < mvWallPlanes.size(); j++) {
-								cv::Mat wParam = mvWallPlanes[j]->GetParam();
-								float normal = PlaneInformation::CalcCosineSimilarity(wParam, param);
-								float dist = PlaneInformation::CalcPlaneDistance(wParam, param);
-								/*if(mvWallPlanes[j]->mnPlaneID>0)
-									std::cout << "1::"<< mvWallPlanes[j]->mnPlaneID <<"::"<< normal << ", " << dist << std::endl;
-								else
-									std::cout << "2::" << normal <<", " << dist << std::endl;*/
+				//	//현재 프레임으로부터 정보 생성
+				//	for (int li = 0; li < mvpCurrLines.size(); li++) {
+				//		auto line = mvpCurrLines[li];
+				//		if (mvWallPlanes.size() == 0) {
+				//			UVR_SLAM::WallPlane* tempWallPlane = new UVR_SLAM::WallPlane();
+				//			tempWallPlane->AddLine(mvpCurrLines[li], mpTargetFrame);
+				//			tempWallPlane->SetRecentKeyFrameID(mpTargetFrame->GetKeyFrameID());
+				//			mvWallPlanes.push_back(tempWallPlane);
+				//			mvpNewWallPlanes.push_back(tempWallPlane);
+				//		}
+				//		else {
+				//			bool bInsert = true;
+				//			bool bConnect = false;
+				//			for (int j = 0; j < mvWallPlanes.size(); j++) {
 
-									////아예 노말이 다르다.
-									////노말이
-								if (normal > 0.97) {
-									//겹치는 것/
+				//				//이중에 하나랑만 연결되도 커넥트.
+				//				for (int jk = 0; jk < mvFrames.size(); jk++) {
+				//					UVR_SLAM::Frame* pKF = mvFrames[jk];
 
-									if (dist < 0.02 && normal > 0.9995) {
-										bInsert = false;
-										bConnect = true;
-										if (dist < minDist) {
-											minIdx = j;
-											minDist = dist;
-										}
-										
-										//std::cout << "connect!!" << std::endl;
-										//break;
-									}
-									else if (dist < 0.1 || normal < 0.9995) {
-										bInsert = false;
-										//break;
-									}
+				//					if (!mvWallPlanes[j]->isContain(pKF))
+				//						continue;
 
-									/*bInsert = false;
-									mvWallPlanes[j]->AddLine(mvpCurrLines[li]);
-									mvWallPlanes[j]->AddFrame(mpTargetFrame);
-									mvWallPlanes[j]->SetRecentKeyFrameID(mpTargetFrame->GetKeyFrameID());
-									break;*/
-								}
-								//if (normal > 0.97 && dist < 0.01) {
-								//	//겹치는 것/
-								//	bInsert = false;
-								//	mvWallPlanes[j]->AddLine(mvpCurrLines[li]);
-								//	mvWallPlanes[j]->AddFrame(mpTargetFrame);
-								//	mvWallPlanes[j]->SetRecentKeyFrameID(mpTargetFrame->GetKeyFrameID());
-								//	break;
-								//}
-								//else if (normal > 0.97 && (dist <0.1 && dist >= 0.01)) {
-								//	//노이즈를 줄이기 위한 것.
-								//	//얘는 추가x
-								//	bInsert = false;
-								//}
-							}
-							if (bInsert) {
-								//std::cout << "insert!!!!" << std::endl;
-								UVR_SLAM::WallPlane* tempWallPlane = new UVR_SLAM::WallPlane();
-								tempWallPlane->SetParam(param);
-								tempWallPlane->AddLine(mvpCurrLines[li]);
-								tempWallPlane->AddFrame(mpTargetFrame);
-								tempWallPlane->SetRecentKeyFrameID(mpTargetFrame->GetKeyFrameID());
-								mvWallPlanes.push_back(tempWallPlane);
-							}
-							else if(bConnect){
-								mvWallPlanes[minIdx]->AddLine(mvpCurrLines[li]);
-								mvWallPlanes[minIdx]->AddFrame(mpTargetFrame);
-								mvWallPlanes[minIdx]->SetRecentKeyFrameID(mpTargetFrame->GetKeyFrameID());
-								UVR_SLAM::PlaneInformation::CreateWallMapPoints(mpTargetFrame, mvWallPlanes[minIdx], mvpCurrLines[li], vPlanarMaps, mpSystem);
-								cv::line(vImg, mvpCurrLines[li]->from, mvpCurrLines[li]->to, ObjectColors::mvObjectLabelColors[mvWallPlanes[minIdx]->mnPlaneID + 10], 2);
+				//					auto line_iter = mvWallPlanes[j]->GetLines(pKF);
 
-								float m;
-								cv::Mat mLine = UVR_SLAM::PlaneInformation::FlukerLineProjection(mvWallPlanes[minIdx]->GetParam(), planeParam, mpTargetFrame->GetRotation(), mpTargetFrame->GetTranslation(), mK2, m);
-								cv::Point2f sPt, ePt;
-								UVR_SLAM::PlaneInformation::CalcFlukerLinePoints(sPt, ePt, 0.0, mnHeight, mLine);
-								cv::line(vImg, sPt, ePt, ObjectColors::mvObjectLabelColors[mvWallPlanes[minIdx]->mnPlaneID + 10], 1);
+				//					for (auto iter = line_iter.first; iter != line_iter.second; iter++) {
+				//						cv::Mat invP, invT, invK;
+				//						pKF->mpPlaneInformation->GetInformation(invP, invT, invK);
+				//						auto tempLine = iter->second;
+				//						cv::Mat X3Dfrom = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(tempLine->from, invP, invT, invK);
+				//						cv::Mat X3Dto = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(tempLine->to, invP, invT, invK);
+				//						//현재 이미지에 프로젝션
 
-								UVR_SLAM::PlaneInformation::CreateDenseWallPlanarMapPoint(mpTargetFrame->mvX3Ds, imgStructure, mpTargetFrame, mvWallPlanes[minIdx], mvpCurrLines[li], mpSystem->mnPatchSize);
+				//						cv::Mat temp1 = R*X3Dfrom + t;
+				//						temp1 = mpTargetFrame->mK*temp1;
+				//						cv::Point2f pt1(temp1.at<float>(0) / temp1.at<float>(2), temp1.at<float>(1) / temp1.at<float>(2));
+				//						cv::Mat temp2 = R*X3Dto + t;
+				//						temp2 = mpTargetFrame->mK*temp2;
+				//						cv::Point2f pt2(temp2.at<float>(0) / temp2.at<float>(2), temp2.at<float>(1) / temp2.at<float>(2));
+				//						//cv::line(vImg, pt1, pt2, cv::Scalar(255, 0, 0), 1);
 
-								//if (!pTestF) {
-								//	pTestF = mpTargetFrame;
-								//	UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(pTestF->mDenseMap, imgStructure, pTestF, mvWallPlanes[minIdx], mvpCurrLines[li], mpSystem->mnPatchSize);
-								//	std::string base = mpSystem->GetDirPath(0);
-								//	std::stringstream ss;
-								//	ss << base << "/dense";
-								//	_mkdir(ss.str().c_str());
-								//}
-								//else {
-								//	cv::Mat debugging;
-								//	mpMatcher->DenseMatchingWithEpiPolarGeometry(pTestF->mDenseMap, pTestF, mpTargetFrame, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
-								//	std::string base = mpSystem->GetDirPath(0);
-								//	std::stringstream ss;
-								//	ss << base << "/dense/dense_"<<pTestF->GetKeyFrameID() << "_" << mpTargetFrame->GetKeyFrameID() << ".jpg";
-								//	imwrite(ss.str(), debugging);
-								//}//if
+				//						float d1 = line->CalcLineDistance(pt1);
+				//						float d2 = line->CalcLineDistance(pt2);
 
-							}//if connect
-						}
-					}
-				}
+				//						//connect
+				//						if (d1 + d2 < 6.0) {
 
-				std::cout << "pe::6" << std::endl;
-				///////새로운 평면 검출
-				////현재 프레임은 평면 추가 및 연결
-				//이전 프레임들은 연결만 수행하기 
-				std::vector<cv::Mat> wallParams;
-				std::vector<cv::Mat> twallParams;
-				//mvFrames.push_back(mpTargetFrame);
-				for (int k = 0; k < mvFrames.size(); k++) {
-					
-					cv::Mat invP, invK, invT;
-					mvFrames[k]->mpPlaneInformation->GetInformation(invP, invT, invK);
+				//							mvWallPlanes[j]->AddLine(line, mpTargetFrame);
+				//							mvWallPlanes[j]->SetRecentKeyFrameID(mpTargetFrame->GetKeyFrameID());
 
-					auto mvpLines = mvFrames[k]->Getlines();
+				//							//UVR_SLAM::PlaneInformation::CreateWallMapPoints(mpTargetFrame, mvWallPlanes[j], line, vPlanarMaps, mpSystem);
+				//							//UVR_SLAM::PlaneInformation::CreateDenseWallPlanarMapPoint(mpTargetFrame->mvX3Ds, imgStructure, mpTargetFrame, mvWallPlanes[j], line, mpSystem->mnPatchSize);
 
-					bool bConnect = false;
-					int minIdx = 0;
-					float minDist = FLT_MAX;
-					for (int i = 0; i < mvpLines.size(); i++) {
+				//							bConnect = true;
+				//							bInsert = false;
+				//							break;
+				//						}
+				//					}
+				//					if (bConnect)
+				//						break;
+				//				}
+				//				if (bConnect)
+				//					break;
+				//			}
+				//			if (bInsert) {
+				//				//std::cout << "insert!!!!" << std::endl;
+				//				UVR_SLAM::WallPlane* tempWallPlane = new UVR_SLAM::WallPlane();
+				//				//tempWallPlane->SetParam(param);
+				//				tempWallPlane->AddLine(mvpCurrLines[li], mpTargetFrame);
+				//				//tempWallPlane->AddFrame(mpTargetFrame);
+				//				tempWallPlane->SetRecentKeyFrameID(mpTargetFrame->GetKeyFrameID());
+				//				mvWallPlanes.push_back(tempWallPlane);
+				//				mvpNewWallPlanes.push_back(tempWallPlane);
+				//			}
+				//		}
+				//	}
+				//}
 
-						if (mvpLines[i]->mnPlaneID > 0)
-							continue;
-						cv::Mat param = UVR_SLAM::PlaneInformation::PlaneWallEstimator(mvpLines[i], normal1, invP, invT, invK);
-						
-						cv::Mat s = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mvpLines[i]->from, invP, invT, invK);
-						s.push_back(cv::Mat::ones(1, 1, CV_32FC1));
-						cv::Mat e = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mvpLines[i]->to, invP, invT, invK);
-						e.push_back(cv::Mat::ones(1, 1, CV_32FC1));
+				//std::cout << "pe::6" << std::endl;
+				/////////새로운 평면 검출
+				//////현재 프레임은 평면 추가 및 연결
+				////이전 프레임들은 연결만 수행하기 
+				//std::vector<cv::Mat> wallParams;
+				//std::vector<cv::Mat> twallParams;
+				////mvFrames.push_back(mpTargetFrame);
 
-						for (int j = 0; j < mvWallPlanes.size(); j++) {
-							cv::Mat wParam = mvWallPlanes[j]->GetParam();
-							float normal = PlaneInformation::CalcCosineSimilarity(wParam, param);
-							float dist = PlaneInformation::CalcPlaneDistance(wParam, param);
+				//cv::Mat R, t;
+				//mpTargetFrame->GetPose(R, t);
 
-							/*if (mvWallPlanes[j]->mnPlaneID>0)
-								std::cout << "3::" << mvWallPlanes[j]->mnPlaneID << "::" << normal << ", " << dist << std::endl;
-							else
-								std::cout << "4::" << normal << ", " << dist << std::endl;*/
+				////새롭게 추가된 벽 라인에 대해서만 비교하자.
+				//for (int k = 0; k < mvFrames.size(); k++) {
+				//	
+				//	cv::Mat invP, invK, invT;
+				//	mvFrames[k]->mpPlaneInformation->GetInformation(invP, invT, invK);
 
-							//////아예 노말이 다르다.
-							//////노말이
-							if (normal > 0.9995 && dist < 0.02) {
-							//if (normal > 0.99) {
-								bConnect = true;
-								if(dist < minDist){
-									minDist = dist;
-									minIdx = j;
-								}
-								
-							}
-							//std::cout << "test::" << normal << ", " << dist << std::endl;
-							//std::cout << k << "::"<<i<<"=="<<wParam.dot(s) << ", " << wParam.dot(e) << std::endl;
-							//std::cout << k << "::" << i << "==" << planeParam.dot(s) << ", " << planeParam.dot(e) << std::endl;
+				//	auto mvpLines = mvFrames[k]->Getlines();
 
-							/*if (abs(planeParam.dot(s)) < 0.01 && abs(planeParam.dot(e)) < 0.01) {
-								mvWallPlanes[j]->AddLine(mvpLines[i]);
-								mvWallPlanes[j]->AddFrame(mvFrames[k]);
-							}*/
-							
-						}
+				//	bool bConnect = false;
+				//	for (int i = 0; i < mvpLines.size(); i++) {
 
-						if (bConnect) {
-							mvWallPlanes[minIdx]->AddLine(mvpLines[i]);
-							mvWallPlanes[minIdx]->AddFrame(mvFrames[k]);
-						}
-					}//for
-				}
-				///////새로운 평면 검출
+				//		if (mvpLines[i]->mnPlaneID > 0)
+				//			continue;
 
-				for (int i = 0; i < mvWallPlanes.size(); i++) {
-					if (mvWallPlanes[i]->mnPlaneID > 0) {
-						std::cout << mvWallPlanes[i]->mnPlaneID << "::" <<mvWallPlanes[i]->GetNumFrames()<<", "<< mvWallPlanes[i]->GetSize() <<"::"<<mvWallPlanes[i]->GetParam().t()<< std::endl;
-					}
-					/*
-					else {
-						std::cout << mvWallPlanes[i]->mnPlaneID << "::" << mvWallPlanes[i]->GetNumFrames() << ", " << mvWallPlanes[i]->GetSize() << "::" << mvWallPlanes[i]->GetParam().t() << std::endl;
-					}*/
-					if (mvWallPlanes[i]->GetSize()> 3 && mvWallPlanes[i]->mnPlaneID < 0) {
-						mvWallPlanes[i]->CreateWall();
-						mpMap->AddWallPlane(mvWallPlanes[i]);
-						if (!mpMap->isWallPlaneInitialized()) {
-							mpMap->SetWallPlaneInitialization(true);
-						}
-					}
-				}
-				//mpTargetFrame->SetWallParams(twallParams);
+				//		auto tempLine = mvpLines[i];
+				//		cv::Mat X3Dfrom = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(tempLine->from, invP, invT, invK);
+				//		cv::Mat X3Dto = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(tempLine->to, invP, invT, invK);
+
+				//		cv::Mat temp1 = R*X3Dfrom + t;
+				//		temp1 = mpTargetFrame->mK*temp1;
+				//		cv::Point2f pt1(temp1.at<float>(0) / temp1.at<float>(2), temp1.at<float>(1) / temp1.at<float>(2));
+				//		cv::Mat temp2 = R*X3Dto + t;
+				//		temp2 = mpTargetFrame->mK*temp2;
+				//		cv::Point2f pt2(temp2.at<float>(0) / temp2.at<float>(2), temp2.at<float>(1) / temp2.at<float>(2));
+
+				//		for (int j = 0; j < mvpNewWallPlanes.size(); j++) {
+				//			auto iterTargetKF = mvpNewWallPlanes[j]->GetLines(mpTargetFrame);
+
+				//			for (auto iter = iterTargetKF.first; iter != iterTargetKF.second; iter++) {
+				//				auto line = iter->second;
+				//				float d1 = line->CalcLineDistance(pt1);
+				//				float d2 = line->CalcLineDistance(pt2);
+
+				//				if (d1 + d2 < 6.0) {
+
+				//					mvpNewWallPlanes[j]->AddLine(line, mpTargetFrame);
+				//					mvpNewWallPlanes[j]->SetRecentKeyFrameID(mpTargetFrame->GetKeyFrameID());
+
+				//					//UVR_SLAM::PlaneInformation::CreateWallMapPoints(mpTargetFrame, mvWallPlanes[j], line, vPlanarMaps, mpSystem);
+				//					//UVR_SLAM::PlaneInformation::CreateDenseWallPlanarMapPoint(mpTargetFrame->mvX3Ds, imgStructure, mpTargetFrame, mvWallPlanes[j], line, mpSystem->mnPatchSize);
+
+				//					bConnect = true;
+				//					break;
+				//				}
+				//			}
+				//			if (bConnect)
+				//				break;
+				//		}
+				//		
+				//	}//for
+				//}
+				/////////새로운 평면 검출
+				//std::cout << "pe::6_2" << std::endl;
+				//for (int i = 0; i < mvpNewWallPlanes.size(); i++) {
+				//	//if (mvWallPlanes[i]->GetSize()> 3 && mvWallPlanes[i]->mnPlaneID < 0) {
+				//	if (mvpNewWallPlanes[i]->GetSize()> 3) {
+				//		mvpNewWallPlanes[i]->CreateWall();
+				//		mpMap->AddWallPlane(mvpNewWallPlanes[i]);
+				//		cv::Mat parama = UVR_SLAM::PlaneInformation::PlaneLineEstimator(mvpNewWallPlanes[i], pFloor);
+				//		mvpNewWallPlanes[i]->SetParam(parama);
+				//		if (!mpMap->isWallPlaneInitialized()) {
+				//			mpMap->SetWallPlaneInitialization(true);
+				//		}
+				//	}
+				//}
+				//std::cout << "pe::6_3" << std::endl;
+				//for (int i = 0; i < mvWallPlanes.size(); i++) {
+				//	if (mvWallPlanes[i]->mnPlaneID < 0)
+				//		continue;
+				//	auto iterTargetKF = mvWallPlanes[i]->GetLines(mpTargetFrame);
+
+				//	for (auto iter = iterTargetKF.first; iter != iterTargetKF.second; iter++) {
+				//		auto line = iter->second;
+				//		UVR_SLAM::PlaneInformation::CreateWallMapPoints(mpTargetFrame, mvWallPlanes[i], line, vPlanarMaps, mpSystem);
+				//		UVR_SLAM::PlaneInformation::CreateDenseWallPlanarMapPoint(mpTargetFrame->mvX3Ds, imgStructure, mpTargetFrame, mvWallPlanes[i], line, mpSystem->mnPatchSize);
+				//	}
+				//}
+				////벽면 생성 알고리즘
+
 			}
-			
 			//WallLineTest
 			//////////////////////////////////////////////////////////////
 			
@@ -674,6 +633,8 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					//ssss << base << "/dense/dense_"<< mpTargetFrame->GetKeyFrameID() << "_" << mvpKFs[ki]->GetKeyFrameID() << ".jpg";
 					//imwrite(ssss.str(), debugging);
 					///////dense
+
+					
 
 
 					std::vector<cv::DMatch> vMatches;
@@ -707,7 +668,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 							pNewMP->SetPlaneID(pFloor->mnPlaneID);
 							pNewMP->SetObjectType(pFloor->mnPlaneType);
 							pNewMP->AddDenseFrame(pKFi, pt);
-							pNewMP->AddDenseFrame(mpTargetFrame, mpTargetFrame->mvKeyPoints[idx].pt);
+				 			pNewMP->AddDenseFrame(mpTargetFrame, mpTargetFrame->mvKeyPoints[idx].pt);
 							pNewMP->UpdateNormalAndDepth();
 							pNewMP->mnFirstKeyFrameID = mpTargetFrame->GetKeyFrameID();
 							mpSystem->mlpNewMPs.push_back(pNewMP);
@@ -782,6 +743,80 @@ void UVR_SLAM::PlaneEstimator::Run() {
 						}
 						
 					}
+
+					//현재 프레임의 라인
+					auto currLines = mpTargetFrame->Getlines();
+					/*for (int cli = 0; cli < currLines.size(); cli++) {
+						cv::Point2f pt1 = UVR_SLAM::PlaneInformation::CalcLinePoint(0.0, currLines[cli]->mLineEqu);
+						cv::Point2f pt2 = UVR_SLAM::PlaneInformation::CalcLinePoint(mnHeight, currLines[cli]->mLineEqu);
+						cv::line(vImg, pt1, pt2, cv::Scalar(0, 0, 255), 1);
+					}*/
+
+					///////////////////////////////////
+					////////시각화 테스트
+					//cv::Mat invP, invT, invK;
+					//auto lines = pKFi->Getlines();
+					//for (int li = 0; li < lines.size(); li++) {
+					//	lines[li]->mpFrame->mpPlaneInformation->Calculate();
+					//	lines[li]->mpFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
+					//	cv::Mat X3Dfrom = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(lines[li]->from, invP, invT, invK);
+					//	cv::Mat X3Dto = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(lines[li]->to, invP, invT, invK);
+					//	//현재 이미지에 프로젝션
+					//	cv::Mat R, t;
+					//	mpTargetFrame->GetPose(R, t);
+					//	cv::Mat temp1 = R*X3Dfrom + t;
+					//	temp1 = mpTargetFrame->mK*temp1;
+					//	cv::Point2f pt1(temp1.at<float>(0) / temp1.at<float>(2), temp1.at<float>(1) / temp1.at<float>(2));
+					//	cv::Mat temp2 = R*X3Dto + t;
+					//	temp2 = mpTargetFrame->mK*temp2;
+					//	cv::Point2f pt2(temp2.at<float>(0) / temp2.at<float>(2), temp2.at<float>(1) / temp2.at<float>(2));
+					//	cv::line(vImg, pt1, pt2, cv::Scalar(255, 0, 0), 1);
+
+					//	//line 에러 계산.
+					//	for (int cli = 0; cli < currLines.size(); cli++) {
+					//		float d1 = currLines[cli]->CalcLineDistance(pt1);
+					//		float d2 = currLines[cli]->CalcLineDistance(pt2);
+					//		float err = d1 + d2;
+					//		if (err < 6.0) {
+					//			//connect
+
+					//			for (int lj = 0; lj < lines[li]->mvpLines.size(); lj++) {
+					//				currLines[cli]->mvpLines.push_back(lines[li]->mvpLines[lj]);
+
+					//			}
+					//			currLines[cli]->mvpLines.push_back(lines[li]);
+					//			//visualize all lines
+					//			cv::line(vImg, pt1, pt2, cv::Scalar(255, 0, 255), 1);
+					//		}
+					//		std::cout << "line error == "<<li<<"="<<cli<<"=="<< d1 << ", " << d2 <<"::"<<pt1<<", "<<pt2<<"=="<<currLines[cli]->mLineEqu<< std::endl;
+					//	}
+					//}
+					////연결된 라인 시각화
+					//for (int cli = 0; cli < currLines.size(); cli++) {
+					//	for (int li = 0; li < currLines[cli]->mvpLines.size(); li++) {
+					//		auto line = currLines[cli]->mvpLines[li];
+					//		line->mpFrame->mpPlaneInformation->Calculate();
+					//		line->mpFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
+					//		cv::Mat X3Dfrom = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(line->from, invP, invT, invK);
+					//		cv::Mat X3Dto = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(line->to, invP, invT, invK);
+					//		//현재 이미지에 프로젝션
+					//		cv::Mat R, t;
+					//		mpTargetFrame->GetPose(R, t);
+					//		cv::Mat temp1 = R*X3Dfrom + t;
+					//		temp1 = mpTargetFrame->mK*temp1;
+					//		float depth1 = temp1.at<float>(2);
+					//		cv::Point2f pt1(temp1.at<float>(0) / temp1.at<float>(2), temp1.at<float>(1) / temp1.at<float>(2));
+					//		cv::Mat temp2 = R*X3Dto + t;
+					//		temp2 = mpTargetFrame->mK*temp2;
+					//		cv::Point2f pt2(temp2.at<float>(0) / temp2.at<float>(2), temp2.at<float>(1) / temp2.at<float>(2));
+					//		float depth2 = temp2.at<float>(2);
+					//		if (depth1 < 0.0 || depth2 < 0.0)
+					//			continue;
+					//		cv::line(vImg, pt1, pt2, cv::Scalar(255, 255, 0), 1);
+					//	}
+					//}
+					////////시각화 테스트
+					///////////////////////////////////
 					std::cout << "pe::matching::3" << std::endl;
 				}
 				mpMap->SetCurrFrame(mpTargetFrame);
