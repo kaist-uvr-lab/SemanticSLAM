@@ -1741,6 +1741,7 @@ bool UVR_SLAM::Matcher::FeatureMatchingWithEpipolarConstraints(int& matchIDX, UV
 	return true;
 }
 
+//에센셜 매트릭스임
 cv::Mat UVR_SLAM::Matcher::CalcFundamentalMatrix(cv::Mat R1, cv::Mat t1, cv::Mat R2, cv::Mat t2, cv::Mat K) {
 
 	cv::Mat R12 = R1*R2.t();
@@ -2457,6 +2458,7 @@ int UVR_SLAM::Matcher::DenseMatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, s
 	vector<cv::Point3f> lines[2];
 	cv::computeCorrespondEpilines(vCurrPts, 2, F12, lines[0]);
 
+	float wsize = 10.0;
 	for (int i = 0; i < vCurrPts.size(); i++) {
 		//이미지 바운더리 안에 존재하는지 확인
 		bool bc1 = CheckBoundary(vCurrPts[i].x - nHalfWindowSize, vCurrPts[i].y - nHalfWindowSize, img1.rows, img1.cols);
@@ -2484,11 +2486,11 @@ int UVR_SLAM::Matcher::DenseMatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, s
 		//기울기 확인 후 x축, y축 설정
 
 		//에피 라인 따라서 매칭
-		float minVal = 10.0;
+		float minVal = 5.0;
 		cv::Point2f minPt;
 		bool bFind = false;
 		//for (float j = val - 5.0; j < val + 5.0; j += 0.5) {
-		for (float j = val - 5.0; j < val + 5.0; j += 0.5) {
+		for (float j = val - wsize; j < val + wsize; j += 0.5) {
 			cv::Point2f tpt = CalcLinePoint(j, lines[0][i], opt);
 			//////ssd
 			bool b1 = CheckBoundary(tpt.x - nHalfWindowSize, tpt.y - nHalfWindowSize, img1.rows, img1.cols);
@@ -2754,6 +2756,159 @@ int UVR_SLAM::Matcher::DenseMatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, s
 
 }
 
+///Optical flow와 epipolar geometry의 혼합
+//f1은 prev
+//f2는 curr
+int UVR_SLAM::Matcher::MatchingWithOptiNEpi(Frame* prev, Frame* curr, std::vector<cv::Mat>& vPlanarMaps, std::vector<bool>& vbInliers, std::vector<cv::DMatch>& vMatches, std::vector<std::pair<int, cv::Point2f>>& mathes, int nPatchSize, int nHalfWindowSize, cv::Mat& debugging) {
+	//////////////////////////
+	////Optical flow
+	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+	std::vector<cv::Mat> currPyr, prevPyr;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	std::vector<cv::Point2f> prevPts, currPts;
+	cv::Mat prevImg = prev->GetOriginalImage();
+	cv::Mat currImg = curr->GetOriginalImage();
+
+	cv::Mat prevGray, currGray;
+	cvtColor(prevImg, prevGray, CV_BGR2GRAY);
+	cvtColor(currImg, currGray, CV_BGR2GRAY);
+	///////debug
+	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+	debugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+	currImg.copyTo(debugging(mergeRect1));
+	prevImg.copyTo(debugging(mergeRect2));
+	///////debug
+
+	//////타겟프레임에 키포인트 값 설정
+	//키포인트의 인덱스값 저장 +1로
+	cv::Mat matPrevKeypoints = cv::Mat::zeros(currImg.size(), CV_16UC1);
+	for (int i = 0; i < prev->mvKeyPoints.size(); i++) {
+		matPrevKeypoints.at<ushort>(prev->mvKeyPoints[i].pt) = i+1;
+	}
+	//////타겟프레임에 키포인트 값 설정
+	////이전 프레임의 키포인트를 벡터화
+	for (int i = 0; i < curr->mvKeyPoints.size(); i++) {
+		currPts.push_back(curr->mvKeyPoints[i].pt);
+	}
+	////이전 프레임의 키포인트를 벡터화
+
+	//Fundamental matrix 및 keyframe pose 계산
+	cv::Mat Rcurr, Tcurr, Rprev, Tprev;
+	prev->GetPose(Rprev, Tprev);
+	curr->GetPose(Rcurr, Tcurr);
+	cv::Mat mK = curr->mK.clone();
+
+	//에센셜 매트릭스 계산. curr(1) -> prev(2)
+	cv::Mat F12 = CalcFundamentalMatrix(Rcurr, Tcurr, Rprev, Tprev, mK);
+	//에피폴라 라인 계산
+	vector<cv::Point3f> lines[2];
+	cv::computeCorrespondEpilines(currPts, 2, F12, lines[0]);
+	
+	int maxLvl = 3;
+	int searchSize = 21;
+	maxLvl = cv::buildOpticalFlowPyramid(currGray, currPyr, cv::Size(searchSize, searchSize), maxLvl);
+	cv::buildOpticalFlowPyramid(prevGray, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
+	cv::calcOpticalFlowPyrLK(currPyr, prevPyr, currPts, prevPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	//바운더리 에러도 고려해야 함.
+	int nTotal = 0;
+	int nKeypoint = 0;
+	int nBad = 0;
+	int nEpi = 0;
+	int n3D = 0;
+	for (int i = 0; i < currPts.size(); i++) {
+		if (status[i] == 0) {
+			nBad++;
+			continue;
+		}
+
+		//추가적인 에러처리
+		//레이블드에서 255 150 100 벽 바닥 천장
+		int currLabel = curr->matLabeled.at<uchar>(currPts[i].y/2, currPts[i].x/2);
+		if (currLabel != 255 && currLabel != 150 && currLabel != 100){
+			nBad++;
+			continue;
+		}
+		int prevLabel = prev->matLabeled.at<uchar>(prevPts[i].y / 2, prevPts[i].x / 2);
+		if (prevLabel != currLabel) {
+			nBad++;
+			continue;
+		}
+
+		
+
+		////curr pts를 prev image에 projection
+		////3d pts가 있는 경우만
+		if (vPlanarMaps[i].rows >0){
+			cv::Mat X3D = vPlanarMaps[i];
+			////매칭 수행하기
+			//이미지 프로젝션
+			cv::Point2f ptPrev;
+			float depthPrev;
+			if (Projection(ptPrev, depthPrev, Rprev, Tprev, mK, X3D)) {
+				cv::Point2f diffPt = ptPrev - prevPts[i];
+				float dist = diffPt.dot(diffPt);
+				if (dist > 25.0) {
+					nBad++;
+					continue;
+				}
+				n3D++;
+				cv::circle(debugging, ptPrev + ptBottom, 1, cv::Scalar(0, 255, 0), -1);
+				cv::line(debugging, prevPts[i] + ptBottom, ptPrev+ptBottom, cv::Scalar(255, 255, 0), 1);
+			}
+			/*cv::Point2f ptCurr;
+			float depthCurr;
+			if (!Projection(ptCurr, depthCurr, Rcurr, Tcurr, mK, X3D))
+				continue;*/
+			//continue;
+		}
+		else {
+			//에피폴라 거리 체크 & 타입체크
+			cv::Mat tempPrev = (cv::Mat_<float>(3, 1) << prevPts[i].x, prevPts[i].y, 1);
+			cv::Mat tempCurr = (cv::Mat_<float>(3, 1) << currPts[i].x, currPts[i].y, 1);
+			cv::Mat temp = tempPrev.t()*F12*tempCurr;
+			float epiDist = temp.at<float>(0);
+			float epiDist2 = lines[0][i].x*prevPts[i].x + lines[0][i].y*prevPts[i].y + lines[0][i].z;
+			if (epiDist2 > 1.0) {
+				nEpi++;
+				//std::cout << "epi error : " <<epiDist2<<", "<< epiDist << std::endl;
+				continue;
+			}
+		}
+		
+
+
+		//cv::line(debugging, prevPts[i]+ ptBottom, currPts[i], cv::Scalar(255, 255, 0), 1);
+		if (matPrevKeypoints.at<ushort>(prevPts[i]) > 0) {
+			//indirect
+			cv::circle(debugging, prevPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);
+			cv::circle(debugging, currPts[i], 1, cv::Scalar(255, 0, 255), -1);
+			nKeypoint++;
+			nTotal++;
+		}
+		else {
+			//direct
+			nTotal++;
+			cv::circle(debugging, currPts[i], 1, cv::Scalar(0, 255, 255), -1);
+			cv::circle(debugging, prevPts[i] + ptBottom, 1, cv::Scalar(0, 255, 255), -1);
+		}
+	}
+
+	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	double tttt = duration / 1000.0;
+
+	//fuse time text 
+	std::stringstream ss;
+	ss << "Optical flow = " << tttt << "::" << nKeypoint << ", " << nTotal << "||" << nBad<<"||"<< n3D;
+	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
+	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+	imshow("optical test : ", debugging);
+	/////////////////////////
+}
+
 //f2가 타겟, curr
 //f1이 인접한 포인트, prev
 //img1 = target, 위
@@ -2792,6 +2947,7 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, std::v
 	//에센셜 매트릭스 계산. curr(1) -> prev(2)
 	cv::Mat F12 = CalcFundamentalMatrix(Rcurr, Tcurr, Rprev, Tprev, mK);
 	
+
 	std::vector<Point2f> vPrevPts, vCurrPts;
 	std::vector<cv::Mat> vX3Ds;
 	std::vector<int> vIdxs;

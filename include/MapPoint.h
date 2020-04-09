@@ -68,6 +68,7 @@ namespace UVR_SLAM {
 		void RemoveDenseFrame(UVR_SLAM::Frame* pKF);
 		std::map<Frame*, cv::Point2f> GetConnedtedDenseFrames();
 		int GetNumDensedFrames();
+		void FuseDenseMP(MapPoint* pMP);
 		////////Dense
 
 	public:

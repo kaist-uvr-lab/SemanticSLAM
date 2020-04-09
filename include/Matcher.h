@@ -54,6 +54,10 @@ namespace UVR_SLAM {
 		//초기화에 현재 이용하는 것
 		int MatchingProcessForInitialization(Frame* init, Frame* curr, cv::Mat& F, std::vector<cv::DMatch>& resMatches);
 
+		//////////////////
+		//200409
+		int MatchingWithOptiNEpi(Frame* f1, Frame* f2, std::vector<cv::Mat>& vPlanarMaps, std::vector<bool>& vbInliers, std::vector<cv::DMatch>& vMatches, std::vector<std::pair<int, cv::Point2f>>& mathes, int nPatchSize, int nHalfWindowSize, cv::Mat& debugging);
+
 		//얘네들은 확인이 필요함.
 		int FeatureMatchingWithSemanticFrames(Frame* pSemantic, Frame* pFrame);
 		int DenseMatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, std::vector<cv::Mat>& vPlanarMaps, std::vector<std::pair<int, cv::Point2f>>& mathes, int nPatchSize, int nHalfWindowSize, cv::Mat& debugging);

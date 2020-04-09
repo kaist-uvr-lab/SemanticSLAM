@@ -307,8 +307,9 @@ void UVR_SLAM::Visualizer::Run() {
 				}*/
 
 				tpt += mVisMidPt;
-				if (mvbLocalMapInliers[i])
-					cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
+				if (mvbLocalMapInliers[i]){
+						cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
+				}
 				else
 					cv::circle(tempVis, tpt, 1, color2, 1);
 				
@@ -357,7 +358,20 @@ void UVR_SLAM::Visualizer::Run() {
 					cv::circle(tempVis, tpt, 4, cv::Scalar(0, 255, 255), -1);
 				}*/
 
-				cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
+				if (pMP->GetMapPointType() == UVR_SLAM::PLANE_DENSE_MP){
+					if(pMP->GetPlaneID() > 0){
+						if(pMP->GetNumDensedFrames() > 2)
+							cv::circle(tempVis, tpt, 2, cv::Scalar(255, 0, 255), -1);
+						else {
+							cv::circle(tempVis, tpt, 2, cv::Scalar(255, 255, 0), -1);
+						}
+					}
+					else
+						cv::circle(tempVis, tpt, 2, cv::Scalar(0, 255, 255), -1);
+				}
+				else
+					cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
+				//cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
 				/*if (pMP->GetRecentLayoutFrameID() == nRecentLayoutFrameID) {
 					cv::circle(tempVis, tpt, 4, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()]/2, 2);
 				}*/

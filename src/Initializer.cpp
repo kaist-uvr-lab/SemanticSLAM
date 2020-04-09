@@ -310,36 +310,36 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpFrameWindow->mnLastMatches = nMatch;
 
 			/////////////////////////////////////////////////////////////////////////////////////////////////////
-			//////////////////////rotation test
-			cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(param).clone();
-			cv::Mat normal;
-			float dist;
-			pFloor->GetParam(normal, dist);
-			cv::Mat tempP = Rcw.t()*normal;
-			if (tempP.at<float>(0) < 0.00001)
-				tempP.at<float>(0) = 0.0;
-			if (tempP.at<float>(2) < 0.00001)
-				tempP.at<float>(2) = 0.0;
+			////////////////////////rotation test
+			//cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(param).clone();
+			//cv::Mat normal;
+			//float dist;
+			//pFloor->GetParam(normal, dist);
+			//cv::Mat tempP = Rcw.t()*normal;
+			//if (tempP.at<float>(0) < 0.00001)
+			//	tempP.at<float>(0) = 0.0;
+			//if (tempP.at<float>(2) < 0.00001)
+			//	tempP.at<float>(2) = 0.0;
 
-			//카메라 자세 변환
-			mpInitFrame1->GetPose(R, t);
-			mpInitFrame1->SetPose(R*Rcw, t);
-			mpInitFrame2->GetPose(R, t);
-			mpInitFrame2->SetPose(R*Rcw, t);
+			////카메라 자세 변환
+			//mpInitFrame1->GetPose(R, t);
+			//mpInitFrame1->SetPose(R*Rcw, t);
+			//mpInitFrame2->GetPose(R, t);
+			//mpInitFrame2->SetPose(R*Rcw, t);
 
-			//전체 맵포인트 변환
-			for (int i = 0; i < mvpMPs.size(); i++) {
-				UVR_SLAM::MapPoint* pMP = mvpMPs[i];
-				if (!pMP)
-					continue;
-				if (pMP->isDeleted())
-					continue;
-				cv::Mat tempX = Rcw.t()*pMP->GetWorldPos();
-				pMP->SetWorldPos(tempX);
-			}
-			//평면 파라메터 변환
-			pFloor->SetParam(tempP, dist);
-			//////////////////////rotation test
+			////전체 맵포인트 변환
+			//for (int i = 0; i < mvpMPs.size(); i++) {
+			//	UVR_SLAM::MapPoint* pMP = mvpMPs[i];
+			//	if (!pMP)
+			//		continue;
+			//	if (pMP->isDeleted())
+			//		continue;
+			//	cv::Mat tempX = Rcw.t()*pMP->GetWorldPos();
+			//	pMP->SetWorldPos(tempX);
+			//}
+			////평면 파라메터 변환
+			//pFloor->SetParam(tempP, dist);
+			////////////////////////rotation test
 			//바닥 맵포인트 바로 생성
 			//인포메이션 바로 생성하기.
 			mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);

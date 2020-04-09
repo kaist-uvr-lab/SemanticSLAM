@@ -27,11 +27,13 @@ namespace UVR_SLAM {
 		void SetSystem(System* pSystem);
 		void SetFrameWindow(FrameWindow* pFrameWindow);
 	public:
+		bool isStopBA();
 		void StopBA(bool b);
 	private:
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
 		int mnWidth, mnHeight;
 		cv::Mat mK;
+		std::mutex mMutexStopBA;
 		bool mbStopBA;
 		System* mpSystem;
 		std::mutex mMutexDoingProcess, mMutexNewKFs;

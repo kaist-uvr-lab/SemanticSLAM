@@ -52,9 +52,13 @@ void UVR_SLAM::MapOptimizer::InsertKeyFrame(UVR_SLAM::Frame *pKF)
 	mKFQueue.push(pKF);
 }
 
+bool UVR_SLAM::MapOptimizer::isStopBA() {
+	std::unique_lock<std::mutex> lock(mMutexStopBA);
+	return mbStopBA;
+}
 void UVR_SLAM::MapOptimizer::StopBA(bool b)
 {
-	std::unique_lock<std::mutex> lock(mMutexNewKFs);
+	std::unique_lock<std::mutex> lock(mMutexStopBA);
 	mbStopBA = b;
 }
 
@@ -81,12 +85,12 @@ void UVR_SLAM::MapOptimizer::Run() {
 			ProcessNewKeyFrame();
 			std::cout << "ba::start::" << mpTargetFrame->GetFrameID() << std::endl;
 			mStrPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
-			mbStopBA = false;
+			StopBA(false);
 			std::cout << "ba::1" << std::endl;
 			/*if(mpMap->isFloorPlaneInitialized())
 				Optimization::LocalBundleAdjustmentWithPlane(mpMap,mpTargetFrame, mpFrameWindow, &mbStopBA);
 			else*/
-			Optimization::LocalBundleAdjustment(mpTargetFrame, mpFrameWindow, &mbStopBA);
+			Optimization::LocalBundleAdjustment(this, mpTargetFrame, mpFrameWindow);
 			std::cout << "ba::2" << std::endl;
 			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
 			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();

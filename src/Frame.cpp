@@ -834,12 +834,17 @@ void UVR_SLAM::Frame::RemoveDenseMP(cv::Point2f pt){
 	
 }
 std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Frame::GetDenseVectors(){
-	std::unique_lock<std::mutex>(mMutexDenseMap);
-
+	
+	std::map<int, MapPoint*> obs;
+	{
+		std::unique_lock<std::mutex>(mMutexDenseMap);
+		obs = mmpDenseMPs;
+	}
 	std::vector<UVR_SLAM::MapPoint*> tempMPs;
-	for (auto iter = mmpDenseMPs.begin(); iter != mmpDenseMPs.end(); iter++) {
+	for (auto iter = obs.begin(); iter != obs.end(); iter++) {
 		UVR_SLAM::MapPoint* pMPi = iter->second;
-		tempMPs.push_back(pMPi);
+		if(pMPi && !pMPi->isDeleted())
+			tempMPs.push_back(pMPi);
 	}
 	//std::cout <<"dense map::"<< tempMPs.size() << std::endl;
 	return std::vector<UVR_SLAM::MapPoint*>(tempMPs.begin(), tempMPs.end());

@@ -196,10 +196,13 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				if (vPairs.size() > 1000) {
 					nInc = 20;
 				}
+				
 				for (int i = 0; i < vPairs.size(); i+= nInc) {
 					auto idx = vPairs[i].first;
 					auto pt = vPairs[i].second;
-					mpTargetFrame->AddDenseMP(mvpDenseMPs[idx], pt);
+				
+					mvpDenseMPs[idx]->AddDenseFrame(mpTargetFrame, pt);
+					//mpTargetFrame->AddDenseMP(mvpDenseMPs[idx], pt);
 				}
 				////update dense map
 
@@ -612,6 +615,15 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			////////¸ÅÄª Å×½ºÆ®
 			if (bInitFloorPlane) {
 
+				//
+				cv::Mat aadebug;
+				std::vector<cv::DMatch> aavMatches;
+				std::vector<bool> aavbInliers;
+				std::vector<std::pair<int, cv::Point2f>> aavPairs;
+				mpMatcher->MatchingWithOptiNEpi(mpPrevFrame, mpTargetFrame, vPlanarMaps, aavbInliers, aavMatches, aavPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, aadebug);
+				//
+
+
 				////////////////////////////////
 				//ÃÖÁ¾ ¸ÊÆ÷ÀÎÆ® »ý¼º µÃ°è
 				///////////////////////////////
@@ -620,9 +632,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 				cv::Mat debugImg;
 				
-				std::vector<UVR_SLAM::Frame*> mvpKFs;
-				mvpKFs.push_back(mpPrevFrame);
-				mvpKFs.push_back(mpPPrevFrame);
+				std::vector<UVR_SLAM::Frame*> mvpKFs = mpTargetFrame->GetConnectedKFs(5);
+				//mvpKFs.push_back(mpPrevFrame);
+				//mvpKFs.push_back(mpPPrevFrame);
 				for (int ki = 0; ki < mvpKFs.size(); ki++) {
 					///////dense
 					//cv::Mat debugging;
@@ -634,9 +646,6 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					//imwrite(ssss.str(), debugging);
 					///////dense
 
-					
-
-
 					std::vector<cv::DMatch> vMatches;
 					std::vector<bool> vbInliers;
 					UVR_SLAM::Frame* pKFi = mvpKFs[ki];
@@ -645,11 +654,11 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					mpMatcher->MatchingWithEpiPolarGeometry(pKFi, mpTargetFrame, vPlanarMaps, vbInliers,vMatches, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugImg);
 					//mpMatcher->DenseMatchingWithEpiPolarGeometry(pKFi, mpTargetFrame, vPlanarMaps, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugImg);
 					std::cout << "pe::matching::1" << std::endl;
-					std::stringstream ss;
+					/*std::stringstream ss;
 					std::cout << "pe::" << mStrPath << std::endl;
 					std::cout << "pe::kf::" << pKFi->GetKeyFrameID() << std::endl;
 					ss << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << "_" << pKFi->GetKeyFrameID() << ".jpg";
-					imwrite(ss.str(), debugImg);
+					imwrite(ss.str(), debugImg);*/
 					std::cout << "pe::matching::2" << std::endl;
 
 					for (int i = 0; i < vPairs.size(); i++) {
@@ -676,8 +685,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 						}
 						else if (b1 && b2) {
 							if (pMP1->mnMapPointID != pMP2->mnMapPointID) {
-								pMP1->Fuse(pMP2);
+								/*pMP1->FuseDenseMP(pMP2);
 								pMP2->SetWorldPos(vPlanarMaps[idx]);
+								std::cout << "Dense::Fuse::" << pMP1->GetNumDensedFrames() << ", " << pMP2->GetNumDensedFrames() << std::endl;*/
 							}
 						}
 						else if (b1) {
@@ -1244,7 +1254,7 @@ void UVR_SLAM::PlaneEstimator::UpdatePlane(PlaneInformation* pPlane, int nTarget
 		if (X.at<float>(1) > 0.0)
 			X *= -1.0;
 
-		cv::Mat checkResidual = abs(mMat*X) < thresh_distance;
+		cv::Mat checkResidual = abs(mMat*X) < 0.001;
 		checkResidual = checkResidual / 255;
 		int temp_inlier = cv::countNonZero(checkResidual);
 
@@ -1269,6 +1279,7 @@ void UVR_SLAM::PlaneEstimator::UpdatePlane(PlaneInformation* pPlane, int nTarget
 			int checkIdx = paramStatus.at<uchar>(i);
 			UVR_SLAM::MapPoint* pMP = mvpMPs[vIdxs[i]];
 			if (checkIdx == 0){
+				pMP->SetPlaneID(-1);
 				nReject++;
 				continue;
 			}

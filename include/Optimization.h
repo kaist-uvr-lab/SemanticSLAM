@@ -14,6 +14,7 @@ namespace UVR_SLAM {
 	//class Vertex;
 	//class Optimizer;
 	//class PlaneEdgeOnlyPoseNMap;
+	class MapOptimizer;
 	class FrameWindow;
 	class Map;
 	class Optimization {
@@ -22,7 +23,7 @@ namespace UVR_SLAM {
 		static int PoseOptimization(Frame *pFrame);
 		static int PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM::MapPoint*> vDenseMPs, std::vector<std::pair<int, cv::Point2f>> vPairs, std::vector<bool>& vbInliers);
 		static void LocalBundleAdjustmentWithPlane(UVR_SLAM::Map* pMap,UVR_SLAM::Frame *pKF, UVR_SLAM::FrameWindow* pWindow, bool* pbStopFlag);
-		static void LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLAM::FrameWindow* pWindow, bool* pbStopFlag);
+		static void LocalBundleAdjustment(MapOptimizer* pMapOptimizer, UVR_SLAM::Frame* pKF, UVR_SLAM::FrameWindow* pWindow);
 		static void InitBundleAdjustment(const std::vector<UVR_SLAM::Frame*> &vpKFs, const std::vector<UVR_SLAM::MapPoint *> &vpMP, int nIterations);
 
 		//other

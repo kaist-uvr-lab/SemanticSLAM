@@ -154,6 +154,44 @@ void UVR_SLAM::MapPoint::Fuse(UVR_SLAM::MapPoint* pMP) {
 	pMP->IncreaseVisible(nvisible);
 }
 
+void UVR_SLAM::MapPoint::FuseDenseMP(MapPoint* pMP) {
+	if (this->mnMapPointID == pMP->mnMapPointID)
+		return;
+	int nvisible, nfound;
+	std::map<Frame*, cv::Point2f> obs;
+	{
+		std::unique_lock<std::mutex> lock(mMutexFeatures);
+		std::unique_lock<std::mutex> lock2(mMutexMP);
+		obs = mmpDenseFrames;
+		mmpDenseFrames.clear();
+		nvisible = mnVisible;
+		nfound = mnFound;
+		mbDelete = true;
+		//std::cout << "MapPoint::Fuse::" << obs.size() << std::endl;
+	}
+	//for (auto mit = obs.begin(), mend = obs.end(); mit != mend; mit++)
+	//{
+	//	// Replace measurement in keyframe
+	//	Frame* pKF = mit->first;
+
+	//	if (!pMP->isInFrame(pKF))
+	//	{
+	//		pKF->mvpMPs[mit->second] = pMP;
+	//		pKF->mvbMPInliers[mit->second] = true;
+	//		pMP->AddFrame(pKF, mit->second);
+	//	}
+	//	else
+	//	{
+
+	//		pKF->mvpMPs[mit->second] = nullptr;
+	//		pKF->mvbMPInliers[mit->second] = false;
+	//		//pKF->EraseMapPointMatch(mit->second);
+	//	}
+	//}
+	//pMP->IncreaseFound(nfound);
+	//pMP->IncreaseVisible(nvisible);
+}
+
 float UVR_SLAM::MapPoint::GetFVRatio() {
 	std::unique_lock<std::mutex> lock(mMutexFeatures);
 	if (mnVisible == 0)
@@ -193,11 +231,21 @@ void UVR_SLAM::MapPoint::RemoveFrame(UVR_SLAM::Frame* pF){
 
 void UVR_SLAM::MapPoint::Delete() {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
-	for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
-		UVR_SLAM::Frame* pF = iter->first;
-		int idx = iter->second;
-		pF->RemoveMP(idx);
+	if (mnType == UVR_SLAM::PLANE_DENSE_MP) {
+		for (auto iter = mmpDenseFrames.begin(); iter != mmpDenseFrames.end(); iter++) {
+			UVR_SLAM::Frame* pF = iter->first;
+			auto pt = iter->second;
+			pF->RemoveDenseMP(pt);
+		}
 	}
+	else {
+		for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
+			UVR_SLAM::Frame* pF = iter->first;
+			int idx = iter->second;
+			pF->RemoveMP(idx);
+		}
+	}
+	
 	//...std::cout << "Delete=" << mmpF;
 }
 void UVR_SLAM::MapPoint::SetDescriptor(cv::Mat _desc){
@@ -319,7 +367,9 @@ int UVR_SLAM::MapPoint::GetIndexInFrame(Frame *pKF)
 void UVR_SLAM::MapPoint::AddDenseFrame(UVR_SLAM::Frame* pF, cv::Point2f pt) {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	auto res = mmpDenseFrames.find(pF);
-	if (res == mmpDenseFrames.end()) {
+	auto res2 = pF->GetDenseMP(pt);
+
+	if (res == mmpDenseFrames.end() && !res2) {
 		mmpDenseFrames.insert(std::pair<UVR_SLAM::Frame*, cv::Point2f>(pF, pt));
 		mnDenseFrames++;
 		pF->AddDenseMP(this, pt);
@@ -333,12 +383,19 @@ void UVR_SLAM::MapPoint::RemoveDenseFrame(UVR_SLAM::Frame* pKF) {
 	auto res = mmpDenseFrames.find(pKF);
 	if (res != mmpDenseFrames.end()) {
 		auto pt = res->second;
-		res = mmpDenseFrames.erase(res);
-		mnDenseFrames--;
-		pKF->RemoveDenseMP(pt);
+		auto res2 = pKF->GetDenseMP(pt);
+		if (res2 == this) {
+			res = mmpDenseFrames.erase(res);
+			mnDenseFrames--;
+			pKF->RemoveDenseMP(pt);
+		}
 	}
 }
 std::map<UVR_SLAM::Frame*, cv::Point2f> UVR_SLAM::MapPoint::GetConnedtedDenseFrames() {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	return std::map<UVR_SLAM::Frame*, cv::Point2f>(mmpDenseFrames.begin(), mmpDenseFrames.end());
+}
+int UVR_SLAM::MapPoint::GetNumDensedFrames() {
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
+	return mmpDenseFrames.size();
 }

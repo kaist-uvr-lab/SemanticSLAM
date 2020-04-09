@@ -180,14 +180,15 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		//pPrev로 테스트해보기. 바로바로 다음 프레임에 트래킹 결과 추가하기
 		mpRefKF = mpMap->GetCurrFrame();
 		auto mvpDenseMPs =  mpRefKF->GetDenseVectors();
+		std::cout << "tracker::dense matching::copy::" << std::endl;
 		cv::Mat debugging;
 		std::vector<std::pair<int, cv::Point2f>> vPairs;
 		std::vector<bool> vbInliers;
 		int mnDenseMatching = mpMatcher->DenseMatchingWithEpiPolarGeometry(pCurr, mpRefKF, mvpDenseMPs, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
 		vbInliers = std::vector<bool>(vPairs.size(), true);
-		std::stringstream ss;
+		/*std::stringstream ss;
 		ss << mpSystem->GetDirPath(0) << "/tracking/" << mpRefKF->GetKeyFrameID() << "_" << pCurr->GetFrameID() << ".jpg";
-		imwrite(ss.str(), debugging);
+		imwrite(ss.str(), debugging);*/
 		std::cout << "tracker::dense matching::" << std::endl;
 		///////////////dense test
 		mnMatching = mpMatcher->MatchingWithLocalMap(pCurr, mvpLocalMPs, mLocalMapDesc, 5.0);

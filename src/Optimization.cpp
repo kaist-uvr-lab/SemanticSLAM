@@ -13,6 +13,7 @@
 #include <PlaneEstimator.h>
 #include <Plane.h>
 #include <Map.h>
+#include <MapOptimizer.h>
 
 #include "g2o/core/block_solver.h"
 #include "g2o/core/optimization_algorithm_levenberg.h"
@@ -732,9 +733,11 @@
 
 
 //g2o 버전
-void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLAM::FrameWindow* pWindow, bool* pbStopFlag) {
+void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::MapOptimizer* pMapOptimizer, UVR_SLAM::Frame* pKF, UVR_SLAM::FrameWindow* pWindow) {
 	// Local KeyFrames: First Breath Search from Current Keyframe
 	std::list<UVR_SLAM::Frame*> lLocalKeyFrames;
+
+	std::cout << "ba::ssssss" << std::endl;
 
 	int nTargetID = pKF->GetFrameID();
 	lLocalKeyFrames.push_back(pKF);
@@ -751,7 +754,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 		pKFi->mnLocalBAID = nTargetID;
 		lLocalKeyFrames.push_back(pKFi);
 	}
-
+	std::cout << "ba::aaaa" << std::endl;
 	// Local MapPoints seen in Local KeyFrames
 	std::list<MapPoint*> lLocalMapPoints;
 	for (std::list<UVR_SLAM::Frame*>::iterator lit = lLocalKeyFrames.begin(), lend = lLocalKeyFrames.end(); lit != lend; lit++)
@@ -765,7 +768,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 			if (pMP->isDeleted()) {
 				continue;
 			}
-			if (pMP->GetNumConnectedFrames() == 1)
+			if (pMP->GetNumConnectedFrames() <= 2)
 				continue;
 			if (pMP->mnLocalBAID == nTargetID)
 				continue;
@@ -773,6 +776,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 			pMP->mnLocalBAID = nTargetID;
 		}
 	}
+	std::cout << "ba::bbbbb" << std::endl;
 	////dense map points 추가하기
 	int nDenseIdx = lLocalMapPoints.size();
 	auto mvpDenseMPs = pKF->GetDenseVectors();
@@ -781,26 +785,45 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 		lLocalMapPoints.push_back(mvpDenseMPs[i]);
 	}
 	////dense map points 추가하기
-
+	std::cout << "ba::ccccc" << std::endl;
 	// Fixed Keyframes. Keyframes that see Local MapPoints but that are not Local Keyframes
 	std::list<UVR_SLAM::Frame*> lFixedCameras;
 	for (std::list<MapPoint*>::iterator lit = lLocalMapPoints.begin(), lend = lLocalMapPoints.end(); lit != lend; lit++)
 	{
 		UVR_SLAM::MapPoint* pMP = *lit;
-		auto observations = pMP->GetConnedtedFrames();
-		//map<KeyFrame*, size_t> observations = (*lit)->GetObservations();
-		for (auto mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
-		{
-			UVR_SLAM::Frame* pKFi = mit->first;
 
-			if (pKFi->mnLocalBAID != nTargetID && pKFi->mnFixedBAID != nTargetID)
+		if (pMP->GetMapPointType() == UVR_SLAM::PLANE_DENSE_MP) {
+			auto observations = pMP->GetConnedtedDenseFrames();
+			//map<KeyFrame*, size_t> observations = (*lit)->GetObservations();
+			for (auto mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
 			{
-				pKFi->mnFixedBAID = nTargetID;
-				lFixedCameras.push_back(pKFi);
+				UVR_SLAM::Frame* pKFi = mit->first;
+
+				if (pKFi->mnLocalBAID != nTargetID && pKFi->mnFixedBAID != nTargetID)
+				{
+					pKFi->mnFixedBAID = nTargetID;
+					lFixedCameras.push_back(pKFi);
+				}
 			}
 		}
-	}
+		else {
+			auto observations = pMP->GetConnedtedFrames();
+			//map<KeyFrame*, size_t> observations = (*lit)->GetObservations();
+			for (auto mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
+			{
+				UVR_SLAM::Frame* pKFi = mit->first;
 
+				if (pKFi->mnLocalBAID != nTargetID && pKFi->mnFixedBAID != nTargetID)
+				{
+					pKFi->mnFixedBAID = nTargetID;
+					lFixedCameras.push_back(pKFi);
+				}
+			}
+		}
+
+		
+	}
+	std::cout << "ba::ddddd" << std::endl;
 	// Setup optimizer
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
@@ -812,11 +835,14 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 	g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
 	optimizer.setAlgorithm(solver);
 
-	if (pbStopFlag)
-		optimizer.setForceStopFlag(pbStopFlag);
+	std::cout << "ba::eeee" << std::endl;
+
+	bool bStopBA = pMapOptimizer->isStopBA();
+	if (bStopBA)
+		optimizer.setForceStopFlag(&bStopBA);
 
 	unsigned long maxKFid = 0;
-
+	std::cout << "ba::ffff" << std::endl;
 	// Set Local KeyFrame vertices
 	for (auto lit = lLocalKeyFrames.begin(), lend = lLocalKeyFrames.end(); lit != lend; lit++)
 	{
@@ -836,7 +862,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 		if (pKFi->GetKeyFrameID()>maxKFid)
 			maxKFid = pKFi->GetKeyFrameID();
 	}
-
+	std::cout << "ba::ggg::"<< maxKFid<< std::endl;
 	// Set Fixed KeyFrame vertices
 	for (auto lit = lFixedCameras.begin(), lend = lFixedCameras.end(); lit != lend; lit++)
 	{
@@ -856,7 +882,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 		if (pKFi->GetKeyFrameID()>maxKFid)
 			maxKFid = pKFi->GetKeyFrameID();
 	}
-
+	std::cout << "ba::hhh::" << maxKFid << std::endl;
 	// Set MapPoint vertices
 	const int nExpectedSize = (lLocalKeyFrames.size() + lFixedCameras.size())*lLocalMapPoints.size();
 
@@ -871,10 +897,14 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 
 	const float thHuberMono = sqrt(5.991);
 	const float thHuberStereo = sqrt(7.815);
-
+	std::cout << "ba::iii" << std::endl;
 	for (auto lit = lLocalMapPoints.begin(), lend = lLocalMapPoints.end(); lit != lend; lit++)
 	{
 		MapPoint* pMP = *lit;
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted())
+			continue;
 		g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
 		vPoint->setEstimate(Converter::toVector3d(pMP->GetWorldPos()));
 		int id = pMP->mnMapPointID + maxKFid + 1;
@@ -882,7 +912,6 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 		vPoint->setMarginalized(true);
 		optimizer.addVertex(vPoint);
 
-		
 		if (pMP->GetMapPointType() != UVR_SLAM::PLANE_DENSE_MP) {
 			const auto observations = pMP->GetConnedtedFrames();
 			
@@ -890,13 +919,14 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 			for (std::map<UVR_SLAM::Frame*, int>::const_iterator mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
 			{
 				UVR_SLAM::Frame* pKFi = mit->first;
+				if (pKFi->GetKeyFrameID() > maxKFid)
+					continue;
 
 				const cv::KeyPoint &kpUn = pKFi->mvKeyPoints[mit->second];
 
 				Eigen::Matrix<double, 2, 1> obs;
 				obs << kpUn.pt.x, kpUn.pt.y;
 
-				
 				g2o::EdgeSE3ProjectXYZ* e = new g2o::EdgeSE3ProjectXYZ();
 				e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
 				e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->GetKeyFrameID())));
@@ -919,11 +949,16 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 				vpMapPointEdgeMono.push_back(pMP);
 			}
 		}else {
+			
 			const auto observations = pMP->GetConnedtedDenseFrames();
+			
 			//Set edges
 			for (std::map<UVR_SLAM::Frame*, cv::Point2f>::const_iterator mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
 			{
 				UVR_SLAM::Frame* pKFi = mit->first;
+				if (pKFi->GetKeyFrameID() > maxKFid)
+					continue;
+
 				auto pt = mit->second;
 				Eigen::Matrix<double, 2, 1> obs;
 				obs << pt.x, pt.y;
@@ -953,18 +988,32 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 		
 	}
 
-	if (pbStopFlag)
+	std::cout << "ba::setting::end" << std::endl;
+
+	bStopBA = pMapOptimizer->isStopBA();
+	if (bStopBA)
+		return;
+	/*if (pbStopFlag)
 		if (*pbStopFlag)
-			return;
+			return;*/
+
+	std::cout << "ba::setting::end2" << std::endl;
 
 	optimizer.initializeOptimization();
 	optimizer.optimize(5);
 
-	bool bDoMore = true;
+	std::cout << "ba::optimize::end" << std::endl;
 
-	if (pbStopFlag)
+	bStopBA = pMapOptimizer->isStopBA();
+
+	std::cout << "ba::optimize::end2" << std::endl;
+
+	bool bDoMore = true;
+	if (bStopBA)
+		bDoMore = false;
+	/*if (pbStopFlag)
 		if (*pbStopFlag)
-			bDoMore = false;
+			bDoMore = false;*/
 
 	if (bDoMore)
 	{
@@ -993,6 +1042,8 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 
 	}
 
+	std::cout << "ba::optimize::end3" << std::endl;
+
 	std::vector<std::pair<UVR_SLAM::Frame*, MapPoint*> > vToErase;
 	vToErase.reserve(vpEdgesMono.size());
 
@@ -1012,6 +1063,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 		}
 	}
 
+	std::cout << "ba::check::inlier::end" << std::endl;
 
 	if (!vToErase.empty())
 	{
@@ -1027,12 +1079,13 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 				pMPi->RemoveFrame(pKFi);
 			}
 			
-
 			//pKFi->EraseMapPointMatch(pMPi);
 			//pMPi->EraseObservation(pKFi);
 
 		}
 	}
+
+	std::cout << "ba::erase::end" << std::endl;
 
 	// Recover optimized data
 
@@ -1050,10 +1103,14 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 		pKF->SetPose(R, t);
 	}
 
+	std::cout << "ba::restore::kf::end" << std::endl;
+
 	//Points
 	for (auto lit = lLocalMapPoints.begin(), lend = lLocalMapPoints.end(); lit != lend; lit++)
 	{
 		MapPoint* pMP = *lit;
+		if (!pMP || pMP->isDeleted())
+			continue;
 
 		//remove
 		int nConnectedThresh = 2;
@@ -1067,7 +1124,14 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 		//////////////평면일 경우 쓰레시값 조절
 		//else if (pMP->isNewMP())
 		//	nConnectedThresh = 1;
-		if (pMP->GetNumConnectedFrames() < nConnectedThresh) {
+		int nConncted = 0;
+		if (pMP->GetMapPointType() == UVR_SLAM::PLANE_DENSE_MP) {
+			nConncted = pMP->GetNumDensedFrames();
+		}
+		else {
+			nConncted = pMP->GetNumConnectedFrames();
+		}
+		if (nConncted <= nConnectedThresh) {
 			pMP->SetDelete(true);
 			pMP->Delete();
 			//pWindow->SetMapPoint(nullptr, idx);
@@ -1079,7 +1143,7 @@ void UVR_SLAM::Optimization::LocalBundleAdjustment(UVR_SLAM::Frame* pKF, UVR_SLA
 		pMP->SetWorldPos(Converter::toCvMat(vPoint->estimate()));
 		pMP->UpdateNormalAndDepth();
 	}
-
+	std::cout << "ba::restore::mp::end" << std::endl;
 }
 
 void UVR_SLAM::Optimization::LocalBundleAdjustmentWithPlane(UVR_SLAM::Map* pMap, UVR_SLAM::Frame *pKF, UVR_SLAM::FrameWindow* pWindow, bool* pbStopFlag)
@@ -1935,7 +1999,6 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 				}
 			}
 			else {
-				vbInliers;
 
 				if (!vbInliers[idx])
 				{
