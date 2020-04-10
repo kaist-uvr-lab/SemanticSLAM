@@ -120,6 +120,14 @@ namespace UVR_SLAM {
 		void RemoveDenseMP(cv::Point2f pt);
 		//일단 dense map test;
 
+		///////////////////////////////
+		////200410
+		////Optical flow를 적용한 방식
+		//이미지 픽셀에 키포인트 순서를 저장.
+		cv::Mat matKPs;
+		///////////////////////////////
+
+
 		std::vector<UVR_SLAM::MapPoint*> mvpMPs;
 		std::vector<bool> mvbMPInliers;
 		std::vector<cv::KeyPoint> mvKeyPoints, mvKeyPointsUn, mvkInliers, mvTempKPs;
