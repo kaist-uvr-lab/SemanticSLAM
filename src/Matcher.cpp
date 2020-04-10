@@ -1829,7 +1829,7 @@ void UVR_SLAM::Matcher::FindFundamental(UVR_SLAM::Frame* pInit, UVR_SLAM::Frame*
 	score = 0.0;
 	vbMatchesInliers = std::vector<bool>(N, false);
 
-	int mMaxIterations = 1000;
+	int mMaxIterations = 2000;
 
 #pragma  omp parallel for
 	for (int it = 0; it<mMaxIterations; it++)
@@ -3508,7 +3508,6 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* pKF, Frame* pF, std::
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 ////200410 Optical flow
 int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr, std::vector<std::pair<cv::Point2f, cv::Point2f>>& resMatches) {
-	std::cout << "init::opticalflow::start" << std::endl;
 	//////////////////////////
 	////Optical flow
 	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
@@ -3539,8 +3538,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	prevPts = init->mvPts;
 	int maxLvl = 3;
 	int searchSize = 21;
-	cv::buildOpticalFlowPyramid(currGray, currPyr, cv::Size(searchSize, searchSize), maxLvl);
-	maxLvl = cv::buildOpticalFlowPyramid(prevGray, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
+	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
+	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
 	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
 	//바운더리 에러도 고려해야 함.
 	
@@ -3550,6 +3549,9 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	int nBad = 0;
 	int nEpi = 0;
 	int n3D = 0;
+
+	std::cout << "opti::"<<init->GetFrameID()<<"::" << prevPts.size() << std::endl;
+
 	for (int i = 0; i < prevPts.size(); i++) {
 		if (status[i] == 0) {
 			nBad++;
@@ -3593,7 +3595,6 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 		////
 
 	}
-	std::cout << "init::opticalflow::end" << std::endl;
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 	double tttt = duration / 1000.0;
@@ -3605,6 +3606,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 	imshow("Init::OpticalFlow ", debugging);
 	/////////////////////////
+
+	return res;
 }
 ////200410 Optical flow
 ///////////////////////////////////////////////////////////////////////////////////////////////////////

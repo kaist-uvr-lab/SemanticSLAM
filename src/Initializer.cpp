@@ -71,16 +71,16 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		
 		//매칭이 적으면 mpInitFrame1을 mpInitFrame2로 교체
 		cv::Mat F;
-		std::vector<cv::DMatch> tempMatches, resMatches;
+		//std::vector<cv::DMatch> tempMatches, resMatches;
 		mpInitFrame2 = pFrame;
 		//if (mpInitFrame2->GetFrameID() - mpInitFrame1->GetFrameID() < 3)
 		//	return mbInit;
 
-		int count = mpMatcher->MatchingProcessForInitialization(mpInitFrame1, mpInitFrame2, F, tempMatches);
+		//int count = mpMatcher->MatchingProcessForInitialization(mpInitFrame1, mpInitFrame2, F, tempMatches);
 		std::vector<std::pair<cv::Point2f, cv::Point2f>> tempMatches2, resMatches2;
-		int count2 = mpMatcher->OpticalMatchingForInitialization(mpInitFrame1, mpInitFrame2, tempMatches2);
+		int count = mpMatcher->OpticalMatchingForInitialization(mpInitFrame1, mpInitFrame2, tempMatches2);
 		//int count = mpMatcher->SearchForInitialization(mpInitFrame1, mpInitFrame2, tempMatches, 100);
-		if (count < N_matching_init_therah) {
+		if (count < 600) {//N_matching_init_therah
 			delete mpInitFrame1;
 			mpInitFrame1 = mpInitFrame2;
 			if(!mpInitFrame1->CheckFrameType(UVR_SLAM::FLAG_SEGMENTED_FRAME))
@@ -89,50 +89,65 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 		
 		////F를 이용한 매칭
-		std::vector<bool> mvInliers;
-		float score;
+		//std::vector<bool> mvInliers;
+		//float score;
 
-		if ((int)tempMatches.size() >= 8) {
-			mpMatcher->FindFundamental(mpInitFrame1, mpInitFrame2, tempMatches, mvInliers, score, F);
-			F.convertTo(F, CV_32FC1);
-		}
-		
-		if ((int)tempMatches.size() < 8 || F.empty()) {
-			F.release();
-			F = cv::Mat::zeros(0, 0, CV_32FC1);
-			//delete mpInitFrame1;
-			//mpInitFrame1 = mpInitFrame2;
-			return mbInit;
-		}
+		//if ((int)tempMatches.size() >= 8) {
+		//	mpMatcher->FindFundamental(mpInitFrame1, mpInitFrame2, tempMatches, mvInliers, score, F);
+		//	F.convertTo(F, CV_32FC1);
+		//}
+		//
+		//if ((int)tempMatches.size() < 8 || F.empty()) {
+		//	F.release();
+		//	F = cv::Mat::zeros(0, 0, CV_32FC1);
+		//	//delete mpInitFrame1;
+		//	//mpInitFrame1 = mpInitFrame2;
+		//	return mbInit;
+		//}
 
-		for (unsigned long i = 0; i < tempMatches.size(); i++) {
-			if (mvInliers[i]) {
-				resMatches.push_back(tempMatches[i]);
-			}
-		}
-		count = resMatches.size();
+		//for (unsigned long i = 0; i < tempMatches.size(); i++) {
+		//	if (mvInliers[i]) {
+		//		resMatches.push_back(tempMatches[i]);
+		//	}
+		//}
+		//count = resMatches.size();
 		////Optical flow 매칭 관련
-		std::vector<bool> mvInliers2;
-		float score2;
-		if ((int)tempMatches2.size() >= 8) {
-			mpMatcher->FindFundamental(mpInitFrame1, mpInitFrame2, tempMatches2, mvInliers2, score2, F);
-			F.convertTo(F, CV_32FC1);
+		std::vector<uchar> mvInliers2;
+		//float score2;
+		//if ((int)tempMatches2.size() >= 8) {
+		//	mpMatcher->FindFundamental(mpInitFrame1, mpInitFrame2, tempMatches2, mvInliers2, score2, F);
+		//	F.convertTo(F, CV_32FC1);
+		//}
+
+		//if ((int)tempMatches2.size() < 8 || F.empty()) {
+		//	F.release();
+		//	F = cv::Mat::zeros(0, 0, CV_32FC1);
+		//	//delete mpInitFrame1;
+		//	//mpInitFrame1 = mpInitFrame2;
+		//	return mbInit;
+		//}
+
+		//for (unsigned long i = 0; i < tempMatches2.size(); i++) {
+		//	if (mvInliers2[i]) {
+		//		resMatches2.push_back(tempMatches2[i]);
+		//	}
+		//}
+		std::vector<cv::Point2f> vPts1, vPts2;
+		for (int i = 0; i < tempMatches2.size(); i++) {
+			vPts1.push_back(tempMatches2[i].first);
+			vPts2.push_back(tempMatches2[i].second);
 		}
 
-		if ((int)tempMatches2.size() < 8 || F.empty()) {
-			F.release();
-			F = cv::Mat::zeros(0, 0, CV_32FC1);
-			//delete mpInitFrame1;
-			//mpInitFrame1 = mpInitFrame2;
-			return mbInit;
-		}
-
+		cv::Mat F12 = cv::findFundamentalMat(vPts1, vPts2, mvInliers2, cv::FM_RANSAC);
+		std::cout << F12 << F12.type() <<", "<<CV_32FC1<< std::endl;
+		F12.convertTo(F12, CV_32FC1);
 		for (unsigned long i = 0; i < tempMatches2.size(); i++) {
 			if (mvInliers2[i]) {
 				resMatches2.push_back(tempMatches2[i]);
 			}
 		}
-		std::cout << "Init::Opt::" << resMatches2.size() << std::endl;
+		count = resMatches2.size();
+		std::cout << "Init::Opt::" << resMatches2.size()<<"::"<< tempMatches2.size() << std::endl;
 		//count = resMatches2.size();
 
 		////F를 이용한 매칭
@@ -147,7 +162,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		vCandidates.push_back(mC2);
 		vCandidates.push_back(mC3);
 		vCandidates.push_back(mC4);
-		SetCandidatePose(F, resMatches, vCandidates);
+		SetCandidatePose(F12, resMatches2, vCandidates);
 		int resIDX = SelectCandidatePose(vCandidates);
 
 		cv::Mat vis1 = mpInitFrame1->GetOriginalImage();
@@ -160,6 +175,11 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		vis2.copyTo(debugging(mergeRect2));
 		//cvtColor(vis1, vis1, CV_8UC3);
 		cv::RNG rng = cv::RNG(12345);
+
+		if (resIDX > 0)
+			std::cout << "init::triangulation::" << vCandidates[resIDX]->nGood << std::endl;
+		else
+			std::cout << "init::triangulation::fail!!" << std::endl;
 
 		if (resIDX > 0 && vCandidates[resIDX]->nGood > N_thresh_init_triangulate) {
 
@@ -180,8 +200,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpFrameWindow->AddFrame(mpInitFrame1);
 			mpFrameWindow->AddFrame(mpInitFrame2);
 
-			mpInitFrame1->mTrackedDescriptor = cv::Mat::zeros(0, mpInitFrame1->matDescriptor.cols, mpInitFrame1->matDescriptor.type());
-			mpInitFrame2->mTrackedDescriptor = cv::Mat::zeros(0, mpInitFrame2->matDescriptor.cols, mpInitFrame2->matDescriptor.type());
+			//mpInitFrame1->mTrackedDescriptor = cv::Mat::zeros(0, mpInitFrame1->matDescriptor.cols, mpInitFrame1->matDescriptor.type());
+			//mpInitFrame2->mTrackedDescriptor = cv::Mat::zeros(0, mpInitFrame2->matDescriptor.cols, mpInitFrame2->matDescriptor.type());
 			//mpFrameWindow->push_back(mpInitFrame1);
 			//mpFrameWindow->push_back(mpInitFrame2);
 
@@ -199,44 +219,34 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 			std::cout << "init::keyframeid::" << mpInitFrame1->GetKeyFrameID() << ", " << mpInitFrame2->GetKeyFrameID() << std::endl;
 
-			auto mvpOPs1 = mpInitFrame1->GetObjectVector();
-			auto mvpOPs2 = mpInitFrame2->GetObjectVector();
+			//auto mvpOPs1 = mpInitFrame1->GetObjectVector();
+			//auto mvpOPs2 = mpInitFrame2->GetObjectVector();
 			std::vector<int> idxs;
 			for (int i = 0; i < vCandidates[resIDX]->mvX3Ds.size(); i++) {
 				if (vCandidates[resIDX]->vbTriangulated[i]) {
-					int idx1 = resMatches[i].queryIdx;
-					int idx2 = resMatches[i].trainIdx;
-					UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame1, vCandidates[resIDX]->mvX3Ds[i], mpInitFrame2->matDescriptor.row(idx2));
-					pNewMP->AddFrame(mpInitFrame1, idx1);
-					pNewMP->AddFrame(mpInitFrame2, idx2);
+					auto pt1 = resMatches2[i].first;
+					auto pt2 = resMatches2[i].second;
+					UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame1, vCandidates[resIDX]->mvX3Ds[i], cv::Mat());
+					pNewMP->AddDenseFrame(mpInitFrame1, pt1);
+					pNewMP->AddDenseFrame(mpInitFrame2, pt2);
 					pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
-
-					//update
-					mpInitFrame1->mTrackedDescriptor.push_back(mpInitFrame1->matDescriptor.row(idx1));
-					mpInitFrame1->mvTrackedIdxs.push_back(idx1);
-
-					mpInitFrame2->mTrackedDescriptor.push_back(mpInitFrame2->matDescriptor.row(idx2));
-					mpInitFrame2->mvTrackedIdxs.push_back(idx2);
-
-					//local map에 축
-					//mpSystem->mlpNewMPs.push_back(pNewMP);
 
 					nMatch++;
 					idxs.push_back(i);
 					vpMPs.push_back(pNewMP);
 				}
 			}
-
+			std::cout << "init::ba::start::" << mpInitFrame2->TrackedMapPoints(2) <<"::"<< nMatch << std::endl;
 			//최적화 수행 후 Map 생성
 			//UVR_SLAM::Optimization::InitOptimization(vCandidates[resIDX], resMatches, mpInitFrame1, mpInitFrame2, mK, bInitOpt);
 			UVR_SLAM::Optimization::InitBundleAdjustment(vpKFs, vpMPs, 20);
-
+			std::cout << "init::ba::end::"<< mpInitFrame2->TrackedMapPoints(2) << std::endl;
 			//calculate median depth
 			float medianDepth;
 			mpInitFrame1->ComputeSceneMedianDepth(medianDepth);
 			float invMedianDepth = 1.0f / medianDepth;
-
-			if (medianDepth < 0.0 || mpInitFrame2->TrackedMapPoints(1) < 100){
+			
+			if (medianDepth < 0.0 || mpInitFrame2->TrackedMapPoints(2) < 100){
 				mbInit = false;
 				bReset = true;
 				std::cout << "Reset" << std::endl;
@@ -287,14 +297,20 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 					continue;
 				if (pMP->isDeleted())
 					continue;
-				int idx1 = resMatches[idxs[i]].queryIdx;
-				int idx2 = resMatches[idxs[i]].trainIdx;
-				if (mvpOPs2[idx2] == UVR_SLAM::ObjectType::OBJECT_FLOOR && mvpOPs1[idx1] == UVR_SLAM::ObjectType::OBJECT_FLOOR) {
-				//if (mvpOPs2[idx2] == UVR_SLAM::ObjectType::OBJECT_FLOOR) {
-					count++;
-					mvpFloorMPs.push_back(pMP);
+				auto pt1 = resMatches2[idxs[i]].first;
+				auto pt2 = resMatches2[idxs[i]].second;
+				int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
+				if (label1 == 150) {
+					int label2 = mpInitFrame2->matLabeled.at<uchar>(pt2.y / 2, pt2.x / 2);
+					if (label1 == label2) {
+						count++;
+						mvpFloorMPs.push_back(pMP);
+						cv::line(debugging, pt1, pt2 + ptBottom, cv::Scalar(255, 0, 0), 1);
+						
+					}
 				}
 			}
+			imshow("a;lsdjf;lasjkdf", debugging); cv::waitKey(1);
 			std::cout << "floor point ::" << count << std::endl;
 			if (count < 20)
 				return mbInit;
@@ -328,6 +344,11 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 				bReset = true;
 				std::cout << "Reset" << std::endl;
 				return mbInit;
+			}
+
+			//초기 평면 MP 설정 필요
+			for (int i = 0; i < pFloor->mvpMPs.size(); i++) {
+				pFloor->mvpMPs[i]->SetMapPointType(UVR_SLAM::PLANE_DENSE_MP);
 			}
 
 			//윈도우 로컬맵, 포즈 설정
@@ -372,93 +393,93 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
 			mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
 
-			////매칭 테스트
-			cv::Mat debugImg;
-			std::vector<cv::DMatch> vMatches;
-			std::vector<cv::Mat> vPlanarMaps;
-			std::vector<bool> vbInliers;
-			std::vector<std::pair<int, cv::Point2f>> vPairs;
-			vPlanarMaps = std::vector<cv::Mat>(mpInitFrame2->mvKeyPoints.size(), cv::Mat::zeros(0, 0, CV_8UC1));
-			UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mpInitFrame2, pFloor, vPlanarMaps);
-			mpMatcher->MatchingWithEpiPolarGeometry(mpInitFrame1, mpInitFrame2, vPlanarMaps, vbInliers, vMatches, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugImg);
-			//mpMatcher->DenseMatchingWithEpiPolarGeometry(mpInitFrame1, mpInitFrame2, vPlanarMaps, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugImg);
+			//////매칭 테스트
+			//cv::Mat debugImg;
+			//std::vector<cv::DMatch> vMatches;
+			//std::vector<cv::Mat> vPlanarMaps;
+			//std::vector<bool> vbInliers;
+			//std::vector<std::pair<int, cv::Point2f>> vPairs;
+			//vPlanarMaps = std::vector<cv::Mat>(mpInitFrame2->mvKeyPoints.size(), cv::Mat::zeros(0, 0, CV_8UC1));
+			//UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mpInitFrame2, pFloor, vPlanarMaps);
+			//mpMatcher->MatchingWithEpiPolarGeometry(mpInitFrame1, mpInitFrame2, vPlanarMaps, vbInliers, vMatches, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugImg);
+			////mpMatcher->DenseMatchingWithEpiPolarGeometry(mpInitFrame1, mpInitFrame2, vPlanarMaps, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugImg);
 
-			std::stringstream ss;
-			ss << mpSystem->GetDirPath(0) << "/init.jpg";
-			imwrite(ss.str(), debugImg);
+			//std::stringstream ss;
+			//ss << mpSystem->GetDirPath(0) << "/init.jpg";
+			//imwrite(ss.str(), debugImg);
 
-			for (int i = 0; i < vPairs.size(); i++) {
-				//기존 평면인지 확인이 어려움.
-				
-				auto idx = vPairs[i].first;
-				auto pt = vPairs[i].second;
-				if (mpInitFrame2->mvpMPs[idx]) {
-					mpInitFrame2->mvpMPs[idx]->Delete();
-				}
-				UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[idx],mpInitFrame2->matDescriptor.row(idx), UVR_SLAM::PLANE_DENSE_MP);
-				pNewMP->SetPlaneID(pFloor->mnPlaneID);
-				pNewMP->SetObjectType(pFloor->mnPlaneType);
-				pNewMP->AddDenseFrame(mpInitFrame1, pt);
-				pNewMP->AddDenseFrame(mpInitFrame2, mpInitFrame2->mvKeyPoints[idx].pt);
-				//pNewMP->AddFrame(mpInitFrame2, idx);
-				pNewMP->UpdateNormalAndDepth();
-				pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
-				mpSystem->mlpNewMPs.push_back(pNewMP);
-				pFloor->tmpMPs.push_back(pNewMP);
-			}
+			//for (int i = 0; i < vPairs.size(); i++) {
+			//	//기존 평면인지 확인이 어려움.
+			//	
+			//	auto idx = vPairs[i].first;
+			//	auto pt = vPairs[i].second;
+			//	if (mpInitFrame2->mvpMPs[idx]) {
+			//		mpInitFrame2->mvpMPs[idx]->Delete();
+			//	}
+			//	UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[idx],mpInitFrame2->matDescriptor.row(idx), UVR_SLAM::PLANE_DENSE_MP);
+			//	pNewMP->SetPlaneID(pFloor->mnPlaneID);
+			//	pNewMP->SetObjectType(pFloor->mnPlaneType);
+			//	pNewMP->AddDenseFrame(mpInitFrame1, pt);
+			//	pNewMP->AddDenseFrame(mpInitFrame2, mpInitFrame2->mvKeyPoints[idx].pt);
+			//	//pNewMP->AddFrame(mpInitFrame2, idx);
+			//	pNewMP->UpdateNormalAndDepth();
+			//	pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
+			//	mpSystem->mlpNewMPs.push_back(pNewMP);
+			//	pFloor->tmpMPs.push_back(pNewMP);
+			//}
 
-			for (int i = 0; i < vMatches.size(); i++) {
-				if (vbInliers[i]) {
-					int idx1 = vMatches[i].trainIdx;
-					int idx2 = vMatches[i].queryIdx;
-					UVR_SLAM::MapPoint* pNewMP = mpInitFrame2->mvpMPs[idx2];
-					if (pNewMP && pNewMP->isDeleted()) {
-						continue;
-					}
-					if (mpInitFrame2->mvpMPs[idx2] && mpInitFrame1->mvpMPs[idx1]) {
-						std::cout << "init::case::1" << std::endl;
-						pNewMP = mpInitFrame2->mvpMPs[idx2];
-						pNewMP->SetWorldPos(vPlanarMaps[idx2]);
-					}else if (mpInitFrame2->mvpMPs[idx2]) {
-						std::cout << "init::case::2" << std::endl;
-						pNewMP = mpInitFrame2->mvpMPs[idx2];
-						pNewMP->SetWorldPos(vPlanarMaps[idx2]);
-					}
-					else if (mpInitFrame1->mvpMPs[idx1]) {
-						std::cout << "init::case::3" << std::endl;
-						pNewMP = mpInitFrame1->mvpMPs[idx1];
-						pNewMP->SetWorldPos(vPlanarMaps[idx2]);
-					}
-					else {
-						std::cout << "init::case::4" << std::endl;
-						pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[idx2], mpInitFrame2->matDescriptor.row(idx2), UVR_SLAM::PLANE_MP);
-						pNewMP->SetPlaneID(pFloor->mnPlaneID);
-						pNewMP->SetObjectType(pFloor->mnPlaneType);
-						pNewMP->AddFrame(mpInitFrame1, idx1);
-						pNewMP->AddFrame(mpInitFrame2, idx2);
-						pNewMP->UpdateNormalAndDepth();
-						pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
-					}
-					mpSystem->mlpNewMPs.push_back(pNewMP);
-					pFloor->tmpMPs.push_back(pNewMP);
-					//mpFrameWindow->AddMapPoint(pNewMP, nTargetID);
-				}
-				else {
-					/*if (vPlanarMaps[i].rows == 0)
-						continue;
-					UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[i], mpInitFrame2->matDescriptor.row(i), UVR_SLAM::PLANE_MP);
-					pNewMP->SetPlaneID(pFloor->mnPlaneID);
-					pNewMP->SetObjectType(pFloor->mnPlaneType);
-					pNewMP->AddFrame(mpInitFrame2, i);
-					pNewMP->UpdateNormalAndDepth();
-					pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
-					mpSystem->mlpNewMPs.push_back(pNewMP);
-					pFloor->tmpMPs.push_back(pNewMP);*/
-				}
+			//for (int i = 0; i < vMatches.size(); i++) {
+			//	if (vbInliers[i]) {
+			//		int idx1 = vMatches[i].trainIdx;
+			//		int idx2 = vMatches[i].queryIdx;
+			//		UVR_SLAM::MapPoint* pNewMP = mpInitFrame2->mvpMPs[idx2];
+			//		if (pNewMP && pNewMP->isDeleted()) {
+			//			continue;
+			//		}
+			//		if (mpInitFrame2->mvpMPs[idx2] && mpInitFrame1->mvpMPs[idx1]) {
+			//			std::cout << "init::case::1" << std::endl;
+			//			pNewMP = mpInitFrame2->mvpMPs[idx2];
+			//			pNewMP->SetWorldPos(vPlanarMaps[idx2]);
+			//		}else if (mpInitFrame2->mvpMPs[idx2]) {
+			//			std::cout << "init::case::2" << std::endl;
+			//			pNewMP = mpInitFrame2->mvpMPs[idx2];
+			//			pNewMP->SetWorldPos(vPlanarMaps[idx2]);
+			//		}
+			//		else if (mpInitFrame1->mvpMPs[idx1]) {
+			//			std::cout << "init::case::3" << std::endl;
+			//			pNewMP = mpInitFrame1->mvpMPs[idx1];
+			//			pNewMP->SetWorldPos(vPlanarMaps[idx2]);
+			//		}
+			//		else {
+			//			std::cout << "init::case::4" << std::endl;
+			//			pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[idx2], mpInitFrame2->matDescriptor.row(idx2), UVR_SLAM::PLANE_MP);
+			//			pNewMP->SetPlaneID(pFloor->mnPlaneID);
+			//			pNewMP->SetObjectType(pFloor->mnPlaneType);
+			//			pNewMP->AddFrame(mpInitFrame1, idx1);
+			//			pNewMP->AddFrame(mpInitFrame2, idx2);
+			//			pNewMP->UpdateNormalAndDepth();
+			//			pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
+			//		}
+			//		mpSystem->mlpNewMPs.push_back(pNewMP);
+			//		pFloor->tmpMPs.push_back(pNewMP);
+			//		//mpFrameWindow->AddMapPoint(pNewMP, nTargetID);
+			//	}
+			//	else {
+			//		/*if (vPlanarMaps[i].rows == 0)
+			//			continue;
+			//		UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[i], mpInitFrame2->matDescriptor.row(i), UVR_SLAM::PLANE_MP);
+			//		pNewMP->SetPlaneID(pFloor->mnPlaneID);
+			//		pNewMP->SetObjectType(pFloor->mnPlaneType);
+			//		pNewMP->AddFrame(mpInitFrame2, i);
+			//		pNewMP->UpdateNormalAndDepth();
+			//		pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
+			//		mpSystem->mlpNewMPs.push_back(pNewMP);
+			//		pFloor->tmpMPs.push_back(pNewMP);*/
+			//	}
 
-				
-				
-			}
+			//	
+			//	
+			//}
 			
 			////매칭 테스트
 			//UVR_SLAM::PlaneInformation::CreatePlanarMapPoints(mpInitFrame2, mpSystem);
@@ -552,6 +573,29 @@ void UVR_SLAM::Initializer::SetCandidatePose(cv::Mat F, std::vector<cv::DMatch> 
 	vCandidates[3]->SetRt(R2, t2);
 
 #pragma  omp parallel for
+	for (int i = 0; i < 4; i++) {
+		CheckRT(Matches, vCandidates[i], th);
+	}
+	/*CheckRT(Matches, vCandidates[0], th);
+	CheckRT(Matches, vCandidates[1], th);
+	CheckRT(Matches, vCandidates[2], th);
+	CheckRT(Matches, vCandidates[3], th);*/
+}
+
+void UVR_SLAM::Initializer::SetCandidatePose(cv::Mat F, std::vector<std::pair<cv::Point2f, cv::Point2f>> Matches, std::vector<UVR_SLAM::InitialData*>& vCandidates) {
+	//E
+	Mat E = mK.t()*F*mK;;
+	//Decompose E
+
+	float th = 4.0f;
+	Mat R1, R2, t1, t2;
+	DecomposeE(E, R1, R2, t1, t2);
+	vCandidates[0]->SetRt(R1, t1);
+	vCandidates[1]->SetRt(R2, t1);
+	vCandidates[2]->SetRt(R1, t2);
+	vCandidates[3]->SetRt(R2, t2);
+
+//#pragma  omp parallel for
 	for (int i = 0; i < 4; i++) {
 		CheckRT(Matches, vCandidates[i], th);
 	}
@@ -663,6 +707,88 @@ void UVR_SLAM::Initializer::CheckRT(std::vector<cv::DMatch> Matches, UVR_SLAM::I
 	}
 }
 
+void UVR_SLAM::Initializer::CheckRT(std::vector<std::pair<cv::Point2f, cv::Point2f>> Matches, UVR_SLAM::InitialData* candidate, float th2) {
+
+	//vector map을 대신할 무엇인가가 필요함.
+
+	candidate->vbTriangulated = std::vector<bool>(Matches.size(), false);
+	candidate->mvX3Ds = std::vector<cv::Mat>(Matches.size(), cv::Mat::zeros(3, 1, CV_32FC1));
+	//candidate->vMap3D = std::vector<UVR::MapPoint*>(pInitFrame->mvnCPMatchingIdx.size(), nullptr);
+	//candidate->vP3D.resize(pKF->mvnMatchingIdx.size());
+
+	std::vector<float> vCosParallax;
+	//vCosParallax.reserve(pKF->mvnMatchingIdx.size());
+
+	//cv::Mat R = cv::Mat::eye(3, 3, CV_32FC1);
+	//cv::Mat t = cv::Mat::zeros(3, 1, CV_32FC1);
+
+	// Camera 1 Projection Matrix K[I|0]
+	cv::Mat P1(3, 4, CV_32F, cv::Scalar(0));
+	mK.copyTo(P1.rowRange(0, 3).colRange(0, 3));
+	cv::Mat O1 = cv::Mat::zeros(3, 1, CV_32F);
+
+	// Camera 2 Projection Matrix K[R|t]
+	cv::Mat P2(3, 4, CV_32F);
+	candidate->R.copyTo(P2.rowRange(0, 3).colRange(0, 3));
+	candidate->t.copyTo(P2.rowRange(0, 3).col(3));
+	P2 = mK*P2;
+
+	cv::Mat O2 = -candidate->R.t()*candidate->t;
+
+	for (unsigned long i = 0; i < Matches.size(); i++)
+	{
+		const cv::Point2f pt1 = Matches[i].first;
+		const cv::Point2f pt2 = Matches[i].second;
+		/*const cv::KeyPoint &kp1 = mpInitFrame1->mvKeyPoints[Matches[i].queryIdx];
+		const cv::KeyPoint &kp2 = mpInitFrame2->mvKeyPoints[Matches[i].trainIdx];*/
+		cv::Mat X3D;
+
+		if (!Triangulate(pt1,pt2, P1, P2, X3D))
+			continue;
+
+		float cosParallax;
+
+		bool res = CheckCreatedPoints(X3D, pt1,pt2, O1, O2, candidate->R0, candidate->t0, candidate->R, candidate->t, cosParallax, th2, th2);
+		if (res) {
+			vCosParallax.push_back(cosParallax);
+			//candidate->vMap3D[i] = new MapPoint(X3D);
+			/*
+			{
+			//항상 초기화 시에 수행해야 할 듯.
+			cv::Mat Ow = -R.t()*t;
+			cv::Mat PC = X3D-Ow;
+			float dist = cv::norm(PC);
+			int level = kp2.octave;
+			int nLevels = pF->mnScaleLevels;
+			float levelScaleFactor = pF->mvScaleFactors[level];
+			candidate->vMap3D[i]->mfMaxDistance = dist*levelScaleFactor;
+			candidate->vMap3D[i]->mfMinDistance = candidate->vMap3D[i]->mfMaxDistance / pF->mvScaleFactors[nLevels-1];
+			candidate->vMap3D[i]->mNormalVector = X3D-Ow;
+			candidate->vMap3D[i]->mNormalVector = candidate->vMap3D[i]->mNormalVector / cv::norm(candidate->vMap3D[i]->mNormalVector);
+			}
+			*/
+			candidate->vbTriangulated[i] = true;
+			candidate->mvX3Ds[i] = X3D.clone();
+			candidate->nGood++;
+		}
+	}
+	std::cout << "candidate::" << candidate->nGood << std::endl;
+	if (candidate->nGood>0)
+	{
+		std::sort(vCosParallax.begin(), vCosParallax.end());
+		int idx = 50;
+		int nParallaxSize = (int)vCosParallax.size() - 1;
+		if (idx > nParallaxSize) {
+			idx = nParallaxSize;
+		}
+		std::cout<<"parallax::"<< (float)(acos(vCosParallax[idx])*UVR_SLAM::MatrixOperator::rad2deg)<<", "<< (float)(acos(vCosParallax[idx/2])*UVR_SLAM::MatrixOperator::rad2deg)<<std::endl;
+		candidate->parallax = (float)(acos(vCosParallax[idx])*UVR_SLAM::MatrixOperator::rad2deg);
+	}
+	else {
+		candidate->parallax = 0.0f;
+	}
+}
+
 bool UVR_SLAM::Initializer::Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2, cv::Mat& x3D){
 	cv::Mat A(4, 4, CV_32F);
 
@@ -746,7 +872,7 @@ int UVR_SLAM::Initializer::SelectCandidatePose(std::vector<UVR_SLAM::InitialData
 	
 	int nsimilar = 0;
 	int th_good = (int)(0.7f*(float)nMaxGood);
-	int nMinGood = (int)(0.8f*(float)vCandidates[0]->nMinGood);
+	int nMinGood = 200;//(int)(0.8f*(float)vCandidates[0]->nMinGood);
 	if (nMinGood < minTriangulated) {
 		nMinGood = minTriangulated;
 	}
@@ -755,7 +881,7 @@ int UVR_SLAM::Initializer::SelectCandidatePose(std::vector<UVR_SLAM::InitialData
 			nsimilar++;
 		}
 	}
-	
+	std::cout << "paralaxx::" << vCandidates[maxIdx]->parallax << ", " << minParallax <<"::"<< nMaxGood <<", "<<nMinGood<<"::"<<nsimilar<< std::endl;
 	int res = -1;
 	if (vCandidates[maxIdx]->parallax > minParallax && nMaxGood > nMinGood && nsimilar == 1) {
 		res = (int)maxIdx;

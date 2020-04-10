@@ -347,7 +347,23 @@ int UVR_SLAM::Frame::TrackedMapPoints(int minObservation) {
 	std::unique_lock<std::mutex> lock(mMutexFrame);
 	int nPoints = 0;
 	bool bCheckObs = minObservation>0;
-	for (int i = 0; i < mvpMPs.size(); i++) {
+
+	auto mvpDenseMPs = GetDenseVectors();
+	for (int i = 0; i < mvpDenseMPs.size(); i++) {
+		MapPoint* pMP = mvpDenseMPs[i];
+		if (pMP) {
+			if (pMP->isDeleted())
+				continue;
+			if (bCheckObs) {
+				if (pMP->GetNumDensedFrames() >= minObservation)
+					nPoints++;
+			}
+			else {
+				nPoints++;
+			}
+		}
+	}
+	/*for (int i = 0; i < mvpMPs.size(); i++) {
 		MapPoint* pMP = mvpMPs[i];
 		if (pMP) {
 			if (pMP->isDeleted())
@@ -359,7 +375,7 @@ int UVR_SLAM::Frame::TrackedMapPoints(int minObservation) {
 				nPoints++;
 			}
 		}
-	}
+	}*/
 	return nPoints;
 }
 
@@ -394,7 +410,22 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(float& fMedianDepth)
 	cv::Mat Rcw2 = tempR.row(2);
 	Rcw2 = Rcw2.t();
 	float zcw = tempT.at<float>(2);
-	for (int i = 0; i < mvKeyPoints.size(); i++)
+
+	auto mvpDenseMPs = GetDenseVectors();
+
+	for (int i = 0; i < mvpDenseMPs.size(); i++)
+	{
+		UVR_SLAM::MapPoint* pMP = mvpDenseMPs[i];
+		if (!pMP) {
+			continue;
+		}
+		if (pMP->isDeleted())
+			continue;
+		cv::Mat x3Dw = pMP->GetWorldPos();
+		float z = (float)Rcw2.dot(x3Dw) + zcw;
+		vDepths.push_back(z);
+	}
+	/*for (int i = 0; i < mvKeyPoints.size(); i++)
 	{
 		UVR_SLAM::MapPoint* pMP = mvpMPs[i];
 		if (!pMP) {
@@ -405,7 +436,7 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(float& fMedianDepth)
 		cv::Mat x3Dw = pMP->GetWorldPos();
 		float z = (float)Rcw2.dot(x3Dw) + zcw;
 		vDepths.push_back(z);
-	}
+	}*/
 	if (vDepths.size() == 0)
 		return false;
 	int nidx = vDepths.size() / 2;
@@ -787,8 +818,14 @@ void UVR_SLAM::Frame::SetWallParams(std::vector<cv::Mat> vParams){
 }
 
 void UVR_SLAM::Frame::Reset() {
+	mnDenseIdx = 1;
+	mDenseIndexMap = cv::Mat::zeros(matFrame.size(), CV_16UC1);
+	mmpDenseMPs.clear();
+	///////
 	mTrackedDescriptor = cv::Mat::zeros(0, matDescriptor.rows, matDescriptor.type());
 	mvTrackedIdxs.clear();
+
+
 	mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
 	mvbMPInliers = std::vector<bool>(mvKeyPoints.size(), false);
 	//mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);

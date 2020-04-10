@@ -1585,7 +1585,8 @@ void UVR_SLAM::Optimization::InitBundleAdjustment(const std::vector<UVR_SLAM::Fr
 		vPoint->setMarginalized(true);
 		optimizer.addVertex(vPoint);
 
-		const std::map<UVR_SLAM::Frame*, int> observations = pMP->GetConnedtedFrames();
+		//const std::map<UVR_SLAM::Frame*, int> observations = pMP->GetConnedtedFrames();
+		const auto observations = pMP->GetConnedtedDenseFrames();
 
 		int nEdges = 0;
 		//SET EDGES
@@ -1598,7 +1599,7 @@ void UVR_SLAM::Optimization::InitBundleAdjustment(const std::vector<UVR_SLAM::Fr
 
 			nEdges++;
 
-			const cv::KeyPoint &kpUn = pKF->mvKeyPoints[mit->second];
+			/*const cv::KeyPoint &kpUn = pKF->mvKeyPoints[mit->second];
 
 			Eigen::Matrix<double, 2, 1> obs;
 			obs << kpUn.pt.x, kpUn.pt.y;
@@ -1609,6 +1610,17 @@ void UVR_SLAM::Optimization::InitBundleAdjustment(const std::vector<UVR_SLAM::Fr
 			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKF->GetKeyFrameID())));
 			e->setMeasurement(obs);
 			const float &invSigma2 = pKF->mvInvLevelSigma2[kpUn.octave];
+			e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);*/
+
+			const auto pt = mit->second;
+			Eigen::Matrix<double, 2, 1> obs;
+			obs << pt.x, pt.y;
+
+			g2o::EdgeSE3ProjectXYZ* e = new g2o::EdgeSE3ProjectXYZ();
+			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
+			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKF->GetKeyFrameID())));
+			e->setMeasurement(obs);
+			const float &invSigma2 = 1.0;
 			e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
 
 			g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
@@ -1619,7 +1631,6 @@ void UVR_SLAM::Optimization::InitBundleAdjustment(const std::vector<UVR_SLAM::Fr
 			e->fy = pKF->fy;
 			e->cx = pKF->cx;
 			e->cy = pKF->cy;
-
 			optimizer.addEdge(e);
 		}
 
