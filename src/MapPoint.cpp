@@ -59,6 +59,11 @@ int UVR_SLAM::MapPoint::GetPlaneID() {
 	return mnPlaneID;
 }
 
+void UVR_SLAM::MapPoint::SetMapPointType(MapPointType type) {
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
+	mnType = type;
+}
+
 UVR_SLAM::MapPointType UVR_SLAM::MapPoint::GetMapPointType() {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	return mnType;

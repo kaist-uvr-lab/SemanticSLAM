@@ -48,6 +48,7 @@ namespace UVR_SLAM {
 		bool isSeen();
 
 		MapPointType GetMapPointType();
+		void SetMapPointType(MapPointType type);
 
 		void SetPlaneID(int nid);
 		int GetPlaneID();
