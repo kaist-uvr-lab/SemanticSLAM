@@ -20,7 +20,30 @@ namespace UVR_SLAM {
 		Matcher(cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h);
 		virtual ~Matcher();
 
+///////////////////////////////////////////////////////////
+////200410 Optical flow 적용 버전
 	public:
+		int OpticalMatchingForInitialization(Frame* init, Frame* curr, std::vector<std::pair<cv::Point2f, cv::Point2f>>& resMatches);
+		
+		
+		
+		/////////////F를 이용한 매칭
+		void FindFundamental(Frame* pInit, Frame* pCurr, std::vector<std::pair<cv::Point2f, cv::Point2f>> vMatches, std::vector<bool> &vbMatchesInliers, float &score, cv::Mat &F21);
+		float CheckFundamental(Frame* pInit, Frame* pCurr, const cv::Mat &F21, std::vector<std::pair<cv::Point2f, cv::Point2f>> vMatches, std::vector<bool> &vbMatchesInliers, float sigma);
+		void Normalize(const std::vector<cv::Point2f> &vPts, std::vector<cv::Point2f> &vNormalizedPoints, cv::Mat &T);
+		cv::Mat ComputeF21(const std::vector<cv::Point2f> &vP1, const std::vector<cv::Point2f> &vP2);
+		/////////////F를 이용한 매칭
+////200410
+///////////////////////////////////////////////////////////
+	public:
+		///////////////////////////////////////////////////////////
+		
+		
+
+
+
+
+		
 		int MatchingWithLabeling(std::vector<cv::KeyPoint> kps1, std::vector<cv::KeyPoint> kps2, cv::Mat desc1, cv::Mat desc2, std::vector<int> idxs1, std::vector<int> idxs2, std::vector<cv::DMatch>& matches);
 		int MatchingWithLabeling(UVR_SLAM::Frame* pKF, UVR_SLAM::Frame* pCurr);
 		int MatchingWithPrevFrame(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr,  std::vector<cv::DMatch>& mvMatches);
@@ -78,7 +101,6 @@ namespace UVR_SLAM {
 		//Fundamental Matrix관련초기화
 		
 		void Normalize(const std::vector<cv::KeyPoint> &vKeys, std::vector<cv::Point2f> &vNormalizedPoints, cv::Mat &T);
-		cv::Mat ComputeF21(const std::vector<cv::Point2f> &vP1, const std::vector<cv::Point2f> &vP2);
 		float CheckFundamental(Frame* pInit, Frame* pCurr, const cv::Mat &F21, std::vector<cv::DMatch> vMatches, std::vector<bool> &vbMatchesInliers, float sigma);
 
 	private:

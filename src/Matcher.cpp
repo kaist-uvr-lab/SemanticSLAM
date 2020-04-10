@@ -1627,6 +1627,7 @@ int UVR_SLAM::Matcher::KeyFrameFeatureMatching(UVR_SLAM::Frame* pPrev, UVR_SLAM:
 }
 
 
+
 //초기화에서 F를 계산하고 매칭
 int UVR_SLAM::Matcher::MatchingProcessForInitialization(UVR_SLAM::Frame* init, UVR_SLAM::Frame* curr, cv::Mat& F, std::vector<cv::DMatch>& resMatches) {
 
@@ -1636,13 +1637,8 @@ int UVR_SLAM::Matcher::MatchingProcessForInitialization(UVR_SLAM::Frame* init, U
 	cv::Rect mergeRect2 = cv::Rect(0, curr->GetOriginalImage().rows, curr->GetOriginalImage().cols, curr->GetOriginalImage().rows);
 	cv::Mat featureImg = cv::Mat::zeros(curr->GetOriginalImage().rows *2, curr->GetOriginalImage().cols, curr->GetOriginalImage().type());
 
-	//std::stringstream sfile;
-	//sfile << "/keyframe_" << 0;
-
 	curr->GetOriginalImage().copyTo(featureImg(mergeRect1));
 	init->GetOriginalImage().copyTo(featureImg(mergeRect2));
-	//cvtColor(featureImg, featureImg, CV_RGBA2BGR);
-	//featureImg.convertTo(featureImg, CV_8UC3);
 	//////Debuging
 
 	//중복 제거용
@@ -1817,6 +1813,116 @@ void UVR_SLAM::Matcher::FindFundamental(UVR_SLAM::Frame* pInit, UVR_SLAM::Frame*
 
 }
 
+void UVR_SLAM::Matcher::FindFundamental(UVR_SLAM::Frame* pInit, UVR_SLAM::Frame* pCurr, std::vector<std::pair<cv::Point2f, cv::Point2f>> vMatches, std::vector<bool> &vbMatchesInliers, float &score, cv::Mat &F21)
+{
+	// Number of putative matches
+	const int N = vMatches.size();
+
+	// Normalize coordinates
+	std::vector<cv::Point2f> vPn1, vPn2;
+	cv::Mat T1, T2;
+	Normalize(pInit->mvPts, vPn1, T1);
+	Normalize(pCurr->mvPts, vPn2, T2);
+	cv::Mat T2t = T2.t();
+
+	// Best Results variables
+	score = 0.0;
+	vbMatchesInliers = std::vector<bool>(N, false);
+
+	int mMaxIterations = 1000;
+
+#pragma  omp parallel for
+	for (int it = 0; it<mMaxIterations; it++)
+	{
+		// Iteration variables
+		std::vector<cv::Point2f> vPn1i(8);
+		std::vector<cv::Point2f> vPn2i(8);
+		std::vector<bool> vbCurrentInliers(N, false);
+		float currentScore;
+		std::vector<size_t> vAllIndices;
+
+		vAllIndices.reserve(vMatches.size());
+		for (int i = 0; i<vMatches.size(); i++)
+		{
+			vAllIndices.push_back(i);
+		}
+
+		std::random_device rd;
+		std::mt19937 g(rd());
+		std::shuffle(vAllIndices.begin(), vAllIndices.end(), g);
+
+		// Select a minimum set
+		for (int j = 0; j<8; j++)
+		{
+			vPn1i[j] = vMatches[vAllIndices[j]].first;
+			vPn2i[j] = vMatches[vAllIndices[j]].second;
+		}
+
+		cv::Mat Fn = ComputeF21(vPn1i, vPn2i);
+
+		cv::Mat F21i = T2t*Fn*T1;
+
+		//homography check
+		currentScore = CheckFundamental(pInit, pCurr, F21i, vMatches, vbCurrentInliers, 1.0);
+
+		if (currentScore>score)
+		{
+			F21 = F21i.clone();
+			vbMatchesInliers = vbCurrentInliers;
+			score = currentScore;
+		}//if
+	}//for
+
+}
+
+void UVR_SLAM::Matcher::Normalize(const std::vector<cv::Point2f> &vKeys, std::vector<cv::Point2f> &vNormalizedPoints, cv::Mat &T)
+{
+	float meanX = 0;
+	float meanY = 0;
+	const int N = vKeys.size();
+
+	vNormalizedPoints.resize(N);
+
+	for (int i = 0; i<N; i++)
+	{
+		meanX += vKeys[i].x;
+		meanY += vKeys[i].y;
+	}
+
+	meanX = meanX / N;
+	meanY = meanY / N;
+
+	float meanDevX = 0;
+	float meanDevY = 0;
+
+	for (int i = 0; i<N; i++)
+	{
+		vNormalizedPoints[i].x = vKeys[i].x - meanX;
+		vNormalizedPoints[i].y = vKeys[i].y - meanY;
+
+		meanDevX += fabs(vNormalizedPoints[i].x);
+		meanDevY += fabs(vNormalizedPoints[i].y);
+	}
+
+	meanDevX = meanDevX / N;
+	meanDevY = meanDevY / N;
+
+	float sX = 1.0 / meanDevX;
+	float sY = 1.0 / meanDevY;
+
+	for (int i = 0; i<N; i++)
+	{
+		vNormalizedPoints[i].x = vNormalizedPoints[i].x * sX;
+		vNormalizedPoints[i].y = vNormalizedPoints[i].y * sY;
+	}
+
+	T = cv::Mat::eye(3, 3, CV_32F);
+	T.at<float>(0, 0) = sX;
+	T.at<float>(1, 1) = sY;
+	T.at<float>(0, 2) = -meanX*sX;
+	T.at<float>(1, 2) = -meanY*sY;
+}
+
 void UVR_SLAM::Matcher::Normalize(const std::vector<cv::KeyPoint> &vKeys, std::vector<cv::Point2f> &vNormalizedPoints, cv::Mat &T)
 {
 	float meanX = 0;
@@ -1981,6 +2087,87 @@ float UVR_SLAM::Matcher::CheckFundamental(UVR_SLAM::Frame* pInit, UVR_SLAM::Fram
 
 	return score;
 }
+
+float UVR_SLAM::Matcher::CheckFundamental(UVR_SLAM::Frame* pInit, UVR_SLAM::Frame* pCurr, const cv::Mat &F21, std::vector<std::pair<cv::Point2f, cv::Point2f>> vMatches, std::vector<bool> &vbMatchesInliers, float sigma)
+{
+	const int N = vMatches.size();
+
+	const float f11 = F21.at<float>(0, 0);
+	const float f12 = F21.at<float>(0, 1);
+	const float f13 = F21.at<float>(0, 2);
+	const float f21 = F21.at<float>(1, 0);
+	const float f22 = F21.at<float>(1, 1);
+	const float f23 = F21.at<float>(1, 2);
+	const float f31 = F21.at<float>(2, 0);
+	const float f32 = F21.at<float>(2, 1);
+	const float f33 = F21.at<float>(2, 2);
+
+	vbMatchesInliers.resize(N);
+
+	float score = 0;
+
+	const float th = 3.841;
+	const float thScore = 5.991;
+
+	const float invSigmaSquare = 1.0 / (sigma*sigma);
+
+	for (int i = 0; i<N; i++)
+	{
+		bool bIn = true;
+
+		const cv::Point2f &p1 = vMatches[i].first;
+		const cv::Point2f &p2 = vMatches[i].second;
+
+		const float u1 = p1.x;
+		const float v1 = p1.y;
+		const float u2 = p2.x;
+		const float v2 = p2.y;
+
+		// Reprojection error in second image
+		// l2=F21x1=(a2,b2,c2)
+
+		const float a2 = f11*u1 + f12*v1 + f13;
+		const float b2 = f21*u1 + f22*v1 + f23;
+		const float c2 = f31*u1 + f32*v1 + f33;
+
+		const float num2 = a2*u2 + b2*v2 + c2;
+
+		const float squareDist1 = num2*num2 / (a2*a2 + b2*b2);
+
+		const float chiSquare1 = squareDist1*invSigmaSquare;
+
+		if (chiSquare1>th)
+			bIn = false;
+		else
+			score += thScore - chiSquare1;
+
+		// Reprojection error in second image
+		// l1 =x2tF21=(a1,b1,c1)
+
+		const float a1 = f11*u2 + f21*v2 + f31;
+		const float b1 = f12*u2 + f22*v2 + f32;
+		const float c1 = f13*u2 + f23*v2 + f33;
+
+		const float num1 = a1*u1 + b1*v1 + c1;
+
+		const float squareDist2 = num1*num1 / (a1*a1 + b1*b1);
+
+		const float chiSquare2 = squareDist2*invSigmaSquare;
+
+		if (chiSquare2>th)
+			bIn = false;
+		else
+			score += thScore - chiSquare2;
+
+		if (bIn)
+			vbMatchesInliers[i] = true;
+		else
+			vbMatchesInliers[i] = false;
+	}
+
+	return score;
+}
+
 int UVR_SLAM::Matcher::DescriptorDistance(const cv::Mat &a, const cv::Mat &b)
 {
 	const int *pa = a.ptr<int32_t>();
@@ -3316,3 +3503,108 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* pKF, Frame* pF, std::
 	std::cout << "epitime::" << tttt << std::endl;
 	return 0;
 }
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+////200410 Optical flow
+int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr, std::vector<std::pair<cv::Point2f, cv::Point2f>>& resMatches) {
+	std::cout << "init::opticalflow::start" << std::endl;
+	//////////////////////////
+	////Optical flow
+	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+	std::vector<cv::Mat> currPyr, prevPyr;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	
+	cv::Mat prevImg = init->GetOriginalImage();
+	cv::Mat currImg = curr->GetOriginalImage();
+
+	cv::Mat prevGray, currGray;
+	cvtColor(prevImg, prevGray, CV_BGR2GRAY);
+	cvtColor(currImg, currGray, CV_BGR2GRAY);
+	///////debug
+	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+	cv::Mat debugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+	prevImg.copyTo(debugging(mergeRect1));
+	currImg.copyTo(debugging(mergeRect2));
+	///////debug
+
+	///////////
+	//matKPs, mvKPs
+	//init -> curr로 매칭
+	////////
+	std::vector<cv::Point2f> prevPts, currPts;
+	prevPts = init->mvPts;
+	int maxLvl = 3;
+	int searchSize = 21;
+	cv::buildOpticalFlowPyramid(currGray, currPyr, cv::Size(searchSize, searchSize), maxLvl);
+	maxLvl = cv::buildOpticalFlowPyramid(prevGray, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
+	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	//바운더리 에러도 고려해야 함.
+	
+	int res = 0;
+	int nTotal = 0;
+	int nKeypoint = 0;
+	int nBad = 0;
+	int nEpi = 0;
+	int n3D = 0;
+	for (int i = 0; i < prevPts.size(); i++) {
+		if (status[i] == 0) {
+			nBad++;
+			continue;
+		}
+
+		////추가적인 에러처리
+		////레이블드에서 255 150 100 벽 바닥 천장
+		//int prevLabel = init->matLabeled.at<uchar>(prevPts[i].y / 2, prevPts[i].x / 2);
+		//if (prevLabel != 255 && prevLabel != 150 && prevLabel != 100) {
+		//	nBad++;
+		//	continue;
+		//}
+		//int currLabel = curr->matLabeled.at<uchar>(currPts[i].y / 2, currPts[i].x / 2);
+		//if (prevLabel != currLabel) {
+		//	nBad++;
+		//	continue;
+		//}
+
+		/////
+		//매칭 결과
+		float diffX = abs(prevPts[i].x - currPts[i].x);
+		bool bMatch = false;
+		if (diffX < 15) {
+			bMatch = true;
+			res++;
+			cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 0, 255));
+		}
+		else if (diffX >= 15 && diffX < 90) {
+			res++;
+			cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(0, 255, 255));
+			bMatch = true;
+		}
+		else {
+			cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
+		}
+
+		if (bMatch)
+			resMatches.push_back(std::pair<cv::Point2f, cv::Point2f>(prevPts[i], currPts[i]));
+		//매칭 결과
+		////
+
+	}
+	std::cout << "init::opticalflow::end" << std::endl;
+	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	double tttt = duration / 1000.0;
+
+	//fuse time text 
+	std::stringstream ss;
+	ss << "Optical flow init= " << res<<", "<<tttt;
+	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
+	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+	imshow("Init::OpticalFlow ", debugging);
+	/////////////////////////
+}
+////200410 Optical flow
+///////////////////////////////////////////////////////////////////////////////////////////////////////

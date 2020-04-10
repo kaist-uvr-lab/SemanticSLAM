@@ -508,12 +508,17 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 		matDescriptor = cv::Mat::zeros(0, tempDesc.cols, tempDesc.type());
 	}
 	cv::Mat overlap = cv::Mat::zeros(matFrame.size(), CV_8UC1);
+	matKPs = cv::Mat::zeros(matFrame.size(), CV_16UC1);
 	for (int i = 0; i < mvTempKPs.size(); i++) {
 		if (!CheckKeyPointOverlap(overlap, mvTempKPs[i].pt)) {
 			continue;
 		}
 		mvKeyPoints.push_back(mvTempKPs[i]);
 		matDescriptor.push_back(tempDesc.row(i));
+		//200410 추가
+		matKPs.at<ushort>(mvKeyPoints.size());
+		mvPts.push_back(mvTempKPs[i].pt);
+		//200410 추가
 	}
 	////여기에서 중복되는 키포인트들 제거하기
 

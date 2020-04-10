@@ -125,6 +125,7 @@ namespace UVR_SLAM {
 		////Optical flow를 적용한 방식
 		//이미지 픽셀에 키포인트 순서를 저장.
 		cv::Mat matKPs;
+		std::vector<cv::Point2f> mvPts; //키포인트의 포인트만 별도로 빼냄.
 		///////////////////////////////
 
 

@@ -77,6 +77,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//	return mbInit;
 
 		int count = mpMatcher->MatchingProcessForInitialization(mpInitFrame1, mpInitFrame2, F, tempMatches);
+		std::vector<std::pair<cv::Point2f, cv::Point2f>> tempMatches2, resMatches2;
+		int count2 = mpMatcher->OpticalMatchingForInitialization(mpInitFrame1, mpInitFrame2, tempMatches2);
 		//int count = mpMatcher->SearchForInitialization(mpInitFrame1, mpInitFrame2, tempMatches, 100);
 		if (count < N_matching_init_therah) {
 			delete mpInitFrame1;
@@ -86,7 +88,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			return mbInit;
 		}
 		
-		//F찾기
+		////F를 이용한 매칭
 		std::vector<bool> mvInliers;
 		float score;
 
@@ -109,7 +111,32 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			}
 		}
 		count = resMatches.size();
-		//std::cout << "matching res = " << count<<", "<< resMatches.size() << std::endl;
+		////Optical flow 매칭 관련
+		std::vector<bool> mvInliers2;
+		float score2;
+		if ((int)tempMatches2.size() >= 8) {
+			mpMatcher->FindFundamental(mpInitFrame1, mpInitFrame2, tempMatches2, mvInliers2, score2, F);
+			F.convertTo(F, CV_32FC1);
+		}
+
+		if ((int)tempMatches2.size() < 8 || F.empty()) {
+			F.release();
+			F = cv::Mat::zeros(0, 0, CV_32FC1);
+			//delete mpInitFrame1;
+			//mpInitFrame1 = mpInitFrame2;
+			return mbInit;
+		}
+
+		for (unsigned long i = 0; i < tempMatches2.size(); i++) {
+			if (mvInliers2[i]) {
+				resMatches2.push_back(tempMatches2[i]);
+			}
+		}
+		std::cout << "Init::Opt::" << resMatches2.size() << std::endl;
+		//count = resMatches2.size();
+
+		////F를 이용한 매칭
+
 
 		std::vector<UVR_SLAM::InitialData*> vCandidates;
 		UVR_SLAM::InitialData *mC1 = new UVR_SLAM::InitialData(count);
