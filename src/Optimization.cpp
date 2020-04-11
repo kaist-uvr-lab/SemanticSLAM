@@ -2051,3 +2051,155 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 
 	return nInitialCorrespondences - nBad;
 }
+
+int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<bool>& vbInliers)
+{
+	g2o::SparseOptimizer optimizer;
+	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
+
+	linearSolver = new g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>();
+
+	g2o::BlockSolver_6_3 * solver_ptr = new g2o::BlockSolver_6_3(linearSolver);
+
+	g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+	optimizer.setAlgorithm(solver);
+
+	int nInitialCorrespondences = 0;
+	int nTargetID = pFrame->GetFrameID();
+
+	// Set Frame vertex
+	cv::Mat R, t;
+	pFrame->GetPose(R, t);
+	cv::Mat Tcw = cv::Mat::zeros(4, 4, CV_32FC1);
+	R.copyTo(Tcw.rowRange(0, 3).colRange(0, 3));
+	t.copyTo(Tcw.rowRange(0, 3).col(3));
+	g2o::VertexSE3Expmap * vSE3 = new g2o::VertexSE3Expmap();
+	vSE3->setEstimate(Converter::toSE3Quat(Tcw));
+	vSE3->setId(0);
+	vSE3->setFixed(false);
+	optimizer.addVertex(vSE3);
+
+	// Set MapPoint vertices
+	const int N = vpPts.size();
+
+	std::vector<g2o::EdgeSE3ProjectXYZOnlyPose*> vpEdgesMono;
+	std::vector<size_t> vnIndexEdgeMono;
+	vpEdgesMono.reserve(N);
+	vnIndexEdgeMono.reserve(N);
+
+	const float deltaMono = sqrt(5.991);
+	const float deltaStereo = sqrt(7.815);
+
+	{
+
+		for (int i = 0; i<N; i++)
+		{
+			MapPoint* pMP = vpMPs[i];
+			if (!pMP)
+				continue;
+			if (pMP->isDeleted())
+				continue;
+			if (pMP->GetRecentTrackingFrameID() != nTargetID)
+				continue;
+			nInitialCorrespondences++;
+			//pFrame->mvbMPInliers[i] = true;
+
+			Eigen::Matrix<double, 2, 1> obs;
+			const cv::Point2f pt = vpPts[i];
+			obs << pt.x, pt.y;
+
+			g2o::EdgeSE3ProjectXYZOnlyPose* e = new g2o::EdgeSE3ProjectXYZOnlyPose();
+
+			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+			e->setMeasurement(obs);
+			//const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
+			e->setInformation(Eigen::Matrix2d::Identity());// *invSigma2);
+
+			g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+			e->setRobustKernel(rk);
+			rk->setDelta(deltaMono);
+
+			e->fx = pFrame->fx;
+			e->fy = pFrame->fy;
+			e->cx = pFrame->cx;
+			e->cy = pFrame->cy;
+			cv::Mat Xw = pMP->GetWorldPos();
+			e->Xw[0] = Xw.at<float>(0);
+			e->Xw[1] = Xw.at<float>(1);
+			e->Xw[2] = Xw.at<float>(2);
+
+			optimizer.addEdge(e);
+
+			vpEdgesMono.push_back(e);
+			vnIndexEdgeMono.push_back(i);
+
+		}
+	}
+
+	if (nInitialCorrespondences<3)
+		return 0;
+
+	// We perform 4 optimizations, after each optimization we classify observation as inlier/outlier
+	// At the next optimization, outliers are not included, but at the end they can be classified as inliers again.
+	const float chi2Mono[4] = { 5.991,5.991,5.991,5.991 };
+	const float chi2Stereo[4] = { 7.815,7.815,7.815, 7.815 };
+	const int its[4] = { 10,10,10,10 };
+
+	int nBad = 0;
+	for (size_t it = 0; it<4; it++)
+	{
+
+		vSE3->setEstimate(Converter::toSE3Quat(Tcw)); //¿Ã∞«∞°??
+		optimizer.initializeOptimization(0);
+		optimizer.optimize(its[it]);
+
+		nBad = 0;
+		for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
+		{
+			g2o::EdgeSE3ProjectXYZOnlyPose* e = vpEdgesMono[i];
+
+			const size_t idx = vnIndexEdgeMono[i];
+
+			if (!vbInliers[i])
+			{
+				e->computeError();
+			}
+
+			const float chi2 = e->chi2();
+
+			if (chi2>chi2Mono[it] || !e->isDepthPositive())
+			{
+				vbInliers[i] = false;
+				vpMPs[i]->SetRecentTrackingFrameID(-1);
+				//pFrame->mvbMPInliers[idx] = false;
+				//pFrame->mvpMPs[idx]->SetRecentTrackingFrameID(-1);
+				e->setLevel(1);
+				nBad++;
+			}
+			else
+			{
+				vbInliers[i] = true;
+				vpMPs[i]->SetRecentTrackingFrameID(nTargetID);
+				//pFrame->mvbMPInliers[idx] = true;
+				//pFrame->mvpMPs[idx]->SetRecentTrackingFrameID(nTargetID);
+				e->setLevel(0);
+			}
+
+			if (it == 2)
+				e->setRobustKernel(0);
+		}
+
+		if (optimizer.edges().size()<10)
+			break;
+	}
+
+	// Recover optimized pose and return number of inliers
+	g2o::VertexSE3Expmap* vSE3_recov = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(0));
+	g2o::SE3Quat SE3quat_recov = vSE3_recov->estimate();
+	cv::Mat pose = Converter::toCvMat(SE3quat_recov);
+	R = pose.rowRange(0, 3).colRange(0, 3);
+	t = pose.rowRange(0, 3).col(3);
+	pFrame->SetPose(R, t);
+
+	return nInitialCorrespondences - nBad;
+}

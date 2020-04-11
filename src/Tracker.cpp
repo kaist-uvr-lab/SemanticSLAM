@@ -150,144 +150,208 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 	}
 	else {
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
-		std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
-		
-		while (!mpSystem->mbLocalMapUpdateEnd){
-			mpSystem->cvUseLocalMap.wait(lock);
-		}
-		mpSystem->mbTrackingEnd = false;
-		
-		//pCurr->SetPose(pPrev->GetRotation(), pPrev->GetTranslation());
-		pCurr->SetPose(mpFrameWindow->GetRotation(), mpFrameWindow->GetTranslation());
+		//std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
+		//
+		//while (!mpSystem->mbLocalMapUpdateEnd){
+		//	mpSystem->cvUseLocalMap.wait(lock);
+		//}
+		//mpSystem->mbTrackingEnd = false;
+		//
+		////pCurr->SetPose(pPrev->GetRotation(), pPrev->GetTranslation());
+		//pCurr->SetPose(mpFrameWindow->GetRotation(), mpFrameWindow->GetTranslation());
 
-		int nLocalMapID = mpFrameWindow->GetLastFrameID();
-		auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
-		cv::Mat mLocalMapDesc = mpFrameWindow->GetLocalMapDescriptor();
-		std::vector<cv::DMatch> mvMatchInfo;
-		mpSystem->mbTrackingEnd = true;
-		lock.unlock();
-		mpSystem->cvUseLocalMap.notify_one();
+		//int nLocalMapID = mpFrameWindow->GetLastFrameID();
+		//auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
+		//cv::Mat mLocalMapDesc = mpFrameWindow->GetLocalMapDescriptor();
+		//std::vector<cv::DMatch> mvMatchInfo;
+		//mpSystem->mbTrackingEnd = true;
+		//lock.unlock();
+		//mpSystem->cvUseLocalMap.notify_one();
 		
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-		//이전 프레임에 포함된 맵포인트와 현재 프레임의 키포인트를 매칭하는 과정.
-		//빠른 속도를 위해 이전 프레임에서 추적되는 맵포인트를 디스크립터로 만듬.
-		int nInitMatching = mpMatcher->MatchingWithPrevFrame(pPrev, pCurr, mvMatchInfo);
-		std::cout << "tracker::initmatching::" << nInitMatching << std::endl;
-		mnMatching = Optimization::PoseOptimization(pCurr);
-		std::cout << "tracker::Pose::" << mnMatching << std::endl;
-		///////////////dense test
-		//pPrev로 테스트해보기. 바로바로 다음 프레임에 트래킹 결과 추가하기
-		mpRefKF = mpMap->GetCurrFrame();
-		auto mvpDenseMPs =  mpRefKF->GetDenseVectors();
-		std::cout << "tracker::dense matching::copy::" << std::endl;
-		cv::Mat debugging;
-		std::vector<std::pair<int, cv::Point2f>> vPairs;
-		std::vector<bool> vbInliers;
-		int mnDenseMatching = mpMatcher->DenseMatchingWithEpiPolarGeometry(pCurr, mpRefKF, mvpDenseMPs, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
-		vbInliers = std::vector<bool>(vPairs.size(), true);
-		/*std::stringstream ss;
-		ss << mpSystem->GetDirPath(0) << "/tracking/" << mpRefKF->GetKeyFrameID() << "_" << pCurr->GetFrameID() << ".jpg";
-		imwrite(ss.str(), debugging);*/
-		std::cout << "tracker::dense matching::" << std::endl;
-		///////////////dense test
-		mnMatching = mpMatcher->MatchingWithLocalMap(pCurr, mvpLocalMPs, mLocalMapDesc, 5.0);
-		std::cout << "tracker::localmap::matching::" << mnMatching << std::endl;
-		
-		//std::vector<cv::DMatch> tempMatches;
-		//mpMatcher->MatchingWithEpiPolarGeometry(mpRefKF, pCurr, tempMatches);
-
-		//////////////
-		/*cv::Mat debugging;
-		mpMatcher->DenseMatchingWithEpiPolarGeometry(mpRefKF, pCurr,mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
-		std::string base = mpSystem->GetDirPath(0);
-		std::stringstream ssss;
-		ssss << base << "/dense/dense_" << mpRefKF->GetKeyFrameID() << "_" << pCurr->GetFrameID() << ".jpg";
-		imwrite(ssss.str(), debugging);*/
-		/////dense
-
-		mnMatching = Optimization::PoseOptimization(pCurr, mvpDenseMPs, vPairs, vbInliers);
-		pCurr->SetInliers(mnMatching);
+		////Optical Flow Matching
+		//초기 매칭 테스트
+		std::vector<UVR_SLAM::MapPoint*> vpTempMPs;
+		std::vector<cv::Point2f> vpTempPts;
+		std::vector<bool> vbTempInliers;// = std::vector<bool>(pPrev->mvpMatchingMPs.size(), false);
+		int nMatch = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vpTempPts, vbTempInliers);
+		//int nMatch = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, pCurr->mvpMatchingMPs, pCurr->mvMatchingPts, vbTempInliers);
+		nMatch = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers);
+		pCurr->SetInliers(nMatch);
 		mpFrameWindow->SetPose(pCurr->GetRotation(), pCurr->GetTranslation());
-		CalcMatchingCount(pCurr, mvpDenseMPs, vPairs, vbInliers);
-
-
-		float angle = mpRefKF->CalcDiffZ(pCurr);
-		//std::cout << "angle : " << angle << std::endl;
+		CalcMatchingCount(pCurr, vpTempMPs, vpTempPts, vbTempInliers);
+		
+		//키프레임 체크
 		if (CheckNeedKeyFrame(pCurr)) {
 			if (!mpSegmentator->isDoingProcess()) {
 				mpSegmentator->InsertKeyFrame(pCurr);
 			}
 		}
+
+		//visualizer에 맵포인트 설정
+		mpVisualizer->SetMPs(vpTempMPs);
+		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+		double tttt = duration / 1000.0;
+
+		//일단 테스트
+		cv::Mat vis = pCurr->GetOriginalImage();
+		vis.convertTo(vis, CV_8UC3);
+
+		cv::Mat R = pCurr->GetRotation();
+		cv::Mat t = pCurr->GetTranslation();
+
+		for (int i = 0; i < vpTempMPs.size(); i++) {
+			UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
+			if (!pMPi || pMPi->isDeleted())
+				continue;
+			if (!vbTempInliers[i])
+				continue;
+			cv::Point2f p2D;
+			cv::Mat pCam;
+			pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
+			cv::line(vis, p2D, vpTempPts[i], cv::Scalar(255, 255, 0), 2);
+		}
+		
+		std::stringstream ss;
+		ss << "Traking = " <<nMatch<<", "<< tttt;
+		cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
+		cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+		////Optical Flow Matching
+		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		//이전 프레임에 포함된 맵포인트와 현재 프레임의 키포인트를 매칭하는 과정.
+		//빠른 속도를 위해 이전 프레임에서 추적되는 맵포인트를 디스크립터로 만듬.
+		//int nInitMatching = mpMatcher->MatchingWithPrevFrame(pPrev, pCurr, mvMatchInfo);
+		//std::cout << "tracker::initmatching::" << nInitMatching << std::endl;
+		//mnMatching = Optimization::PoseOptimization(pCurr);
+		//std::cout << "tracker::Pose::" << mnMatching << std::endl;
+		/////////////////dense test
+		////pPrev로 테스트해보기. 바로바로 다음 프레임에 트래킹 결과 추가하기
+		//mpRefKF = mpMap->GetCurrFrame();
+		//auto mvpDenseMPs =  mpRefKF->GetDenseVectors();
+		//std::cout << "tracker::dense matching::copy::" << std::endl;
+		//cv::Mat debugging;
+		//std::vector<std::pair<int, cv::Point2f>> vPairs;
+		//std::vector<bool> vbInliers;
+		//int mnDenseMatching = mpMatcher->DenseMatchingWithEpiPolarGeometry(pCurr, mpRefKF, mvpDenseMPs, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
+		//vbInliers = std::vector<bool>(vPairs.size(), true);
+		///*std::stringstream ss;
+		//ss << mpSystem->GetDirPath(0) << "/tracking/" << mpRefKF->GetKeyFrameID() << "_" << pCurr->GetFrameID() << ".jpg";
+		//imwrite(ss.str(), debugging);*/
+		//std::cout << "tracker::dense matching::" << std::endl;
+		/////////////////dense test
+		//mnMatching = mpMatcher->MatchingWithLocalMap(pCurr, mvpLocalMPs, mLocalMapDesc, 5.0);
+		//std::cout << "tracker::localmap::matching::" << mnMatching << std::endl;
+		//
+		////std::vector<cv::DMatch> tempMatches;
+		////mpMatcher->MatchingWithEpiPolarGeometry(mpRefKF, pCurr, tempMatches);
+
+		////////////////
+		///*cv::Mat debugging;
+		//mpMatcher->DenseMatchingWithEpiPolarGeometry(mpRefKF, pCurr,mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
+		//std::string base = mpSystem->GetDirPath(0);
+		//std::stringstream ssss;
+		//ssss << base << "/dense/dense_" << mpRefKF->GetKeyFrameID() << "_" << pCurr->GetFrameID() << ".jpg";
+		//imwrite(ssss.str(), debugging);*/
+		///////dense
+
+		//mnMatching = Optimization::PoseOptimization(pCurr, mvpDenseMPs, vPairs, vbInliers);
+		//pCurr->SetInliers(mnM);
+		//mpFrameWindow->SetPose(pCurr->GetRotation(), pCurr->GetTranslation());
+		//CalcMatchingCount(pCurr, mvpDenseMPs, vPairs, vbInliers);
+
+
+		float angle = mpRefKF->CalcDiffZ(pCurr);
+		//std::cout << "angle : " << angle << std::endl;
+		/*if (CheckNeedKeyFrame(pCurr)) {
+			if (!mpSegmentator->isDoingProcess()) {
+				mpSegmentator->InsertKeyFrame(pCurr);
+			}
+		}*/
+
 		/*if (!mpSegmentator->isDoingProcess()) {
 			mpSegmentator->InsertKeyFrame(pCurr);
 		}*/
 		////update tracking results
 		mpFrameWindow->mnLastMatches = mnMatching;
 
-		//일단 테스트
-		cv::Mat vis = pCurr->GetOriginalImage();
-		vis.convertTo(vis, CV_8UC3);
-		
-		auto mvpMPs = pCurr->GetMapPoints();
-		//auto mvpOPs = pCurr->GetObjectVector();
-		cv::Mat R = pCurr->GetRotation();
-		cv::Mat t = pCurr->GetTranslation();
-		
-		for (int i = 0; i < mvpMPs.size(); i++) {
-			UVR_SLAM::MapPoint* pMP = mvpMPs[i];
-			
-			if (!pMP){
-				//cv::circle(vis, pCurr->mvKeyPoints[i].pt, 1, cv::Scalar(0, 0, 255), -1);
-				continue;
-			}
-			if (pMP->isDeleted()) {
-				pCurr->mvbMPInliers[i] = false;
-				continue;
-			}
-			cv::Point2f p2D;
-			cv::Mat pCam;
-			pMP->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
+		////일단 테스트
+		//cv::Mat vis = pCurr->GetOriginalImage();
+		//vis.convertTo(vis, CV_8UC3);
+		//
+		//auto mvpMPs = pCurr->GetMapPoints();
+		////auto mvpOPs = pCurr->GetObjectVector();
+		//cv::Mat R = pCurr->GetRotation();
+		//cv::Mat t = pCurr->GetTranslation();
+		//
+		//for (int i = 0; i < vpTempMPs.size(); i++) {
+		//	UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
+		//	if (!pMPi || pMPi->isDeleted())
+		//		continue;
+		//	if (!vbTempInliers[i])
+		//		continue;
+		//	cv::Point2f p2D;
+		//	cv::Mat pCam;
+		//	pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
+		//	cv::line(vis, p2D, vpTempPts[i], cv::Scalar(255, 255, 0), 2);
+		//}
 
-			if (!pCurr->mvbMPInliers[i]){
-				//if (pMP->GetPlaneID() > 0) {
-				//	//circle(vis, p2D, 4, cv::Scalar(255, 0, 255), 2);
-				//}
-			}
-			else {
+		//for (int i = 0; i < mvpMPs.size(); i++) {
+		//	UVR_SLAM::MapPoint* pMP = mvpMPs[i];
+		//	
+		//	if (!pMP){
+		//		//cv::circle(vis, pCurr->mvKeyPoints[i].pt, 1, cv::Scalar(0, 0, 255), -1);
+		//		continue;
+		//	}
+		//	if (pMP->isDeleted()) {
+		//		pCurr->mvbMPInliers[i] = false;
+		//		continue;
+		//	}
+		//	cv::Point2f p2D;
+		//	cv::Mat pCam;
+		//	pMP->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
 
-				cv::line(vis, p2D, pCurr->mvKeyPoints[i].pt, cv::Scalar(255, 255, 0), 2);
-				
-				int nObservations = pMP->GetConnedtedFrames().size();
-				if (nObservations > 13)
-					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 0), -1);
-				else if (nObservations > 10)
-					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 255), -1);
-				else if (nObservations > 7)
-					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(0, 0, 255), -1);
-				else if (nObservations > 5)
-					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 255), -1);
-				else if(nObservations > 3)
-					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 0), -1);
-				else
-					cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 255, 0), -1);
-				UVR_SLAM::ObjectType type = pMP->GetObjectType();
-				
-				/*if (type != OBJECT_NONE)
-					circle(vis, p2D, 3, UVR_SLAM::ObjectColors::mvObjectLabelColors[type], -1);
-				if (pMP->GetMapPointType() == MapPointType::PLANE_MP) {
-					circle(vis, p2D, 2, cv::Scalar(255, 0, 255), -1);
-				}*/
-			}
-		}
-		for (int i = 0; i < vPairs.size(); i++) {
+		//	if (!pCurr->mvbMPInliers[i]){
+		//		//if (pMP->GetPlaneID() > 0) {
+		//		//	//circle(vis, p2D, 4, cv::Scalar(255, 0, 255), 2);
+		//		//}
+		//	}
+		//	else {
+
+		//		cv::line(vis, p2D, pCurr->mvKeyPoints[i].pt, cv::Scalar(255, 255, 0), 2);
+		//		
+		//		int nObservations = pMP->GetConnedtedFrames().size();
+		//		if (nObservations > 13)
+		//			cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 0), -1);
+		//		else if (nObservations > 10)
+		//			cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 255), -1);
+		//		else if (nObservations > 7)
+		//			cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(0, 0, 255), -1);
+		//		else if (nObservations > 5)
+		//			cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 255), -1);
+		//		else if(nObservations > 3)
+		//			cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 0), -1);
+		//		else
+		//			cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 255, 0), -1);
+		//		UVR_SLAM::ObjectType type = pMP->GetObjectType();
+		//		
+		//		/*if (type != OBJECT_NONE)
+		//			circle(vis, p2D, 3, UVR_SLAM::ObjectColors::mvObjectLabelColors[type], -1);
+		//		if (pMP->GetMapPointType() == MapPointType::PLANE_MP) {
+		//			circle(vis, p2D, 2, cv::Scalar(255, 0, 255), -1);
+		//		}*/
+		//	}
+		//}
+		/*for (int i = 0; i < vPairs.size(); i++) {
 			if (!vbInliers[i])
 				continue;
 			auto idx = vPairs[i].first;
 			auto pt = vPairs[i].second;
 			mvpMPs.push_back(mvpDenseMPs[idx]);
 			cv::circle(vis, pt, 2, cv::Scalar(0, 0, 0), -1);
-		}
+		}*/
 
 		////////////////////////////////////////////////////////////////////////////////
 		////////////////line test
@@ -360,7 +424,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		
 		cv::imshow("Output::Tracking", vis);
 		//mpVisualizer->SetMPs(pCurr->GetMapPoints());
-		mpVisualizer->SetMPs(mvpMPs);
+		
+		//mpVisualizer->SetMPs(mvpMPs);
 
 		//visualizer thread
 		if (!mpVisualizer->isDoingProcess()) {
@@ -444,6 +509,69 @@ void UVR_SLAM::Tracker::CalcMatchingCount(UVR_SLAM::Frame* pF) {
 		}
 	}
 }
+
+void UVR_SLAM::Tracker::CalcMatchingCount(UVR_SLAM::Frame* pF, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers) {
+
+	for (int i = 0; i < vpMPs.size(); i++) {
+		bool bMatch = true;
+		UVR_SLAM::MapPoint* pMPi = vpMPs[i];
+		if (!pMPi || pMPi->isDeleted())
+			continue;
+		pMPi->IncreaseVisible();
+		if (vbInliers[i]) {
+			pMPi->IncreaseFound();
+			pF->mvpMatchingMPs.push_back(pMPi);
+			pF->mvMatchingPts.push_back(vpPts[i]);
+		}
+	}
+	//for (int i = 0; i < pF->mvKeyPoints.size(); i++) {
+	//	bool bMatch = true;
+	//	//if (!pF->GetBoolInlier(i))
+	//	//continue;
+	//	UVR_SLAM::MapPoint* pMP = pF->mvpMPs[i];
+	//	if (!pMP) {
+	//		pF->mNotTrackedDescriptor.push_back(pF->matDescriptor.row(i));
+	//		pF->mvNotTrackedIdxs.push_back(i);
+	//		continue;
+	//	}
+	//	if (pMP->isDeleted()) {
+	//		pF->mNotTrackedDescriptor.push_back(pF->matDescriptor.row(i));
+	//		pF->mvNotTrackedIdxs.push_back(i);
+	//		continue;
+	//	}
+	//	pMP->IncreaseVisible();
+	//	if (pF->mvbMPInliers[i]) {
+	//		pMP->IncreaseFound();
+	//		pF->mTrackedDescriptor.push_back(pF->matDescriptor.row(i));
+	//		pF->mvTrackedIdxs.push_back(i);
+	//		pMP->SetDescriptor(pF->matDescriptor.row(i));
+
+	//		////floor, wall descriptor update
+	//		//if (pF->mLabelStatus.at<uchar>(i) == 0) {
+	//		//	auto type = pMP->GetObjectType();
+	//		//	switch (type) {
+	//		//	case ObjectType::OBJECT_FLOOR:
+	//		//		pF->mLabelStatus.at<uchar>(i) = (int)ObjectType::OBJECT_FLOOR;
+	//		//		pF->mPlaneDescriptor.push_back(pF->matDescriptor.row(i));
+	//		//		pF->mPlaneIdxs.push_back(i);
+	//		//		break;
+	//		//	case ObjectType::OBJECT_WALL:
+	//		//		pF->mLabelStatus.at<uchar>(i) = (int)ObjectType::OBJECT_WALL;
+	//		//		pF->mWallDescriptor.push_back(pF->matDescriptor.row(i));
+	//		//		pF->mWallIdxs.push_back(i);
+	//		//		break;
+	//		//	}
+	//		//}
+
+	//	}
+	//	else {
+	//		pF->mNotTrackedDescriptor.push_back(pF->matDescriptor.row(i));
+	//		pF->mvNotTrackedIdxs.push_back(i);
+	//		pF->mvpMPs[i] = nullptr;
+	//	}
+	//}
+}
+
 
 void UVR_SLAM::Tracker::CalcMatchingCount(UVR_SLAM::Frame* pF, std::vector<UVR_SLAM::MapPoint*> vDenseMPs, std::vector<std::pair<int, cv::Point2f>> vPairs, std::vector<bool> vbInliers) {
 

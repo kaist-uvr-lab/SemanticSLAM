@@ -229,11 +229,18 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 					UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame1, vCandidates[resIDX]->mvX3Ds[i], cv::Mat());
 					pNewMP->AddDenseFrame(mpInitFrame1, pt1);
 					pNewMP->AddDenseFrame(mpInitFrame2, pt2);
+
 					pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
 
 					nMatch++;
 					idxs.push_back(i);
 					vpMPs.push_back(pNewMP);
+
+					////matching pt 저장
+					mpInitFrame1->mvpMatchingMPs.push_back(pNewMP);
+					mpInitFrame1->mvMatchingPts.push_back(pt1);
+					mpInitFrame2->mvpMatchingMPs.push_back(pNewMP);
+					mpInitFrame2->mvMatchingPts.push_back(pt2);
 				}
 			}
 			std::cout << "init::ba::start::" << mpInitFrame2->TrackedMapPoints(2) <<"::"<< nMatch << std::endl;
@@ -353,7 +360,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 			//윈도우 로컬맵, 포즈 설정
 			mpFrameWindow->SetPose(R, t*invMedianDepth);
-			mpFrameWindow->SetLocalMap(mpInitFrame2->GetFrameID());
+			//mpFrameWindow->SetLocalMap(mpInitFrame2->GetFrameID());
 			mpFrameWindow->SetLastFrameID(mpInitFrame2->GetFrameID());
 			mpFrameWindow->mnLastMatches = nMatch;
 

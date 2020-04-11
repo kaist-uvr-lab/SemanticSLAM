@@ -24,9 +24,7 @@ namespace UVR_SLAM {
 ////200410 Optical flow 적용 버전
 	public:
 		int OpticalMatchingForInitialization(Frame* init, Frame* curr, std::vector<std::pair<cv::Point2f, cv::Point2f>>& resMatches);
-		
-		
-		
+		int OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<bool>& vbInliers);
 		/////////////F를 이용한 매칭
 		void FindFundamental(Frame* pInit, Frame* pCurr, std::vector<std::pair<cv::Point2f, cv::Point2f>> vMatches, std::vector<bool> &vbMatchesInliers, float &score, cv::Mat &F21);
 		float CheckFundamental(Frame* pInit, Frame* pCurr, const cv::Mat &F21, std::vector<std::pair<cv::Point2f, cv::Point2f>> vMatches, std::vector<bool> &vbMatchesInliers, float sigma);
@@ -37,13 +35,7 @@ namespace UVR_SLAM {
 ///////////////////////////////////////////////////////////
 	public:
 		///////////////////////////////////////////////////////////
-		
-		
-
-
-
-
-		
+	
 		int MatchingWithLabeling(std::vector<cv::KeyPoint> kps1, std::vector<cv::KeyPoint> kps2, cv::Mat desc1, cv::Mat desc2, std::vector<int> idxs1, std::vector<int> idxs2, std::vector<cv::DMatch>& matches);
 		int MatchingWithLabeling(UVR_SLAM::Frame* pKF, UVR_SLAM::Frame* pCurr);
 		int MatchingWithPrevFrame(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr,  std::vector<cv::DMatch>& mvMatches);

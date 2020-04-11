@@ -2720,7 +2720,7 @@ int UVR_SLAM::Matcher::DenseMatchingWithEpiPolarGeometry(Frame* f1, Frame* f2, s
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 	//fuse time text
 
-	imshow("Output::Matching", debugging);
+	imshow("Output::Matching::버리자", debugging);
 	cv::waitKey(1);
 
 	return 0;
@@ -3605,6 +3605,105 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 	imshow("Init::OpticalFlow ", debugging);
+	/////////////////////////
+
+	return res;
+}
+
+int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<bool>& vbInliers) {
+	
+	//////////////////////////
+	////Optical flow
+	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+	std::vector<cv::Mat> currPyr, prevPyr;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	cv::Mat prevImg = prev->GetOriginalImage();
+	cv::Mat currImg = curr->GetOriginalImage();
+	/*cv::Mat prevGray, currGray;
+	cvtColor(prevImg, prevGray, CV_BGR2GRAY);
+	cvtColor(currImg, currGray, CV_BGR2GRAY);*/
+	///////debug
+	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+	cv::Mat debugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+	prevImg.copyTo(debugging(mergeRect1));
+	currImg.copyTo(debugging(mergeRect2));
+	///////debug
+	
+	///////////
+	//matKPs, mvKPs
+	//init -> curr로 매칭
+	////////
+	std::vector<cv::Point2f> prevPts, currPts;
+	prevPts = prev->mvMatchingPts;
+	int maxLvl = 3;
+	int searchSize = 21;
+	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
+	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
+	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	//바운더리 에러도 고려해야 함.
+	
+	int nCurrFrameID = curr->GetFrameID();
+	int res = 0;
+	int nBad = 0;
+	for (int i = 0; i < prevPts.size(); i++) {
+		if (status[i] == 0) {
+			continue;
+		}
+
+		////추가적인 에러처리
+		////레이블드에서 255 150 100 벽 바닥 천장
+		//int prevLabel = init->matLabeled.at<uchar>(prevPts[i].y / 2, prevPts[i].x / 2);
+		//if (prevLabel != 255 && prevLabel != 150 && prevLabel != 100) {
+		//	nBad++;
+		//	continue;
+		//}
+		//int currLabel = curr->matLabeled.at<uchar>(currPts[i].y / 2, currPts[i].x / 2);
+		//if (prevLabel != currLabel) {
+		//	nBad++;
+		//	continue;
+		//}
+
+		/////
+
+		UVR_SLAM::MapPoint* pMPi = prev->mvpMatchingMPs[i];
+		if (!pMPi || pMPi->isDeleted())
+		{
+			continue;
+		}
+
+		if (pMPi->GetRecentTrackingFrameID() == nCurrFrameID)
+		{
+			nBad++;
+			continue;
+		}
+
+		//매칭 결과
+		float diffX = abs(prevPts[i].x - currPts[i].x);
+		if (diffX > 25) {
+			continue;
+		}
+		
+		pMPi->SetRecentTrackingFrameID(nCurrFrameID);
+		vpMPs.push_back(pMPi);
+		vpPts.push_back(currPts[i]);
+		vbInliers.push_back(true);
+		
+		cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
+		res++;
+	}
+	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	double tttt = duration / 1000.0;
+
+	//fuse time text 
+	std::stringstream ss;
+	ss << "Optical flow tracking= " << res <<", "<<nBad<< "::" << tttt;
+	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
+	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+	imshow("Output::Matching", debugging);
 	/////////////////////////
 
 	return res;

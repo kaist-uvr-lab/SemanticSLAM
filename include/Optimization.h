@@ -19,6 +19,13 @@ namespace UVR_SLAM {
 	class Map;
 	class Optimization {
 	public:
+
+		////////////////////
+		////200411
+		static int PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<bool>& vbInliers);
+		////200411
+		////////////////////
+		
 		//g2o
 		static int PoseOptimization(Frame *pFrame);
 		static int PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM::MapPoint*> vDenseMPs, std::vector<std::pair<int, cv::Point2f>> vPairs, std::vector<bool>& vbInliers);

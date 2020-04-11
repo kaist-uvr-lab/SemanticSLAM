@@ -573,15 +573,19 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 		mbInitialComputations = false;
 	}
 	UndistortKeyPoints();
-	AssignFeaturesToGrid();
+
+	//에러나면 풀어야 함
+	//AssignFeaturesToGrid();
 
 	//임시로 키포인트 복사
 	mvKeyPoints = mvKeyPointsUn;
 	//mvpMPs 초기화
-	cv::undistort(matOri, undistorted, mK, mDistCoef);
-	mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
+	//cv::undistort(matOri, undistorted, mK, mDistCoef);
+	
+	/*mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
 	mvbMPInliers = std::vector<bool>(mvKeyPoints.size(), false);
-	mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);
+	mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);*/
+
 	//mvMapObjects = std::vector<std::multimap<ObjectType, int, std::greater<int>>>(mvKeyPoints.size());
 	//파트별 매칭을 위한 것.
 	/*mWallDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
@@ -821,6 +825,8 @@ void UVR_SLAM::Frame::Reset() {
 	mnDenseIdx = 1;
 	mDenseIndexMap = cv::Mat::zeros(matFrame.size(), CV_16UC1);
 	mmpDenseMPs.clear();
+	mvpMatchingMPs.clear();
+	mvMatchingPts.clear();
 	///////
 	mTrackedDescriptor = cv::Mat::zeros(0, matDescriptor.rows, matDescriptor.type());
 	mvTrackedIdxs.clear();

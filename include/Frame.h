@@ -111,7 +111,6 @@ namespace UVR_SLAM {
 		cv::Mat mDenseMap, mDenseIndexMap;
 		int mnDenseIdx;
 		std::vector<cv::Mat> mvX3Ds;
-		std::vector<UVR_SLAM::MapPoint*> mvpDenseMPs;
 		std::map<int, UVR_SLAM::MapPoint*> mmpDenseMPs;
 		
 		std::vector<UVR_SLAM::MapPoint*> GetDenseVectors();
@@ -126,6 +125,10 @@ namespace UVR_SLAM {
 		//이미지 픽셀에 키포인트 순서를 저장.
 		cv::Mat matKPs;
 		std::vector<cv::Point2f> mvPts; //키포인트의 포인트만 별도로 빼냄.
+		//매칭 정보를 저장
+
+		std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs;
+		std::vector<cv::Point2f> mvMatchingPts; 
 		///////////////////////////////
 
 
