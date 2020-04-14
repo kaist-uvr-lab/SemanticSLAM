@@ -99,11 +99,12 @@ void UVR_SLAM::PlaneEstimator::ProcessNewKeyFrame()
 	mpPrevFrame = mpTargetFrame;
 	mpTargetFrame = mKFQueue.front();
 	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
-	mpSystem->SetPlaneFrameID(mpTargetFrame->GetKeyFrameID());
+	//mpSystem->SetPlaneFrameID(mpTargetFrame->GetKeyFrameID());
 
-	/*if (mpMap->isFloorPlaneInitialized()) {
+	if (mpMap->isFloorPlaneInitialized()) {
 		mpTargetFrame->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpTargetFrame, mpMap->mpFloorPlane);
-	}*/
+		mpTargetFrame->mpPlaneInformation->Calculate();
+	}
 
 	mKFQueue.pop();
 }
@@ -134,6 +135,38 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				std::cout << "null::prev" << std::endl;
 			if (!mpPPrevFrame)
 				std::cout << "null::pprev" << std::endl;
+
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			////200412
+			////수정 버전!!!
+			if(mpPPrevFrame && mpPrevFrame){
+				cv::Mat debbuging;
+				std::vector<std::pair<cv::Point2f, cv::Point2f>> vPairMatches;
+				mpMatcher->OpticalMatchingForMapping(mpPrevFrame, mpTargetFrame, vPairMatches, debbuging);
+				std::stringstream sss;
+				sss << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevFrame->GetKeyFrameID() << ".jpg";
+				imwrite(sss.str(), debbuging);
+				vPairMatches.clear();
+				mpMatcher->OpticalMatchingForMapping(mpPPrevFrame, mpTargetFrame, vPairMatches, debbuging);
+				sss.str("");
+				sss << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << "_" << mpPPrevFrame->GetKeyFrameID() << ".jpg";
+				imwrite(sss.str(), debbuging);
+				std::cout << "pe::test::end" << std::endl;
+				
+				continue;
+			}
+			SetBoolDoingProcess(false, 0);
+			std::cout << "pe::end" << std::endl;
+			continue;
+			////200412
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			
+
+
+
+
+
+
 			//////평면 포인트 생성
 			std::vector<cv::Mat> vPlanarMaps;
 			vPlanarMaps = std::vector<cv::Mat>(mpTargetFrame->mvKeyPoints.size(), cv::Mat::zeros(0, 0, CV_8UC1));

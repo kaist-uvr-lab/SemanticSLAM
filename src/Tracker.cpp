@@ -75,7 +75,6 @@ void UVR_SLAM::Tracker::SetPlaneEstimator(UVR_SLAM::PlaneEstimator* pEstimator) 
 }
 
 bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr) {
-	std::cout << "tracker::" << mnMatching << std::endl;
 	int nMinObs = 3;
 	if (mpFrameWindow->GetLocalMapFrames().size() <= 2)
 		nMinObs = 2;
@@ -84,20 +83,20 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr) {
 	
 	float thRefRatio = 0.9f;
 
-	bool bLocalMappingIdle = !mpLocalMapper->isDoingProcess();
+	//bool bLocalMappingIdle = !mpLocalMapper->isDoingProcess();
 	
 	//기존 방식대로 최소 프레임을 만족하면 무조건 추가.
 	//트래킹 수가 줄어들면 바로 추가.
-	int nLastID = mpFrameWindow->GetLastFrameID();
+	int nLastID = mpRefKF->GetFrameID();
 	bool c1 = pCurr->GetFrameID() >= nLastID + mnMinFrames; //최소한의 조건
 	bool c2 = mnMatching < 100;
 	bool c3 = false;//mnMatching < mpFrameWindow->mnLastMatches*0.8;
 	if (c1 || c2 || c3) {
-		if (!bLocalMappingIdle)
+		/*if (!bLocalMappingIdle)
 		{
 			mpLocalMapper->StopLocalMapping(true);
 			return false;
-		}
+		}*/
 		return true;
 	}
 	else
@@ -174,17 +173,20 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::vector<UVR_SLAM::MapPoint*> vpTempMPs;
 		std::vector<cv::Point2f> vpTempPts;
 		std::vector<bool> vbTempInliers;// = std::vector<bool>(pPrev->mvpMatchingMPs.size(), false);
-		int nMatch = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vpTempPts, vbTempInliers);
+		int nMatch = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers); //pCurr
 		//int nMatch = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, pCurr->mvpMatchingMPs, pCurr->mvMatchingPts, vbTempInliers);
-		nMatch = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers);
-		pCurr->SetInliers(nMatch);
+		mnMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers);
+		pCurr->SetInliers(mnMatching);
 		mpFrameWindow->SetPose(pCurr->GetRotation(), pCurr->GetTranslation());
 		CalcMatchingCount(pCurr, vpTempMPs, vpTempPts, vbTempInliers);
-		
 		//키프레임 체크
 		if (CheckNeedKeyFrame(pCurr)) {
 			if (!mpSegmentator->isDoingProcess()) {
+				std::cout << "insert key frame" << std::endl;
+				pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 				mpSegmentator->InsertKeyFrame(pCurr);
+				mpLocalMapper->InsertKeyFrame(pCurr);
+				mpPlaneEstimator->InsertKeyFrame(pCurr);
 			}
 		}
 
@@ -214,9 +216,10 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		}
 		
 		std::stringstream ss;
-		ss << "Traking = " <<nMatch<<", "<< tttt;
+		ss << "Traking = " << mnMatching <<", "<< tttt;
 		cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
 		cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+		std::cout << "????????" << std::endl;
 		////Optical Flow Matching
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

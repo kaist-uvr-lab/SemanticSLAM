@@ -54,6 +54,10 @@ void UVR_SLAM::Initializer::SetSegmentator(SemanticSegmentator* pEstimator) {
 	mpSegmentator = pEstimator;
 }
 
+void UVR_SLAM::Initializer::SetPlaneEstimator(PlaneEstimator* pEstimator) {
+	mpPlaneEstimator = pEstimator;
+}
+
 bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h) {
 	//std::cout << "Initializer::Initialize::Start" << std::endl;
 	
@@ -190,16 +194,16 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpInitFrame2->SetPose(vCandidates[resIDX]->R, vCandidates[resIDX]->t); //두번째 프레임은 median depth로 변경해야 함.
 
 			//////키프레임으로 설정
-			//mpInitFrame1->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-			mpInitFrame1->SetKeyFrameID(0);
-			//mpInitFrame2->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-			mpInitFrame2->SetKeyFrameID();
-
+			mpInitFrame1->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME, 0);
+			mpInitFrame2->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+			/*mpInitFrame1->SetKeyFrameID(0);
+			mpInitFrame2->SetKeyFrameID();*/
+			
 			//윈도우에 두 개의 키프레임 넣기
 			//20.01.02 deque에서 list로 변경함.
 			mpFrameWindow->AddFrame(mpInitFrame1);
 			mpFrameWindow->AddFrame(mpInitFrame2);
-
+			
 			//mpInitFrame1->mTrackedDescriptor = cv::Mat::zeros(0, mpInitFrame1->matDescriptor.cols, mpInitFrame1->matDescriptor.type());
 			//mpInitFrame2->mTrackedDescriptor = cv::Mat::zeros(0, mpInitFrame2->matDescriptor.cols, mpInitFrame2->matDescriptor.type());
 			//mpFrameWindow->push_back(mpInitFrame1);
@@ -209,14 +213,14 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			//객체 세그멘테이션 될 때가지 웨이트
 			while (!mpInitFrame2->isSegmented()) {
 			}
-
+			
 			//맵포인트 생성 및 키프레임과 연결
 			int nMatch = 0;
 			std::vector<MapPoint*> vpMPs;
 			std::vector<UVR_SLAM::Frame*> vpKFs;
 			vpKFs.push_back(mpInitFrame1);
 			vpKFs.push_back(mpInitFrame2);
-
+			
 			std::cout << "init::keyframeid::" << mpInitFrame1->GetKeyFrameID() << ", " << mpInitFrame2->GetKeyFrameID() << std::endl;
 
 			//auto mvpOPs1 = mpInitFrame1->GetObjectVector();
@@ -537,10 +541,14 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			//mpLocalMapper->InsertKeyFrame(mpInitFrame1);
 			//mpLocalMapper->InsertKeyFrame(mpInitFrame2);
 
+			mpPlaneEstimator->InsertKeyFrame(mpInitFrame1);
+			mpPlaneEstimator->InsertKeyFrame(mpInitFrame2);
+
 			mpMap->SetCurrFrame(mpInitFrame2);
 			mbInit = true;
 
 			if (mbInit) {
+				mpSystem->SetDirPath(0);
 				std::string base = mpSystem->GetDirPath(0);
 				std::stringstream ss;
 				ss << base << "/dense";

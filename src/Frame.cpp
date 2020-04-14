@@ -296,11 +296,17 @@ unsigned char UVR_SLAM::Frame::GetFrameType() {
 	std::unique_lock<std::mutex>(mMutexType);
 	return mnType;
 }
-
-void UVR_SLAM::Frame::TurnOnFlag(unsigned char opt){
+void UVR_SLAM::Frame::TurnOnFlag(unsigned char opt) {
 	std::unique_lock<std::mutex>(mMutexType);
 	if (opt == UVR_SLAM::FLAG_KEY_FRAME) {
 		SetKeyFrameID();
+	}
+	mnType |= opt;
+}
+void UVR_SLAM::Frame::TurnOnFlag(unsigned char opt, int n){
+	std::unique_lock<std::mutex>(mMutexType);
+	if (opt == UVR_SLAM::FLAG_KEY_FRAME) {
+		SetKeyFrameID(n);
 	}
 	mnType |= opt;
 }

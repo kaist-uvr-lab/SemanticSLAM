@@ -162,6 +162,7 @@ void UVR_SLAM::System::Init() {
 
 	mpInitializer->SetLocalMapper(mpLocalMapper);
 	mpInitializer->SetSegmentator(mpSegmentator);
+	mpInitializer->SetPlaneEstimator(mpPlaneEstimator);
 	//loop closing thread
 
 	//map optimizer
@@ -218,6 +219,14 @@ void UVR_SLAM::System::Track() {
 	//std::cout << "Track::Start\n";
 	mpTracker->Tracking(mpPrevFrame , mpCurrFrame);
 	//std::cout << "Track::End\n";
+
+	////제안서 작업시 이미지 특징점 저장용
+	/*cv::Mat img = mpCurrFrame->GetOriginalImage();
+	for (int i = 0; i < mpCurrFrame->mvKeyPoints.size(); i++) {
+		cv::circle(img, mpCurrFrame->mvKeyPoints[i].pt, 3, cv::Scalar(255, 255, 0), -1);
+	}
+	imwrite("d:/res.png", img);*/
+	////제안서 작업시 이미지 특징점 저장용
 }
 
 void UVR_SLAM::System::Reset() {

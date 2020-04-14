@@ -43,9 +43,9 @@ bool UVR_SLAM::LocalMapper::CheckNewKeyFrames()
 
 void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
 {
-	if (mpPrevKeyFrame)
+	//if (mpPrevKeyFrame)
 		mpPPrevKeyFrame = mpPrevKeyFrame;
-	if (mpTargetFrame)
+	//if (mpTargetFrame)
 		mpPrevKeyFrame = mpTargetFrame;
 
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
@@ -57,6 +57,9 @@ void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
 	mKFQueue.pop();
 	mpFrameWindow->SetLastFrameID(mpTargetFrame->GetFrameID());
 	mbStopBA = false;
+
+	
+	mpTargetFrame->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
 
 	////이게 필요한지?
 	//이전 키프레임 정보 획득 후 현재 프레임을 윈도우에 추가
@@ -99,12 +102,26 @@ void UVR_SLAM::LocalMapper::Run() {
 		if (CheckNewKeyFrames()) {
 			SetDoingProcess(true);
 			std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
+			////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			//////200412
+			if (mpMap->isFloorPlaneInitialized()) {
+				ProcessNewKeyFrame();
+
+
+
+			}
+			
+			SetDoingProcess(false);
+			continue;
+			//////200412
+			////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			
 			
 			////lock
 			//std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
 			//mpSystem->mbLocalMappingEnd = false;
 
-			ProcessNewKeyFrame();
+			
 			std::cout << "lm::start::" << mpTargetFrame->GetFrameID() <<", "<<mpTargetFrame->GetKeyFrameID()<< std::endl;
 			CalculateKFConnections();
 			UpdateKFs();

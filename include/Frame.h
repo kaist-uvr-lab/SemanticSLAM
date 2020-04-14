@@ -74,6 +74,7 @@ namespace UVR_SLAM {
 		int GetNumInliers();
 		int TrackedMapPoints(int minObservation);
 		void TurnOnFlag(unsigned char opt);
+		void TurnOnFlag(unsigned char opt, int n);
 		void TurnOffFlag(unsigned char opt);
 		bool CheckFrameType(unsigned char opt);
 		int GetFrameID();
