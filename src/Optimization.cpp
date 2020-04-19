@@ -2203,3 +2203,351 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 
 	return nInitialCorrespondences - nBad;
 }
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////Opticalflow 버전용
+void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer* pMapOptimizer, UVR_SLAM::Frame* pKF, UVR_SLAM::FrameWindow* pWindow) {
+	// Local KeyFrames: First Breath Search from Current Keyframe
+	std::list<UVR_SLAM::Frame*> lLocalKeyFrames;
+
+	std::cout << "ba::ssssss" << std::endl;
+
+	int nTargetID = pKF->GetFrameID();
+	lLocalKeyFrames.push_back(pKF);
+	pKF->mnLocalBAID = nTargetID;
+
+	int nn = 15;
+
+	const std::vector<UVR_SLAM::Frame*> vNeighKFs = pKF->GetConnectedKFs(nn);
+	std::cout << "ba::connected kf::" << vNeighKFs.size() << std::endl;
+	for (int i = 0, iend = vNeighKFs.size(); i<iend; i++)
+	{
+		UVR_SLAM::Frame* pKFi = vNeighKFs[i];
+		if (pKFi->mnLocalBAID == nTargetID)
+			continue;
+		pKFi->mnLocalBAID = nTargetID;
+		lLocalKeyFrames.push_back(pKFi);
+	}
+	std::cout << "ba::aaaa" << std::endl;
+	// Local MapPoints seen in Local KeyFrames
+
+	//dense mp의 커넥티드 수는 고려하지 않음.
+	std::list<MapPoint*> lLocalMapPoints;
+	for (std::list<UVR_SLAM::Frame*>::iterator lit = lLocalKeyFrames.begin(), lend = lLocalKeyFrames.end(); lit != lend; lit++)
+	{
+		std::vector<MapPoint*> vpMPs = (*lit)->GetDenseVectors();
+		for (std::vector<MapPoint*>::iterator vit = vpMPs.begin(), vend = vpMPs.end(); vit != vend; vit++)
+		{
+			MapPoint* pMP = *vit;
+			if (!pMP)
+				continue;
+			if (pMP->isDeleted()) {
+				continue;
+			}
+			/*if (pMP->GetNumConnectedFrames() <= 2)
+				continue;*/
+			if (pMP->mnLocalBAID == nTargetID)
+				continue;
+			lLocalMapPoints.push_back(pMP);
+			pMP->mnLocalBAID = nTargetID;
+		}
+	}
+	std::cout << "ba::bbbbb" << std::endl;
+	
+	// Fixed Keyframes. Keyframes that see Local MapPoints but that are not Local Keyframes
+	std::list<UVR_SLAM::Frame*> lFixedCameras;
+	for (std::list<MapPoint*>::iterator lit = lLocalMapPoints.begin(), lend = lLocalMapPoints.end(); lit != lend; lit++)
+	{
+		UVR_SLAM::MapPoint* pMP = *lit;
+		auto observations = pMP->GetConnedtedDenseFrames();
+		//map<KeyFrame*, size_t> observations = (*lit)->GetObservations();
+		for (auto mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
+		{
+			UVR_SLAM::Frame* pKFi = mit->first;
+
+			if (pKFi->mnLocalBAID != nTargetID && pKFi->mnFixedBAID != nTargetID)
+			{
+				pKFi->mnFixedBAID = nTargetID;
+				lFixedCameras.push_back(pKFi);
+			}
+		}
+	}
+	std::cout << "ba::ddddd" << std::endl;
+	// Setup optimizer
+	g2o::SparseOptimizer optimizer;
+	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
+
+	linearSolver = new g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>();
+
+	g2o::BlockSolver_6_3 * solver_ptr = new g2o::BlockSolver_6_3(linearSolver);
+
+	g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+	optimizer.setAlgorithm(solver);
+
+	std::cout << "ba::eeee" << std::endl;
+
+	bool bStopBA = pMapOptimizer->isStopBA();
+	if (bStopBA)
+		optimizer.setForceStopFlag(&bStopBA);
+
+	unsigned long maxKFid = 0;
+	std::cout << "ba::ffff" << std::endl;
+	// Set Local KeyFrame vertices
+	for (auto lit = lLocalKeyFrames.begin(), lend = lLocalKeyFrames.end(); lit != lend; lit++)
+	{
+		UVR_SLAM::Frame* pKFi = *lit;
+		g2o::VertexSE3Expmap * vSE3 = new g2o::VertexSE3Expmap();
+
+		cv::Mat R, t;
+		pKFi->GetPose(R, t);
+		cv::Mat Tcw = cv::Mat::zeros(4, 4, CV_32FC1);
+		R.copyTo(Tcw.rowRange(0, 3).colRange(0, 3));
+		t.copyTo(Tcw.col(3).rowRange(0, 3));
+
+		vSE3->setEstimate(Converter::toSE3Quat(Tcw));
+		vSE3->setId(pKFi->GetKeyFrameID());
+		vSE3->setFixed(pKFi->GetKeyFrameID() == 0);
+		optimizer.addVertex(vSE3);
+		if (pKFi->GetKeyFrameID()>maxKFid)
+			maxKFid = pKFi->GetKeyFrameID();
+	}
+	std::cout << "ba::ggg::" << maxKFid << std::endl;
+	// Set Fixed KeyFrame vertices
+	for (auto lit = lFixedCameras.begin(), lend = lFixedCameras.end(); lit != lend; lit++)
+	{
+		UVR_SLAM::Frame* pKFi = *lit;
+		g2o::VertexSE3Expmap * vSE3 = new g2o::VertexSE3Expmap();
+
+		cv::Mat R, t;
+		pKFi->GetPose(R, t);
+		cv::Mat Tcw = cv::Mat::zeros(4, 4, CV_32FC1);
+		R.copyTo(Tcw.rowRange(0, 3).colRange(0, 3));
+		t.copyTo(Tcw.col(3).rowRange(0, 3));
+
+		vSE3->setEstimate(Converter::toSE3Quat(Tcw));
+		vSE3->setId(pKFi->GetKeyFrameID());
+		vSE3->setFixed(true);
+		optimizer.addVertex(vSE3);
+		if (pKFi->GetKeyFrameID()>maxKFid)
+			maxKFid = pKFi->GetKeyFrameID();
+	}
+	std::cout << "ba::hhh::" << maxKFid << std::endl;
+	// Set MapPoint vertices
+	const int nExpectedSize = (lLocalKeyFrames.size() + lFixedCameras.size())*lLocalMapPoints.size();
+
+	std::vector<g2o::EdgeSE3ProjectXYZ*> vpEdgesMono;
+	vpEdgesMono.reserve(nExpectedSize);
+
+	std::vector<UVR_SLAM::Frame*> vpEdgeKFMono;
+	vpEdgeKFMono.reserve(nExpectedSize);
+
+	std::vector<MapPoint*> vpMapPointEdgeMono;
+	vpMapPointEdgeMono.reserve(nExpectedSize);
+
+	const float thHuberMono = sqrt(5.991);
+	const float thHuberStereo = sqrt(7.815);
+	std::cout << "ba::iii" << std::endl;
+	for (auto lit = lLocalMapPoints.begin(), lend = lLocalMapPoints.end(); lit != lend; lit++)
+	{
+		MapPoint* pMP = *lit;
+		if (!pMP)
+			continue;
+		if (pMP->isDeleted())
+			continue;
+		g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
+		vPoint->setEstimate(Converter::toVector3d(pMP->GetWorldPos()));
+		int id = pMP->mnMapPointID + maxKFid + 1;
+		vPoint->setId(id);
+		vPoint->setMarginalized(true);
+		optimizer.addVertex(vPoint);
+
+		const auto observations = pMP->GetConnedtedDenseFrames();
+
+		//Set edges
+		for (std::map<UVR_SLAM::Frame*, cv::Point2f>::const_iterator mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
+		{
+			UVR_SLAM::Frame* pKFi = mit->first;
+			if (pKFi->GetKeyFrameID() > maxKFid)
+				continue;
+
+			auto pt = mit->second;
+			Eigen::Matrix<double, 2, 1> obs;
+			obs << pt.x, pt.y;
+
+			g2o::EdgeSE3ProjectXYZ* e = new g2o::EdgeSE3ProjectXYZ();
+			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
+			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->GetKeyFrameID())));
+			e->setMeasurement(obs);
+			const float &invSigma2 = 1.0;
+			e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
+
+			g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+			e->setRobustKernel(rk);
+			rk->setDelta(thHuberMono);
+
+			e->fx = pKFi->fx;
+			e->fy = pKFi->fy;
+			e->cx = pKFi->cx;
+			e->cy = pKFi->cy;
+
+			optimizer.addEdge(e);
+			vpEdgesMono.push_back(e);
+			vpEdgeKFMono.push_back(pKFi);
+			vpMapPointEdgeMono.push_back(pMP);
+		}
+
+	}
+
+	std::cout << "ba::setting::end" << std::endl;
+
+	bStopBA = pMapOptimizer->isStopBA();
+	if (bStopBA)
+		return;
+	/*if (pbStopFlag)
+	if (*pbStopFlag)
+	return;*/
+
+	std::cout << "ba::setting::end2" << std::endl;
+
+	optimizer.initializeOptimization();
+	optimizer.optimize(5);
+
+	std::cout << "ba::optimize::end" << std::endl;
+
+	bStopBA = pMapOptimizer->isStopBA();
+
+	std::cout << "ba::optimize::end2" << std::endl;
+
+	bool bDoMore = true;
+	if (bStopBA)
+		bDoMore = false;
+	/*if (pbStopFlag)
+	if (*pbStopFlag)
+	bDoMore = false;*/
+
+	if (bDoMore)
+	{
+
+		// Check inlier observations
+		for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
+		{
+			g2o::EdgeSE3ProjectXYZ* e = vpEdgesMono[i];
+			MapPoint* pMP = vpMapPointEdgeMono[i];
+
+			if (pMP->isDeleted())
+				continue;
+
+			if (e->chi2()>5.991 || !e->isDepthPositive())
+			{
+				e->setLevel(1);
+			}
+
+			e->setRobustKernel(0);
+		}
+
+		// Optimize again without the outliers
+
+		optimizer.initializeOptimization(0);
+		optimizer.optimize(10);
+
+	}
+
+	std::cout << "ba::optimize::end3" << std::endl;
+
+	std::vector<std::pair<UVR_SLAM::Frame*, MapPoint*> > vToErase;
+	vToErase.reserve(vpEdgesMono.size());
+
+	// Check inlier observations       
+	for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
+	{
+		g2o::EdgeSE3ProjectXYZ* e = vpEdgesMono[i];
+		MapPoint* pMP = vpMapPointEdgeMono[i];
+
+		if (pMP->isDeleted())
+			continue;
+
+		if (e->chi2()>5.991 || !e->isDepthPositive())
+		{
+			UVR_SLAM::Frame* pKFi = vpEdgeKFMono[i];
+			vToErase.push_back(std::make_pair(pKFi, pMP));
+		}
+	}
+
+	std::cout << "ba::check::inlier::end" << std::endl;
+
+	if (!vToErase.empty())
+	{
+		for (size_t i = 0; i<vToErase.size(); i++)
+		{
+			UVR_SLAM::Frame* pKFi = vToErase[i].first;
+			MapPoint* pMPi = vToErase[i].second;
+			if (pMPi->isDeleted()) {
+				std::cout << "????????????????????????????????????????" << std::endl<<std::endl;
+			}
+			pMPi->RemoveDenseFrame(pKFi);
+		}
+	}
+
+	std::cout << "ba::erase::end" << std::endl;
+
+	// Recover optimized data
+
+	//Keyframes
+	for (auto lit = lLocalKeyFrames.begin(), lend = lLocalKeyFrames.end(); lit != lend; lit++)
+	{
+		UVR_SLAM::Frame* pKF = *lit;
+		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pKF->GetKeyFrameID()));
+		g2o::SE3Quat SE3quat = vSE3->estimate();
+
+		cv::Mat R, t;
+		cv::Mat Tcw = Converter::toCvMat(SE3quat);
+		R = Tcw.rowRange(0, 3).colRange(0, 3);
+		t = Tcw.rowRange(0, 3).col(3);
+		pKF->SetPose(R, t);
+	}
+
+	std::cout << "ba::restore::kf::end" << std::endl;
+
+	//Points
+	for (auto lit = lLocalMapPoints.begin(), lend = lLocalMapPoints.end(); lit != lend; lit++)
+	{
+		MapPoint* pMP = *lit;
+		if (!pMP || pMP->isDeleted())
+			continue;
+
+		////remove
+		//int nConnectedThresh = 2;
+		////////////////평면일 경우 쓰레시값 조절
+		////if (pMP->GetMapPointType() == UVR_SLAM::MapPointType::PLANE_MP){
+		////	//바로 만들어진 포인트는 삭제 금지.
+		////	if (pMP->mnFirstKeyFrameID == nTargetID)
+		////		continue;
+		////	nConnectedThresh = 1;
+		////}
+		////////////////평면일 경우 쓰레시값 조절
+		////else if (pMP->isNewMP())
+		////	nConnectedThresh = 1;
+		//int nConncted = 0;
+		//if (pMP->GetMapPointType() == UVR_SLAM::PLANE_DENSE_MP) {
+		//	nConncted = pMP->GetNumDensedFrames();
+		//}
+		//else {
+		//	nConncted = pMP->GetNumConnectedFrames();
+		//}
+		//if (nConncted <= nConnectedThresh) {
+		//	pMP->SetDelete(true);
+		//	pMP->Delete();
+		//	//pWindow->SetMapPoint(nullptr, idx);
+		//	//pWindow->SetBoolInlier(false, idx);
+		//	continue;
+		//}
+
+		g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(pMP->mnMapPointID + maxKFid + 1));
+		pMP->SetWorldPos(Converter::toCvMat(vPoint->estimate()));
+		pMP->UpdateNormalAndDepth();
+	}
+	std::cout << "ba::restore::mp::end" << std::endl;
+}
+////Opticalflow 버전용
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

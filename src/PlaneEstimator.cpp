@@ -140,23 +140,177 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			////200412
 			////수정 버전!!!
 			if(mpPPrevFrame && mpPrevFrame){
+				std::cout << "pe::test::matching::prev::start" << std::endl;
+				cv::Mat invP, invT, invK;
+				mpPrevFrame->mpPlaneInformation->Calculate();
+				mpPrevFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
+
+				cv::Point2f ptBottom = cv::Point2f(0, mpPrevFrame->GetOriginalImage().rows);
 				cv::Mat debbuging;
 				std::vector<std::pair<cv::Point2f, cv::Point2f>> vPairMatches;
 				mpMatcher->OpticalMatchingForMapping(mpPrevFrame, mpTargetFrame, vPairMatches, debbuging);
+				/////두 프레임 사이의 매칭 
+				for (int j = 0; j < vPairMatches.size(); j++) {
+					if (!mpPrevFrame->isInImage(vPairMatches[j].first.x, vPairMatches[j].first.y) || !mpPrevFrame->isInImage(vPairMatches[j].second.x, vPairMatches[j].second.y)) {
+						std::cout << "이미지 밖!!" << std::endl;
+						continue;
+					}
+					/*if (!mpPrevFrame->isInImage(vPairMatches[j].first.x, vPairMatches[j].first.y)) {
+						std::cout << "MP::GetDenseMP::image boundary error" << std::endl;
+						continue;
+					}
+					if (!mpPrevFrame->isInImage(vPairMatches[j].second.x, vPairMatches[j].second.y)) {
+						std::cout << "MP::GetDenseMP::image boundary error" << std::endl;
+						continue;
+					}*/
+					auto pMP1 =  mpPrevFrame->GetDenseMP(vPairMatches[j].first);
+					auto pMP2 =  mpTargetFrame->GetDenseMP(vPairMatches[j].second);
+					auto pt1 = vPairMatches[j].first;
+					auto pt2 = vPairMatches[j].second;
+
+					bool bMP1 = pMP1 && !pMP1->isDeleted();
+					bool bMP2 = pMP2 && !pMP2->isDeleted();
+
+					if (bMP1 && bMP2) {
+						if (pMP1->mnMapPointID == pMP2->mnMapPointID) {
+							auto apt1 = mpPrevFrame->Projection(pMP1->GetWorldPos());
+							auto apt2 = mpTargetFrame->Projection(pMP1->GetWorldPos());
+							cv::line(debbuging, pt1, pt2 + ptBottom, cv::Scalar(255, 0, 255), 1);
+							//cv::line(debbuging, pt1, apt1, cv::Scalar(255, 255, 0), 1);
+							//cv::line(debbuging, pt2 + ptBottom, apt2 + ptBottom, cv::Scalar(255, 255, 0), 1);
+						}
+						else {
+							cv::line(debbuging, pt1, pt2 + ptBottom, cv::Scalar(255, 255, 0), 1);
+						}
+					}
+					else if (bMP1) {
+						auto apt1 = mpPrevFrame->Projection(pMP1->GetWorldPos());
+						auto apt2 = mpTargetFrame->Projection(pMP1->GetWorldPos());
+						cv::line(debbuging, pt1, pt2 + ptBottom, cv::Scalar(0, 255, 0), 1);
+						cv::line(debbuging, pt1, apt1, cv::Scalar(255, 0, 0), 1);
+						cv::line(debbuging, pt2 + ptBottom, apt2 + ptBottom, cv::Scalar(255, 0, 0), 1);
+					}
+					else if (!bMP1 && !bMP2) {
+
+						if (mpPrevFrame->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2) == 150) {
+							cv::line(debbuging, pt1, pt2 + ptBottom, cv::Scalar(0, 255, 255), 1);
+							cv::Mat X3D;
+							bool bRes = PlaneInformation::CreatePlanarMapPoint(pt1, invP, invT, invK, X3D);
+							if (bRes)
+							{
+								UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpPrevFrame, X3D, cv::Mat());
+								pNewMP->SetPlaneID(mpMap->mpFloorPlane->mnPlaneID);
+								//pNewMP->SetWorldPos(X3D);
+								pNewMP->SetMapPointType(UVR_SLAM::PLANE_DENSE_MP);
+								pNewMP->AddDenseFrame(mpPrevFrame, pt1);
+								pNewMP->AddDenseFrame(mpTargetFrame, pt2);
+								mpTargetFrame->mvMatchingPts.push_back(pt2);
+								mpTargetFrame->mvpMatchingMPs.push_back(pNewMP);
+								mpSystem->mlpNewMPs.push_back(pNewMP);
+							}
+						}
+						else {
+							//cv::line(debbuging, pt1, pt2 + ptBottom, cv::Scalar(0, 0, 255), 1);
+						}
+					}
+				}
+				mpTargetFrame->SetBoolMapping(true);
+				std::cout << "pe::test::matching::prev::end" << std::endl;
+				//std::cout << "pe::matching::end2" << std::endl;
+				/////두 프레임 사이의 매칭 
 				std::stringstream sss;
 				sss << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevFrame->GetKeyFrameID() << ".jpg";
 				imwrite(sss.str(), debbuging);
-				vPairMatches.clear();
-				mpMatcher->OpticalMatchingForMapping(mpPPrevFrame, mpTargetFrame, vPairMatches, debbuging);
-				sss.str("");
-				sss << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << "_" << mpPPrevFrame->GetKeyFrameID() << ".jpg";
-				imwrite(sss.str(), debbuging);
-				std::cout << "pe::test::end" << std::endl;
-				
-				continue;
+				//vPairMatches.clear();
+				//std::cout << "pe::test::matching::pprev::start" << std::endl;
+				//mpMatcher->OpticalMatchingForMapping(mpPPrevFrame, mpTargetFrame, vPairMatches, debbuging);
+				//std::cout << "pe::test::matching::pprev::aa" << std::endl;
+				////std::cout << "pe::matching::end3" << std::endl;
+				///////두 프레임 사이의 매칭
+				//cv::Mat invP, invT, invK;
+				//mpPPrevFrame->mpPlaneInformation->Calculate();
+				//mpPPrevFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
+				//for (int j = 0; j < vPairMatches.size(); j++) {
+				//	if (!mpPrevFrame->isInImage(vPairMatches[j].first.x, vPairMatches[j].first.y) || !mpPrevFrame->isInImage(vPairMatches[j].second.x, vPairMatches[j].second.y)) {
+				//		std::cout << "이미지 밖!!" << std::endl;
+				//		continue;
+				//	}
+				//	auto pMP1 = mpPPrevFrame->GetDenseMP(vPairMatches[j].first);
+				//	auto pMP2 = mpTargetFrame->GetDenseMP(vPairMatches[j].second);
+				//	auto pt1 = vPairMatches[j].first;
+				//	auto pt2 = vPairMatches[j].second;
+
+				//	bool bMP1 = pMP1 && !pMP1->isDeleted();
+				//	bool bMP2 = pMP2 && !pMP2->isDeleted();
+
+				//	if (bMP1 && bMP2) {
+				//		if (pMP1->mnMapPointID == pMP2->mnMapPointID) {
+				//			auto apt1 = mpPPrevFrame->Projection(pMP1->GetWorldPos());
+				//			auto apt2 = mpTargetFrame->Projection(pMP1->GetWorldPos());
+				//			cv::line(debbuging, pt1, pt2 + ptBottom, cv::Scalar(255, 0, 255), 1);
+				//			//cv::line(debbuging, pt1, apt1, cv::Scalar(255, 255, 0), 1);
+				//			//cv::line(debbuging, pt2 + ptBottom, apt2 + ptBottom, cv::Scalar(255, 255, 0), 1);
+				//		}
+				//		else {
+				//			cv::line(debbuging, pt1, pt2 + ptBottom, cv::Scalar(255, 255, 0), 1);
+				//		}
+				//	}else if (bMP1) {
+				//		auto apt1 = mpPPrevFrame->Projection(pMP1->GetWorldPos());
+				//		auto apt2 = mpTargetFrame->Projection(pMP1->GetWorldPos());
+				//		cv::line(debbuging, pt1, pt2 + ptBottom, cv::Scalar(0, 255, 0), 1);
+				//		cv::line(debbuging, pt1, apt1, cv::Scalar(255, 0, 0), 1);
+				//		cv::line(debbuging, pt2 + ptBottom, apt2 + ptBottom, cv::Scalar(255, 0, 0), 1);
+				//	}
+				//	else if (!bMP1 && !bMP2) {
+				//		
+				//		if (mpPPrevFrame->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2) == 150) {
+				//			cv::line(debbuging, pt1, pt2 + ptBottom, cv::Scalar(0, 255, 255), 1);
+				//			cv::Mat X3D;
+				//			bool bRes = PlaneInformation::CreatePlanarMapPoint(pt1, invP, invT, invK, X3D);
+				//			if (bRes)
+				//			{
+				//				UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpPPrevFrame, X3D, cv::Mat());
+				//				pNewMP->SetPlaneID(mpMap->mpFloorPlane->mnPlaneID);
+				//				//pNewMP->SetWorldPos(X3D);
+				//				pNewMP->SetMapPointType(UVR_SLAM::PLANE_DENSE_MP);
+				//				pNewMP->AddDenseFrame(mpPPrevFrame, pt1);
+				//				pNewMP->AddDenseFrame(mpTargetFrame, pt2);
+				//				mpTargetFrame->mvMatchingPts.push_back(pt2);
+				//				mpTargetFrame->mvpMatchingMPs.push_back(pNewMP);
+				//				mpSystem->mlpNewMPs.push_back(pNewMP);
+				//			}
+				//		}
+				//		else {
+				//			//cv::line(debbuging, pt1, pt2 + ptBottom, cv::Scalar(0, 0, 255), 1);
+				//		}
+				//	}
+				//	mpTargetFrame->SetBoolMapping(true);
+				//	/*if (pMP1 && !pMP1->isDeleted()) {
+				//		auto apt1 = mpPPrevFrame->Projection(pMP1->GetWorldPos());
+				//		auto apt2 = mpTargetFrame->Projection(pMP1->GetWorldPos());
+				//		cv::line(debbuging, pt1, pt2 + ptBottom, cv::Scalar(255, 0, 255), 1);
+				//		cv::line(debbuging, pt1, apt1, cv::Scalar(255, 255, 0), 1);
+				//		cv::line(debbuging, pt2 + ptBottom, apt2 + ptBottom, cv::Scalar(255, 255, 0), 1);
+				//	}
+				//	if (pMP2  && !pMP2->isDeleted()) {
+				//		auto apt1 = mpPPrevFrame->Projection(pMP2->GetWorldPos());
+				//		auto apt2 = mpTargetFrame->Projection(pMP2->GetWorldPos());
+				//		cv::line(debbuging, pt1, pt2 + ptBottom, cv::Scalar(255, 0, 255), 1);
+				//		cv::line(debbuging, pt1, apt1, cv::Scalar(0, 255, 255), 1);
+				//		cv::line(debbuging, pt2 + ptBottom, apt2 + ptBottom, cv::Scalar(0, 255, 255), 1);
+				//	}*/
+				//}
+				//std::cout << "pe::test::matching::pprev::end" << std::endl;
+				////std::cout << "pe::matching::end4" << std::endl;
+				///////두 프레임 사이의 매칭
+				//sss.str("");
+				//sss << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << "_" << mpPPrevFrame->GetKeyFrameID() << ".jpg";
+				//imwrite(sss.str(), debbuging);
+				////std::cout << "pe::test::end" << std::endl;
+				////continue;
 			}
-			SetBoolDoingProcess(false, 0);
 			std::cout << "pe::end" << std::endl;
+			SetBoolDoingProcess(false, 0);
 			continue;
 			////200412
 			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

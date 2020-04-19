@@ -302,6 +302,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 					mvpFloorMPs.push_back(pMP);
 				}
 			}*/
+			std::vector<cv::Point2f> vTempFloorPts;
 			for (int i = 0; i < vpMPs.size(); i++) {
 				UVR_SLAM::MapPoint* pMP = vpMPs[i];
 				if (!pMP)
@@ -316,6 +317,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 					if (label1 == label2) {
 						count++;
 						mvpFloorMPs.push_back(pMP);
+						vTempFloorPts.push_back(pt2);
 						cv::line(debugging, pt1, pt2 + ptBottom, cv::Scalar(255, 0, 0), 1);
 						
 					}
@@ -338,7 +340,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			/////////////////////////
 			//평면 검출을 초기화 과정에 추가
 			UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
-			bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.2);
+			bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.4);
 			cv::Mat param = pFloor->GetParam();
 			if(bRes){
 				std::cout <<"Init::param::"<< param.t()<<", "<<pFloor->mvpMPs.size()<<", "<<mvpFloorMPs.size() << std::endl;
@@ -358,10 +360,30 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			}
 
 			//초기 평면 MP 설정 필요
-			for (int i = 0; i < pFloor->mvpMPs.size(); i++) {
-				pFloor->mvpMPs[i]->SetMapPointType(UVR_SLAM::PLANE_DENSE_MP);
+			mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
+			mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
+			cv::Mat invP, invT, invK;
+			mpInitFrame2->mpPlaneInformation->Calculate();
+			mpInitFrame2->mpPlaneInformation->GetInformation(invP, invT, invK);
+			for (int i = 0; i < mvpFloorMPs.size(); i++) {
+				UVR_SLAM::MapPoint* pMP = mvpFloorMPs[i];
+				if (!pMP)
+					continue;
+				if (pMP->isDeleted())
+					continue;
+				cv::Mat X3D;
+				bool bRes = PlaneInformation::CreatePlanarMapPoint(vTempFloorPts[i], invP, invT, invK, X3D);
+				if (bRes)
+				{
+					pMP->SetPlaneID(pFloor->mnPlaneID);
+					pMP->SetWorldPos(X3D);
+					pMP->SetMapPointType(UVR_SLAM::PLANE_DENSE_MP);
+				}
 			}
-
+			/*for (int i = 0; i < pFloor->mvpMPs.size(); i++) {
+				pFloor->mvpMPs[i]->SetMapPointType(UVR_SLAM::PLANE_DENSE_MP);
+			}*/
+			
 			//윈도우 로컬맵, 포즈 설정
 			mpFrameWindow->SetPose(R, t*invMedianDepth);
 			//mpFrameWindow->SetLocalMap(mpInitFrame2->GetFrameID());
@@ -401,8 +423,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			////////////////////////rotation test
 			//바닥 맵포인트 바로 생성
 			//인포메이션 바로 생성하기.
-			mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
-			mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
+			
 
 			//////매칭 테스트
 			//cv::Mat debugImg;
@@ -538,11 +559,17 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 			//mpSegmentator->InsertKeyFrame(mpInitFrame1);
 
-			//mpLocalMapper->InsertKeyFrame(mpInitFrame1);
-			//mpLocalMapper->InsertKeyFrame(mpInitFrame2);
+			////두 키프레임 연결
+			mpInitFrame1->AddKF(mpInitFrame2, 0);
+			mpInitFrame2->AddKF(mpInitFrame1, 0);
+			////////두 키프레임 연결
 
+			//////////insert keyframe
+			mpLocalMapper->InsertKeyFrame(mpInitFrame1);
+			mpLocalMapper->InsertKeyFrame(mpInitFrame2);
 			mpPlaneEstimator->InsertKeyFrame(mpInitFrame1);
 			mpPlaneEstimator->InsertKeyFrame(mpInitFrame2);
+			//////////insert keyframe
 
 			mpMap->SetCurrFrame(mpInitFrame2);
 			mbInit = true;
@@ -610,7 +637,7 @@ void UVR_SLAM::Initializer::SetCandidatePose(cv::Mat F, std::vector<std::pair<cv
 	vCandidates[2]->SetRt(R1, t2);
 	vCandidates[3]->SetRt(R2, t2);
 
-//#pragma  omp parallel for
+#pragma  omp parallel for
 	for (int i = 0; i < 4; i++) {
 		CheckRT(Matches, vCandidates[i], th);
 	}
@@ -787,7 +814,7 @@ void UVR_SLAM::Initializer::CheckRT(std::vector<std::pair<cv::Point2f, cv::Point
 			candidate->nGood++;
 		}
 	}
-	std::cout << "candidate::" << candidate->nGood << std::endl;
+	
 	if (candidate->nGood>0)
 	{
 		std::sort(vCosParallax.begin(), vCosParallax.end());
@@ -796,7 +823,7 @@ void UVR_SLAM::Initializer::CheckRT(std::vector<std::pair<cv::Point2f, cv::Point
 		if (idx > nParallaxSize) {
 			idx = nParallaxSize;
 		}
-		std::cout<<"parallax::"<< (float)(acos(vCosParallax[idx])*UVR_SLAM::MatrixOperator::rad2deg)<<", "<< (float)(acos(vCosParallax[idx/2])*UVR_SLAM::MatrixOperator::rad2deg)<<std::endl;
+		//std::cout<<"parallax::"<< (float)(acos(vCosParallax[idx])*UVR_SLAM::MatrixOperator::rad2deg)<<", "<< (float)(acos(vCosParallax[idx/2])*UVR_SLAM::MatrixOperator::rad2deg)<<std::endl;
 		candidate->parallax = (float)(acos(vCosParallax[idx])*UVR_SLAM::MatrixOperator::rad2deg);
 	}
 	else {
@@ -873,7 +900,7 @@ bool UVR_SLAM::Initializer::CheckCreatedPoints(cv::Mat X3D, cv::Point2f kp1, cv:
 
 int UVR_SLAM::Initializer::SelectCandidatePose(std::vector<UVR_SLAM::InitialData*>& vCandidates) {
 	//int SelectCandidatePose(UVR::InitialData* c1, UVR::InitialData* c2, UVR::InitialData* c3, UVR::InitialData* c4){
-	float minParallax = 1.0f;
+	float minParallax = 0.5f;//1.0f;
 	int   minTriangulated = 50;
 
 	unsigned long maxIdx = (unsigned long)-1;
@@ -887,7 +914,8 @@ int UVR_SLAM::Initializer::SelectCandidatePose(std::vector<UVR_SLAM::InitialData
 	
 	int nsimilar = 0;
 	int th_good = (int)(0.7f*(float)nMaxGood);
-	int nMinGood = 200;//(int)(0.8f*(float)vCandidates[0]->nMinGood);
+	//int nMinGood = 600;
+	int nMinGood = (int)(0.7f*(float)vCandidates[0]->nMinGood); //0.8
 	if (nMinGood < minTriangulated) {
 		nMinGood = minTriangulated;
 	}

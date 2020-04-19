@@ -3507,7 +3507,17 @@ int UVR_SLAM::Matcher::MatchingWithEpiPolarGeometry(Frame* pKF, Frame* pF, std::
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 ////200410 Optical flow
+bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, cv::Point2f pt) {
+	if (overlap.at<uchar>(pt) > 0) {
+		return false;
+	}
+	circle(overlap, pt, radius, cv::Scalar(255), -1);
+	return true;
+}
+
 int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr, std::vector<std::pair<cv::Point2f, cv::Point2f>>& resMatches) {
+
+	cv::Mat overlap = cv::Mat::zeros(init->GetOriginalImage().size(), CV_8UC1);
 	//////////////////////////
 	////Optical flow
 	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
@@ -3571,6 +3581,11 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 		//	continue;
 		//}
 
+		if (!CheckOpticalPointOverlap(overlap, 2, currPts[i])) {
+			nBad++;
+			continue;
+		}
+
 		/////
 		//¸ÅÄª °á°ú
 		float diffX = abs(prevPts[i].x - currPts[i].x);
@@ -3610,7 +3625,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	return res;
 }
 
-int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<bool>& vbInliers) {
+int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<bool>& vbInliers, cv::Mat& overlap) {
 	
 	//////////////////////////
 	////Optical flow
@@ -3673,10 +3688,21 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		{
 			continue;
 		}
+		/*if (!curr->isInFrustum(pMPi, 0.5)) {
+			continue;
+		}*/
+
+		if (!curr->isInImage(currPts[i].x, currPts[i].y)) {
+			continue;
+		}
+		if (!CheckOpticalPointOverlap(overlap, 2, currPts[i])) {
+			nBad++;
+			continue;
+		}
 
 		if (pMPi->GetRecentTrackingFrameID() == nCurrFrameID)
 		{
-			nBad++;
+			//nBad++;
 			continue;
 		}
 
@@ -3692,6 +3718,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		vbInliers.push_back(true);
 		
 		cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
+		cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 0, 255),-1);
+		cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);
 		res++;
 	}
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
@@ -3778,11 +3806,11 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* prev, Frame* curr, std::
 		if (diffX < 15) {
 			bMatch = true;
 			res++;
-			cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 0, 255));
+			//cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 0, 255));
 		}
 		else if (diffX >= 15 && diffX < 90) {
 			res++;
-			cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(0, 255, 255));
+			//cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(0, 255, 255));
 			bMatch = true;
 		}
 		else {

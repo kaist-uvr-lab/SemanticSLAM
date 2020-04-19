@@ -44,9 +44,9 @@ bool UVR_SLAM::LocalMapper::CheckNewKeyFrames()
 void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
 {
 	//if (mpPrevKeyFrame)
-		mpPPrevKeyFrame = mpPrevKeyFrame;
+	mpPPrevKeyFrame = mpPrevKeyFrame;
 	//if (mpTargetFrame)
-		mpPrevKeyFrame = mpTargetFrame;
+	mpPrevKeyFrame = mpTargetFrame;
 
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
 	mpTargetFrame = mKFQueue.front();
@@ -104,13 +104,34 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
 			////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 			//////200412
-			if (mpMap->isFloorPlaneInitialized()) {
-				ProcessNewKeyFrame();
+			std::cout << "lm::start" << std::endl;
+			ProcessNewKeyFrame();
 
-
-
+			if ( mpPPrevKeyFrame && mpSystem->isInitialized()) {
+				std::cout << "lm::1" << std::endl;
+				NewMapPointMarginalization();
+				std::cout << "lm::2" << std::endl;
+				//////키프레임 연결
+				//mpPPrevKeyFrame->AddKF(mpTargetFrame, 0);
+				//mpPrevKeyFrame->AddKF(mpTargetFrame, 0);
+				//mpTargetFrame->AddKF(mpPPrevKeyFrame, 0);
+				//mpTargetFrame->AddKF(mpPrevKeyFrame, 0);
+				//////키프레임 연결
+				UpdateMPs();
+				std::cout << "lm::3" << std::endl;
+				CalculateKFConnections();
+				std::cout << "lm::4" << std::endl;
+				if (mpMapOptimizer->isDoingProcess()) {
+					std::cout << "lm::ba::busy" << std::endl;
+					mpMapOptimizer->StopBA(true);
+				}
+				else {
+					std::cout << "lm::ba::idle" << std::endl;
+					mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
+				}
+				std::cout << "lm::5" << std::endl;
 			}
-			
+			std::cout << "lm::end" << std::endl;
 			SetDoingProcess(false);
 			continue;
 			//////200412
@@ -430,18 +451,16 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 
 		int nMPThresh = mnMPThresh;
 		float fRatio = mfRatio;
-		if (pMP->GetMapPointType() == UVR_SLAM::PLANE_MP) {
-			//nMPThresh = 0;
-			fRatio = 0.01;
-		}
-		
+		//if (pMP->GetMapPointType() == UVR_SLAM::PLANE_MP) {
+		//	//nMPThresh = 0;
+		//	fRatio = 0.01;
+		//}
 		bool bBad = false;
 		if (pMP->isDeleted()) {
 			//already deleted
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
 		else if (pMP->GetFVRatio() < fRatio) {
-
 			bBad = true;
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
@@ -492,7 +511,22 @@ void UVR_SLAM::LocalMapper::UpdateKFs() {
 
 void UVR_SLAM::LocalMapper::UpdateMPs() {
 	int nUpdated = 0;
-	for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
+	std::vector<cv::Point2f> vMatchingPts = std::vector<cv::Point2f>(mpTargetFrame->mvMatchingPts.begin(), mpTargetFrame->mvMatchingPts.end());
+	
+	for (int i = 0; i < vMatchingPts.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = mpTargetFrame->mvpMatchingMPs[i];
+		if (!pMP || pMP->isDeleted()) {
+			continue;
+		}
+		
+		auto pt = vMatchingPts[i];
+		if (!mpTargetFrame->isInImage(pt.x, pt.y)) {
+			std::cout << "lm::updatemp::이미지밖::" << pt << std::endl;
+			continue;
+		}
+		pMP->AddDenseFrame(mpTargetFrame, pt);
+	}
+	/*for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
 		UVR_SLAM::MapPoint* pMP = mpTargetFrame->mvpMPs[i];
 		if (pMP) {
 			if (pMP->isDeleted()) {
@@ -504,7 +538,7 @@ void UVR_SLAM::LocalMapper::UpdateMPs() {
 				pMP->UpdateNormalAndDepth();
 			}
 		}
-	}
+	}*/
 	//std::cout << "Update MPs::" << nUpdated << std::endl;
 }
 
@@ -836,7 +870,25 @@ bool UVR_SLAM::LocalMapper::CheckScaleConsistency(cv::Mat x3D, cv::Mat Ow1, cv::
 void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 	std::map<UVR_SLAM::Frame*, int> mmpCandidateKFs;
 	int nTargetID = mpTargetFrame->GetFrameID();
-	auto mvpTemporalCandidateKFs = mpFrameWindow->GetLocalMapFrames();
+	
+	auto mvpDenseMPs = mpTargetFrame->GetDenseVectors();
+	for (int i = 0; i < mvpDenseMPs.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = mvpDenseMPs[i];
+		if (!pMP || pMP->isDeleted())
+			continue;
+		auto mmpMP = pMP->GetConnedtedDenseFrames();
+		for (auto biter = mmpMP.begin(), eiter = mmpMP.end(); biter != eiter; biter++) {
+			UVR_SLAM::Frame* pCandidateKF = biter->first;
+			if (nTargetID == pCandidateKF->GetFrameID())
+				continue;
+			/*if (mmpCandidateKFs.find(pCandidateKF) == mmpCandidateKFs.end()) {
+			std::cout << "LocalMapping::Not connected kf" << std::endl;
+			}*/
+			mmpCandidateKFs[pCandidateKF]++;
+		}
+	}
+
+	/*auto mvpTemporalCandidateKFs = mpFrameWindow->GetLocalMapFrames();
 	
 	for (int i = 0; i < mvpTemporalCandidateKFs.size(); i++) {
 		if (nTargetID == mvpTemporalCandidateKFs[i]->GetFrameID())
@@ -848,39 +900,39 @@ void UVR_SLAM::LocalMapper::CalculateKFConnections() {
 				continue;
 			mmpCandidateKFs[mvpTemp2[j]] = 0;
 		}
-	}
+	}*/
 	
 	int Nkf = mmpCandidateKFs.size();
-	auto mvpLocalMPs = mpTargetFrame->GetMapPoints();
-	for (int i = 0; i < mvpLocalMPs.size(); i++) {
-		
-		UVR_SLAM::MapPoint* pMP = mvpLocalMPs[i];
-		if (!pMP)
-			continue;
-		if (pMP->isDeleted())
-			continue;
-		auto mmpMP = pMP->GetConnedtedFrames();
-		for (auto biter = mmpMP.begin(), eiter = mmpMP.end(); biter != eiter; biter++) {
-			UVR_SLAM::Frame* pCandidateKF = biter->first;
-			if (nTargetID == pCandidateKF->GetFrameID())
-				continue;
-			/*if (mmpCandidateKFs.find(pCandidateKF) == mmpCandidateKFs.end()) {
-				std::cout << "LocalMapping::Not connected kf" << std::endl;
-			}*/
-			mmpCandidateKFs[pCandidateKF]++;
-		}
-	}
+	//auto mvpLocalMPs = mpTargetFrame->GetMapPoints();
+	//for (int i = 0; i < mvpLocalMPs.size(); i++) {
+	//	
+	//	UVR_SLAM::MapPoint* pMP = mvpLocalMPs[i];
+	//	if (!pMP)
+	//		continue;
+	//	if (pMP->isDeleted())
+	//		continue;
+	//	auto mmpMP = pMP->GetConnedtedFrames();
+	//	for (auto biter = mmpMP.begin(), eiter = mmpMP.end(); biter != eiter; biter++) {
+	//		UVR_SLAM::Frame* pCandidateKF = biter->first;
+	//		if (nTargetID == pCandidateKF->GetFrameID())
+	//			continue;
+	//		/*if (mmpCandidateKFs.find(pCandidateKF) == mmpCandidateKFs.end()) {
+	//			std::cout << "LocalMapping::Not connected kf" << std::endl;
+	//		}*/
+	//		mmpCandidateKFs[pCandidateKF]++;
+	//	}
+	//}
 	//sort mmp
 	std::vector<std::pair<int,UVR_SLAM::Frame*>> vPairs;
 
-	if (mpPrevKeyFrame) {
+	/*if (mpPrevKeyFrame) {
 		mpTargetFrame->AddKF(mpPrevKeyFrame, 0);
 		mpPrevKeyFrame->AddKF(mpTargetFrame, 0);
 	}
 	if (mpPPrevKeyFrame) {
 		mpTargetFrame->AddKF(mpPPrevKeyFrame, 0);
 		mpPPrevKeyFrame->AddKF(mpTargetFrame, 0);
-	}
+	}*/
 
 	for (auto biter = mmpCandidateKFs.begin(), eiter = mmpCandidateKFs.end(); biter != eiter; biter++) {
 		UVR_SLAM::Frame* pKF = biter->first;

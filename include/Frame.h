@@ -70,7 +70,6 @@ namespace UVR_SLAM {
 		//bool GetBoolInlier(int idx);
 		//void SetBoolInlier(bool flag, int idx);
 
-		
 		int GetNumInliers();
 		int TrackedMapPoints(int minObservation);
 		void TurnOnFlag(unsigned char opt);
@@ -87,6 +86,13 @@ namespace UVR_SLAM {
 		bool isInImage(float u, float v);
 		bool isInFrustum(MapPoint *pMP, float viewingCosLimit);
 		cv::Point2f Projection(cv::Mat w3D);
+
+		//////////////////////////////
+		void SetBoolMapping(bool b);
+		bool GetBoolMapping();
+		std::mutex mMutexMapping;
+		bool mbMapping;
+		/////////////////////////////
 
 		void SetDepthRange(float min, float max);
 		void GetDepthRange(float& min, float& max);
@@ -116,8 +122,8 @@ namespace UVR_SLAM {
 		
 		std::vector<UVR_SLAM::MapPoint*> GetDenseVectors();
 		UVR_SLAM::MapPoint* GetDenseMP(cv::Point2f pt);
-		void AddDenseMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt);
-		void RemoveDenseMP(cv::Point2f pt);
+		bool AddDenseMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt);
+		bool RemoveDenseMP(cv::Point2f pt);
 		//¿œ¥‹ dense map test;
 
 		///////////////////////////////

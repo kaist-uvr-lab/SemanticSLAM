@@ -23,6 +23,7 @@ namespace UVR_SLAM {
 		////////////////////
 		////200411
 		static int PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<bool>& vbInliers);
+		static void OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer* pMapOptimizer, UVR_SLAM::Frame* pKF, UVR_SLAM::FrameWindow* pWindow);
 		////200411
 		////////////////////
 		

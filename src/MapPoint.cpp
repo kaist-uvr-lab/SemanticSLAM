@@ -236,12 +236,13 @@ void UVR_SLAM::MapPoint::RemoveFrame(UVR_SLAM::Frame* pF){
 
 void UVR_SLAM::MapPoint::Delete() {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
-	if (mnType == UVR_SLAM::PLANE_DENSE_MP) {
+	/*if (mnType == UVR_SLAM::PLANE_DENSE_MP) {
 		for (auto iter = mmpDenseFrames.begin(); iter != mmpDenseFrames.end(); iter++) {
 			UVR_SLAM::Frame* pF = iter->first;
 			auto pt = iter->second;
 			pF->RemoveDenseMP(pt);
 		}
+		mmpDenseFrames.clear();
 	}
 	else {
 		for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
@@ -249,9 +250,14 @@ void UVR_SLAM::MapPoint::Delete() {
 			int idx = iter->second;
 			pF->RemoveMP(idx);
 		}
+		mmpFrames.clear();
+	}*/
+	for (auto iter = mmpDenseFrames.begin(); iter != mmpDenseFrames.end(); iter++) {
+		UVR_SLAM::Frame* pF = iter->first;
+		auto pt = iter->second;
+		pF->RemoveDenseMP(pt);
 	}
-	
-	//...std::cout << "Delete=" << mmpF;
+	mmpDenseFrames.clear();
 }
 void UVR_SLAM::MapPoint::SetDescriptor(cv::Mat _desc){
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
@@ -370,30 +376,63 @@ int UVR_SLAM::MapPoint::GetIndexInFrame(Frame *pKF)
 ////////////////////////////////////////////
 ////Dense
 void UVR_SLAM::MapPoint::AddDenseFrame(UVR_SLAM::Frame* pF, cv::Point2f pt) {
+	
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	auto res = mmpDenseFrames.find(pF);
 	auto res2 = pF->GetDenseMP(pt);
 
+	if (res2) {
+		std::cout << "lm::updatemp::??????????" << std::endl;
+	}
+
 	if (res == mmpDenseFrames.end() && !res2) {
+		//std::cout << "3" << std::endl;
+		bool bAdd = pF->AddDenseMP(this, pt);
+		//std::cout << "4" << std::endl;
+		if (!bAdd){
+			std::cout << "MP::AddDenseFrame::추가 실패" << std::endl;
+			return;
+		}
 		mmpDenseFrames.insert(std::pair<UVR_SLAM::Frame*, cv::Point2f>(pF, pt));
 		mnDenseFrames++;
-		pF->AddDenseMP(this, pt);
+		//std::cout << "5" << std::endl;
 	}
-	/*else {
-		std::cout << "MP::AddDenseFrame::중복" << std::endl;
-	}*/
+	else {
+		std::cout << "MP::AddDenseFrame::다른 포인트 존재" << std::endl;
+	}
+	//std::cout << "6" << std::endl;
 }
 void UVR_SLAM::MapPoint::RemoveDenseFrame(UVR_SLAM::Frame* pKF) {
-	std::unique_lock<std::mutex> lockMP(mMutexMP);
-	auto res = mmpDenseFrames.find(pKF);
-	if (res != mmpDenseFrames.end()) {
-		auto pt = res->second;
-		auto res2 = pKF->GetDenseMP(pt);
-		if (res2 == this) {
-			res = mmpDenseFrames.erase(res);
-			mnDenseFrames--;
-			pKF->RemoveDenseMP(pt);
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexMP);
+		auto res = mmpDenseFrames.find(pKF);
+		if (res != mmpDenseFrames.end()) {
+			auto pt = res->second;
+			auto res2 = pKF->GetDenseMP(pt);
+			if (res2 == this) {
+				bool bRemove = pKF->RemoveDenseMP(pt);
+				if (!bRemove) {
+					std::cout << "MP::RemoveDenseFrame::제거 실패" << std::endl;
+					return;
+				}
+				res = mmpDenseFrames.erase(res);
+				mnDenseFrames--;
+				
+				if (mnDenseFrames < 3) {
+					mbDelete = true;
+				}
+			}
+			else {
+				std::cout << "MP::RemoveDenseFrame::다른 포인트 존재" << std::endl;
+			}
 		}
+		else {
+			std::cout << "MP::RemoveDenseFrame::포인트가 존재하지 않음" << std::endl;
+		}
+	}
+	if(this->isDeleted()){
+		std::cout << "Delete!!!!!" << std::endl;
+		this->Delete();
 	}
 }
 std::map<UVR_SLAM::Frame*, cv::Point2f> UVR_SLAM::MapPoint::GetConnedtedDenseFrames() {

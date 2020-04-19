@@ -173,20 +173,26 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::vector<UVR_SLAM::MapPoint*> vpTempMPs;
 		std::vector<cv::Point2f> vpTempPts;
 		std::vector<bool> vbTempInliers;// = std::vector<bool>(pPrev->mvpMatchingMPs.size(), false);
-		int nMatch = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers); //pCurr
-		//int nMatch = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, pCurr->mvpMatchingMPs, pCurr->mvMatchingPts, vbTempInliers);
+		//int nMatch = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers); //pCurr
+		cv::Mat overlap = cv::Mat::zeros(pCurr->GetOriginalImage().size(), CV_8UC1);
+		int nMatch = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vpTempPts, vbTempInliers, overlap); //pCurr
+		if (mpRefKF->GetBoolMapping() && !mpPlaneEstimator->isDoingProcess()) {
+			mpRefKF->SetBoolMapping(false);
+			mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, overlap);
+		}
 		mnMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers);
 		pCurr->SetInliers(mnMatching);
 		mpFrameWindow->SetPose(pCurr->GetRotation(), pCurr->GetTranslation());
 		CalcMatchingCount(pCurr, vpTempMPs, vpTempPts, vbTempInliers);
 		//키프레임 체크
 		if (CheckNeedKeyFrame(pCurr)) {
-			if (!mpSegmentator->isDoingProcess()) {
+			if (!mpSegmentator->isDoingProcess() && !mpPlaneEstimator->isDoingProcess() && !mpRefKF->GetBoolMapping()) {
 				std::cout << "insert key frame" << std::endl;
 				pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 				mpSegmentator->InsertKeyFrame(pCurr);
 				mpLocalMapper->InsertKeyFrame(pCurr);
 				mpPlaneEstimator->InsertKeyFrame(pCurr);
+				mpRefKF = pCurr;
 			}
 		}
 
@@ -219,7 +225,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		ss << "Traking = " << mnMatching <<", "<< tttt;
 		cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
 		cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-		std::cout << "????????" << std::endl;
 		////Optical Flow Matching
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -264,7 +269,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		//pCurr->SetInliers(mnM);
 		//mpFrameWindow->SetPose(pCurr->GetRotation(), pCurr->GetTranslation());
 		//CalcMatchingCount(pCurr, mvpDenseMPs, vPairs, vbInliers);
-
 
 		float angle = mpRefKF->CalcDiffZ(pCurr);
 		//std::cout << "angle : " << angle << std::endl;
