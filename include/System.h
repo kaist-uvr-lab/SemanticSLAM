@@ -89,8 +89,7 @@ namespace UVR_SLAM {
 	private:
 		ORBextractor* mpInitORBExtractor;
 		ORBextractor* mpPoseORBExtractor;
-		ORBextractor* mpORBExtractor;
-
+		
 		Frame* mpCurrFrame;
 		Frame* mpPrevFrame;
 		//Frame* mpInitFrame;
@@ -138,7 +137,7 @@ namespace UVR_SLAM {
 		std::string mStrDirPath;
 
 	public:
-		
+		ORBextractor* mpORBExtractor;
 		ConcurrentList<UVR_SLAM::MapPoint*> mlpNewMPs;
 		std::string strVOCPath;
 		fbow::Vocabulary* fvoc;

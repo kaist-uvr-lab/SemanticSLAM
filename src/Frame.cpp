@@ -453,6 +453,36 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(float& fMedianDepth)
 	std::cout << "median depth ::" << fMedianDepth << std::endl;
 	return true;
 }
+
+bool UVR_SLAM::Frame::ComputeSceneMedianDepth(std::vector<UVR_SLAM::MapPoint*> vpMPs, cv::Mat R, cv::Mat t, float& fMedianDepth)
+{
+	std::vector<float> vDepths;
+	cv::Mat Rcw2 = R.row(2);
+	Rcw2 = Rcw2.t();
+	float zcw = t.at<float>(2);
+
+	for (int i = 0; i < vpMPs.size(); i++)
+	{
+		UVR_SLAM::MapPoint* pMP = vpMPs[i];
+		if (!pMP) {
+			continue;
+		}
+		if (pMP->isDeleted())
+			continue;
+		cv::Mat x3Dw = pMP->GetWorldPos();
+		float z = (float)Rcw2.dot(x3Dw) + zcw;
+		vDepths.push_back(z);
+	}
+	
+	if (vDepths.size() == 0)
+		return false;
+	int nidx = vDepths.size() / 2;
+	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
+	fMedianDepth = vDepths[(nidx) / 2];
+	std::cout << "median depth ::" << fMedianDepth << std::endl;
+	return true;
+}
+
 cv::Mat UVR_SLAM::Frame::GetCameraCenter() {
 	std::unique_lock<std::mutex> lockMP(mMutexPose);
 	return -R.t()*t;

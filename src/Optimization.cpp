@@ -2078,7 +2078,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 	vSE3->setId(0);
 	vSE3->setFixed(false);
 	optimizer.addVertex(vSE3);
-
+	
 	// Set MapPoint vertices
 	const int N = vpPts.size();
 
@@ -2132,7 +2132,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 
 			vpEdgesMono.push_back(e);
 			vnIndexEdgeMono.push_back(i);
-
+			
 		}
 	}
 

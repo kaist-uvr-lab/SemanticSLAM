@@ -190,6 +190,8 @@ void UVR_SLAM::System::Init() {
 	mpPlaneEstimator->SetInitializer(mpInitializer);
 	mpSegmentator->SetLocalMapper(mpLocalMapper);
 
+	mpInitializer->SetVisualizer(mpVisualizer);
+
 	//Time
 	mnSegID = mnLoalMapperID = mnPlaneID = mnMapOptimizerID = 0;
 	mfMapOptimizerTime = 0.0;
@@ -200,7 +202,7 @@ void UVR_SLAM::System::SetCurrFrame(cv::Mat img) {
 	mpPrevFrame = mpCurrFrame;
 	mpCurrFrame = new UVR_SLAM::Frame(img, mnWidth, mnHeight, mK);
 	//std::cout << mpCurrFrame->mnFrameID << std::endl;
-	mpCurrFrame->Init(mpORBExtractor, mK, mD);
+	//mpCurrFrame->Init(mpORBExtractor, mK, mD);
 	//mpCurrFrame->SetBowVec(fvoc);
 	
 	//cv::Mat test = mpCurrFrame->GetOriginalImage();

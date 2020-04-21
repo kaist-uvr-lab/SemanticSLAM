@@ -79,6 +79,7 @@ namespace UVR_SLAM {
 		int GetFrameID();
 		bool CheckBaseLine(Frame* pTargetKF);
 		bool ComputeSceneMedianDepth(float& fMedianDepth);
+		bool ComputeSceneMedianDepth(std::vector<UVR_SLAM::MapPoint*> vpMPs, cv::Mat R, cv::Mat t, float& fMedianDepth);
 		cv::Mat GetCameraCenter();
 		void SetInliers(int nInliers);
 		int GetInliers();
@@ -135,7 +136,8 @@ namespace UVR_SLAM {
 		//매칭 정보를 저장
 
 		std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs;
-		std::vector<cv::Point2f> mvMatchingPts; 
+		std::vector<cv::Point2f> mvMatchingPts;
+		std::vector<int> mvMatchingIdxs; //초기 키프레임의 경우 mvPts와 1대1매칭. 이 후 프레임들은 이전 프레임의 매칭 결과를 담아야 함. 사이즈의 크기는 현재 프레임의 mvMatchingPts와 대응 해야 함. 여기안에 담고 있는 정보는 결국 키프레임의 mvPts의 인덱스 정보가 됨.
 		///////////////////////////////
 
 

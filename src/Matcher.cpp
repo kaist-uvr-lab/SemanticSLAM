@@ -1829,7 +1829,7 @@ void UVR_SLAM::Matcher::FindFundamental(UVR_SLAM::Frame* pInit, UVR_SLAM::Frame*
 	score = 0.0;
 	vbMatchesInliers = std::vector<bool>(N, false);
 
-	int mMaxIterations = 2000;
+	int mMaxIterations = 1000;
 
 #pragma  omp parallel for
 	for (int it = 0; it<mMaxIterations; it++)
@@ -3568,19 +3568,6 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 			continue;
 		}
 
-		////추가적인 에러처리
-		////레이블드에서 255 150 100 벽 바닥 천장
-		//int prevLabel = init->matLabeled.at<uchar>(prevPts[i].y / 2, prevPts[i].x / 2);
-		//if (prevLabel != 255 && prevLabel != 150 && prevLabel != 100) {
-		//	nBad++;
-		//	continue;
-		//}
-		//int currLabel = curr->matLabeled.at<uchar>(currPts[i].y / 2, currPts[i].x / 2);
-		//if (prevLabel != currLabel) {
-		//	nBad++;
-		//	continue;
-		//}
-
 		if (!CheckOpticalPointOverlap(overlap, 2, currPts[i])) {
 			nBad++;
 			continue;
@@ -3623,6 +3610,106 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	/////////////////////////
 
 	return res;
+}
+
+int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr, std::vector<cv::Point2f>& vpPts2, std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, cv::Mat& debugging) {
+
+	cv::Mat overlap = cv::Mat::zeros(init->GetOriginalImage().size(), CV_8UC1);
+	//////////////////////////
+	////Optical flow
+	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+	std::vector<cv::Mat> currPyr, prevPyr;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	cv::Mat prevImg = init->GetOriginalImage();
+	cv::Mat currImg = curr->GetOriginalImage();
+	cv::Mat prevGray, currGray;
+	cvtColor(prevImg, prevGray, CV_BGR2GRAY);
+	cvtColor(currImg, currGray, CV_BGR2GRAY);
+	////Optical flow
+	///////debug
+	/*
+	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+	debugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+	prevImg.copyTo(debugging(mergeRect1));
+	currImg.copyTo(debugging(mergeRect2));*/
+	///////debug
+
+	///////////
+	//matKPs, mvKPs
+	//init -> curr로 매칭
+	////////
+	std::vector<cv::Point2f> prevPts, currPts;
+	prevPts = init->mvMatchingPts;
+	int maxLvl = 3;
+	int searchSize = 21;
+	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
+	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
+	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	//바운더리 에러도 고려해야 함.
+
+	int res = 0;
+	int nTotal = 0;
+	int nKeypoint = 0;
+	int nBad = 0;
+	int nEpi = 0;
+	int n3D = 0;
+
+	for (int i = 0; i < prevPts.size(); i++) {
+		if (status[i] == 0) {
+			nBad++;
+			continue;
+		}
+		if (!curr->isInImage(currPts[i].x, currPts[i].y)){
+			nBad++;
+			continue;
+		}
+		if (!CheckOpticalPointOverlap(overlap, 2, currPts[i])) {
+			nBad++;
+			continue;
+		}
+
+		/////
+		//매칭 결과
+		float diffX = abs(prevPts[i].x - currPts[i].x);
+		bool bMatch = false;
+		if (diffX < 15) {
+			bMatch = true;
+			//cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 0, 255));
+		}
+		else if (diffX >= 15 && diffX < 90) {
+			//cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(0, 255, 255));
+			bMatch = true;
+		}
+		else {
+			//cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
+		}
+		//cv::circle(debugging, prevPts[i], 1, cv::Scalar(255), -1);
+		if (bMatch) {
+			//vpPts1.push_back(prevPts[i]);
+			vpPts2.push_back(currPts[i]);
+			vbInliers.push_back(true);
+			vnIDXs.push_back(init->mvMatchingIdxs[i]);
+		}
+		//매칭 결과
+		////
+
+	}
+	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	double tttt = duration / 1000.0;
+
+	////fuse time text 
+	//std::stringstream ss;
+	//ss << "Optical flow init= " << res << ", " << tttt;
+	//cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
+	//cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+	//imshow("Init::OpticalFlow ", debugging);
+	///////////////////////////
+
+	return vpPts2.size();
 }
 
 int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<bool>& vbInliers, cv::Mat& overlap) {
@@ -3682,8 +3769,9 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		//}
 
 		/////
-
+		std::cout << "1" << std::endl;
 		UVR_SLAM::MapPoint* pMPi = prev->mvpMatchingMPs[i];
+		std::cout << "2" << std::endl;
 		if (!pMPi || pMPi->isDeleted())
 		{
 			continue;

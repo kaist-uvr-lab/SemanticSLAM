@@ -20,6 +20,7 @@ namespace UVR_SLAM {
 	class Map;
 	class SemanticSegmentator;
 	class PlaneEstimator;
+	class Visualizer;
 	class Initializer {
 	public:
 		Initializer();
@@ -46,6 +47,7 @@ namespace UVR_SLAM {
 		void SetFrameWindow(FrameWindow* pWindow);
 		void SetSegmentator(SemanticSegmentator* pEstimator);
 		void SetPlaneEstimator(PlaneEstimator* pEstimator);
+		void SetVisualizer(Visualizer* pVis);
 		bool Initialize(Frame* pFrame, bool& bReset, int w, int h);
 	private:
 		void SetCandidatePose(cv::Mat F, std::vector<cv::DMatch> Matches, std::vector<UVR_SLAM::InitialData*>& vCandidates);
@@ -53,13 +55,14 @@ namespace UVR_SLAM {
 		void DecomposeE(cv::Mat E, cv::Mat &R1, cv::Mat& R2, cv::Mat& t1, cv::Mat& t2);
 		void CheckRT(std::vector<cv::DMatch> Matches, InitialData* candidate, float th2);
 	public:
-		Frame* mpInitFrame1, *mpInitFrame2;
+		Frame* mpInitFrame1, *mpInitFrame2, *mpTempFrame;
 	private:
 		System* mpSystem;
 		SemanticSegmentator* mpSegmentator;
 		PlaneEstimator* mpPlaneEstimator;
 		FrameWindow* mpFrameWindow;
 		LocalMapper* mpLocalMapper;
+		Visualizer* mpVisualizer;
 		Map* mpMap;
 		bool mbInit;
 		Matcher* mpMatcher;
