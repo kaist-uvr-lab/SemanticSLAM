@@ -34,6 +34,13 @@ namespace UVR_SLAM {
 	class PlaneInformation;
 	class PlaneProcessInformation;
 	class Line;
+	class MatchInfo {
+		UVR_SLAM::Frame* mpTargetFrame;
+		cv::Mat used;
+		std::vector<cv::Point2f> mvMatchingPts;
+		std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs;
+		std::vector<int> mvnMatchingPtIDXs, mvnMatchingMPIDXs;
+	};
 	class Frame {
 	public:
 		Frame(cv::Mat _src, int w, int h, cv::Mat mK);
@@ -128,6 +135,8 @@ namespace UVR_SLAM {
 		//일단 dense map test;
 
 		///////////////////////////////
+		////200423
+		MatchInfo* mpMatchInfo;
 		////200410
 		////Optical flow를 적용한 방식
 		//이미지 픽셀에 키포인트 순서를 저장.
