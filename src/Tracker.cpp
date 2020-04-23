@@ -168,42 +168,27 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		//mpSystem->cvUseLocalMap.notify_one();
 		
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		////Optical Flow Matching
+		/////////Optical Flow Matching
+		////MatchInfo 설정
+		pCurr->mpMatchInfo = new UVR_SLAM::MatchInfo(mpRefKF, mnWidth, mnHeight);
+		pCurr->SetPose(pPrev->GetRotation(), pPrev->GetTranslation());
+		////MatchInfo 설정
 		//초기 매칭 테스트
 		std::vector<UVR_SLAM::MapPoint*> vpTempMPs;
 		std::vector<cv::Point2f> vpTempPts;
 		std::vector<bool> vbTempInliers;// = std::vector<bool>(pPrev->mvpMatchingMPs.size(), false);
+		std::vector<int> vnIDXs, vnMPIDXs;
 		//int nMatch = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers); //pCurr
 		std::cout << "tracking::start" << std::endl;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->GetOriginalImage().size(), CV_8UC1);
-		std::cout << pPrev->mvMatchingPts.size() << std::endl;
-		int nMatch = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vpTempPts, vbTempInliers, overlap); //pCurr
+		//std::cout << pCurr->GetRotation() << ", " << pCurr->GetTranslation() << std::endl;
+		std::cout << pPrev->mpMatchInfo->mvMatchingPts.size() <<" "<< pPrev->mpMatchInfo->mvpMatchingMPs.size()<< std::endl;
+		int nMatch = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs, overlap); //pCurr
 		std::cout << "tracking::1" << std::endl;
-		if (mpRefKF->GetBoolMapping() && !mpPlaneEstimator->isDoingProcess()) {
+		/*if (mpRefKF->GetBoolMapping() && !mpPlaneEstimator->isDoingProcess()) {
 			mpRefKF->SetBoolMapping(false);
 			mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, overlap);
-		}
-		mnMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers);
-		pCurr->SetInliers(mnMatching);
-		mpFrameWindow->SetPose(pCurr->GetRotation(), pCurr->GetTranslation());
-		CalcMatchingCount(pCurr, vpTempMPs, vpTempPts, vbTempInliers);
-		//키프레임 체크
-		if (CheckNeedKeyFrame(pCurr)) {
-			if (!mpSegmentator->isDoingProcess() && !mpPlaneEstimator->isDoingProcess() && !mpRefKF->GetBoolMapping()) {
-				std::cout << "insert key frame" << std::endl;
-				pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-				mpSegmentator->InsertKeyFrame(pCurr);
-				mpLocalMapper->InsertKeyFrame(pCurr);
-				mpPlaneEstimator->InsertKeyFrame(pCurr);
-				mpRefKF = pCurr;
-			}
-		}
-
-		//visualizer에 맵포인트 설정
-		mpVisualizer->SetMPs(vpTempMPs);
-		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
-		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
-		double tttt = duration / 1000.0;
+		}*/
 
 		//일단 테스트
 		cv::Mat vis = pCurr->GetOriginalImage();
@@ -211,24 +196,75 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 		cv::Mat R = pCurr->GetRotation();
 		cv::Mat t = pCurr->GetTranslation();
+		std::cout << "tracker::" << R << ", " << t << std::endl;
+		for (int i = 0; i < vpTempMPs.size(); i++) {
+			UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
+			
+			if (!pMPi || pMPi->isDeleted())
+				continue;
+			/*if (!vbTempInliers[vnMPIDXs[i]])
+			continue;*/
+			int idx1 = vnMPIDXs[i];
+			int idx2 = vnIDXs[idx1];
+			cv::Point2f p2D;
+			cv::Mat pCam;
+			pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
+			cv::line(vis, p2D, vpTempPts[idx1], cv::Scalar(255, 0, 255), 2);
+			cv::circle(vis, p2D, 2, cv::Scalar(0, 0, 255), -1);
+			cv::circle(vis, vpTempPts[idx1], 2, cv::Scalar(255, 0, 0), -1);
+			//std::cout << i << ", " << vnMPIDXs[i] <<p2D<< vpTempPts[vnMPIDXs[i]] << std::endl;
+		}
+
+		mnMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);
+		std::cout << "tracking::2::" << mnMatching <<"::"<<vpTempMPs.size()<<", "<<vnMPIDXs.size()<< std::endl;
+		pCurr->SetInliers(mnMatching);
+		//mpFrameWindow->SetPose(pCurr->GetRotation(), pCurr->GetTranslation());
+		//CalcMatchingCount(pCurr, vpTempMPs, vpTempPts, vbTempInliers);
+		UpdateMatchingInfo(pPrev, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
+		std::cout << "tracking::3" << std::endl;
+		//키프레임 체크
+		if (CheckNeedKeyFrame(pCurr)) {
+			/*if (!mpSegmentator->isDoingProcess() && !mpPlaneEstimator->isDoingProcess() && !mpRefKF->GetBoolMapping()) {
+				std::cout << "insert key frame" << std::endl;
+				pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+				mpSegmentator->InsertKeyFrame(pCurr);
+				mpLocalMapper->InsertKeyFrame(pCurr);
+				mpPlaneEstimator->InsertKeyFrame(pCurr);
+				mpRefKF = pCurr;
+			}*/
+		}
+		std::cout << "tracking::4" << std::endl;
+		//visualizer에 맵포인트 설정
+		mpVisualizer->SetMPs(vpTempMPs);
+		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+		double tttt = duration / 1000.0;
+
+		//일단 테스트
+		/*cv::Mat vis = pCurr->GetOriginalImage();
+		vis.convertTo(vis, CV_8UC3);*/
+
+		R = pCurr->GetRotation();
+		t = pCurr->GetTranslation();
 
 		for (int i = 0; i < vpTempMPs.size(); i++) {
 			UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
 			if (!pMPi || pMPi->isDeleted())
 				continue;
-			if (!vbTempInliers[i])
-				continue;
+			/*if (!vbTempInliers[vnMPIDXs[i]])
+				continue;*/
 			cv::Point2f p2D;
 			cv::Mat pCam;
 			pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
-			cv::line(vis, p2D, vpTempPts[i], cv::Scalar(255, 255, 0), 2);
+			cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
+			cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
 		}
-		
+		std::cout << "tracking::5" << std::endl;
 		std::stringstream ss;
 		ss << "Traking = " << mnMatching <<", "<< tttt;
 		cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
 		cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-		////Optical Flow Matching
+		////////Optical Flow Matching
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -441,7 +477,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		if (!mpVisualizer->isDoingProcess()) {
 			mpVisualizer->SetBoolDoingProcess(true);
 		}
-		cv::waitKey(1);
+		cv::waitKey(0);
 	}
 }
 
@@ -632,4 +668,34 @@ void UVR_SLAM::Tracker::CalcMatchingCount(UVR_SLAM::Frame* pF, std::vector<UVR_S
 			pMPi->IncreaseFound();
 		}
 	}
+}
+
+void UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs) {
+	std::cout << "tracking::update::" << vpMPs.size() << ", " << vpPts.size() << ", " << vbInliers.size() << ", " << vnIDXs.size() << std::endl;
+	auto pMatchInfo = pCurr->mpMatchInfo;
+	auto pPrevMatchInfo = pPrev->mpMatchInfo;
+
+	std::vector<UVR_SLAM::MapPoint*> vpTempMPs = std::vector<UVR_SLAM::MapPoint*>(vpPts.size(), nullptr);
+	//pMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(vpPts.size(), nullptr);
+	for (int i = 0; i < vpMPs.size(); i++) {
+		int idx = vnMPIDXs[i];
+		if (vbInliers[idx]) {
+			vpTempMPs[idx] = vpMPs[i];
+		}
+	}
+	int nres = 0;
+	for (int i = 0; i < vpPts.size(); i++) {
+		if (!vbInliers[i]){
+			continue;
+		}
+		auto pt = vpPts[i];
+		auto pMP = vpTempMPs[i];
+		if (!pMatchInfo->CheckPt(pt)) {
+			pMatchInfo->AddMatchingPt(pt, pMP, pPrevMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]]);
+			if (pMP) {
+				nres++;
+			}
+		}
+	}
+	std::cout << "tracking::update::" << nres << std::endl;
 }

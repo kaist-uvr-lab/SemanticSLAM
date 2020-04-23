@@ -78,11 +78,18 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame1 = pFrame;
 		mpTempFrame = mpInitFrame1;
 		mpInitFrame1->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
-
-		mpTempFrame->mvMatchingPts = mpInitFrame1->mvPts;
+		mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo();
+		mpInitFrame1->mpMatchInfo->mpTargetFrame = nullptr;
+		mpInitFrame1->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame1->GetOriginalImage().size(), CV_16SC1);
+		mpInitFrame1->mpMatchInfo->mvMatchingPts = mpInitFrame1->mvPts;
+		for (int i = 0; i < mpInitFrame1->mvPts.size(); i++) {
+			mpTempFrame->mpMatchInfo->mvnMatchingPtIDXs.push_back(i);
+		}
+		mpInitFrame1->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(mpInitFrame1->mpMatchInfo->mvMatchingPts.size(), nullptr);
+		/*mpTempFrame->mvMatchingPts = mpInitFrame1->mvPts;
 		for (int i = 0; i < mpInitFrame1->mvPts.size(); i++) {
 			mpTempFrame->mvMatchingIdxs.push_back(i);
-		}
+		}*/
 		mpSegmentator->InsertKeyFrame(mpInitFrame1);
 		return mbInit;
 	}
@@ -95,7 +102,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		////////세그멘테이션 확인 후 시작
 		if(!mpSegmentator->isDoingProcess())
 		{ 
-			mpInitFrame2->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
 			mpSegmentator->InsertKeyFrame(mpInitFrame2);
 			nSegID = mpInitFrame2->GetFrameID();
 			bSegment = true;
@@ -127,20 +133,41 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			////////replace initial frame
 			mpInitFrame1 = mpInitFrame2;
 			mpTempFrame = mpInitFrame1;
-			mpTempFrame->mvMatchingPts = mpInitFrame1->mvPts;
+			
+			mpInitFrame1->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
+			mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo();
+			mpInitFrame1->mpMatchInfo->mpTargetFrame = nullptr;
+			mpInitFrame1->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame1->GetOriginalImage().size(), CV_16SC1);
+			mpInitFrame1->mpMatchInfo->mvMatchingPts = mpInitFrame1->mvPts;
+			for (int i = 0; i < mpInitFrame1->mvPts.size(); i++) {
+				mpTempFrame->mpMatchInfo->mvnMatchingPtIDXs.push_back(i);
+			}
+			mpInitFrame1->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(mpInitFrame1->mpMatchInfo->mvMatchingPts.size(), nullptr);
+
+			/*mpTempFrame->mvMatchingPts = mpInitFrame1->mvPts;
 			for (int i = 0; i < mpInitFrame1->mvPts.size(); i++) {
 				mpTempFrame->mvMatchingIdxs.push_back(i);
-			}
+			}*/
 			////////replace initial frame
 			return mbInit;
 		}
 		/////////매칭 확인
 
 		////////현재 프레임의 매칭 정보 복사 및 초기 프레임의 포인트 저장
+		
+		mpInitFrame2->mpMatchInfo = new UVR_SLAM::MatchInfo();
+		mpInitFrame2->mpMatchInfo->mpTargetFrame = mpInitFrame1;
+		mpInitFrame2->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame2->GetOriginalImage().size(), CV_16SC1);
+		mpInitFrame2->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(vTempPts2.size(), nullptr);
 		for (int i = 0; i < vTempPts2.size(); i++) {
-			mpInitFrame2->mvMatchingPts.push_back(vTempPts2[i]);
+			mpInitFrame2->mpMatchInfo->mvMatchingPts.push_back(vTempPts2[i]);
+			mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.push_back(vTempIndexs[i]);
+			cv::circle(mpInitFrame2->mpMatchInfo->used, vTempPts2[i], 2, cv::Scalar(255), -1);
+			vTempPts1.push_back(mpInitFrame1->mpMatchInfo->mvMatchingPts[vTempIndexs[i]]);
+
+			/*mpInitFrame2->mvMatchingPts.push_back(vTempPts2[i]);
 			mpInitFrame2->mvMatchingIdxs.push_back(vTempIndexs[i]);
-			vTempPts1.push_back(mpInitFrame1->mvMatchingPts[vTempIndexs[i]]);
+			vTempPts1.push_back(mpInitFrame1->mvMatchingPts[vTempIndexs[i]]);*/
 			//resMatches.push_back(std::make_pair(vTempPts1[i], vTempPts2[i]));
 		}
 		////////현재 프레임의 매칭 정보 복사
@@ -148,6 +175,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		/////////////////////Fundamental Matrix Decomposition & Triangulation
 		std::vector<uchar> vFInliers;
 		std::vector<cv::Point2f> vTempMatchPts1, vTempMatchPts2;
+		std::vector<int> vTempMatchIDXs; //vTempMatchPts2와 대응되는 매칭 인덱스를 저장.
 		////F 찾기 : 기존 방법
 		std::vector<bool> vbFtest;
 		cv::Mat F12;
@@ -170,6 +198,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 				resMatches.push_back(std::make_pair(vTempPts1[i], vTempPts2[i]));
 				vTempMatchPts1.push_back(vTempPts1[i]);
 				vTempMatchPts2.push_back(vTempPts2[i]);
+				vTempMatchIDXs.push_back(i);//vTempIndexs[i]
 			}
 		}
 		count = resMatches.size();
@@ -233,6 +262,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//////맵생성 : opencv
 		std::vector<UVR_SLAM::MapPoint*> tempMPs;
 		std::vector<cv::Point2f> vTempMappedPts1, vTempMappedPts2; //맵포인트로 생성된 포인트 정보를 저장
+		std::vector<int> vTempMappedIDXs; //vTempMatch에서 다시 일부분을 저장. 초기 포인트와 대응되는 위치를 저장.
 		int res3 = 0;
 		for (int i = 0; i < matTriangulateInliers.rows; i++) {
 			int val = matTriangulateInliers.at<uchar>(i);
@@ -247,7 +277,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			tempMPs.push_back(new UVR_SLAM::MapPoint(mpInitFrame2, X3D.rowRange(0, 3), cv::Mat()));
 			vTempMappedPts1.push_back(vTempMatchPts1[i]);
 			vTempMappedPts2.push_back(vTempMatchPts2[i]);
-
+			vTempMappedIDXs.push_back(vTempMatchIDXs[i]);//
 		}
 		//////맵생성 : opencv
 
@@ -323,6 +353,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		/////////////////////////평면 정보 생성
 
 		//////////////////////////키프레임 생성
+		mpInitFrame2->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
 		mpInitFrame1->SetPose(cv::Mat::eye(3,3,CV_32FC1), cv::Mat::zeros(3,1,CV_32FC1));
 		mpInitFrame2->SetPose(R1, t1); //두번째 프레임은 median depth로 변경해야 함.
 		mpInitFrame1->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME, 0);
@@ -331,12 +362,36 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			UVR_SLAM::MapPoint* pNewMP = tempMPs[i];
 			auto pt1 = vTempMappedPts1[i];
 			auto pt2 = vTempMappedPts2[i];
-			pNewMP->AddDenseFrame(mpInitFrame1, pt1);
-			pNewMP->AddDenseFrame(mpInitFrame2, pt2);
+			/*pNewMP->AddDenseFrame(mpInitFrame1, pt1);
+			pNewMP->AddDenseFrame(mpInitFrame2, pt2);*/
 			pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
 			pNewMP->IncreaseVisible(2);
 			pNewMP->IncreaseFound(2);
 			mpSystem->mlpNewMPs.push_back(pNewMP);
+
+			mpInitFrame2->mpMatchInfo->mvpMatchingMPs[vTempMappedIDXs[i]] = pNewMP;
+			//mpInitFrame2->mpMatchInfo->mvnMatchingMPIDXs.push_back(vTempMappedIDXs[i]);
+		}
+		//타겟 프레임과의 매칭 정보 저장
+		mpInitFrame2->mpMatchInfo->nMatch = mpInitFrame2->mpMatchInfo->mvMatchingPts.size();
+		mpInitFrame2->mpMatchInfo->mvnTargetMatchingPtIDXs = std::vector<int>(mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.begin(), mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.end());
+		//현재 프레임의매칭 정보로 갱신
+		mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.clear();
+		for (int i = 0; i < mpInitFrame2->mpMatchInfo->mvMatchingPts.size(); i++) {
+			mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.push_back(i);
+			if (mpInitFrame2->mpMatchInfo->mvpMatchingMPs[i])
+				mpInitFrame2->mpMatchInfo->mvnMatchingMPIDXs.push_back(i);
+		}
+		cv::Mat used = mpInitFrame2->mpMatchInfo->used.clone();
+		int nPts = mpInitFrame2->mpMatchInfo->nMatch;
+		for (int i = 0; i < mpInitFrame2->mvPts.size(); i++) {
+			auto pt = mpInitFrame2->mvPts[i];
+			if (used.at<ushort>(pt)) {
+				continue;
+			}
+			mpInitFrame2->mpMatchInfo->mvMatchingPts.push_back(pt);
+			mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.push_back(nPts++);
+			mpInitFrame2->mpMatchInfo->mvpMatchingMPs.push_back(nullptr);
 		}
 		mbInit = true;
 		//////////////////////////키프레임 생성
@@ -398,8 +453,9 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		currImg.copyTo(debugging(mergeRect2));
 
 		int nTest = 0;
-		for (int i = 0; i < mpInitFrame2->mvMatchingPts.size(); i++) {
-			int idx = mpInitFrame2->mvMatchingIdxs[i];
+		for (int i = 0; i < mpInitFrame2->mpMatchInfo->mvnTargetMatchingPtIDXs.size(); i++) {
+			int idx = mpInitFrame2->mpMatchInfo->mvnTargetMatchingPtIDXs[i];
+			
 			/*cv::Point2f pt1 = mpInitFrame1->mvMatchingPts[idx];
 			cv::Point2f pt2 = mpInitFrame2->mvMatchingPts[i] + ptBottom;*/
 			cv::Point2f pt1 = vTempPts1[i];

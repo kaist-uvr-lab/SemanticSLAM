@@ -969,3 +969,21 @@ std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Frame::GetDenseVectors(){
 	return std::vector<UVR_SLAM::MapPoint*>(tempMPs.begin(), tempMPs.end());
 }
 /////////////////////dense
+
+//////////////matchinfo
+UVR_SLAM::MatchInfo::MatchInfo(){}
+UVR_SLAM::MatchInfo::MatchInfo(Frame* pTarget, int w, int h){
+	mpTargetFrame = pTarget;
+	used = cv::Mat::zeros(h, w, CV_16UC1);
+}
+UVR_SLAM::MatchInfo::~MatchInfo(){}
+bool UVR_SLAM::MatchInfo::CheckPt(cv::Point2f pt) {
+	return used.at<ushort>(pt);
+}
+void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx) {
+	this->mvMatchingPts.push_back(pt);
+	this->mvnMatchingPtIDXs.push_back(idx);
+	this->mvpMatchingMPs.push_back(pMP);
+	cv::circle(used, pt, 2, cv::Scalar(255), -1);
+}
+//////////////matchinfo

@@ -35,11 +35,21 @@ namespace UVR_SLAM {
 	class PlaneProcessInformation;
 	class Line;
 	class MatchInfo {
+	public:
+		MatchInfo();
+		MatchInfo(Frame* pTarget, int w, int h);
+		virtual ~MatchInfo();
+		bool CheckPt(cv::Point2f pt);
+		void AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx);
 		UVR_SLAM::Frame* mpTargetFrame;
-		cv::Mat used;
-		std::vector<cv::Point2f> mvMatchingPts;
-		std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs;
-		std::vector<int> mvnMatchingPtIDXs, mvnMatchingMPIDXs;
+		int nMatch;
+		cv::Mat used; //자기 자신의 KP를 추가할 때 이미 매칭이 되었던 건지 확인하기 위해서
+		std::vector<cv::Point2f> mvMatchingPts; //이전 프레임과의 매칭 결과(KP+MP)
+		std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs; //사이즈는 위의 벡터와 같음. nullptr이 존재하며, MP가 있는 경우에만 들어가있음.
+		std::vector<int> mvnTargetMatchingPtIDXs, mvnMatchingPtIDXs, mvnMatchingMPIDXs; //키프레임과 연결되는 인덱스 값, MP의 경우 현재 프레임 매칭 결과 중 MP와 바로 연결되기 위한 인덱스 값이 됨.
+		//mvnTargetMatchingPtIDXs : 새롭게 키프레임 될 때 타겟 프레임의 매칭 정보를 저장.
+		//mvnMatchingPtIDXs 얘를 타겟으로 삼는 애들과의 매칭을 위해
+		//mvnMatchingMPIDXs
 	};
 	class Frame {
 	public:

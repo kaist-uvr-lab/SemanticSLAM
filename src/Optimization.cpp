@@ -2052,7 +2052,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 	return nInitialCorrespondences - nBad;
 }
 
-int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<bool>& vbInliers)
+int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool>& vbInliers, std::vector<int> vnIDXs)
 {
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
@@ -2080,18 +2080,19 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 	optimizer.addVertex(vSE3);
 	
 	// Set MapPoint vertices
-	const int N = vpPts.size();
+	const int N = vpMPs.size();
 
 	std::vector<g2o::EdgeSE3ProjectXYZOnlyPose*> vpEdgesMono;
 	std::vector<size_t> vnIndexEdgeMono;
 	vpEdgesMono.reserve(N);
 	vnIndexEdgeMono.reserve(N);
 
+	std::cout << "opt::" << N << ", " << vnIDXs.size() << std::endl;
+
 	const float deltaMono = sqrt(5.991);
 	const float deltaStereo = sqrt(7.815);
 
 	{
-
 		for (int i = 0; i<N; i++)
 		{
 			MapPoint* pMP = vpMPs[i];
@@ -2105,9 +2106,9 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 			//pFrame->mvbMPInliers[i] = true;
 
 			Eigen::Matrix<double, 2, 1> obs;
-			const cv::Point2f pt = vpPts[i];
+			const cv::Point2f pt = vpPts[vnIDXs[i]];
 			obs << pt.x, pt.y;
-
+			//std::cout << pt << std::endl;
 			g2o::EdgeSE3ProjectXYZOnlyPose* e = new g2o::EdgeSE3ProjectXYZOnlyPose();
 
 			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
@@ -2132,10 +2133,9 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 
 			vpEdgesMono.push_back(e);
 			vnIndexEdgeMono.push_back(i);
-			
 		}
 	}
-
+	
 	if (nInitialCorrespondences<3)
 		return 0;
 
@@ -2159,8 +2159,8 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 			g2o::EdgeSE3ProjectXYZOnlyPose* e = vpEdgesMono[i];
 
 			const size_t idx = vnIndexEdgeMono[i];
-
-			if (!vbInliers[i])
+			int idx2 = vnIDXs[idx];
+			if (!vbInliers[idx2])
 			{
 				e->computeError();
 			}
@@ -2169,8 +2169,8 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 
 			if (chi2>chi2Mono[it] || !e->isDepthPositive())
 			{
-				vbInliers[i] = false;
-				vpMPs[i]->SetRecentTrackingFrameID(-1);
+				vbInliers[idx2] = false;
+				vpMPs[idx]->SetRecentTrackingFrameID(-1);
 				//pFrame->mvbMPInliers[idx] = false;
 				//pFrame->mvpMPs[idx]->SetRecentTrackingFrameID(-1);
 				e->setLevel(1);
@@ -2178,8 +2178,8 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 			}
 			else
 			{
-				vbInliers[i] = true;
-				vpMPs[i]->SetRecentTrackingFrameID(nTargetID);
+				vbInliers[idx2] = true;
+				vpMPs[idx]->SetRecentTrackingFrameID(nTargetID);
 				//pFrame->mvbMPInliers[idx] = true;
 				//pFrame->mvpMPs[idx]->SetRecentTrackingFrameID(nTargetID);
 				e->setLevel(0);
@@ -2192,7 +2192,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 		if (optimizer.edges().size()<10)
 			break;
 	}
-
+	
 	// Recover optimized pose and return number of inliers
 	g2o::VertexSE3Expmap* vSE3_recov = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(0));
 	g2o::SE3Quat SE3quat_recov = vSE3_recov->estimate();
@@ -2200,7 +2200,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 	R = pose.rowRange(0, 3).colRange(0, 3);
 	t = pose.rowRange(0, 3).col(3);
 	pFrame->SetPose(R, t);
-
+	
 	return nInitialCorrespondences - nBad;
 }
 

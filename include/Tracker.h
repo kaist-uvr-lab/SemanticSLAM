@@ -40,6 +40,7 @@ namespace UVR_SLAM {
 		void SetVisualizer(Visualizer* pVis);
 	private:
 		bool CheckNeedKeyFrame(Frame* pCurr);
+		void UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs);
 		void CalcVisibleCount(UVR_SLAM::Frame* pF); 
 		void CalcMatchingCount(UVR_SLAM::Frame* pF, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers);
 		void CalcMatchingCount(UVR_SLAM::Frame* pF);
