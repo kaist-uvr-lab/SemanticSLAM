@@ -2087,8 +2087,6 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 	vpEdgesMono.reserve(N);
 	vnIndexEdgeMono.reserve(N);
 
-	std::cout << "opt::" << N << ", " << vnIDXs.size() << std::endl;
-
 	const float deltaMono = sqrt(5.991);
 	const float deltaStereo = sqrt(7.815);
 

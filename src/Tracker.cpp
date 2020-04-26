@@ -149,23 +149,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 	}
 	else {
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
-		//std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
-		//
-		//while (!mpSystem->mbLocalMapUpdateEnd){
-		//	mpSystem->cvUseLocalMap.wait(lock);
-		//}
-		//mpSystem->mbTrackingEnd = false;
-		//
-		////pCurr->SetPose(pPrev->GetRotation(), pPrev->GetTranslation());
-		//pCurr->SetPose(mpFrameWindow->GetRotation(), mpFrameWindow->GetTranslation());
-
-		//int nLocalMapID = mpFrameWindow->GetLastFrameID();
-		//auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
-		//cv::Mat mLocalMapDesc = mpFrameWindow->GetLocalMapDescriptor();
-		//std::vector<cv::DMatch> mvMatchInfo;
-		//mpSystem->mbTrackingEnd = true;
-		//lock.unlock();
-		//mpSystem->cvUseLocalMap.notify_one();
 		
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		/////////Optical Flow Matching
@@ -178,24 +161,14 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::vector<cv::Point2f> vpTempPts;
 		std::vector<bool> vbTempInliers;// = std::vector<bool>(pPrev->mvpMatchingMPs.size(), false);
 		std::vector<int> vnIDXs, vnMPIDXs;
-		//int nMatch = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers); //pCurr
-		std::cout << "tracking::start" << std::endl;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->GetOriginalImage().size(), CV_8UC1);
 		int nMatch = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs, overlap); //pCurr
-		std::cout << "tracking::1" << std::endl;
-		/*if (mpRefKF->GetBoolMapping() && !mpPlaneEstimator->isDoingProcess()) {
-			mpRefKF->SetBoolMapping(false);
-			mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, overlap);
-		}*/
-
 		mnMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);
-		std::cout << "tracking::2::" << mnMatching <<"::"<<vpTempMPs.size()<<", "<<vnMPIDXs.size()<< std::endl;
 		pCurr->SetInliers(mnMatching);
-		//mpFrameWindow->SetPose(pCurr->GetRotation(), pCurr->GetTranslation());
-		//CalcMatchingCount(pCurr, vpTempMPs, vpTempPts, vbTempInliers);
 		UpdateMatchingInfo(pPrev, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
-		std::cout << "tracking::3" << std::endl;
+		
 		//키프레임 체크
+		float angle = mpRefKF->CalcDiffZ(pCurr);
 		if (CheckNeedKeyFrame(pCurr)) {
 			if (!mpSegmentator->isDoingProcess()) {
 				pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
@@ -215,17 +188,13 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				mpRefKF = pCurr;
 			}*/
 		}
-		std::cout << "tracking::4" << std::endl;
-		//visualizer에 맵포인트 설정
-		mpVisualizer->SetMPs(vpTempMPs);
+		////////Optical Flow Matching
+
+		////////Visualization & 시간 계산
 		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 		double tttt = duration / 1000.0;
-
-		//일단 테스트
-		/*cv::Mat vis = pCurr->GetOriginalImage();
-		vis.convertTo(vis, CV_8UC3);*/
-
+		
 		cv::Mat vis = pCurr->GetOriginalImage();
 		vis.convertTo(vis, CV_8UC3);
 		cv::Mat R = pCurr->GetRotation();
@@ -242,224 +211,20 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
 			//cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
 		}
-		std::cout << "tracking::5" << std::endl;
 		std::stringstream ss;
 		ss << "Traking = " << mnMatching <<", "<< tttt;
 		cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
 		cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-		////////Optical Flow Matching
-		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		//이전 프레임에 포함된 맵포인트와 현재 프레임의 키포인트를 매칭하는 과정.
-		//빠른 속도를 위해 이전 프레임에서 추적되는 맵포인트를 디스크립터로 만듬.
-		//int nInitMatching = mpMatcher->MatchingWithPrevFrame(pPrev, pCurr, mvMatchInfo);
-		//std::cout << "tracker::initmatching::" << nInitMatching << std::endl;
-		//mnMatching = Optimization::PoseOptimization(pCurr);
-		//std::cout << "tracker::Pose::" << mnMatching << std::endl;
-		/////////////////dense test
-		////pPrev로 테스트해보기. 바로바로 다음 프레임에 트래킹 결과 추가하기
-		//mpRefKF = mpMap->GetCurrFrame();
-		//auto mvpDenseMPs =  mpRefKF->GetDenseVectors();
-		//std::cout << "tracker::dense matching::copy::" << std::endl;
-		//cv::Mat debugging;
-		//std::vector<std::pair<int, cv::Point2f>> vPairs;
-		//std::vector<bool> vbInliers;
-		//int mnDenseMatching = mpMatcher->DenseMatchingWithEpiPolarGeometry(pCurr, mpRefKF, mvpDenseMPs, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
-		//vbInliers = std::vector<bool>(vPairs.size(), true);
-		///*std::stringstream ss;
-		//ss << mpSystem->GetDirPath(0) << "/tracking/" << mpRefKF->GetKeyFrameID() << "_" << pCurr->GetFrameID() << ".jpg";
-		//imwrite(ss.str(), debugging);*/
-		//std::cout << "tracker::dense matching::" << std::endl;
-		/////////////////dense test
-		//mnMatching = mpMatcher->MatchingWithLocalMap(pCurr, mvpLocalMPs, mLocalMapDesc, 5.0);
-		//std::cout << "tracker::localmap::matching::" << mnMatching << std::endl;
-		//
-		////std::vector<cv::DMatch> tempMatches;
-		////mpMatcher->MatchingWithEpiPolarGeometry(mpRefKF, pCurr, tempMatches);
-
-		////////////////
-		///*cv::Mat debugging;
-		//mpMatcher->DenseMatchingWithEpiPolarGeometry(mpRefKF, pCurr,mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugging);
-		//std::string base = mpSystem->GetDirPath(0);
-		//std::stringstream ssss;
-		//ssss << base << "/dense/dense_" << mpRefKF->GetKeyFrameID() << "_" << pCurr->GetFrameID() << ".jpg";
-		//imwrite(ssss.str(), debugging);*/
-		///////dense
-
-		//mnMatching = Optimization::PoseOptimization(pCurr, mvpDenseMPs, vPairs, vbInliers);
-		//pCurr->SetInliers(mnM);
-		//mpFrameWindow->SetPose(pCurr->GetRotation(), pCurr->GetTranslation());
-		//CalcMatchingCount(pCurr, mvpDenseMPs, vPairs, vbInliers);
-
-		float angle = mpRefKF->CalcDiffZ(pCurr);
-		//std::cout << "angle : " << angle << std::endl;
-		/*if (CheckNeedKeyFrame(pCurr)) {
-			if (!mpSegmentator->isDoingProcess()) {
-				mpSegmentator->InsertKeyFrame(pCurr);
-			}
-		}*/
-
-		/*if (!mpSegmentator->isDoingProcess()) {
-			mpSegmentator->InsertKeyFrame(pCurr);
-		}*/
-		////update tracking results
-		mpFrameWindow->mnLastMatches = mnMatching;
-
-		////일단 테스트
-		//cv::Mat vis = pCurr->GetOriginalImage();
-		//vis.convertTo(vis, CV_8UC3);
-		//
-		//auto mvpMPs = pCurr->GetMapPoints();
-		////auto mvpOPs = pCurr->GetObjectVector();
-		//cv::Mat R = pCurr->GetRotation();
-		//cv::Mat t = pCurr->GetTranslation();
-		//
-		//for (int i = 0; i < vpTempMPs.size(); i++) {
-		//	UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
-		//	if (!pMPi || pMPi->isDeleted())
-		//		continue;
-		//	if (!vbTempInliers[i])
-		//		continue;
-		//	cv::Point2f p2D;
-		//	cv::Mat pCam;
-		//	pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
-		//	cv::line(vis, p2D, vpTempPts[i], cv::Scalar(255, 255, 0), 2);
-		//}
-
-		//for (int i = 0; i < mvpMPs.size(); i++) {
-		//	UVR_SLAM::MapPoint* pMP = mvpMPs[i];
-		//	
-		//	if (!pMP){
-		//		//cv::circle(vis, pCurr->mvKeyPoints[i].pt, 1, cv::Scalar(0, 0, 255), -1);
-		//		continue;
-		//	}
-		//	if (pMP->isDeleted()) {
-		//		pCurr->mvbMPInliers[i] = false;
-		//		continue;
-		//	}
-		//	cv::Point2f p2D;
-		//	cv::Mat pCam;
-		//	pMP->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
-
-		//	if (!pCurr->mvbMPInliers[i]){
-		//		//if (pMP->GetPlaneID() > 0) {
-		//		//	//circle(vis, p2D, 4, cv::Scalar(255, 0, 255), 2);
-		//		//}
-		//	}
-		//	else {
-
-		//		cv::line(vis, p2D, pCurr->mvKeyPoints[i].pt, cv::Scalar(255, 255, 0), 2);
-		//		
-		//		int nObservations = pMP->GetConnedtedFrames().size();
-		//		if (nObservations > 13)
-		//			cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 0), -1);
-		//		else if (nObservations > 10)
-		//			cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(0, 255, 255), -1);
-		//		else if (nObservations > 7)
-		//			cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(0, 0, 255), -1);
-		//		else if (nObservations > 5)
-		//			cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 255), -1);
-		//		else if(nObservations > 3)
-		//			cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 0, 0), -1);
-		//		else
-		//			cv::circle(vis, pCurr->mvKeyPoints[i].pt, 2, cv::Scalar(255, 255, 0), -1);
-		//		UVR_SLAM::ObjectType type = pMP->GetObjectType();
-		//		
-		//		/*if (type != OBJECT_NONE)
-		//			circle(vis, p2D, 3, UVR_SLAM::ObjectColors::mvObjectLabelColors[type], -1);
-		//		if (pMP->GetMapPointType() == MapPointType::PLANE_MP) {
-		//			circle(vis, p2D, 2, cv::Scalar(255, 0, 255), -1);
-		//		}*/
-		//	}
-		//}
-		/*for (int i = 0; i < vPairs.size(); i++) {
-			if (!vbInliers[i])
-				continue;
-			auto idx = vPairs[i].first;
-			auto pt = vPairs[i].second;
-			mvpMPs.push_back(mvpDenseMPs[idx]);
-			cv::circle(vis, pt, 2, cv::Scalar(0, 0, 0), -1);
-		}*/
-
-		////////////////////////////////////////////////////////////////////////////////
-		////////////////line test
-		///*auto lines = mpRefKF->Getlines();
-		//bool bLine = lines.size() > 0;
-		//bool bPlane = mpRefKF->mvpPlanes.size() > 0;
-		//if (bLine && bPlane) {
-		//	
-		//	auto plane = mpRefKF->mvpPlanes[0];
-		//	cv::Mat normal1;
-		//	float dist1;
-		//	plane->GetParam(normal1, dist1);
-		//	cv::Mat K = mK.clone();
-		//	K.at<float>(0, 0) /= 2.0;
-		//	K.at<float>(1, 1) /= 2.0;
-		//	K.at<float>(0, 2) /= 2.0;
-		//	K.at<float>(1, 2) /= 2.0;
-
-		//	cv::Mat T = cv::Mat::eye(4, 4, CV_32FC1);
-		//	R.copyTo(T.rowRange(0, 3).colRange(0, 3));
-		//	t.copyTo(T.col(3).rowRange(0, 3));
-
-		//	cv::Mat planeParam = plane->matPlaneParam.clone();
-		//	cv::Mat invT = T.inv();
-		//	cv::Mat invP = invT.t()*planeParam;
-		//	cv::Mat invK = K.inv();
-
-		//	cv::Mat R, t;
-		//	pCurr->GetPose(R, t);
-		//	
-		//	for (int i = 0; i < lines.size(); i++) {
-		//		cv::Mat param = UVR_SLAM::PlaneInformation::PlaneWallEstimator(lines[i], normal1, invP, invT, invK);
-		//		float m;
-		//		cv::Mat mLine = UVR_SLAM::PlaneInformation::FlukerLineProjection(planeParam, param, R, t, mK2, m);
-		//		cv::Point2f sPt, ePt;
-		//		UVR_SLAM::PlaneInformation::CalcFlukerLinePoints(sPt, ePt, 0.0, mnHeight, mLine);
-		//		cv::line(vis, sPt, ePt, cv::Scalar(0, 255, 0), 3);
-		//		std::cout << "tttt::" << param.t() << std::endl;
-		//	}
-		//}*/
-		////////////////line test
-
-		//////////////////////////////////////////////////////////////////////////
-		////////////////Wall Line TEST
-		//auto wallParams = mpMap->GetWallPlanes();//mpRefKF->GetWallParams();
-		//int nkid = mpRefKF->GetKeyFrameID();
-		//if (wallParams.size() > 0 && mpRefKF->mvpPlanes.size() > 0) {
-		//	auto plane = mpRefKF->mvpPlanes[0];
-		//	cv::Mat planeParam = plane->matPlaneParam.clone();
-		//	for (int i = 0; i < wallParams.size(); i++) {
-		//		int nid = wallParams[i]->GetRecentKeyFrameID();
-		//		if (nid + 2 < nkid)
-		//			continue;
-		//		float m;
-		//		cv::Mat mLine = UVR_SLAM::PlaneInformation::FlukerLineProjection(wallParams[i]->GetParam(), planeParam, R, t, mK2, m);
-		//		cv::Point2f sPt, ePt;
-		//		UVR_SLAM::PlaneInformation::CalcFlukerLinePoints(sPt, ePt, 0.0, mnHeight, mLine);
-		//		cv::line(vis, sPt, ePt, cv::Scalar(0, 255, 0), 3);
-		//		//std::cout << "tttt::" << wallParams[i].t() << std::endl;
-		//	}
-		//}
-		////////////////Wall Line TEST
-		//////////////////////////////////////////////////////////////////////////
-		//
-
-		////속도 및 에러 출력
-		///*std::stringstream ss;
-		//ss << std::setw(5) << "Tracker TIME : " << tttt << " || " << mnMatching<<" Local Map : "<<mvpLocalMPs.size();
-		//mpSystem->SetTrackerString(ss.str());*/
-		
 		cv::imshow("Output::Tracking", vis);
-		//mpVisualizer->SetMPs(pCurr->GetMapPoints());
-		
-		//mpVisualizer->SetMPs(mvpMPs);
+		////////Visualization & 시간 계산
+		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		//visualizer thread
+		mpVisualizer->SetMPs(vpTempMPs);
 		if (!mpVisualizer->isDoingProcess()) {
 			mpVisualizer->SetBoolDoingProcess(true);
 		}
+		//visualizer thread
 		cv::waitKey(1);
 	}
 }
