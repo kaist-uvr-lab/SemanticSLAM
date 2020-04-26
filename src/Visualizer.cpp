@@ -324,7 +324,7 @@ void UVR_SLAM::Visualizer::Run() {
 				//cv::Point2f pt2 = cv::Point2f(t2.at<float>(0)* mnVisScale, t2.at<float>(2)* mnVisScale);
 				pt1 += mVisMidPt;
 				//pt2 += mVisMidPt;
-				if(i != 0)
+				if(i != mvpWindowFrames.size()-1)
 					cv::circle(tempVis, pt1, 3, cv::Scalar(255, 255, 0), -1);
 				else{
 					cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);

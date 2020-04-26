@@ -3741,10 +3741,10 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	prevImg.copyTo(debugging(mergeRect1));
 	currImg.copyTo(debugging(mergeRect2));
 
-	cv::Mat targetImg = prev->mpMatchInfo->mpTargetFrame->GetOriginalImage();
+	/*cv::Mat targetImg = prev->mpMatchInfo->mpTargetFrame->GetOriginalImage();
 	cv::Mat debugging2 = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
 	targetImg.copyTo(debugging2(mergeRect1));
-	currImg.copyTo(debugging2(mergeRect2));
+	currImg.copyTo(debugging2(mergeRect2));*/
 	///////debug
 	
 	///////////
@@ -3760,7 +3760,6 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
 	//바운더리 에러도 고려해야 함.
 	
-	std::cout << "matching::" << curr->mpMatchInfo->mpTargetFrame->mpMatchInfo->mvMatchingPts.size() << ", " << prevPts.size() <<", "<< prev->mpMatchInfo->mvpMatchingMPs.size()<< std::endl;
 	int nCurrFrameID = curr->GetFrameID();
 	int res = 0;
 	int nBad = 0;
@@ -3794,7 +3793,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			continue;
 		}*/
 
-		if (!curr->isInImage(currPts[i].x, currPts[i].y)) {
+		if (!curr->isInImage(currPts[i].x, currPts[i].y,10)) {
 			continue;
 		}
 		if (!CheckOpticalPointOverlap(overlap, 2, currPts[i])) {
@@ -3843,31 +3842,30 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		}*/
 		
 		cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
-		cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 0, 255),-1);
-		cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);
+		//cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 0, 255),-1);
+		//cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);
 
-		cv::line(debugging2, curr->mpMatchInfo->mpTargetFrame->mpMatchInfo->mvMatchingPts[prev->mpMatchInfo->mvnMatchingPtIDXs[i]], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
+		//cv::line(debugging2, curr->mpMatchInfo->mpTargetFrame->mpMatchInfo->mvMatchingPts[prev->mpMatchInfo->mvnMatchingPtIDXs[i]], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
 		res++;
 	}
 
-	cv::Mat R, t;
-	curr->GetPose(R, t);
-	for (int i = 0; i < vpMPs.size(); i++) {
-		int idx = vnMPIDXs[i];
-		int idx2 = vnIDXs[idx];
-		auto pt1 = vpPts[idx] + ptBottom;
-		auto pt2 = curr->mpMatchInfo->mpTargetFrame->mpMatchInfo->mvMatchingPts[prev->mpMatchInfo->mvnMatchingPtIDXs[idx2]];
-		cv::line(debugging2, pt1, pt2, cv::Scalar(255, 0, 255), 2);
+	//cv::Mat R, t;
+	//curr->GetPose(R, t);
+	//for (int i = 0; i < vpMPs.size(); i++) {
+	//	int idx = vnMPIDXs[i];
+	//	int idx2 = vnIDXs[idx];
+	//	auto pt1 = vpPts[idx] + ptBottom;
+	//	auto pt2 = curr->mpMatchInfo->mpTargetFrame->mpMatchInfo->mvMatchingPts[prev->mpMatchInfo->mvnMatchingPtIDXs[idx2]];
+	//	cv::line(debugging2, pt1, pt2, cv::Scalar(255, 0, 255), 2);
 
-		cv::Point2f p2D;
-		cv::Mat pCam;
-		vpMPs[i]->Projection(p2D, pCam, R, t, curr->mK, 640,360);
-		cv::line(debugging2, p2D+ptBottom, pt1, cv::Scalar(255, 0, 0), 2);
-		cv::circle(debugging2, pt1, 2, cv::Scalar(255, 0, 0), -1);
-		//std::cout << "a::" << i << ", " << vnMPIDXs[i] <<p2D<< vpPts[idx]<< std::endl;
-	}
+	//	cv::Point2f p2D;
+	//	cv::Mat pCam;
+	//	vpMPs[i]->Projection(p2D, pCam, R, t, curr->mK, 640,360);
+	//	cv::line(debugging2, p2D+ptBottom, pt1, cv::Scalar(255, 0, 0), 2);
+	//	//cv::circle(debugging2, pt1, 2, cv::Scalar(255, 0, 0), -1);
+	//	//std::cout << "a::" << i << ", " << vnMPIDXs[i] <<p2D<< vpPts[idx]<< std::endl;
+	//}
 
-	std::cout << "matching::" << vpMPs.size() << ", " << vnMPIDXs.size() << std::endl;
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 	double tttt = duration / 1000.0;
@@ -3878,7 +3876,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 	imshow("Output::Matching", debugging);
-	imshow("Output::Matching::Target frame", debugging2);
+	//imshow("Output::Matching::Target frame", debugging2);
 	/////////////////////////
 
 	return res;

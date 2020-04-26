@@ -264,9 +264,9 @@ int UVR_SLAM::Frame::GetNumInliers() {
 	return mnInliers;
 }
 
-bool UVR_SLAM::Frame::isInImage(float x, float y)
+bool UVR_SLAM::Frame::isInImage(float x, float y, float w)
 {
-	return (x >= 0 && x<mnWidth && y >= 0 && y<mnHeight);
+	return (x >= w && x<=mnWidth-w-1 && y >= w && y<=mnHeight-w-1);
 	//return (x >= mnMinX && x<mnMaxX && y >= mnMinY && y<mnMaxY);
 }
 
@@ -972,12 +972,17 @@ std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Frame::GetDenseVectors(){
 
 //////////////matchinfo
 UVR_SLAM::MatchInfo::MatchInfo(){}
-UVR_SLAM::MatchInfo::MatchInfo(Frame* pTarget, int w, int h){
+UVR_SLAM::MatchInfo::MatchInfo(Frame* pRef, Frame* pTarget, int w, int h){
 	mpTargetFrame = pTarget;
+	mpRefFrame = pRef;
 	used = cv::Mat::zeros(h, w, CV_16UC1);
 }
 UVR_SLAM::MatchInfo::~MatchInfo(){}
 bool UVR_SLAM::MatchInfo::CheckPt(cv::Point2f pt) {
+	if (pt.x < 10 || pt.x >= used.cols - 11 || pt.y < 10 || pt.y >= used.rows - 11){
+		//std::cout << "matchinfo::checkpt::error::" << pt << std::endl;
+		return 0;
+	}
 	return used.at<ushort>(pt);
 }
 void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx) {
@@ -985,5 +990,164 @@ void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP,
 	this->mvnMatchingPtIDXs.push_back(idx);
 	this->mvpMatchingMPs.push_back(pMP);
 	cv::circle(used, pt, 2, cv::Scalar(255), -1);
+}
+void UVR_SLAM::MatchInfo::SetKeyFrame() {
+	mpTargetFrame->mpMatchInfo->mpNextFrame = mpRefFrame;
+	nMatch = mvMatchingPts.size();
+	mvnTargetMatchingPtIDXs = std::vector<int>(mvnMatchingPtIDXs.begin(), mvnMatchingPtIDXs.end());
+	//현재 프레임의매칭 정보로 갱신
+	mvnMatchingPtIDXs.clear();
+	for (int i = 0; i < mvMatchingPts.size(); i++) {
+		mvnMatchingPtIDXs.push_back(i);
+	}
+	cv::Mat aused = used.clone();
+	int nPts =nMatch;
+	for (int i = 0; i < mpRefFrame->mvPts.size(); i++) {
+		auto pt = mpRefFrame->mvPts[i];
+		if (used.at<ushort>(pt)) {
+			continue;
+		}
+		mvMatchingPts.push_back(pt);
+		mvnMatchingPtIDXs.push_back(nPts++);
+		mvpMatchingMPs.push_back(nullptr);
+	}
+}
+
+void UVR_SLAM::MatchInfo::Test() {
+	
+	std::vector<cv::Point2f> vPts1, vPts2;
+	std::vector<int> vIDXs1, vIDXs2;
+
+	cv::Mat Pcurr, Ptarget;
+	cv::Mat Rcurr, Tcurr, Rtarget, Ttarget;
+	cv::Mat K = mpTargetFrame->mK.clone();
+	mpTargetFrame->GetPose(Rtarget, Ttarget);
+	mpRefFrame->GetPose(Rcurr, Tcurr);
+	cv::hconcat(Rcurr, Tcurr, Pcurr);
+	cv::hconcat(Rtarget, Ttarget, Ptarget);
+	
+	auto targetInfo = mpTargetFrame->mpMatchInfo;
+	int n = targetInfo->nMatch;
+	for (int i = 0; i < mvnTargetMatchingPtIDXs.size(); i++) {
+		if (mvpMatchingMPs[i])
+			continue;
+		int idx1 = mvnTargetMatchingPtIDXs[i];
+		int idx2 = targetInfo->mvnMatchingPtIDXs[idx1];
+		
+		/*if (idx2 < n) {
+			continue;
+		}*/
+		if (targetInfo->mvpMatchingMPs[idx2])
+			std::cout << "test::error!!!!!!!!!!" << std::endl << std::endl;
+
+		vIDXs1.push_back(i);
+		vIDXs2.push_back(idx2);
+
+		vPts1.push_back(mvMatchingPts[i]);
+		vPts2.push_back(targetInfo->mvMatchingPts[idx2]);
+	}
+	cv::Mat Map;
+	cv::triangulatePoints(K*Ptarget, K*Pcurr, vPts2, vPts1, Map);
+	
+	int nRes = 0;
+	for (int i = 0; i < Map.cols; i++) {
+		
+		cv::Mat X3D = Map.col(i);
+		//X3D.convertTo(X3D, CV_32FC1);
+		X3D /= X3D.at<float>(3);
+		//std::cout << X3D.t() << std::endl;
+		if (X3D.at<float>(2) < 0.0){
+			continue;
+		}
+		nRes++;
+		auto pMP = new UVR_SLAM::MapPoint(mpRefFrame, X3D.rowRange(0, 3), cv::Mat());
+		mvpMatchingMPs[vIDXs1[i]] = pMP;
+		targetInfo->mvpMatchingMPs[vIDXs2[i]] = pMP;
+	}
+	std::cout << "lm::create new mp ::" <<vPts1.size()<<", "<< nRes <<" "<<Map.type()<< std::endl;
+}
+
+void UVR_SLAM::MatchInfo::Test(std::string dirPath) {
+	//타겟의 mvMatchinggPt, matchingindex(0~1까지 증가. 얘와 매칭하는 포인트들이 이용하라고 만들어 놓은거라) <-> Ref의 target index가 대응됨.
+	//맵포인트는 matchingpt와 대응. nmatch 이후의 포인트는 해당키프레임에서 추가된 새로운 포인트들
+	
+	//계속 갱신이 되어야 함.
+	auto target = mpTargetFrame;
+	auto ref = mpRefFrame;
+	auto base = mpRefFrame;
+	std::vector<int> vRefIDXs;// = ref->mpMatchInfo->mvnTargetMatchingPtIDXs;
+	std::vector<cv::Point2f> vRefPts;// = ref->mpMatchInfo->mvMatchingPts;
+
+	for (int i = 0; i < ref->mpMatchInfo->mvnTargetMatchingPtIDXs.size(); i++) {
+		if (ref->mpMatchInfo->mvpMatchingMPs[i])
+			continue;
+		vRefIDXs.push_back(ref->mpMatchInfo->mvnTargetMatchingPtIDXs[i]);
+		vRefPts.push_back(ref->mpMatchInfo->mvMatchingPts[i]);
+	}
+	int nRes = vRefPts.size();
+
+	///////debug
+	cv::Mat baseImg = base->GetOriginalImage();
+	cv::Point2f ptBottom = cv::Point2f(0, baseImg.rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, baseImg.cols, baseImg.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, baseImg.rows, baseImg.cols, baseImg.rows);
+	///////debug
+
+	std::cout << "test::start" << std::endl;
+	while (target)
+	//while (target && nRes > 100)
+	{
+		///////debug
+		cv::Mat targetImg = target->GetOriginalImage();
+		cv::Mat debugging = cv::Mat::zeros(targetImg.rows * 2, targetImg.cols, targetImg.type());
+		baseImg.copyTo(debugging(mergeRect1));
+		targetImg.copyTo(debugging(mergeRect2));
+		///////debug
+
+		
+		auto refMatchInfo = ref->mpMatchInfo;
+		auto targetMatchInfo = target->mpMatchInfo;
+		std::vector<cv::Point2f> tempPts;
+		std::vector<int> tempIDXs;
+
+		int n = targetMatchInfo->nMatch;
+		//////////포인트 매칭
+		//새로 생기기 전이고 mp가 없으면 연결
+		for (int i = 0; i < vRefIDXs.size(); i++) {
+			int baseIDX = vRefIDXs[i]; //base의 pt
+			int targetIDX = targetMatchInfo->mvnMatchingPtIDXs[baseIDX];
+			
+			auto pt1 = vRefPts[i];
+			auto pt2 = targetMatchInfo->mvMatchingPts[targetIDX] + ptBottom;
+
+			cv::circle(debugging, pt1, 2, cv::Scalar(255, 0, 0), -1);
+			cv::circle(debugging, pt2, 2, cv::Scalar(255, 0, 0), -1);
+			//cv::line(debugging, pt1, pt2, cv::Scalar(255, 255, 0), 1);
+			if (!targetMatchInfo->mvpMatchingMPs[targetIDX] && targetIDX < n) {
+				int idx = targetMatchInfo->mvnTargetMatchingPtIDXs[targetIDX];
+				tempIDXs.push_back(idx);
+				tempPts.push_back(pt1);
+
+				cv::circle(debugging, pt1, 1, cv::Scalar(255, 255, 0), -1);
+				cv::circle(debugging, pt2, 1, cv::Scalar(255, 255, 0), -1);
+			}
+			else if (targetIDX >= n) {
+				cv::circle(debugging, pt1, 1, cv::Scalar(0, 0, 255), -1);
+				cv::circle(debugging, pt2, 1, cv::Scalar(0, 0, 255), -1);
+			}
+		}
+
+		//시각화
+		std::stringstream ss;
+		ss << dirPath << "/" << base->GetKeyFrameID() << "_" << target->GetKeyFrameID() << ".jpg";
+		imwrite(ss.str(), debugging);
+		//update
+		vRefPts = tempPts;
+		vRefIDXs = tempIDXs;
+		ref = target;
+		target = target->mpMatchInfo->mpTargetFrame;
+		nRes = vRefIDXs.size();
+	} 
+	std::cout << "test::end" << std::endl;
 }
 //////////////matchinfo

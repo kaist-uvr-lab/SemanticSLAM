@@ -58,7 +58,9 @@ void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
 	mpFrameWindow->SetLastFrameID(mpTargetFrame->GetFrameID());
 	mbStopBA = false;
 
-	
+	mpTargetFrame->Init(mpSystem->mpORBExtractor, mpSystem->mK, mpSystem->mD);
+	mpTargetFrame->mpMatchInfo->SetKeyFrame();
+
 	mpTargetFrame->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
 
 	////이게 필요한지?
@@ -106,31 +108,36 @@ void UVR_SLAM::LocalMapper::Run() {
 			//////200412
 			std::cout << "lm::start" << std::endl;
 			ProcessNewKeyFrame();
+			std::stringstream ssdir;
+			ssdir << mpSystem->GetDirPath(0) << "/kfmatching";// << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevFrame->GetKeyFrameID() << ".jpg";
+			
+			mpTargetFrame->mpMatchInfo->Test();
+			//mpTargetFrame->mpMatchInfo->Test(ssdir.str());
 
-			if ( mpPPrevKeyFrame && mpSystem->isInitialized()) {
-				std::cout << "lm::1" << std::endl;
-				NewMapPointMarginalization();
-				std::cout << "lm::2" << std::endl;
-				//////키프레임 연결
-				//mpPPrevKeyFrame->AddKF(mpTargetFrame, 0);
-				//mpPrevKeyFrame->AddKF(mpTargetFrame, 0);
-				//mpTargetFrame->AddKF(mpPPrevKeyFrame, 0);
-				//mpTargetFrame->AddKF(mpPrevKeyFrame, 0);
-				//////키프레임 연결
-				UpdateMPs();
-				std::cout << "lm::3" << std::endl;
-				CalculateKFConnections();
-				std::cout << "lm::4" << std::endl;
-				if (mpMapOptimizer->isDoingProcess()) {
-					std::cout << "lm::ba::busy" << std::endl;
-					mpMapOptimizer->StopBA(true);
-				}
-				else {
-					std::cout << "lm::ba::idle" << std::endl;
-					mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
-				}
-				std::cout << "lm::5" << std::endl;
-			}
+			//if ( mpPPrevKeyFrame && mpSystem->isInitialized()) {
+			//	std::cout << "lm::1" << std::endl;
+			//	NewMapPointMarginalization();
+			//	std::cout << "lm::2" << std::endl;
+			//	//////키프레임 연결
+			//	//mpPPrevKeyFrame->AddKF(mpTargetFrame, 0);
+			//	//mpPrevKeyFrame->AddKF(mpTargetFrame, 0);
+			//	//mpTargetFrame->AddKF(mpPPrevKeyFrame, 0);
+			//	//mpTargetFrame->AddKF(mpPrevKeyFrame, 0);
+			//	//////키프레임 연결
+			//	UpdateMPs();
+			//	std::cout << "lm::3" << std::endl;
+			//	CalculateKFConnections();
+			//	std::cout << "lm::4" << std::endl;
+			//	if (mpMapOptimizer->isDoingProcess()) {
+			//		std::cout << "lm::ba::busy" << std::endl;
+			//		mpMapOptimizer->StopBA(true);
+			//	}
+			//	else {
+			//		std::cout << "lm::ba::idle" << std::endl;
+			//		mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
+			//	}
+			//	std::cout << "lm::5" << std::endl;
+			//}
 			std::cout << "lm::end" << std::endl;
 			SetDoingProcess(false);
 			continue;

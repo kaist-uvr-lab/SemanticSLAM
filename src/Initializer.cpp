@@ -157,6 +157,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		
 		mpInitFrame2->mpMatchInfo = new UVR_SLAM::MatchInfo();
 		mpInitFrame2->mpMatchInfo->mpTargetFrame = mpInitFrame1;
+		mpInitFrame2->mpMatchInfo->mpRefFrame = mpInitFrame2;
 		mpInitFrame2->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame2->GetOriginalImage().size(), CV_16SC1);
 		mpInitFrame2->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(vTempPts2.size(), nullptr);
 		for (int i = 0; i < vTempPts2.size(); i++) {
@@ -224,8 +225,9 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		cv::Mat R1, t1;
 		cv::Mat matTriangulateInliers;
 		cv::Mat Map3D;
-		mK.convertTo(mK, CV_64FC1);
-		int res2 = cv::recoverPose(E12, vTempMatchPts1, vTempMatchPts2, mK, R1, t1, 50.0, matTriangulateInliers,Map3D);
+		cv::Mat K;
+		mK.convertTo(K, CV_64FC1);
+		int res2 = cv::recoverPose(E12, vTempMatchPts1, vTempMatchPts2, K, R1, t1, 50.0, matTriangulateInliers,Map3D);
 		R1.convertTo(R1, CV_32FC1);
 		t1.convertTo(t1, CV_32FC1);
 		////int res2 = cv::recoverPose(E12, vTempMatchPts1, vTempMatchPts2, mK, R1, t1, matTriangulateInliers);
@@ -240,7 +242,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}*/
 		////기존 버전
 		//////Opencv
-		if (res2 < 0.7*count || !bSegment) {
+		if (res2 < 0.9*count || !bSegment) {
 			mpTempFrame = mpInitFrame2;
 			return mbInit;
 		}
@@ -332,25 +334,25 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 		/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
 
-		/////////////////////////평면 초기화
-		UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
-		bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.4);
-		cv::Mat param = pFloor->GetParam();
-		if (!bRes || abs(param.at<float>(1)) < 0.98)//98
-		{
-			mpTempFrame = mpInitFrame2;
-			return mbInit;
-		}
-		/////////////////////////평면 초기화
+		///////////////////////////평면 초기화
+		//UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
+		//bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.4);
+		//cv::Mat param = pFloor->GetParam();
+		//if (!bRes || abs(param.at<float>(1)) < 0.98)//98
+		//{
+		//	mpTempFrame = mpInitFrame2;
+		//	return mbInit;
+		//}
+		///////////////////////////평면 초기화
 
-		/////////////////////////평면 정보 생성
-		//초기 평면 MP 설정 필요
-		mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
-		mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
-		cv::Mat invP, invT, invK;
-		mpInitFrame2->mpPlaneInformation->Calculate();
-		mpInitFrame2->mpPlaneInformation->GetInformation(invP, invT, invK);
-		/////////////////////////평면 정보 생성
+		///////////////////////////평면 정보 생성
+		////초기 평면 MP 설정 필요
+		//mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
+		//mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
+		//cv::Mat invP, invT, invK;
+		//mpInitFrame2->mpPlaneInformation->Calculate();
+		//mpInitFrame2->mpPlaneInformation->GetInformation(invP, invT, invK);
+		///////////////////////////평면 정보 생성
 
 		//////////////////////////키프레임 생성
 		mpInitFrame2->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
@@ -372,27 +374,35 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpInitFrame2->mpMatchInfo->mvpMatchingMPs[vTempMappedIDXs[i]] = pNewMP;
 			//mpInitFrame2->mpMatchInfo->mvnMatchingMPIDXs.push_back(vTempMappedIDXs[i]);
 		}
+		//////키프레임으로 업데이트 과정
 		//타겟 프레임과의 매칭 정보 저장
-		mpInitFrame2->mpMatchInfo->nMatch = mpInitFrame2->mpMatchInfo->mvMatchingPts.size();
-		mpInitFrame2->mpMatchInfo->mvnTargetMatchingPtIDXs = std::vector<int>(mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.begin(), mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.end());
-		//현재 프레임의매칭 정보로 갱신
-		mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.clear();
-		for (int i = 0; i < mpInitFrame2->mpMatchInfo->mvMatchingPts.size(); i++) {
-			mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.push_back(i);
-			if (mpInitFrame2->mpMatchInfo->mvpMatchingMPs[i])
-				mpInitFrame2->mpMatchInfo->mvnMatchingMPIDXs.push_back(i);
-		}
-		cv::Mat used = mpInitFrame2->mpMatchInfo->used.clone();
-		int nPts = mpInitFrame2->mpMatchInfo->nMatch;
-		for (int i = 0; i < mpInitFrame2->mvPts.size(); i++) {
-			auto pt = mpInitFrame2->mvPts[i];
-			if (used.at<ushort>(pt)) {
-				continue;
-			}
-			mpInitFrame2->mpMatchInfo->mvMatchingPts.push_back(pt);
-			mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.push_back(nPts++);
-			mpInitFrame2->mpMatchInfo->mvpMatchingMPs.push_back(nullptr);
-		}
+		mpInitFrame2->mpMatchInfo->SetKeyFrame();
+		//mpInitFrame2->mpMatchInfo->nMatch = mpInitFrame2->mpMatchInfo->mvMatchingPts.size();
+		//mpInitFrame2->mpMatchInfo->mvnTargetMatchingPtIDXs = std::vector<int>(mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.begin(), mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.end());
+		////현재 프레임의매칭 정보로 갱신
+		//mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.clear();
+		//for (int i = 0; i < mpInitFrame2->mpMatchInfo->mvMatchingPts.size(); i++) {
+		//	mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.push_back(i);
+		//	if (mpInitFrame2->mpMatchInfo->mvpMatchingMPs[i])
+		//		mpInitFrame2->mpMatchInfo->mvnMatchingMPIDXs.push_back(i);
+		//}
+		//cv::Mat used = mpInitFrame2->mpMatchInfo->used.clone();
+		//int nPts = mpInitFrame2->mpMatchInfo->nMatch;
+		//for (int i = 0; i < mpInitFrame2->mvPts.size(); i++) {
+		//	auto pt = mpInitFrame2->mvPts[i];
+		//	if (used.at<ushort>(pt)) {
+		//		continue;
+		//	}
+		//	mpInitFrame2->mpMatchInfo->mvMatchingPts.push_back(pt);
+		//	mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.push_back(nPts++);
+		//	mpInitFrame2->mpMatchInfo->mvpMatchingMPs.push_back(nullptr);
+		//}
+		//////키프레임으로 업데이트 과정
+
+		////////////////////시각화에 카메라 포즈를 출력하기 위해
+		mpFrameWindow->AddFrame(mpInitFrame1);
+		mpFrameWindow->AddFrame(mpInitFrame2);
+		////////////////////시각화에 카메라 포즈를 출력하기 위해
 		mbInit = true;
 		//////////////////////////키프레임 생성
 		
@@ -503,6 +513,12 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 		//init초기화가 안되면 이렇게 해야 함
 		mpTempFrame = mpInitFrame2;
+
+		mpSystem->SetDirPath(0);
+		std::string base = mpSystem->GetDirPath(0);
+		std::stringstream sababs;
+		sababs << base << "/kfmatching";
+		_mkdir(sababs.str().c_str());
 		return mbInit;
 		//200419
 		///////////////////////////////////////////////////////////////////////////////////////
