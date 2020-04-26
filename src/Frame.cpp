@@ -1001,7 +1001,7 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 		mvnMatchingPtIDXs.push_back(i);
 	}
 	cv::Mat aused = used.clone();
-	int nPts =nMatch;
+	int nPts = nMatch;
 	for (int i = 0; i < mpRefFrame->mvPts.size(); i++) {
 		auto pt = mpRefFrame->mvPts[i];
 		if (used.at<ushort>(pt)) {
@@ -1015,39 +1015,54 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 
 void UVR_SLAM::MatchInfo::Test() {
 	
-	std::vector<cv::Point2f> vPts1, vPts2;
-	std::vector<int> vIDXs1, vIDXs2;
+	std::vector<cv::Point2f> vPts1, vPts2, vPts3;
+	std::vector<int> vIDXs1, vIDXs2, vIDXs3;
 
-	cv::Mat Pcurr, Ptarget;
-	cv::Mat Rcurr, Tcurr, Rtarget, Ttarget;
+	cv::Mat Pcurr, Ptarget, Ptargettarget;
+	cv::Mat Rcurr, Tcurr, Rtarget, Ttarget, Ttargettarget;
 	cv::Mat K = mpTargetFrame->mK.clone();
 	mpTargetFrame->GetPose(Rtarget, Ttarget);
 	mpRefFrame->GetPose(Rcurr, Tcurr);
+	mpTargetFrame->mpMatchInfo->mpTargetFrame->GetPose(Ptargettarget, Ttargettarget);
 	cv::hconcat(Rcurr, Tcurr, Pcurr);
 	cv::hconcat(Rtarget, Ttarget, Ptarget);
+	cv::hconcat(Ptargettarget, Ttargettarget, Ptargettarget);
 	
 	auto targetInfo = mpTargetFrame->mpMatchInfo;
+	auto targetTargetInfo = mpTargetFrame->mpMatchInfo->mpTargetFrame->mpMatchInfo;
 	int n = targetInfo->nMatch;
 	for (int i = 0; i < mvnTargetMatchingPtIDXs.size(); i++) {
 		if (mvpMatchingMPs[i])
 			continue;
-		int idx1 = mvnTargetMatchingPtIDXs[i];
-		int idx2 = targetInfo->mvnMatchingPtIDXs[idx1];
-		
-		/*if (idx2 < n) {
+		int tidx1 = mvnTargetMatchingPtIDXs[i];
+		if (tidx1 >= n) {
 			continue;
-		}*/
-		if (targetInfo->mvpMatchingMPs[idx2])
-			std::cout << "test::error!!!!!!!!!!" << std::endl << std::endl;
+		}
+		int tidx2 = targetInfo->mvnTargetMatchingPtIDXs[tidx1];
+		//std::cout << i << "::" << tidx1 << ", " << tidx2 <<"::" << mvnTargetMatchingPtIDXs.size() << ", " << mvMatchingPts.size() << "::" << targetInfo->mvnTargetMatchingPtIDXs.size() << " " << targetInfo->mvMatchingPts.size() << std::endl;
 
+		int idx2 = targetInfo->mvnMatchingPtIDXs[tidx1];
+		int idx3 = targetTargetInfo->mvnMatchingPtIDXs[tidx2];
+		//std::cout << tidx1 << ", " << tidx2 << ", " << idx2 << " " << idx3 <<"::"<<n<<", "<<targetTargetInfo->nMatch<<"::"<<targetInfo->mvnMatchingPtIDXs.size()<<", "<<targetTargetInfo->mvnMatchingPtIDXs.size()<< std::endl;
+		
+		if (targetInfo->mvpMatchingMPs[idx2]){
+			//std::cout << "test::error111111111111111!!!!!!!!!!" << std::endl << std::endl;
+			continue;
+		}
+		if(targetTargetInfo->mvpMatchingMPs[idx3]){
+			//std::cout << "test::error2222222222222222222222!!!!!!!!!!" << std::endl << std::endl;
+			continue;
+		}
 		vIDXs1.push_back(i);
 		vIDXs2.push_back(idx2);
+		vIDXs3.push_back(idx3);
 
 		vPts1.push_back(mvMatchingPts[i]);
 		vPts2.push_back(targetInfo->mvMatchingPts[idx2]);
+		vPts3.push_back(targetTargetInfo->mvMatchingPts[idx3]);
 	}
 	cv::Mat Map;
-	cv::triangulatePoints(K*Ptarget, K*Pcurr, vPts2, vPts1, Map);
+	cv::triangulatePoints(K*Ptargettarget, K*Pcurr, vPts3, vPts1, Map);
 	
 	int nRes = 0;
 	for (int i = 0; i < Map.cols; i++) {
@@ -1063,6 +1078,7 @@ void UVR_SLAM::MatchInfo::Test() {
 		auto pMP = new UVR_SLAM::MapPoint(mpRefFrame, X3D.rowRange(0, 3), cv::Mat());
 		mvpMatchingMPs[vIDXs1[i]] = pMP;
 		targetInfo->mvpMatchingMPs[vIDXs2[i]] = pMP;
+		targetTargetInfo->mvpMatchingMPs[vIDXs3[i]] = pMP;
 	}
 	std::cout << "lm::create new mp ::" <<vPts1.size()<<", "<< nRes <<" "<<Map.type()<< std::endl;
 }

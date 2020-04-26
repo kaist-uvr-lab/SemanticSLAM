@@ -376,6 +376,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 		//////키프레임으로 업데이트 과정
 		//타겟 프레임과의 매칭 정보 저장
+		mpInitFrame1->mpMatchInfo->nMatch = mpInitFrame1->mpMatchInfo->mvMatchingPts.size();
 		mpInitFrame2->mpMatchInfo->SetKeyFrame();
 		//mpInitFrame2->mpMatchInfo->nMatch = mpInitFrame2->mpMatchInfo->mvMatchingPts.size();
 		//mpInitFrame2->mpMatchInfo->mvnTargetMatchingPtIDXs = std::vector<int>(mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.begin(), mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.end());
