@@ -108,10 +108,28 @@ void UVR_SLAM::LocalMapper::Run() {
 			//////200412
 			std::cout << "lm::start" << std::endl;
 			ProcessNewKeyFrame();
+			//////////////업데이트 맵포인트
+			auto matchInfo = mpTargetFrame->mpMatchInfo;
+			for (int i = 0; i < matchInfo->mvMatchingPts.size(); i++) {
+				auto pMPi = matchInfo->mvpMatchingMPs[i];
+				auto pt = matchInfo->mvMatchingPts[i];
+				if (pMPi && !pMPi->isDeleted()) {
+					pMPi->AddDenseFrame(mpTargetFrame, pt);
+				}
+			}
+			//////////////업데이트 맵포인트
 			std::stringstream ssdir;
 			ssdir << mpSystem->GetDirPath(0) << "/kfmatching";// << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevFrame->GetKeyFrameID() << ".jpg";
-			
 			mpTargetFrame->mpMatchInfo->Test();
+			if (mpMapOptimizer->isDoingProcess()) {
+				std::cout << "lm::ba::busy" << std::endl;
+				mpMapOptimizer->StopBA(true);
+			}
+			else {
+				std::cout << "lm::ba::idle" << std::endl;
+				mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
+			}
+
 			//mpTargetFrame->mpMatchInfo->Test(ssdir.str());
 
 			//if ( mpPPrevKeyFrame && mpSystem->isInitialized()) {

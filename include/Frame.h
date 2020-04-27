@@ -40,14 +40,16 @@ namespace UVR_SLAM {
 		MatchInfo(Frame* pRef, Frame* pTarget, int w, int h);
 		virtual ~MatchInfo();
 		void SetKeyFrame();
+		void SetLabel();
 		bool CheckPt(cv::Point2f pt);
-		void AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx);
+		void AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label = 0);
 		void Test(std::string dirPath);
 		void Test();
 	public:
 		UVR_SLAM::Frame* mpTargetFrame, *mpRefFrame, *mpNextFrame;
 		int nMatch;
 		cv::Mat used; //자기 자신의 KP를 추가할 때 이미 매칭이 되었던 건지 확인하기 위해서
+		std::vector<int> mvObjectLabels;
 		std::vector<cv::Point2f> mvMatchingPts; //이전 프레임과의 매칭 결과(KP+MP)
 		std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs; //사이즈는 위의 벡터와 같음. nullptr이 존재하며, MP가 있는 경우에만 들어가있음.
 		std::vector<int> mvnTargetMatchingPtIDXs, mvnNextMatchingPtIDXs, mvnMatchingPtIDXs, mvnMatchingMPIDXs; //키프레임과 연결되는 인덱스 값, MP의 경우 현재 프레임 매칭 결과 중 MP와 바로 연결되기 위한 인덱스 값이 됨.

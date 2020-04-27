@@ -181,6 +181,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			////////디버깅을 위한 이미지 저장
 			//////////////////////////////////////////////////
 			std::cout << "segmentation::end::"<< std::endl;
+			mpTargetFrame->mpMatchInfo->SetLabel();
 			SetBoolDoingProcess(false);
 		}
 	}

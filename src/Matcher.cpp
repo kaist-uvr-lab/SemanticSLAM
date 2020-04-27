@@ -3720,7 +3720,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	return vpPts2.size();
 }
 
-int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, std::vector<int>& vnMPIDXs, cv::Mat& overlap) {
+int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, std::vector<int>& vnMPIDXs, cv::Mat& overlap, cv::Mat& debugging) {
 	
 	//////////////////////////
 	////Optical flow
@@ -3737,7 +3737,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
 	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
 	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
-	cv::Mat debugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+	debugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
 	prevImg.copyTo(debugging(mergeRect1));
 	currImg.copyTo(debugging(mergeRect2));
 
@@ -3824,6 +3824,12 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			pMPi->SetRecentTrackingFrameID(nCurrFrameID);
 			vpMPs.push_back(pMPi);
 			vnMPIDXs.push_back(vpPts.size()-1);
+			cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 255, 0), -1);
+			cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 255, 0), -1);
+		}
+		else {
+			cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 0, 255), -1);
+			cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);
 		}
 		/*if (pMPi) {
 			if (pMPi->isDeleted() || pMPi->GetRecentTrackingFrameID() == nCurrFrameID)
@@ -3841,7 +3847,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			vnIDXs.push_back(prev->mpMatchInfo->mvnMatchingPtIDXs[i]);
 		}*/
 		
-		cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
+		//트래킹 결과 출력
+		//cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
 		//cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 0, 255),-1);
 		//cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);
 

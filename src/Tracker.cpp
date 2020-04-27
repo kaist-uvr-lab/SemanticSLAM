@@ -161,8 +161,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::vector<cv::Point2f> vpTempPts;
 		std::vector<bool> vbTempInliers;// = std::vector<bool>(pPrev->mvpMatchingMPs.size(), false);
 		std::vector<int> vnIDXs, vnMPIDXs;
+		cv::Mat debugImg;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->GetOriginalImage().size(), CV_8UC1);
-		int nMatch = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs, overlap); //pCurr
+		int nMatch = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs, overlap, debugImg); //pCurr
 		mnMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);
 		pCurr->SetInliers(mnMatching);
 		UpdateMatchingInfo(pPrev, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
@@ -199,6 +200,16 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		vis.convertTo(vis, CV_8UC3);
 		cv::Mat R = pCurr->GetRotation();
 		cv::Mat t = pCurr->GetTranslation();
+		for (int i = 0; i < vpTempPts.size(); i++) {
+			int label = pPrev->mpMatchInfo->mvObjectLabels[vnIDXs[i]];
+			if (label == 150) {
+				cv::circle(debugImg, vpTempPts[i], 3, cv::Scalar(255, 0, 255), 1);
+			}
+			else if (label == 255) {
+				cv::circle(debugImg, vpTempPts[i], 3, cv::Scalar(0, 255, 255), 1);
+			}
+		}
+		imshow("Output::Matching", debugImg);
 		for (int i = 0; i < vpTempMPs.size(); i++) {
 			UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
 			if (!pMPi || pMPi->isDeleted())
@@ -207,8 +218,14 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				continue;*/
 			cv::Point2f p2D;
 			cv::Mat pCam;
-			pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
-			cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
+			bool b = pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
+			if (!b || !vbTempInliers[vnMPIDXs[i]]) {
+				cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(0, 0, 255), 1);
+			}
+			else {
+				cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
+			}
+			
 			//cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
 		}
 		std::stringstream ss;
@@ -441,7 +458,9 @@ void UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fra
 		if (!pMatchInfo->CheckPt(pt)) {
 			/*if (pPrev->mpMatchInfo->mvnMatchingPtIDXs.size() <= vnIDXs[i])
 				std::cout << "tracking::update::error::" << vnIDXs[i] << std::endl;*/
-			pMatchInfo->AddMatchingPt(pt, pMP, pPrevMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]]);
+			//curr->mpMatchInfo->mpTargetFrame->mpMatchInfo->mvMatchingPts[prev->mpMatchInfo->mvnMatchingPtIDXs[i]]
+			//pMatchInfo->AddMatchingPt(pt, pMP, pPrevMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]], pPrevMatchInfo->mvObjectLabels[vnIDXs[i]]);
+			pMatchInfo->AddMatchingPt(pt, pMP, pPrevMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]], mpRefKF->mpMatchInfo->mvObjectLabels[pPrev->mpMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]]]);
 			if (pMP) {
 				nres++;
 			}

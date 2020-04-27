@@ -83,6 +83,11 @@ void UVR_SLAM::MapOptimizer::Run() {
 			SetDoingProcess(true);
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
+
+			//local map
+			//local map 과 연결된 키프레임
+			//해당 키프레임에 연결된 mp와 fixed frame설정
+
 			std::cout << "ba::start::" << mpTargetFrame->GetFrameID() << std::endl;
 			mStrPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
 			StopBA(false);

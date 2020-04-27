@@ -985,11 +985,20 @@ bool UVR_SLAM::MatchInfo::CheckPt(cv::Point2f pt) {
 	}
 	return used.at<ushort>(pt);
 }
-void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx) {
+void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label) {
 	this->mvMatchingPts.push_back(pt);
 	this->mvnMatchingPtIDXs.push_back(idx);
 	this->mvpMatchingMPs.push_back(pMP);
+	this->mvObjectLabels.push_back(label);
 	cv::circle(used, pt, 2, cv::Scalar(255), -1);
+}
+void UVR_SLAM::MatchInfo::SetLabel() {
+	auto labelMat = mpRefFrame->matLabeled.clone();
+	for (int i = 0; i < mvMatchingPts.size(); i++) {
+		auto pt1 = mvMatchingPts[i];
+		int label1 = labelMat.at<uchar>(pt1.y / 2, pt1.x / 2);
+		mvObjectLabels[i] = label1;
+	}
 }
 void UVR_SLAM::MatchInfo::SetKeyFrame() {
 	mpTargetFrame->mpMatchInfo->mpNextFrame = mpRefFrame;
@@ -1010,6 +1019,7 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 		mvMatchingPts.push_back(pt);
 		mvnMatchingPtIDXs.push_back(nPts++);
 		mvpMatchingMPs.push_back(nullptr);
+		mvObjectLabels.push_back(0);
 	}
 }
 
@@ -1018,15 +1028,20 @@ void UVR_SLAM::MatchInfo::Test() {
 	std::vector<cv::Point2f> vPts1, vPts2, vPts3;
 	std::vector<int> vIDXs1, vIDXs2, vIDXs3;
 
+	auto currFrame = mpRefFrame;
+	auto targetFrame = mpTargetFrame;
+	auto targettargetFrame = mpTargetFrame->mpMatchInfo->mpTargetFrame;
+
 	cv::Mat Pcurr, Ptarget, Ptargettarget;
-	cv::Mat Rcurr, Tcurr, Rtarget, Ttarget, Ttargettarget;
+	cv::Mat Rcurr, Tcurr, Rtarget, Ttarget, Rtargettarget,Ttargettarget;
 	cv::Mat K = mpTargetFrame->mK.clone();
-	mpTargetFrame->GetPose(Rtarget, Ttarget);
 	mpRefFrame->GetPose(Rcurr, Tcurr);
-	mpTargetFrame->mpMatchInfo->mpTargetFrame->GetPose(Ptargettarget, Ttargettarget);
+	targetFrame->GetPose(Rtarget, Ttarget);
+	targettargetFrame->GetPose(Rtargettarget, Ttargettarget);
+	
 	cv::hconcat(Rcurr, Tcurr, Pcurr);
 	cv::hconcat(Rtarget, Ttarget, Ptarget);
-	cv::hconcat(Ptargettarget, Ttargettarget, Ptargettarget);
+	cv::hconcat(Rtargettarget, Ttargettarget, Ptargettarget);
 	
 	auto targetInfo = mpTargetFrame->mpMatchInfo;
 	auto targetTargetInfo = mpTargetFrame->mpMatchInfo->mpTargetFrame->mpMatchInfo;
@@ -1070,15 +1085,27 @@ void UVR_SLAM::MatchInfo::Test() {
 		cv::Mat X3D = Map.col(i);
 		//X3D.convertTo(X3D, CV_32FC1);
 		X3D /= X3D.at<float>(3);
-		//std::cout << X3D.t() << std::endl;
-		if (X3D.at<float>(2) < 0.0){
+		X3D = X3D.rowRange(0, 3);
+
+		cv::Mat proj1 = Rcurr*X3D + Tcurr;
+		cv::Mat proj2 = Rtarget*X3D + Ttarget;
+		cv::Mat proj3 = Rtargettarget*X3D + Ttargettarget;
+
+		if (proj1.at<float>(2) < 0.0 || proj2.at<float>(2) < 0.0 || proj3.at<float>(2) < 0.0){
 			continue;
 		}
 		nRes++;
-		auto pMP = new UVR_SLAM::MapPoint(mpRefFrame, X3D.rowRange(0, 3), cv::Mat());
+		auto pMP = new UVR_SLAM::MapPoint(mpRefFrame, X3D, cv::Mat());
 		mvpMatchingMPs[vIDXs1[i]] = pMP;
 		targetInfo->mvpMatchingMPs[vIDXs2[i]] = pMP;
 		targetTargetInfo->mvpMatchingMPs[vIDXs3[i]] = pMP;
+
+		auto pt1 = mvMatchingPts[vIDXs1[i]];
+		auto pt2 = targetInfo->mvMatchingPts[vIDXs2[i]];
+		auto pt3 = targetTargetInfo->mvMatchingPts[vIDXs3[i]];
+		pMP->AddDenseFrame(currFrame, pt1);
+		pMP->AddDenseFrame(targetFrame, pt2);
+		pMP->AddDenseFrame(targettargetFrame, pt3);
 	}
 	std::cout << "lm::create new mp ::" <<vPts1.size()<<", "<< nRes <<" "<<Map.type()<< std::endl;
 }
