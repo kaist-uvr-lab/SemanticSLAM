@@ -30,7 +30,7 @@ namespace UVR_SLAM {
 
 	class Line {
 	public:
-		Line(Frame* p, cv::Point2f f, cv::Point2f t);
+		Line(Frame* p, int w, cv::Point2f f, cv::Point2f t);
 		virtual ~Line();
 		void SetLinePts();
 		cv::Mat GetLinePts();
@@ -39,10 +39,13 @@ namespace UVR_SLAM {
 		int mnPlaneID;
 		UVR_SLAM::Frame* mpFrame;
 		cv::Point2f from, to;
+		cv::Point2f fromExt, toExt;
 		std::vector<Line*> mvpLines;
 		cv::Mat mLineEqu;
 		float mfSlope;
 	private:
+		cv::Point2f CalcLinePoint(float y);
+		
 		std::mutex mMutexLinePts;
 		cv::Mat mvLinePts;
 	};

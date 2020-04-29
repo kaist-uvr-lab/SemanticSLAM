@@ -45,7 +45,7 @@ UVR_SLAM::PlaneInformation* UVR_SLAM::PlaneProcessInformation::GetFloorPlane() {
 //PlaneProcessInformation
 /////////////////////////////////////////////////////////////
 
-UVR_SLAM::Line::Line(Frame* pF, cv::Point2f f, cv::Point2f t):from(f), to(t), mnPlaneID(-1){
+UVR_SLAM::Line::Line(Frame* pF, int w, cv::Point2f f, cv::Point2f t):from(f), to(t), mnPlaneID(-1){
 	mpFrame = pF;
 	
 	//line equ : from : pt2, to : pt1
@@ -60,6 +60,9 @@ UVR_SLAM::Line::Line(Frame* pF, cv::Point2f f, cv::Point2f t):from(f), to(t), mn
 	float dist = sqrt(a*a + b*b);
 	mLineEqu /= dist;
 
+	fromExt = CalcLinePoint(0.0);
+	toExt = CalcLinePoint(w);
+
 	//±â¿ï±â
 	if (b == 0) {
 		mfSlope = 9999.0f;
@@ -69,7 +72,12 @@ UVR_SLAM::Line::Line(Frame* pF, cv::Point2f f, cv::Point2f t):from(f), to(t), mn
 	}
 }
 UVR_SLAM::Line::~Line(){}
-
+cv::Point2f UVR_SLAM::Line::CalcLinePoint(float y){
+	float x = 0.0;
+	if (mLineEqu.at<float>(0) != 0)
+		x = (-mLineEqu.at<float>(2) - mLineEqu.at<float>(1)*y) / mLineEqu.at<float>(0);
+	return cv::Point2f(x, y);
+}
 float UVR_SLAM::Line::CalcLineDistance(cv::Point2f pt) {
 	cv::Mat temp = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
 	return abs(mLineEqu.dot(temp));
