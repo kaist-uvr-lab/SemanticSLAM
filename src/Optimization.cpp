@@ -2094,11 +2094,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 		for (int i = 0; i<N; i++)
 		{
 			MapPoint* pMP = vpMPs[i];
-			if (!pMP)
-				continue;
-			if (pMP->isDeleted())
-				continue;
-			if (pMP->GetRecentTrackingFrameID() != nTargetID)
+			if (!pMP || pMP->isDeleted() || pMP->GetRecentTrackingFrameID() != nTargetID)
 				continue;
 			nInitialCorrespondences++;
 			//pFrame->mvbMPInliers[i] = true;
@@ -2480,9 +2476,9 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 		{
 			UVR_SLAM::Frame* pKFi = vToErase[i].first;
 			MapPoint* pMPi = vToErase[i].second;
-			if (pMPi->isDeleted()) {
+			/*if (pMPi->isDeleted()) {
 				std::cout << "????????????????????????????????????????" << std::endl<<std::endl;
-			}
+			}*/
 			pMPi->RemoveDenseFrame(pKFi);
 		}
 	}

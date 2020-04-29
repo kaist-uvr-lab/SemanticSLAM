@@ -3763,35 +3763,13 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	int nCurrFrameID = curr->GetFrameID();
 	int res = 0;
 	int nBad = 0;
+
+	float avgDiff = 0.0;
+
 	for (int i = 0; i < prevPts.size(); i++) {
 		if (status[i] == 0) {
 			continue;
 		}
-
-		////추가적인 에러처리
-		////레이블드에서 255 150 100 벽 바닥 천장
-		//int prevLabel = init->matLabeled.at<uchar>(prevPts[i].y / 2, prevPts[i].x / 2);
-		//if (prevLabel != 255 && prevLabel != 150 && prevLabel != 100) {
-		//	nBad++;
-		//	continue;
-		//}
-		//int currLabel = curr->matLabeled.at<uchar>(currPts[i].y / 2, currPts[i].x / 2);
-		//if (prevLabel != currLabel) {
-		//	nBad++;
-		//	continue;
-		//}
-
-		/////
-		/*std::cout << "1" << std::endl;
-		UVR_SLAM::MapPoint* pMPi = prev->mvpMatchingMPs[i];
-		std::cout << "2" << std::endl;
-		if (!pMPi || pMPi->isDeleted())
-		{
-			continue;
-		}*/
-		/*if (!curr->isInFrustum(pMPi, 0.5)) {
-			continue;
-		}*/
 
 		if (!curr->isInImage(currPts[i].x, currPts[i].y,10)) {
 			continue;
@@ -3801,12 +3779,6 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			continue;
 		}
 
-		//if (pMPi->GetRecentTrackingFrameID() == nCurrFrameID)
-		//{
-		//	//nBad++;
-		//	continue;
-		//}
-
 		//매칭 결과
 		float diffX = abs(prevPts[i].x - currPts[i].x);
 		if (diffX > 25) {
@@ -3815,8 +3787,6 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		
 		vpPts.push_back(currPts[i]);
 		vbInliers.push_back(true);
-		//vpMPs.push_back(nullptr);
-		//vnIDXs.push_back(prev->mpMatchInfo->mvnMatchingPtIDXs[i]);
 		vnIDXs.push_back(i);
 
 		UVR_SLAM::MapPoint* pMPi = prev->mpMatchInfo->mvpMatchingMPs[i]; 
@@ -3831,21 +3801,10 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 0, 255), -1);
 			cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);
 		}
-		/*if (pMPi) {
-			if (pMPi->isDeleted() || pMPi->GetRecentTrackingFrameID() == nCurrFrameID)
-				continue;
-			pMPi->SetRecentTrackingFrameID(nCurrFrameID);
-			vpPts.push_back(currPts[i]);
-			vbInliers.push_back(true);
-			vpMPs.push_back(pMPi);
-			vnIDXs.push_back(prev->mpMatchInfo->mvnMatchingPtIDXs[i]);
-		}
-		else {
-			vpPts.push_back(currPts[i]);
-			vbInliers.push_back(true);
-			vpMPs.push_back(nullptr);
-			vnIDXs.push_back(prev->mpMatchInfo->mvnMatchingPtIDXs[i]);
-		}*/
+
+		auto targetPt = curr->mpMatchInfo->mpTargetFrame->mpMatchInfo->mvMatchingPts[prev->mpMatchInfo->mvnMatchingPtIDXs[i]];
+		auto diffPt = targetPt - currPts[i];
+		avgDiff += sqrt(diffPt.dot(diffPt));
 		
 		//트래킹 결과 출력
 		//cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
@@ -3879,7 +3838,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 
 	//fuse time text 
 	std::stringstream ss;
-	ss << "Optical flow tracking= " << res <<", "<<vpMPs.size()<<", "<<nBad<< "::" << tttt;
+	ss << "Optical flow tracking= " << res <<", "<<vpMPs.size()<<", "<<nBad<< "::" << avgDiff /res<<"::"<< tttt;
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 	imshow("Output::Matching", debugging);

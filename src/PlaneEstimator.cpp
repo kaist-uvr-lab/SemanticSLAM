@@ -101,10 +101,11 @@ void UVR_SLAM::PlaneEstimator::ProcessNewKeyFrame()
 	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
 	//mpSystem->SetPlaneFrameID(mpTargetFrame->GetKeyFrameID());
 
-	if (mpMap->isFloorPlaneInitialized()) {
+	//임시로 주석 처리
+	/*if (mpMap->isFloorPlaneInitialized()) {
 		mpTargetFrame->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpTargetFrame, mpMap->mpFloorPlane);
 		mpTargetFrame->mpPlaneInformation->Calculate();
-	}
+	}*/
 
 	mKFQueue.pop();
 }
@@ -131,6 +132,218 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
 			std::cout << "pe::start::"<<mpTargetFrame->GetKeyFrameID()<< std::endl;
+
+			auto prevFrame = mpTargetFrame->mpMatchInfo->mpTargetFrame;
+			auto prevMatchInfo = prevFrame->mpMatchInfo;
+			auto matchInfo = mpTargetFrame->mpMatchInfo;
+
+			/////////////Conneted Component Labeling & object labeling
+			cv::Mat segmented = prevFrame->matLabeled.clone();
+			std::cout << "seg::size::" << segmented.size() << std::endl;
+			std::chrono::high_resolution_clock::time_point saa = std::chrono::high_resolution_clock::now();
+			cv::Mat imgStructure = cv::Mat::zeros(segmented.size(), CV_8UC1);
+			cv::Mat imgWall = cv::Mat::zeros(segmented.size(), CV_8UC1);
+			cv::Mat imgFloor = cv::Mat::zeros(segmented.size(), CV_8UC1);
+			cv::Mat imgCeil = cv::Mat::zeros(segmented.size(), CV_8UC1);
+			cv::Mat imgObject = cv::Mat::zeros(segmented.size(), CV_8UC1);
+			cv::Mat seg_color = cv::Mat::zeros(segmented.size(), CV_8UC3);
+			int minY = imgWall.rows;
+			int maxY = 0;
+			int minFloorX = imgWall.cols;
+			int maxFloorX = 0;
+			int minCeilX = imgWall.cols;
+			int maxCeilX = 0;
+
+			bool bMinX = false;
+			bool bMaxX = false;
+			bool bMinCeilY = false;
+			bool bMaxFloorY = false;
+
+			//////////////////////////////////////////////////////////////////////////////////
+			////전체 레이블링
+
+			for (int i = 0; i < segmented.rows; i++) {
+				for (int j = 0; j < segmented.cols; j++) {
+					seg_color.at<Vec3b>(i, j) = UVR_SLAM::ObjectColors::mvObjectLabelColors[segmented.at<uchar>(i, j)];
+					int val = segmented.at<uchar>(i, j);
+					switch (val) {
+					case 255:
+						imgWall.at<uchar>(i, j) = 255;
+						imgStructure.at<uchar>(i, j) = 255;
+						break;
+					case 150:
+						imgFloor.at<uchar>(i, j) = 255;
+						imgStructure.at<uchar>(i, j) = 150;
+						break;
+					case 100:
+						imgStructure.at<uchar>(i, j) = 100;
+						imgCeil.at<uchar>(i, j) = 255;
+						break;
+					case 20:
+						break;
+					case 50:
+						imgObject.at<uchar>(i, j) = 255;
+						imgStructure.at<uchar>(i, j) = 50;
+						break;
+
+					}
+				}
+			}
+			
+			////////////////////바닥과 벽을 나누는 함수.
+			////https://webnautes.tistory.com/823
+			cv::Mat floorCCL, ceilCCL, sumCCL;
+			cv::Mat floorStat, ceilStat;
+			bool b1= ConnectedComponentLabeling(imgFloor, floorCCL, floorStat);
+			bool b2 = ConnectedComponentLabeling(imgCeil, ceilCCL, ceilStat);
+			std::cout << "ccl : " << b1 << ", " << b2 << std::endl;
+			sumCCL = floorCCL + ceilCCL;
+			maxY = floorStat.at<int>(CC_STAT_TOP);
+			minY = ceilStat.at<int>(CC_STAT_TOP) + ceilStat.at<int>(CC_STAT_HEIGHT);
+			if (minY != segmented.rows)
+				bMinCeilY = true;
+			if (maxY != 0)
+				bMaxFloorY = true;
+			////////////////////바닥과 벽을 나누는 함수.
+			///////////////Conneted Component Labeling & object labeling
+
+			//////////////////////////////////////////////////////////////////////////
+			///////////Line Segments Detection
+			////////바닥, 벽이 만나는 지점을 바탕으로 라인을 추정
+			//////추정된 라인은 가상의 포인트를 만들고 테스트 하는데 이용
+			//std::vector<cv::Vec4i> tFloorLines, tCeilLines, tlines;
+			//std::vector<Line*> lines;
+			//{
+
+			//	cv::Ptr<cv::LineSegmentDetector> pLSD = createLineSegmentDetector();
+			//	pLSD->detect(floorCCL, tFloorLines);
+			//	pLSD->detect(ceilCCL, tCeilLines);
+			//	std::cout << tFloorLines.size() << ", " << tCeilLines.size() << std::endl;
+			//	tlines.insert(tlines.begin(), tFloorLines.begin(), tFloorLines.end());
+			//	tlines.insert(tlines.end(), tCeilLines.begin(), tCeilLines.end());
+			//	//pLSD->detect(tempFloor, tlines);
+			//								   //graph.convertTo(graph, CV_8UC3);
+			//								   //cv::cvtColor(graph, graph, CV_GRAY2BGR);
+			//	for (int i = 0; i < tlines.size(); i++) {
+			//		Vec4i v = tlines[i];
+			//		Point2f from(v[0] * 2, v[1] * 2);
+			//		Point2f to(v[2] * 2, v[3] * 2);
+			//		Point2f diff = from - to;
+			//		float dist = sqrt(diff.dot(diff));
+			//		
+			//		if (dist < 25 * 2)
+			//			continue;
+			//		/*if (to.y < maxY + 3 || from.y < maxY + 3)
+			//			continue;*/
+			//		float slope = abs(LineProcessor::CalcSlope(from, to));
+			//		if (slope > 3.0)
+			//			continue;
+			//		Line* line = new Line(mpTargetFrame, from, to);
+			//		//line->SetLinePts();
+			//		lines.push_back(line);
+			//	}
+			//	//해당 라인은 타겟 프레임에 설정함.
+			//	//mpTargetFrame->SetLines(lines);
+
+			//}
+			///////////Line Segments Detection
+
+			///////////////라인 위의 매칭점 선택
+			//cv::Mat lineImg = cv::Mat::zeros(prevFrame->GetOriginalImage().size(), CV_8UC1);
+			//for (int i = 0; i < lines.size(); i++) {
+			//	auto line = lines[i];
+			//	cv::line(lineImg, line->from, line->to, cv::Scalar(255, 255, 255), 5);
+			//}
+			//std::vector<cv::Point2f> vPtsOnLines;
+			//for (int i = 0; i < prevMatchInfo->mvMatchingPts.size(); i++) {
+			//	auto pt = prevMatchInfo->mvMatchingPts[i];
+			//	if (lineImg.at<uchar>(pt)) {
+			//		vPtsOnLines.push_back(pt);
+			//	}
+			//}
+			///////////////라인 위의 매칭점 선택
+			////////////////////////////////////////////////////////////////
+
+			
+
+
+			////확인
+			cv::Mat vis = prevFrame->GetOriginalImage();
+			maxY *= 2;
+			minY *= 2;
+			if (bMinCeilY) {
+				cv::line(vis, cv::Point2f(0, minY), cv::Point2f(vis.cols, minY), cv::Scalar(255, 0, 0), 1);
+			}
+			if (bMaxFloorY) {
+				cv::line(vis, cv::Point2f(0, maxY), cv::Point2f(vis.cols, maxY), cv::Scalar(255, 0, 0), 1);
+			}
+
+			//////////////////////////////////////////////////////////////////
+			//////Hough lines and vanishing points
+			cv::Mat filtered, edge;
+			std::vector<cv::Vec4i> vlines;
+			std::vector<cv::Vec2f> vflines;
+			auto gray = prevFrame->GetFrame();
+			GaussianBlur(gray, filtered, cv::Size(5, 5), 0.0);
+			cv::Canny(filtered, edge, 50, 200);
+			cv::HoughLinesP(edge, vlines, 1, CV_PI / 180, 50, 50, 10);
+			for (int i = 0; i < vlines.size(); i++) {
+				auto line = vlines[i];
+				auto from = cv::Point2f(line[0], line[1]);
+				auto to = cv::Point2f(line[2], line[3]);
+				Line* aline = new Line(mpTargetFrame, mnHeight, from, to);
+				//		//line->SetLinePts();
+				//		lines.push_back(line);
+				cv::line(vis, aline->fromExt, aline->toExt, cv::Scalar(0, 255, 0), 1);
+				cv::line(vis, aline->from, aline->to, cv::Scalar(0, 255, 255), 2);
+			}
+			//cv::HoughLines(edge, vflines, 1, CV_PI / 180, 150);
+			//for (int i = 0; i < vflines.size(); i++) {
+			//	auto line = vflines[i];
+			//	/*auto pt1 = cv::Point2f(line[0], line[1]);
+			//	auto pt2 = cv::Point2f(line[2], line[3]);*/
+			//	
+			//	float rho = line[0];
+			//	float theta = line[1];
+			//	double a = cos(theta), b = sin(theta);
+			//	double x0 = a*rho, y0 = b*rho;
+			//	
+			//	Point pt1, pt2;
+			//	pt1.x = cvRound(x0 + 1000 * (-b));
+			//	pt1.y = cvRound(y0 + 1000 * (a));
+			//	pt2.x = cvRound(x0 - 1000 * (-b));
+			//	pt2.y = cvRound(y0 - 1000 * (a));
+			//	cv::line(vis, pt1, pt2, cv::Scalar(255, 0, 0), 1);
+			//}
+			imshow("edge", edge);
+			//////Hough lines and vanishing points
+			//////////////////////////////////////////////////////////////////
+
+			/*for (int i = 0; i < lines.size(); i++) {
+				auto line = lines[i];
+				cv::line(vis, line->from, line->to, cv::Scalar(0, 255, 255), 2);
+			}
+			for (int i = 0; i < vPtsOnLines.size(); i++) {
+				auto pt = vPtsOnLines[i];
+				cv::circle(vis, pt, 2, cv::Scalar(0, 0, 255), -1);
+			}	*/
+			imshow("layout test", vis);
+			waitKey(1);
+			////확인
+			
+			////시간 체크
+			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
+			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
+			float letime = leduration / 1000.0;
+			std::stringstream ss;
+			ss << std::fixed << std::setprecision(3) << "Layout:" << mpTargetFrame->GetKeyFrameID() << " t=" << letime;
+			mpSystem->SetPlaneString(ss.str());
+
+			////////////////////////////////////////////////////////////////////////
+
+			std::cout << "pe::end::" << std::endl;
+			SetBoolDoingProcess(false, 0);
+			continue;
 			if (!mpPrevFrame)
 				std::cout << "null::prev" << std::endl;
 			if (!mpPPrevFrame)
@@ -430,138 +643,11 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 			std::cout << "pe::2" << std::endl;
 			////////////////////////////////////////////////////////////////////////
-			///////////////Conneted Component Labeling & object labeling
-			//image
-			cv::Mat segmented = mpTargetFrame->matLabeled.clone();
-			std::cout <<"seg::size::"<< segmented.size() << std::endl;
-			std::chrono::high_resolution_clock::time_point saa = std::chrono::high_resolution_clock::now();
-			cv::Mat imgStructure = cv::Mat::zeros(segmented.size(), CV_8UC1);
-			cv::Mat imgWall = cv::Mat::zeros(segmented.size(), CV_8UC1);
-			cv::Mat imgFloor = cv::Mat::zeros(segmented.size(), CV_8UC1);
-			cv::Mat imgCeil = cv::Mat::zeros(segmented.size(), CV_8UC1);
-			cv::Mat imgObject = cv::Mat::zeros(segmented.size(), CV_8UC1);
-			cv::Mat seg_color = cv::Mat::zeros(segmented.size(), CV_8UC3);
-			int minY = imgWall.rows;
-			int maxY = 0;
-			int minFloorX = imgWall.cols;
-			int maxFloorX = 0;
-			int minCeilX = imgWall.cols;
-			int maxCeilX = 0;
-
-			bool bMinX = false;
-			bool bMaxX = false;
-			bool bMinCeilY = false;
-			bool bMaxFloorY = false;
-
-			//////////////////////////////////////////////////////////////////////////////////
-			////전체 레이블링
-
-			for (int i = 0; i < segmented.rows; i++) {
-				for (int j = 0; j < segmented.cols; j++) {
-					seg_color.at<Vec3b>(i, j) = UVR_SLAM::ObjectColors::mvObjectLabelColors[segmented.at<uchar>(i, j)];
-					int val = segmented.at<uchar>(i, j);
-					switch (val) {
-					case 255:
-						imgWall.at<uchar>(i, j) = 255;
-						imgStructure.at<uchar>(i, j) = 255;
-						break;
-					case 150:
-						imgFloor.at<uchar>(i, j) = 255;
-						imgStructure.at<uchar>(i, j) = 150;
-						break;
-					case 100:
-						imgStructure.at<uchar>(i, j) = 100;
-						imgCeil.at<uchar>(i, j) = 255;
-						break;
-					case 20:
-						break;
-					case 50:
-						imgObject.at<uchar>(i, j) = 255;
-						imgStructure.at<uchar>(i, j) = 50;
-						break;
-
-					}
-				}
-			}
-			////
-			//////////////////////////////////////////////////////////////////////////////////
-			
-			////////////////////////////////
-			//Dense Map 관련 설정
-			mpTargetFrame->mDenseMap = cv::Mat::zeros(mpTargetFrame->GetOriginalImage().size(), CV_32FC3);
-			cv::resize(imgStructure, imgStructure, mpTargetFrame->mDenseMap.size());
-
-			////기존의 칼라이미지와 세그멘테이션 결과를 합치는 부분
-			////여기는 시각화로 보낼 수 있으면 보내는게 좋을 듯.
-			/*cv::resize(seg_color, seg_color, colorimg.size());
-			cv::addWeighted(seg_color, 0.4, colorimg, 0.6, 0.0, colorimg);
-			cv::imshow("object : ", imgObject);*/
-			cv::imshow("Output::Segmentation", seg_color);
-			////기존의 칼라이미지와 세그멘테이션 결과를 합치는 부분
-
-			std::cout << "pe::3" << std::endl;
-			////////////////////바닥과 벽을 나누는 함수.
-			////https://webnautes.tistory.com/823
-			cv::Mat floorCCL, ceilCCL, sumCCL;
-			cv::Mat floorStat, ceilStat;
-			ConnectedComponentLabeling(imgFloor, floorCCL, floorStat);
-			ConnectedComponentLabeling(imgCeil, ceilCCL, ceilStat);
-			sumCCL = floorCCL + ceilCCL;
-			maxY = floorStat.at<int>(CC_STAT_TOP);
-			minY = ceilStat.at<int>(CC_STAT_TOP) + ceilStat.at<int>(CC_STAT_HEIGHT);
-			if (minY != segmented.rows)
-				bMinCeilY = true;
-			if (maxY != 0)
-				bMaxFloorY = true;
-			////////////////////바닥과 벽을 나누는 함수.
-			///////////////Conneted Component Labeling & object labeling
-			////////////////////////////////////////////////////////////////////////
+			//
 			
 
 			std::cout << "pe::4" << std::endl;
-			////////////////////////////////////////////////////////////////////////
-			//////바닥, 벽이 만나는 지점을 바탕으로 라인을 추정
-			////추정된 라인은 가상의 포인트를 만들고 테스트 하는데 이용
-			PlaneInformation* pTestWall = new PlaneInformation();
-			std::vector<cv::Vec4i> tlines;
-			std::vector<Line*> lines;
-			{
-				
-				cv::Ptr<cv::LineSegmentDetector> pLSD = createLineSegmentDetector();
-				pLSD->detect(floorCCL, tlines);//pLSD->detect(tempFloor, tlines);
-				//graph.convertTo(graph, CV_8UC3);
-				//cv::cvtColor(graph, graph, CV_GRAY2BGR);
-				for (int i = 0; i < tlines.size(); i++) {
-					Vec4i v = tlines[i];
-					Point2f from(v[0]*2, v[1] * 2);
-					Point2f to(v[2] * 2, v[3] * 2);
-					Point2f diff = from - to;
-					float dist = sqrt(diff.dot(diff));
-					/*if (tempWallLines.at<uchar>(from) == 0 || tempWallLines.at<uchar>(to) == 0)
-						continue;*/
-					if (dist < 25*2)
-						continue;
-					if (to.y < maxY+3 || from.y < maxY + 3)
-						continue;
-					float slope = abs(LineProcessor::CalcSlope(from, to));
-					if (slope > 3.0)
-						continue;
-					Line* line = new Line(mpTargetFrame, from, to);
-					line->SetLinePts();
-					lines.push_back(line);
-					
-					//cv::line(fLineImg, from, to, cv::Scalar(255,0,0));
-					//else
-					//cv::line(graph, from, to, cv::Scalar(0, 0, 255));
-					cv::line(vImg, line->from, line->to, cv::Scalar(0,255,255),2);
-				}
-				//해당 라인은 타겟 프레임에 설정함.
-				mpTargetFrame->SetLines(lines);
-				
-			}
 			
-			std::cout << "pe::5" << std::endl;
-			//////////////////////////////////////////////////////////////
 			//////LINE 추가 과정.
 			//WallLineTest
 			if (bInitFloorPlane) {
@@ -1077,12 +1163,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			mpSystem->cvUsePlaneEstimation.notify_all();
 			////////////////////////////////////////////////////////////////////////
 						
-			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
-			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
-			float letime = leduration / 1000.0;
-			std::stringstream ss;
-			ss <<std::fixed<< std::setprecision(3) << "Layout:"<<mpTargetFrame->GetKeyFrameID()<<" t=" << letime <<":"<<pmat.at<float>(0)<<" "<<pmat.at<float>(1)<<" "<< pmat.at<float>(2) <<" "<< pmat.at<float>(3) <<"::"<<line_time<<"::"<<lines.size()<<"::"<< nPrevTest<<", "<< nPrevTest2 <<"::"<< mpTargetFrame->mspWallMPs.size() << ", " << mpTargetFrame->mspFloorMPs.size();
-			mpSystem->SetPlaneString(ss.str());
+			
 			
 			//////test
 			//////save txt
@@ -1378,6 +1459,7 @@ bool UVR_SLAM::PlaneInformation::PlaneInitialization(UVR_SLAM::PlaneInformation*
 		if (X.at<float>(1) > 0.0)
 			X *= -1.0;
 
+		std::cout <<"PLANE::"<< planeRatio << std::endl;
 		//std::cout << "Update::" << pPlane->matPlaneParam.t() << ", " << X.t() <<", "<<pPlane->mvpMPs.size()<<", "<<nReject<< std::endl;
 		pPlane->SetParam(X.rowRange(0, 3), X.at<float>(3));
 

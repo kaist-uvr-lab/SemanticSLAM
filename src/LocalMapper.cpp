@@ -121,6 +121,8 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::stringstream ssdir;
 			ssdir << mpSystem->GetDirPath(0) << "/kfmatching";// << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevFrame->GetKeyFrameID() << ".jpg";
 			mpTargetFrame->mpMatchInfo->Test();
+
+			std::chrono::high_resolution_clock::time_point ba_start = std::chrono::high_resolution_clock::now();
 			if (mpMapOptimizer->isDoingProcess()) {
 				std::cout << "lm::ba::busy" << std::endl;
 				mpMapOptimizer->StopBA(true);
@@ -129,7 +131,7 @@ void UVR_SLAM::LocalMapper::Run() {
 				std::cout << "lm::ba::idle" << std::endl;
 				mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
 			}
-
+			
 			//mpTargetFrame->mpMatchInfo->Test(ssdir.str());
 
 			//if ( mpPPrevKeyFrame && mpSystem->isInitialized()) {
@@ -156,290 +158,18 @@ void UVR_SLAM::LocalMapper::Run() {
 			//	}
 			//	std::cout << "lm::5" << std::endl;
 			//}
-			std::cout << "lm::end" << std::endl;
-			SetDoingProcess(false);
-			continue;
-			//////200412
-			////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-			
-			
-			////lock
-			//std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
-			//mpSystem->mbLocalMappingEnd = false;
-
-			
-			std::cout << "lm::start::" << mpTargetFrame->GetFrameID() <<", "<<mpTargetFrame->GetKeyFrameID()<< std::endl;
-			CalculateKFConnections();
-			UpdateKFs();
-			////이전 프레임에서 생성된 맵포인트 중 삭제
-			//프레임 윈도우 내의 로컬 맵 포인트 중 new인 애들만 수행
-			NewMapPointMarginalization();
-			UpdateMPs();
-
-			////unlock
-			//mpSystem->mbLocalMappingEnd = true;
-			//lock.unlock();
-			//mpSystem->cvUseLocalMapping.notify_one();
-
-			//lock
-			//labeling 끝날 때까지 대기
-			{
-				std::unique_lock<std::mutex> lock(mpSystem->mMutexUseSegmentation);
-				while (!mpSystem->mbSegmentationEnd) {
-					mpSystem->cvUseSegmentation.wait(lock);
-				}
-			}
-
-			//lock
-			//plane estimation에서 depth 추정이 끝날 때가지 대기
-			{
-				std::unique_lock<std::mutex> lock(mpSystem->mMutexUsePlaneEstimation);
-				while (!mpSystem->mbPlaneEstimationEnd) {
-					mpSystem->cvUsePlaneEstimation.wait(lock);
-				}
-			}
-
-			////lock
-			////plane estimation에서 맵포인트를 생성할 때까지 락.
-			//{
-			//	std::unique_lock<std::mutex> lock(mpSystem->mMutexUsePlanarMP);
-			//	while (!mpSystem->mbPlanarMPEnd) {
-			//		mpSystem->cvUsePlanarMP.wait(lock);
-			//	}
-			//}
-
-			//mpFrameWindow->CalcFrameDistanceWithBOW(mpTargetFrame);
-
-			//프레임 내에서 삭제 되는 녀석과 업데이트 되는 녀석의 분리가 필요함.
-
-			std::chrono::high_resolution_clock::time_point t_start = std::chrono::high_resolution_clock::now();
-			
-			//int nCreateMP = Test();
-			
-			std::chrono::high_resolution_clock::time_point t_end = std::chrono::high_resolution_clock::now();
-			auto du_test = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count();
-			double t_test = du_test / 1000.0;
-		
-			//marginalization test
-			/*std::chrono::high_resolution_clock::time_point kf_mar_start = std::chrono::high_resolution_clock::now();
-			KeyframeMarginalization();
-			std::chrono::high_resolution_clock::time_point kf_mar_end = std::chrono::high_resolution_clock::now();
-			auto du_kf_mar = std::chrono::duration_cast<std::chrono::milliseconds>(kf_mar_end - kf_mar_start).count();
-			double t_kf_mar = du_kf_mar / 1000.0;
-			std::cout << "LocalMap::kf::marginalization::"<<t_kf_mar<< std::endl;*/
-			
-			////새로운 맵포인트 생성
-			//여기부터 다시 검증이 필요
-			//CreateMapPoints(mpTargetFrame, mpPrevKeyFrame);
-
-			////create map points
-			//std::chrono::high_resolution_clock::time_point cm_start = std::chrono::high_resolution_clock::now();
-			////CreateMapPoints();
-			//std::chrono::high_resolution_clock::time_point cm_end = std::chrono::high_resolution_clock::now();
-			//auto du_cm = std::chrono::duration_cast<std::chrono::milliseconds>(cm_end - cm_start).count();
-			//double t_cm = du_cm / 1000.0;
-
-			///fuse
-			/*if (!isStopLocalMapping())
-			{
-				FuseMapPoints();
-			}*/
-			
-			mpFrameWindow->SetLocalMap(mpTargetFrame->GetFrameID());
-			mpMap->AddFrame(mpTargetFrame);
-			//set dir
-			
-			
-
-			/*if (mpSegmentator->isRun() && !mpSegmentator->isDoingProcess()) {
-				mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
-				mpSegmentator->SetTargetFrame(mpTargetFrame);
-				mpSegmentator->SetBoolDoingProcess(true);
-			}*/
-
-			////BA
-			//BA에서는 최근 생성된 맵포인트까지 반영을 해야 함.
-
-			if (mpMapOptimizer->isDoingProcess()) {
-				std::cout << "lm::ba::busy" << std::endl;
-				mpMapOptimizer->StopBA(true);
-			}
-			else {
-				std::cout << "lm::ba::idle" << std::endl;
-				mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
-			}
-			
-			std::chrono::high_resolution_clock::time_point ba_start = std::chrono::high_resolution_clock::now();
-			//mbStopBA = false; 
-			//if(!isStopLocalMapping()){
-			//	//Optimization::LocalBundleAdjustment(mpFrameWindow, mpTargetFrame->GetFrameID(), mbStopBA, 2, 5, false);
-			//	Optimization::LocalBundleAdjustment(mpTargetFrame, mpFrameWindow, &mbStopBA);
-			//}
-
 			std::chrono::high_resolution_clock::time_point lm_end = std::chrono::high_resolution_clock::now();
-
 			auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(lm_end - lm_start).count();
 			float t_test1 = du_test1 / 1000.0;
 			auto du_test2 = std::chrono::duration_cast<std::chrono::milliseconds>(lm_end - ba_start).count();
 			float t_test2 = du_test2 / 1000.0;
 			mpSystem->SetLocalMappingTime(t_test1, t_test2);
 
-			//////////////////////////////////////////////////////////////////////////////////////
-			///////////////////////////////디버깅용
-			{
-
-				auto mvpKFs =  mpTargetFrame->GetConnectedKFs();
-				auto mvpMPs = mpTargetFrame->GetMapPoints();
-				std::string strLocalPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
-				std::stringstream sss;
-
-				////debugging
-				////save image
-				//////키프레임 매칭 결과 출력
-				//cv::Mat img1 = mpTargetFrame->GetOriginalImage();
-				//
-				//cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
-
-				//cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
-				//cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
-
-				//for (int j = 0; j < mvpMPs.size(); j++) {
-				//	UVR_SLAM::MapPoint* pMP = mvpMPs[j];
-				//	if (!pMP){
-				//		continue;
-				//	}
-				//	if (pMP->isDeleted()){
-				//		continue;
-				//	}
-				//	if(pMP->isNewMP()){
-				//		
-				//		int nDiff = mpTargetFrame->GetKeyFrameID()-pMP->mnFirstKeyFrameID;
-				//		if(nDiff == 0){
-				//			cv::circle(img1, mpTargetFrame->mvKeyPoints[j].pt, 2, cv::Scalar(0, 255, 255), -1);
-				//		}
-				//		else if (nDiff == 1) {
-				//			cv::circle(img1, mpTargetFrame->mvKeyPoints[j].pt, 2, cv::Scalar(0, 0, 255), -1);
-				//		}
-				//		else if (nDiff == 2) {
-				//			cv::circle(img1, mpTargetFrame->mvKeyPoints[j].pt, 2, cv::Scalar(255, 0, 0), -1);
-				//		}
-				//		else if (nDiff == 3) {
-				//			cv::circle(img1, mpTargetFrame->mvKeyPoints[j].pt, 2, cv::Scalar(255, 255, 0), -1);
-				//		}
-				//	}else
-				//		cv::circle(img1, mpTargetFrame->mvKeyPoints[j].pt, 2, cv::Scalar(0, 255, 0), -1);
-				//}
-
-				//for (int i = 0; i < mvpKFs.size(); i++) {
-				//	UVR_SLAM::Frame* pKFi = mvpKFs[i];
-
-				//	cv::Mat img2 = pKFi->GetOriginalImage();
-				//	cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
-				//	img1.copyTo(debugging(mergeRect1));
-				//	img2.copyTo(debugging(mergeRect2));
-
-				//	for (int j = 0; j < mvpMPs.size(); j++) {
-				//		UVR_SLAM::MapPoint* pMP = mvpMPs[j];
-				//		if (!pMP)
-				//			continue;
-				//		if (pMP->isDeleted())
-				//			continue;
-
-				//		int idx2 = pMP->GetIndexInFrame(pKFi);
-				//		int idx1 = pMP->GetIndexInFrame(mpTargetFrame);
-				//		if (idx2 >= 0 && idx1 >=0 ) {
-				//			
-				//			cv::Point2f pt1 = mpTargetFrame->mvKeyPoints[idx1].pt;
-				//			cv::Point2f pt2 = pKFi->mvKeyPoints[idx2].pt;
-				//			cv::line(debugging, pt1, pt2 + ptBottom, cv::Scalar(255, 0, 0), 1);
-				//			
-				//			cv::Mat X3D = pMP->GetWorldPos();
-				//			cv::Point2f pt =  pKFi->Projection(X3D);
-				//			cv::line(debugging, pt + ptBottom, pt2 + ptBottom, cv::Scalar(255, 255, 0), 1);
-				//		}
-
-				//	}
-				//	//두 키프렘의 키포인트 출력
-				//	//save image
-				//	std::stringstream ss;
-				//	ss << strLocalPath.c_str()<<"/" << mpTargetFrame->GetFrameID() << "_" << pKFi->GetFrameID() << ".jpg";
-				//	imwrite(ss.str(), debugging);
-				//
-				//}
-				//////키프레임 매칭 결과 출력
-
-				//////현재 키프레임의 맵포인트와 키포인트 출력
-				//cv::Mat tempImg = mpTargetFrame->GetOriginalImage();
-				//for (int i = 0; i < mpTargetFrame->mvKeyPoints.size(); i++) {
-				//	if (mpTargetFrame->mvpMPs[i]) {
-				//		cv::Scalar color = cv::Scalar(0, 0, 255);
-				//		if (mpTargetFrame->mvpMPs[i]->isNewMP()) {
-				//			int nDiff = mpTargetFrame->GetKeyFrameID() - mpTargetFrame->mvpMPs[i]->mnFirstKeyFrameID;
-				//			if (nDiff == 0) {
-				//				color = cv::Scalar(255, 0, 255);
-				//			}
-				//			else if (nDiff == 1) {
-				//				color = cv::Scalar(0, 255, 255);
-				//			}
-				//			else if (nDiff == 2) {
-				//				color = cv::Scalar(255, 255, 0);
-				//			}
-				//			else if (nDiff == 3) {
-				//				color = cv::Scalar(0, 255, 0);
-				//			}
-				//		}
-				//		cv::circle(tempImg, mpTargetFrame->mvKeyPoints[i].pt, 1, color);
-				//	}
-				//	else {
-				//		cv::circle(tempImg, mpTargetFrame->mvKeyPoints[i].pt, 1, cv::Scalar(255, 0, 0));
-				//	}
-				//}
-				
-				//sss << strLocalPath.c_str() << "/" << mpTargetFrame->GetFrameID()<< ".jpg";
-				//imwrite(sss.str(), tempImg);
-				//////현재 키프레임의 맵포인트와 키포인트 출력
-
-				//////local map 텍스트 출력
-				std::ofstream f;
-				sss.str("");
-				sss<<strLocalPath.c_str() << "/localmap.txt";
-				f.open(sss.str().c_str());
-
-				for (int j = 0; j < mvpMPs.size(); j++) {
-					UVR_SLAM::MapPoint* pMP = mvpMPs[j];
-					if (!pMP) {
-						continue;
-					}
-					if (pMP->isDeleted()) {
-						continue;
-					}
-					cv::Mat Xw = pMP->GetWorldPos();
-					f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2)<<std::endl;
-				}
-				f.close();
-				////local map 텍스트 출력
-				////키프레임 포즈 출력
-				sss.str("");
-				sss << strLocalPath.c_str() << "/pose.txt";
-				f.open(sss.str().c_str());
-				cv::Mat tempr = mpTargetFrame->GetRotation();
-				cv::Mat tempt = mpTargetFrame->GetTranslation();
-				f << tempr.at<float>(0,0) << " " << tempr.at<float>(0,1) << " " << tempr.at<float>(0,2)<<std::endl;
-				f << tempr.at<float>(1, 0) << " " << tempr.at<float>(1, 1) << " " << tempr.at<float>(1, 2) << std::endl;
-				f << tempr.at<float>(2, 0) << " " << tempr.at<float>(2, 1) << " " << tempr.at<float>(2, 2) << std::endl;
-				f << tempt.at<float>(0) << " " << tempt.at<float>(1) << " " << tempt.at<float>(2);
-				f.close();
-				//////키프레임 포즈 출력
-
-				////save image
-				///////////////////////////////디버깅용
-				//////////////////////////////////////////////////////////////////////////////////////
-			}
-			std::cout << "lm::end::" <<mpTargetFrame->GetKeyFrameID()<< std::endl;
-			StopLocalMapping(false);
+			std::cout << "lm::end" << std::endl;
 			SetDoingProcess(false);
+			continue;
+			//////200412
 			
-			//std::cout << "Create KeyFrame::End!!!!" << std::endl;
 		}
 	}//while
 }

@@ -8,7 +8,7 @@
 #include <plane.h>
 
 UVR_SLAM::Visualizer::Visualizer() {}
-UVR_SLAM::Visualizer::Visualizer(int w, int h, int scale, Map* pMap) :mnWidth(w), mnHeight(h), mnVisScale(scale), mnFontFace(2), mfFontScale(0.6){
+UVR_SLAM::Visualizer::Visualizer(int w, int h, int scale, Map* pMap) :mnWidth(w), mnHeight(h), mnVisScale(scale), mnFontFace(2), mfFontScale(0.6), mpMatchInfo(nullptr){
 	mpMap = pMap;
 }
 UVR_SLAM::Visualizer::~Visualizer() {}
@@ -343,6 +343,24 @@ void UVR_SLAM::Visualizer::Run() {
 			int nRecentLayoutFrameID = mpFrameWindow->GetLastLayoutFrameID();
 
 			//tracking results
+			auto pMatchInfo = GetMatchInfo();
+			if(pMatchInfo)
+				for (int i = 0; i < pMatchInfo->mvMatchingPts.size(); i++) {
+					auto pMPi = pMatchInfo->mvpMatchingMPs[i];
+					auto label = pMatchInfo->mvObjectLabels[i];
+					if (!pMPi || pMPi->isDeleted())
+						continue;
+					cv::Mat x3D = pMPi->GetWorldPos();
+					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+					tpt += mVisMidPt;
+					cv::Scalar color = cv::Scalar(0, 0, 0);
+					if (label == 255)
+						color = cv::Scalar(255, 0, 0);
+					else if (label == 150)
+						color = cv::Scalar(0, 0, 255);
+					cv::circle(tempVis, tpt, 2, color, -1);
+				}
+
 			auto vpFrameMPs = GetMPs();
 			for (int i = 0; i < vpFrameMPs.size(); i++) {
 				UVR_SLAM::MapPoint* pMP = vpFrameMPs[i];
@@ -523,4 +541,12 @@ void UVR_SLAM::Visualizer::SetMPs(std::vector<UVR_SLAM::MapPoint*> vpMPs){
 std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Visualizer::GetMPs(){
 	std::unique_lock<std::mutex> lock(mMutexFrameMPs);
 	return std::vector<UVR_SLAM::MapPoint*>(mvpFrameMPs.begin(), mvpFrameMPs.end());
+}
+void UVR_SLAM::Visualizer::SetMatchInfo(MatchInfo* pMatch){
+	std::unique_lock<std::mutex> lock(mMutexFrameMPs);
+	mpMatchInfo = pMatch;
+}
+UVR_SLAM::MatchInfo* UVR_SLAM::Visualizer::GetMatchInfo(){
+	std::unique_lock<std::mutex> lock(mMutexFrameMPs);
+	return mpMatchInfo;
 }

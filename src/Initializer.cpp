@@ -394,6 +394,10 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame2->mpMatchInfo->SetKeyFrame();
 		//////키프레임으로 업데이트 과정
 
+		/////////////레이아웃 추정
+		mpPlaneEstimator->InsertKeyFrame(mpInitFrame2);
+		/////////////레이아웃 추정
+
 		////////////////////시각화에 카메라 포즈를 출력하기 위해
 		mpFrameWindow->AddFrame(mpInitFrame1);
 		mpFrameWindow->AddFrame(mpInitFrame2);
@@ -442,7 +446,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		/////////////////호모그래피 테스트
 
 		//////////////////////////////시각화 설정
-		mpVisualizer->SetMPs(tempMPs);
+		//mpVisualizer->SetMPs(tempMPs);
 		if (!mpVisualizer->isDoingProcess()) {
 			mpVisualizer->SetBoolDoingProcess(true);
 		}

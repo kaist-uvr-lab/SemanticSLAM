@@ -178,6 +178,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				//mpRefKF->mpMatchInfo->SetKeyFrame();
 				mpLocalMapper->InsertKeyFrame(pCurr);
 				mpSegmentator->InsertKeyFrame(pCurr);
+				mpPlaneEstimator->InsertKeyFrame(pCurr);
 				mpFrameWindow->AddFrame(pCurr);
 			}
 			/*if (!mpSegmentator->isDoingProcess() && !mpPlaneEstimator->isDoingProcess() && !mpRefKF->GetBoolMapping()) {
@@ -210,6 +211,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			}
 		}
 		imshow("Output::Matching", debugImg);
+		for (int i = 0; i < vpTempPts.size(); i++) {
+			cv::circle(vis, vpTempPts[i], 2, cv::Scalar(255, 0, 0), 1);
+		}
 		for (int i = 0; i < vpTempMPs.size(); i++) {
 			UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
 			if (!pMPi || pMPi->isDeleted())
@@ -237,7 +241,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		//visualizer thread
-		mpVisualizer->SetMPs(vpTempMPs);
+		mpVisualizer->SetMatchInfo(pCurr->mpMatchInfo);
+		//mpVisualizer->SetMPs(vpTempMPs);
 		if (!mpVisualizer->isDoingProcess()) {
 			mpVisualizer->SetBoolDoingProcess(true);
 		}

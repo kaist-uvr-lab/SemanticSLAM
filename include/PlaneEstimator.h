@@ -153,8 +153,6 @@ namespace UVR_SLAM {
 		FrameWindow* mpFrameWindow;
 		Initializer* mpInitializer;
 		Matcher* mpMatcher;
-
-		
 		
 	};
 }

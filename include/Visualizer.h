@@ -8,6 +8,7 @@
 
 namespace UVR_SLAM {
 	class Frame;
+	class MatchInfo;
 	class MapPoint;
 	class FrameWindow;
 	class System;
@@ -68,6 +69,9 @@ namespace UVR_SLAM {
 	public:
 		void SetMPs(std::vector<UVR_SLAM::MapPoint*> vpMPs);
 		std::vector<UVR_SLAM::MapPoint*> GetMPs();
+		void SetMatchInfo(MatchInfo* pMatch);
+		MatchInfo* GetMatchInfo();
+		MatchInfo* mpMatchInfo;
 	private:
 		std::mutex mMutexFrameMPs;
 		std::vector<UVR_SLAM::MapPoint*> mvpFrameMPs;

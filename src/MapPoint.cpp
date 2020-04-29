@@ -427,11 +427,10 @@ void UVR_SLAM::MapPoint::RemoveDenseFrame(UVR_SLAM::Frame* pKF) {
 			}
 		}
 		else {
-			std::cout << "MP::RemoveDenseFrame::포인트가 존재하지 않음" << std::endl;
+			//std::cout << "MP::RemoveDenseFrame::포인트가 존재하지 않음" << std::endl;
 		}
 	}
 	if(this->isDeleted()){
-		std::cout << "Delete!!!!!" << std::endl;
 		this->Delete();
 	}
 }
