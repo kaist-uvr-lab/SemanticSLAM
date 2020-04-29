@@ -194,7 +194,6 @@ void UVR_SLAM::System::Init() {
 
 	//Time
 	mnSegID = mnLoalMapperID = mnPlaneID = mnMapOptimizerID = 0;
-	mfMapOptimizerTime = 0.0;
 	mfLocalMappingTime1 = mfLocalMappingTime2 = 0.0;
 }
 
@@ -343,17 +342,6 @@ int UVR_SLAM::System::GetPlaneFrameID() {
 	return mnPlaneID;
 }
 
-
-
-void UVR_SLAM::System::SetMapOptimizerTime(float t1) {
-	std::unique_lock<std::mutex> lock(mMutexMapOptimizerTime);
-	mfMapOptimizerTime = t1;
-}
-
-void UVR_SLAM::System::GetMapOptimizerTime(float& t1) {
-	std::unique_lock<std::mutex> lock(mMutexMapOptimizerTime);
-	t1 = mfMapOptimizerTime;
-}
 void UVR_SLAM::System::SetMapOptimizerID(int n)
 {
 	std::unique_lock<std::mutex> lock(mMutexMapOptimizerID);
@@ -387,4 +375,12 @@ void UVR_SLAM::System::SetSegmentationString(std::string str) {
 std::string UVR_SLAM::System::GetSegmentationString() {
 	std::unique_lock<std::mutex> lock(mMutexSegmentationString);
 	return mStrSegmentationString;
+}
+void UVR_SLAM::System::SetMapOptimizerString(std::string str) {
+	std::unique_lock<std::mutex> lock(mMutexMapOptimizer);
+	mStrMapOptimizer = str;
+}
+std::string UVR_SLAM::System::GetMapOptimizerString() {
+	std::unique_lock<std::mutex> lock(mMutexMapOptimizer);
+	return mStrMapOptimizer;
 }

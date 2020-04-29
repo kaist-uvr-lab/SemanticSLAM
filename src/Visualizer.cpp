@@ -414,17 +414,12 @@ void UVR_SLAM::Visualizer::Run() {
 			cv::putText(imgTime, mpSystem->GetTrackerString(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			cv::putText(imgTime, mpSystem->GetSegmentationString(), cv::Point2f(0, 50), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			cv::putText(imgTime, mpSystem->GetPlaneString(), cv::Point2f(0, 80), mnFontFace, mfFontScale, cv::Scalar::all(255));
+			cv::putText(imgTime, mpSystem->GetMapOptimizerString(), cv::Point2f(0, 140), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			float lm1, lm2;
 			mpSystem->GetLocalMappingTime(lm1, lm2);
 			std::stringstream ssTime;
 			ssTime << "LocalMapping : " <<mpSystem->GetLocalMapperFrameID()<<"::"<< lm1 << " :: BA : " << lm2;
 			cv::putText(imgTime, ssTime.str(), cv::Point2f(0, 110), mnFontFace, mfFontScale, cv::Scalar::all(255));
-			//map optimizer
-			float mfOptimizerTime1;
-			mpSystem->GetMapOptimizerTime(mfOptimizerTime1);
-			ssTime.str("");
-			ssTime << "MapOptimizer : " << mpSystem->GetMapOptimizerID() << "::" << mfOptimizerTime1;
-			cv::putText(imgTime, ssTime.str(), cv::Point2f(0, 140), mnFontFace, mfFontScale, cv::Scalar::all(255));
 
 			cv::imshow("Output::Time", imgTime);
 

@@ -56,6 +56,16 @@ namespace UVR_SLAM {
 		//mvnTargetMatchingPtIDXs : 새롭게 키프레임 될 때 타겟 프레임의 매칭 정보를 저장.
 		//mvnMatchingPtIDXs 얘를 타겟으로 삼는 애들과의 매칭을 위해
 		//mvnMatchingMPIDXs
+
+///////////////////////////
+//Add, Remove와 관련된 것들이 추가 예정
+/*void AddMP(UVR_SLAM::MapPoint* pMP, int idx);
+void RemoveMP(int idx);*/
+///////////////////////////
+	public:
+
+	private:
+
 	};
 	class Frame {
 	public:

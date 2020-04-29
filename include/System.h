@@ -188,16 +188,12 @@ namespace UVR_SLAM {
 		void SetPlaneFrameID(int n);
 		int GetPlaneFrameID();
 
-		void SetMapOptimizerTime(float t1);
-		void GetMapOptimizerTime(float& t1);
 		void SetMapOptimizerID(int n);
 		int  GetMapOptimizerID();
 	private:
 		std::mutex mMutexLocalMappingTime;
 		float mfLocalMappingTime1, mfLocalMappingTime2;
 		
-		std::mutex mMutexMapOptimizerTime;
-		float mfMapOptimizerTime;
 		std::mutex mMutexSegID, mMutexLMID, mMutexPlaneID, mMutexMapOptimizerID;
 		int mnSegID, mnLoalMapperID, mnPlaneID, mnMapOptimizerID;
 

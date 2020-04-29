@@ -83,24 +83,110 @@ void UVR_SLAM::MapOptimizer::Run() {
 			SetDoingProcess(true);
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
-
-			//local map
-			//local map 과 연결된 키프레임
-			//해당 키프레임에 연결된 mp와 fixed frame설정
-
 			std::cout << "ba::start::" << mpTargetFrame->GetFrameID() << std::endl;
 			mStrPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
 			StopBA(false);
-			std::cout << "ba::1" << std::endl;
+			auto currMatchInfo = mpTargetFrame->mpMatchInfo;
+			auto targetFrame = mpTargetFrame;
+			///////////////////////////////////////////////////////////////
+			////preprocessing
+			int nTargetID = mpTargetFrame->GetFrameID();
+			mpTargetFrame->mnLocalBAID = nTargetID;
+			std::cout << "BA::preprocessing::start" << std::endl;
+			std::chrono::high_resolution_clock::time_point temp_1 = std::chrono::high_resolution_clock::now();
+			std::vector<UVR_SLAM::MapPoint*> vpMPs;
+			std::vector<UVR_SLAM::Frame*> vpKFs;
+			for (int k = 0; k < 15; k++) {
+				if (!targetFrame)
+					break;
+				vpKFs.push_back(targetFrame);
+				if(targetFrame->mnLocalBAID != nTargetID){
+					targetFrame->mnLocalBAID = nTargetID;
+					auto matchInfo = targetFrame->mpMatchInfo;
+					for (int i = 0; i < matchInfo->mvpMatchingMPs.size(); i++) {
+						auto pMPi = matchInfo->mvpMatchingMPs[i];
+						if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
+							continue;
+						}
+						vpMPs.push_back(pMPi);
+						pMPi->mnLocalBAID = nTargetID;
+					}
+
+				}
+				if (vpMPs.size() > 2000)
+					break;
+				//타겟 프레임 변경
+				targetFrame = targetFrame->mpMatchInfo->mpTargetFrame;
+			}
+
+			// Fixed Keyframes. Keyframes that see Local MapPoints but that are not Local Keyframes
+			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
+			for (int i = 0; i < vpMPs.size(); i++)
+			{
+				UVR_SLAM::MapPoint* pMP = vpMPs[i];
+				auto observations = pMP->GetConnedtedDenseFrames();
+				//map<KeyFrame*, size_t> observations = (*lit)->GetObservations();
+				for (auto mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
+				{
+					UVR_SLAM::Frame* pKFi = mit->first;
+
+					if (pKFi->mnLocalBAID != nTargetID && pKFi->mnFixedBAID != nTargetID)
+					{
+						pKFi->mnFixedBAID = nTargetID;
+						vpFixedKFs.push_back(pKFi);
+					}
+				}
+			}
+
+			std::cout << "BA::preprocessing::end" << std::endl;
+			Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);
+			//			
+			//for(int j = 0; j < 1000; j++)
+			//for (int i = 0; i < vpMPs.size(); i++) {
+			//	auto pMPi = vpMPs[i];
+			//}
+			//std::chrono::high_resolution_clock::time_point temp_2 = std::chrono::high_resolution_clock::now();
+			//std::list<UVR_SLAM::MapPoint*> lpMPs;
+			//std::list<UVR_SLAM::Frame*> lpKFs;
+			//targetFrame = mpTargetFrame;
+			//for (int i = 0; i < 10; i++) {
+			//	if (!targetFrame)
+			//		continue;
+			//	lpKFs.push_back(targetFrame);
+			//	auto matchInfo = targetFrame->mpMatchInfo;
+			//	for (int i = 0; i < matchInfo->mvpMatchingMPs.size(); i++) {
+			//		auto pMPi = matchInfo->mvpMatchingMPs[i];
+			//		if (!pMPi || pMPi->isDeleted()) {
+			//			continue;
+			//		}
+			//		lpMPs.push_back(pMPi);
+			//	}
+			//	//프레임 변경
+			//	targetFrame = targetFrame->mpMatchInfo->mpTargetFrame;
+			//}
+			//for (int j = 0; j < 1000; j++)
+			//for (auto iter = lpMPs.begin(); iter != lpMPs.end(); iter++) {
+			//	auto pMPi = *iter;
+			//}
+			/*std::chrono::high_resolution_clock::time_point temp_3 = std::chrono::high_resolution_clock::now();
+			auto du1 = std::chrono::duration_cast<std::chrono::milliseconds>(temp_2 - temp_1).count();
+			float t1 = du1 / 1000.0;
+			auto du2 = std::chrono::duration_cast<std::chrono::milliseconds>(temp_3 - temp_2).count();
+			float t2 = du2 / 1000.0;*/
+			////preprocessing
+			///////////////////////////////////////////////////////////////
+			
 			/*if(mpMap->isFloorPlaneInitialized())
 				Optimization::LocalBundleAdjustmentWithPlane(mpMap,mpTargetFrame, mpFrameWindow, &mbStopBA);
 			else*/
-			Optimization::OpticalLocalBundleAdjustment(this, mpTargetFrame, mpFrameWindow);
-			std::cout << "ba::2" << std::endl;
+			//Optimization::OpticalLocalBundleAdjustment(this, mpTargetFrame, mpFrameWindow);
+			
 			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
 			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float letime = leduration / 1000.0;
-			mpSystem->SetMapOptimizerTime(letime);
+			std::stringstream ss;
+			ss << "Map Optimizer::" << mpTargetFrame->GetKeyFrameID() <<"::"<<letime<<"||"<< vpKFs.size()<<", "<< vpFixedKFs.size()<<", "<<vpMPs.size();
+			mpSystem->SetMapOptimizerString(ss.str());
 			std::cout << "ba::end::" << mpTargetFrame->GetKeyFrameID() << std::endl;
 			//종료
 			SetDoingProcess(false);

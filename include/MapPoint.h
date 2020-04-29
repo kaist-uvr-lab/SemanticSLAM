@@ -31,12 +31,10 @@ namespace UVR_SLAM {
 		void SetNewMP(bool _b);
 		bool isNewMP();
 		bool isInFrame(Frame* pF);
-		void AddFrame(UVR_SLAM::Frame* pF, int idx); //index in frame
-		void RemoveFrame(UVR_SLAM::Frame* pKF);
-		int GetIndexInFrame(UVR_SLAM::Frame* pF);
+
 		void UpdateNormalAndDepth();
 		int PredictScale(const float &currentDist, Frame* pKF);
-		void Delete();
+		
 		void SetDescriptor(cv::Mat _desc);
 		cv::Mat GetDescriptor();
 		void IncreaseVisible(int n = 1);
@@ -53,16 +51,22 @@ namespace UVR_SLAM {
 		void SetPlaneID(int nid);
 		int GetPlaneID();
 		int GetMapPointID();
-		std::map<Frame*, int> GetConnedtedFrames();
-		int GetNumConnectedFrames();
 		
-
 		void SetDelete(bool b);
 		bool isDeleted();
 		
 		float GetMaxDistance();
 		float GetMinDistance();
 		cv::Mat GetNormal();
+
+		//////////////////////프레임과 관련된 것들
+		void AddFrame(UVR_SLAM::Frame* pF, int idx); //index in frame
+		void RemoveFrame(UVR_SLAM::Frame* pKF);
+		int GetIndexInFrame(UVR_SLAM::Frame* pF);
+		std::map<Frame*, int> GetConnedtedFrames();
+		int GetNumConnectedFrames();
+		void Delete();
+		//////////////////////프레임과 관련된 것들
 
 		////////Dense
 		void AddDenseFrame(UVR_SLAM::Frame* pF, cv::Point2f pt); //index in frame
