@@ -187,6 +187,7 @@ void UVR_SLAM::System::Init() {
 	//set visualizer
 	mpTracker->SetSegmentator(mpSegmentator);
 	mpTracker->SetVisualizer(mpVisualizer);
+	mpMapOptimizer->SetVisualizer(mpVisualizer);
 	mpPlaneEstimator->SetInitializer(mpInitializer);
 	mpSegmentator->SetLocalMapper(mpLocalMapper);
 

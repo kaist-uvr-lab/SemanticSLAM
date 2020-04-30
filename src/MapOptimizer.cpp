@@ -1,6 +1,7 @@
 #include <MapOptimizer.h>
 #include <System.h>
 #include <Frame.h>
+#include <Visualizer.h>
 #include <FrameWindow.h>
 #include <MapPoint.h>
 #include <Optimization.h>
@@ -31,6 +32,9 @@ UVR_SLAM::MapOptimizer::~MapOptimizer() {}
 
 void UVR_SLAM::MapOptimizer::SetSystem(System* pSystem) {
 	mpSystem = pSystem;
+}
+void UVR_SLAM::MapOptimizer::SetVisualizer(Visualizer* pVis) {
+	mpVisualizer = pVis;
 }
 void UVR_SLAM::MapOptimizer::SetFrameWindow(UVR_SLAM::FrameWindow* pWindow) {
 	mpFrameWindow = pWindow;
@@ -94,9 +98,9 @@ void UVR_SLAM::MapOptimizer::Run() {
 			mpTargetFrame->mnLocalBAID = nTargetID;
 			std::cout << "BA::preprocessing::start" << std::endl;
 			std::chrono::high_resolution_clock::time_point temp_1 = std::chrono::high_resolution_clock::now();
-			std::vector<UVR_SLAM::MapPoint*> vpMPs;
+			std::vector<UVR_SLAM::MapPoint*> vpMPs, vpMPs2;
 			std::vector<UVR_SLAM::Frame*> vpKFs;
-			for (int k = 0; k < 15; k++) {
+			for (int k = 0; k < 30; k++) {
 				if (!targetFrame)
 					break;
 				vpKFs.push_back(targetFrame);
@@ -108,16 +112,20 @@ void UVR_SLAM::MapOptimizer::Run() {
 						if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
 							continue;
 						}
-						vpMPs.push_back(pMPi);
-						pMPi->mnLocalBAID = nTargetID;
+						if(vpMPs.size() < 2500){
+							vpMPs.push_back(pMPi);
+							pMPi->mnLocalBAID = nTargetID;
+						}
+						vpMPs2.push_back(pMPi);
 					}
 
 				}
-				if (vpMPs.size() > 2000)
+				if (vpMPs2.size() > 5000)
 					break;
 				//타겟 프레임 변경
 				targetFrame = targetFrame->mpMatchInfo->mpTargetFrame;
 			}
+			
 
 			// Fixed Keyframes. Keyframes that see Local MapPoints but that are not Local Keyframes
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
@@ -174,6 +182,8 @@ void UVR_SLAM::MapOptimizer::Run() {
 			float t1 = du1 / 1000.0;
 			auto du2 = std::chrono::duration_cast<std::chrono::milliseconds>(temp_3 - temp_2).count();
 			float t2 = du2 / 1000.0;*/
+			////Visualizer
+			mpVisualizer->SetMPs(vpMPs2);
 			////preprocessing
 			///////////////////////////////////////////////////////////////
 			

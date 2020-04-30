@@ -10,6 +10,7 @@
 namespace UVR_SLAM {
 	class System;
 	class Frame;
+	class Visualizer;
 	class FrameWindow;
 	class MapPoint;
 	class Map;
@@ -25,6 +26,7 @@ namespace UVR_SLAM {
 		bool isDoingProcess();
 		void Run();
 		void SetSystem(System* pSystem);
+		void SetVisualizer(Visualizer* pVis);
 		void SetFrameWindow(FrameWindow* pFrameWindow);
 	public:
 		bool isStopBA();
@@ -39,6 +41,7 @@ namespace UVR_SLAM {
 		std::mutex mMutexDoingProcess, mMutexNewKFs;
 		bool mbDoingProcess;
 		Frame* mpTargetFrame;
+		Visualizer* mpVisualizer;
 		FrameWindow* mpFrameWindow;
 		Map* mpMap;
 	};
