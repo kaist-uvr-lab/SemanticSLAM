@@ -121,22 +121,22 @@ void UVR_SLAM::MapOptimizer::Run() {
 
 			// Fixed Keyframes. Keyframes that see Local MapPoints but that are not Local Keyframes
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
-			for (int i = 0; i < vpMPs.size(); i++)
-			{
-				UVR_SLAM::MapPoint* pMP = vpMPs[i];
-				auto observations = pMP->GetConnedtedDenseFrames();
-				//map<KeyFrame*, size_t> observations = (*lit)->GetObservations();
-				for (auto mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
-				{
-					UVR_SLAM::Frame* pKFi = mit->first;
+			//for (int i = 0; i < vpMPs.size(); i++)
+			//{
+			//	UVR_SLAM::MapPoint* pMP = vpMPs[i];
+			//	auto observations = pMP->GetConnedtedDenseFrames();
+			//	//map<KeyFrame*, size_t> observations = (*lit)->GetObservations();
+			//	for (auto mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
+			//	{
+			//		UVR_SLAM::Frame* pKFi = mit->first;
 
-					if (pKFi->mnLocalBAID != nTargetID && pKFi->mnFixedBAID != nTargetID)
-					{
-						pKFi->mnFixedBAID = nTargetID;
-						vpFixedKFs.push_back(pKFi);
-					}
-				}
-			}
+			//		if (pKFi->mnLocalBAID != nTargetID && pKFi->mnFixedBAID != nTargetID)
+			//		{
+			//			pKFi->mnFixedBAID = nTargetID;
+			//			vpFixedKFs.push_back(pKFi);
+			//		}
+			//	}
+			//}
 
 			std::cout << "BA::preprocessing::end" << std::endl;
 			Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);

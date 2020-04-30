@@ -37,10 +37,8 @@ namespace UVR_SLAM {
 		bool isDoingProcess();
 		bool isRun();
 	public:
-		void ObjectLabeling();
 		//바닥과 벽에서 노이즈를 조금 걸러내보기 위함.
 		void ImageLabeling(cv::Mat masked, cv::Mat& labeld);
-		void ObjectLabeling(cv::Mat masked, int ratio);
 		void SetSegmentationMask(cv::Mat segmented);
 	private:
 		//std::vector<cv::Vec3b> mVecLabelColors;

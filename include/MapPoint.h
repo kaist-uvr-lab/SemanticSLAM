@@ -17,6 +17,7 @@ namespace UVR_SLAM {
 	};
 
 	class Frame;
+	class MatchInfo;
 	class FrameWindow;
 	class MapPoint {
 	public:
@@ -30,7 +31,7 @@ namespace UVR_SLAM {
 		cv::Mat GetWorldPos();
 		void SetNewMP(bool _b);
 		bool isNewMP();
-		bool isInFrame(Frame* pF);
+		bool isInFrame(MatchInfo* pF);
 
 		void UpdateNormalAndDepth();
 		int PredictScale(const float &currentDist, Frame* pKF);
@@ -58,24 +59,7 @@ namespace UVR_SLAM {
 		float GetMaxDistance();
 		float GetMinDistance();
 		cv::Mat GetNormal();
-
-		//////////////////////프레임과 관련된 것들
-		void AddFrame(UVR_SLAM::Frame* pF, int idx); //index in frame
-		void RemoveFrame(UVR_SLAM::Frame* pKF);
-		int GetIndexInFrame(UVR_SLAM::Frame* pF);
-		std::map<Frame*, int> GetConnedtedFrames();
-		int GetNumConnectedFrames();
-		void Delete();
-		//////////////////////프레임과 관련된 것들
-
-		////////Dense
-		void AddDenseFrame(UVR_SLAM::Frame* pF, cv::Point2f pt); //index in frame
-		void RemoveDenseFrame(UVR_SLAM::Frame* pKF);
-		std::map<Frame*, cv::Point2f> GetConnedtedDenseFrames();
-		int GetNumDensedFrames();
-		void FuseDenseMP(MapPoint* pMP);
-		////////Dense
-
+		
 	public:
 		int mnMapPointID;
 		int mnFirstKeyFrameID;
@@ -93,10 +77,10 @@ namespace UVR_SLAM {
 		bool mbSeen;
 		bool mbNewMP;
 		cv::Mat p3D;
-		int mnConnectedFrames, mnDenseFrames;
+		int mnDenseFrames;
 		
 		cv::Mat desc;
-		std::map<UVR_SLAM::Frame*, int> mmpFrames;
+		
 		std::map<UVR_SLAM::Frame*, cv::Point2f> mmpDenseFrames;
 		std::mutex mMutexFeatures;
 		int mnVisible;
@@ -123,6 +107,19 @@ namespace UVR_SLAM {
 	private:
 		std::mutex mMutexObjectType;
 		ObjectType mObjectType;
+
+		//////////////////////프레임과 관련된 것들
+	public:
+		void AddFrame(UVR_SLAM::MatchInfo* pF, int idx); //index in frame
+		void RemoveFrame(UVR_SLAM::MatchInfo* pKF);
+		std::map<MatchInfo*, int> GetConnedtedFrames();
+		int GetNumConnectedFrames();
+		void Delete();
+	private:
+		std::map<UVR_SLAM::MatchInfo*, int> mmpFrames;
+		int mnConnectedFrames;
+		//////////////////////프레임과 관련된 것들
+
 	};
 }
 

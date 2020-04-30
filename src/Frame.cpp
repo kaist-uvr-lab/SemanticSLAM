@@ -17,40 +17,34 @@ static int nFrameID = 0;
 
 
 UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), 
-mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mnDenseIdx(1), mbMapping(false)
+mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false)
 {
 	matOri = _src.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
 	matFrame.convertTo(matFrame, CV_8UC1);
-	mDenseMap = cv::Mat::zeros(matFrame.size(), CV_32FC3);
-	mDenseIndexMap = cv::Mat::zeros(matFrame.size(), CV_16UC1);
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
 	SetFrameID();
 }
 UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0)
-, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mnDenseIdx(1), mbMapping(false)
+, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
 	matFrame.convertTo(matFrame, CV_8UC1);
-	mDenseMap = cv::Mat::zeros(matFrame.size(), CV_32FC3);
-	mDenseIndexMap = cv::Mat::zeros(matFrame.size(), CV_16UC1);
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
 	SetFrameID();
 }
 
 UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0)
-, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mnDenseIdx(1), mbMapping(false)
+, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
 	matFrame.convertTo(matFrame, CV_8UC1);
-	mDenseMap = cv::Mat::zeros(matFrame.size(), CV_32FC3);
-	mDenseIndexMap = cv::Mat::zeros(matFrame.size(), CV_16UC1);
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
 	SetFrameID();
@@ -181,24 +175,7 @@ cv::Mat UVR_SLAM::Frame::GetOriginalImage() {
 	return matOri.clone();
 }
 
-void UVR_SLAM::Frame::AddMP(UVR_SLAM::MapPoint* pMP, int idx){
-	mvpMPs[idx] = pMP;
-	mvbMPInliers[idx] = true;
-	std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
-	mnInliers++;
-	/*SetMapPoint(pMP, idx);
-	SetBoolInlier(true, idx);
-	Increase();*/
-}
-void UVR_SLAM::Frame::RemoveMP(int idx) {
-	mvpMPs[idx] = nullptr;
-	mvbMPInliers[idx] = false;
-	std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
-	mnInliers--;
-	/*SetMapPoint(nullptr, idx);
-	SetBoolInlier(false, idx);
-	Decrease();*/
-}
+
 
 std::vector<UVR_SLAM::ObjectType> UVR_SLAM::Frame::GetObjectVector() {
 	std::unique_lock<std::mutex> lockMP(mMutexObjectTypes);
@@ -225,11 +202,6 @@ void UVR_SLAM::Frame::SetBoolSegmented(bool b) {
 bool UVR_SLAM::Frame::isSegmented() {
 	std::unique_lock<std::mutex> lockMP(mMutexSegmented);
 	return bSegmented;
-}
-
-std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Frame::GetMapPoints() {
-	std::unique_lock<std::mutex> lockMP(mMutexFrame);
-	return std::vector<UVR_SLAM::MapPoint*>(mvpMPs.begin(), mvpMPs.end());
 }
 
 //UVR_SLAM::MapPoint* UVR_SLAM::Frame::GetMapPoint(int idx) {
@@ -324,39 +296,13 @@ bool UVR_SLAM::Frame::CheckFrameType(unsigned char opt) {
 	return flag == opt;
 }
 
-void  UVR_SLAM::Frame::UpdateMapInfo(bool bOpt) {
-	mTrackedDescriptor = cv::Mat::zeros(0, matDescriptor.rows, matDescriptor.type());
-	mvTrackedIdxs.clear();
-	if (bOpt) {
-		mNotTrackedDescriptor = cv::Mat::zeros(0, matDescriptor.rows, matDescriptor.type());
-		mvNotTrackedIdxs.clear();
-	}
-
-	for (int j = 0; j < mvpMPs.size(); j++) {
-		UVR_SLAM::MapPoint* pMP = mvpMPs[j];
-		bool bMatch = false;
-		if (pMP) {
-			if (!pMP->isDeleted()) {
-				bMatch = true;
-			}
-		}
-		if (bMatch) {
-			mTrackedDescriptor.push_back(matDescriptor.row(j));
-			mvTrackedIdxs.push_back(j);
-		}
-		else if(!bMatch && bOpt){
-			mNotTrackedDescriptor.push_back(matDescriptor.row(j));
-			mvNotTrackedIdxs.push_back(j);
-		}
-	}
-}
-
 int UVR_SLAM::Frame::TrackedMapPoints(int minObservation) {
 	std::unique_lock<std::mutex> lock(mMutexFrame);
 	int nPoints = 0;
 	bool bCheckObs = minObservation>0;
 
-	auto mvpDenseMPs = GetDenseVectors();
+	/*auto mvpDenseMPs = GetDenseVectors();
+
 	for (int i = 0; i < mvpDenseMPs.size(); i++) {
 		MapPoint* pMP = mvpDenseMPs[i];
 		if (pMP) {
@@ -370,7 +316,8 @@ int UVR_SLAM::Frame::TrackedMapPoints(int minObservation) {
 				nPoints++;
 			}
 		}
-	}
+	}*/
+
 	/*for (int i = 0; i < mvpMPs.size(); i++) {
 		MapPoint* pMP = mvpMPs[i];
 		if (pMP) {
@@ -391,7 +338,7 @@ int UVR_SLAM::Frame::TrackedMapPoints(int minObservation) {
 //메디안 뎁스는 neighbor에서 계산함. 이 함수는 변경 가능함.
 bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pTargetKF) {
 
-	cv::Mat Ow1 = pTargetKF->GetCameraCenter();
+	/*cv::Mat Ow1 = pTargetKF->GetCameraCenter();
 	cv::Mat Ow2 = this->GetCameraCenter();
 
 	cv::Mat vBaseline = Ow2 - Ow1;
@@ -406,54 +353,10 @@ bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pTargetKF) {
 
 	if (ratioBaselineDepth<0.01)
 		return false;
-	return true;
+	return true;*/
 }
 
 //두 키프레임의 베이스라인을 계산할 때 이용 됨.
-bool UVR_SLAM::Frame::ComputeSceneMedianDepth(float& fMedianDepth)
-{
-	cv::Mat tempR, tempT;
-	GetPose(tempR, tempT);
-	std::vector<float> vDepths;
-	cv::Mat Rcw2 = tempR.row(2);
-	Rcw2 = Rcw2.t();
-	float zcw = tempT.at<float>(2);
-
-	auto mvpDenseMPs = GetDenseVectors();
-
-	for (int i = 0; i < mvpDenseMPs.size(); i++)
-	{
-		UVR_SLAM::MapPoint* pMP = mvpDenseMPs[i];
-		if (!pMP) {
-			continue;
-		}
-		if (pMP->isDeleted())
-			continue;
-		cv::Mat x3Dw = pMP->GetWorldPos();
-		float z = (float)Rcw2.dot(x3Dw) + zcw;
-		vDepths.push_back(z);
-	}
-	/*for (int i = 0; i < mvKeyPoints.size(); i++)
-	{
-		UVR_SLAM::MapPoint* pMP = mvpMPs[i];
-		if (!pMP) {
-			continue;
-		}
-		if (pMP->isDeleted())
-			continue;
-		cv::Mat x3Dw = pMP->GetWorldPos();
-		float z = (float)Rcw2.dot(x3Dw) + zcw;
-		vDepths.push_back(z);
-	}*/
-	if (vDepths.size() == 0)
-		return false;
-	int nidx = vDepths.size() / 2;
-	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
-	fMedianDepth = vDepths[(nidx) / 2];
-	std::cout << "median depth ::" << fMedianDepth << std::endl;
-	return true;
-}
-
 bool UVR_SLAM::Frame::ComputeSceneMedianDepth(std::vector<UVR_SLAM::MapPoint*> vpMPs, cv::Mat R, cv::Mat t, float& fMedianDepth)
 {
 	std::vector<float> vDepths;
@@ -586,7 +489,7 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 		matDescriptor = cv::Mat::zeros(0, tempDesc.cols, tempDesc.type());
 	}
 	cv::Mat overlap = cv::Mat::zeros(matFrame.size(), CV_8UC1);
-	matKPs = cv::Mat::zeros(matFrame.size(), CV_16UC1);
+	
 	for (int i = 0; i < mvTempKPs.size(); i++) {
 		if (!CheckKeyPointOverlap(overlap, mvTempKPs[i].pt)) {
 			continue;
@@ -594,7 +497,6 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 		mvKeyPoints.push_back(mvTempKPs[i]);
 		matDescriptor.push_back(tempDesc.row(i));
 		//200410 추가
-		matKPs.at<ushort>(mvKeyPoints.size());
 		mvPts.push_back(mvTempKPs[i].pt);
 		//200410 추가
 	}
@@ -869,18 +771,6 @@ void UVR_SLAM::Frame::SetWallParams(std::vector<cv::Mat> vParams){
 }
 
 void UVR_SLAM::Frame::Reset() {
-	mnDenseIdx = 1;
-	mDenseIndexMap = cv::Mat::zeros(matFrame.size(), CV_16UC1);
-	mmpDenseMPs.clear();
-	mvpMatchingMPs.clear();
-	mvMatchingPts.clear();
-	///////
-	mTrackedDescriptor = cv::Mat::zeros(0, matDescriptor.rows, matDescriptor.type());
-	mvTrackedIdxs.clear();
-
-
-	mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
-	mvbMPInliers = std::vector<bool>(mvKeyPoints.size(), false);
 	//mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);
 	mnInliers = 0;
 	mmpConnectedKFs.clear();
@@ -895,80 +785,6 @@ float UVR_SLAM::Frame::CalcDiffZ(UVR_SLAM::Frame* pF) {
 	val = acos(val / (dist1*dist2))*UVR_SLAM::MatrixOperator::rad2deg;
 	return val;
 }
-
-/////////////////////dense
-//pt의 위치 
-UVR_SLAM::MapPoint* UVR_SLAM::Frame::GetDenseMP(cv::Point2f pt) {
-	std::unique_lock<std::mutex>(mMutexDenseMap);
-	//std::cout << pt << std::endl;
-	int idx = mDenseIndexMap.at<ushort>(pt);
-	if (idx == 0) {
-		return nullptr;
-	}
-	else {
-		auto findres = mmpDenseMPs.find(idx);
-		if (findres != mmpDenseMPs.end()) {
-			if (!findres->second)
-				std::cout << "mp::getdensemp::error!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl << std::endl << std::endl << std::endl;
-			if (!mmpDenseMPs[idx])
-				std::cout << "mp::getdensemp::error!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl << std::endl << std::endl << std::endl;
-			return mmpDenseMPs[idx];
-		}
-		std::cout << "frame::getdensemp::error case" << std::endl;
-		return nullptr;
-	}
-}
-	
-
-bool UVR_SLAM::Frame::AddDenseMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt){
-	std::unique_lock<std::mutex>(mMutexDenseMap);
-	int idx = mDenseIndexMap.at<ushort>(pt);
-	bool res = false;
-	if (idx == 0) {
-		mDenseIndexMap.at<ushort>(pt) = mnDenseIdx;
-		mmpDenseMPs[mnDenseIdx++] = pMP;
-		res = true;
-	}
-	return res;
-	/*else {
-		std::cout << "Frame::AddDenseMP::중복" << std::endl;
-	}*/
-}
-bool UVR_SLAM::Frame::RemoveDenseMP(cv::Point2f pt){
-	std::unique_lock<std::mutex>(mMutexDenseMap);
-	int idx = mDenseIndexMap.at<ushort>(pt);
-	bool bres = false;
-	if (idx > 0) {
-		auto res = mmpDenseMPs.find(idx);
-		if (res != mmpDenseMPs.end()){
-			mmpDenseMPs.erase(res);
-			//mmpDenseMPs[idx] = nullptr;
-			mDenseIndexMap.at<ushort>(pt) = 0;
-			bres = true;
-		}
-	}
-	return bres;
-	
-}
-std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Frame::GetDenseVectors(){
-	
-	std::unique_lock<std::mutex>(mMutexDenseMap);
-	/*std::map<int, MapPoint*> obs;
-	{
-		
-		obs = mmpDenseMPs;
-	}*/
-	std::vector<UVR_SLAM::MapPoint*> tempMPs;
-	for (auto iter = mmpDenseMPs.begin(); iter != mmpDenseMPs.end(); iter++) {
-		UVR_SLAM::MapPoint* pMPi = iter->second;
-		if(pMPi && !pMPi->isDeleted()){
-			tempMPs.push_back(pMPi);
-		}
-	}
-	//std::cout <<"dense map::"<< tempMPs.size() << std::endl;
-	return std::vector<UVR_SLAM::MapPoint*>(tempMPs.begin(), tempMPs.end());
-}
-/////////////////////dense
 
 //////////////matchinfo
 UVR_SLAM::MatchInfo::MatchInfo(){}
@@ -1103,9 +919,10 @@ void UVR_SLAM::MatchInfo::Test() {
 		auto pt1 = mvMatchingPts[vIDXs1[i]];
 		auto pt2 = targetInfo->mvMatchingPts[vIDXs2[i]];
 		auto pt3 = targetTargetInfo->mvMatchingPts[vIDXs3[i]];
-		pMP->AddDenseFrame(currFrame, pt1);
-		pMP->AddDenseFrame(targetFrame, pt2);
-		pMP->AddDenseFrame(targettargetFrame, pt3);
+
+		pMP->AddFrame(currFrame->mpMatchInfo, vIDXs1[i]);
+		pMP->AddFrame(targetFrame->mpMatchInfo, vIDXs2[i]);
+		pMP->AddFrame(targettargetFrame->mpMatchInfo, vIDXs3[i]);
 	}
 	std::cout << "lm::create new mp ::" <<vPts1.size()<<", "<< nRes <<" "<<Map.type()<< std::endl;
 }
@@ -1193,4 +1010,16 @@ void UVR_SLAM::MatchInfo::Test(std::string dirPath) {
 	} 
 	std::cout << "test::end" << std::endl;
 }
+
+void UVR_SLAM::MatchInfo::AddMP(UVR_SLAM::MapPoint* pMP, int idx) {
+	mvpMatchingMPs[idx] = pMP;
+	//std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
+	//mnInliers++;
+}
+void UVR_SLAM::MatchInfo::RemoveMP(int idx) {
+	mvpMatchingMPs[idx] = nullptr;
+	//std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
+	//mnInliers--;
+}
+
 //////////////matchinfo

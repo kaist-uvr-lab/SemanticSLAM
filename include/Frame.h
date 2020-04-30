@@ -45,6 +45,8 @@ namespace UVR_SLAM {
 		void AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label = 0);
 		void Test(std::string dirPath);
 		void Test();
+		void AddMP(MapPoint* pMP, int idx);
+		void RemoveMP(int idx);
 	public:
 		UVR_SLAM::Frame* mpTargetFrame, *mpRefFrame, *mpNextFrame;
 		int nMatch;
@@ -93,7 +95,6 @@ void RemoveMP(int idx);*/
 		cv::Mat GetTranslation();
 		void AddMP(UVR_SLAM::MapPoint* pMP, int idx);
 		void RemoveMP(int idx);
-		std::vector<UVR_SLAM::MapPoint*> GetMapPoints();
 		
 		void Reset();
 		float CalcDiffZ(UVR_SLAM::Frame* pF);
@@ -111,7 +112,6 @@ void RemoveMP(int idx);*/
 		bool CheckFrameType(unsigned char opt);
 		int GetFrameID();
 		bool CheckBaseLine(Frame* pTargetKF);
-		bool ComputeSceneMedianDepth(float& fMedianDepth);
 		bool ComputeSceneMedianDepth(std::vector<UVR_SLAM::MapPoint*> vpMPs, cv::Mat R, cv::Mat t, float& fMedianDepth);
 		cv::Mat GetCameraCenter();
 		void SetInliers(int nInliers);
@@ -141,24 +141,8 @@ void RemoveMP(int idx);*/
 		int mnLocalMapFrameID;
 		int mnLocalBAID, mnFixedBAID;
 		int mnFuseFrameID;
+	
 	public:
-		//tracked & non tracked
-		void UpdateMapInfo(bool bOpt = false);
-		cv::Mat mTrackedDescriptor, mNotTrackedDescriptor;
-		std::vector<int> mvTrackedIdxs, mvNotTrackedIdxs;
-	public:
-		//일단 dense map test;
-		std::mutex mMutexDenseMap;
-		cv::Mat mDenseMap, mDenseIndexMap;
-		int mnDenseIdx;
-		std::vector<cv::Mat> mvX3Ds;
-		std::map<int, UVR_SLAM::MapPoint*> mmpDenseMPs;
-		
-		std::vector<UVR_SLAM::MapPoint*> GetDenseVectors();
-		UVR_SLAM::MapPoint* GetDenseMP(cv::Point2f pt);
-		bool AddDenseMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt);
-		bool RemoveDenseMP(cv::Point2f pt);
-		//일단 dense map test;
 
 		///////////////////////////////
 		////200423
@@ -166,18 +150,10 @@ void RemoveMP(int idx);*/
 		////200410
 		////Optical flow를 적용한 방식
 		//이미지 픽셀에 키포인트 순서를 저장.
-		cv::Mat matKPs;
 		std::vector<cv::Point2f> mvPts; //키포인트의 포인트만 별도로 빼냄.
 		//매칭 정보를 저장
-
-		std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs;
-		std::vector<cv::Point2f> mvMatchingPts;
-		std::vector<int> mvMatchingIdxs; //초기 키프레임의 경우 mvPts와 1대1매칭. 이 후 프레임들은 이전 프레임의 매칭 결과를 담아야 함. 사이즈의 크기는 현재 프레임의 mvMatchingPts와 대응 해야 함. 여기안에 담고 있는 정보는 결국 키프레임의 mvPts의 인덱스 정보가 됨.
 		///////////////////////////////
 
-
-		std::vector<UVR_SLAM::MapPoint*> mvpMPs;
-		std::vector<bool> mvbMPInliers;
 		std::vector<cv::KeyPoint> mvKeyPoints, mvKeyPointsUn, mvkInliers, mvTempKPs;
 		cv::Mat matDescriptor;
 		cv::Mat undistorted;

@@ -168,64 +168,64 @@ int UVR_SLAM::FrameWindow::GetLastSemanticFrameIndex() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void UVR_SLAM::FrameWindow::SetLocalMap(int nTargetID) {
 
-	std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
-	while (!mpSystem->mbTrackingEnd){
-		mpSystem->cvUseLocalMap.wait(lock);
-	}
-	mpSystem->mbLocalMapUpdateEnd = false;
+	//std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
+	//while (!mpSystem->mbTrackingEnd){
+	//	mpSystem->cvUseLocalMap.wait(lock);
+	//}
+	//mpSystem->mbLocalMapUpdateEnd = false;
 
-	std::unique_lock<std::mutex>(mMutexLocalMPs);
-	
-	UVR_SLAM::Frame* pLastF = mlpFrames.back();
-	descLocalMap = cv::Mat::zeros(0, pLastF->matDescriptor.cols, pLastF->matDescriptor.type());
-	mvpLocalMPs.clear();
-	mspWallMPs.clear();
-	mspFloorMPs.clear();
-	mspCeilMPs.clear();
-	//SetLastFrameID(nTargetID);
+	//std::unique_lock<std::mutex>(mMutexLocalMPs);
+	//
+	//UVR_SLAM::Frame* pLastF = mlpFrames.back();
+	//descLocalMap = cv::Mat::zeros(0, pLastF->matDescriptor.cols, pLastF->matDescriptor.type());
+	//mvpLocalMPs.clear();
+	//mspWallMPs.clear();
+	//mspFloorMPs.clear();
+	//mspCeilMPs.clear();
+	////SetLastFrameID(nTargetID);
 
-	//20.01.02 deque에서 list로 변경함.
-	for (auto iter = mlpFrames.begin(); iter != mlpFrames.end(); iter++) {
-		UVR_SLAM::Frame* pF = *iter;
-		for (int i = 0; i < pF->mvKeyPoints.size(); i++) {
-			UVR_SLAM::MapPoint *pMP = pF->mvpMPs[i];
-			if (!pMP)
-				continue;
-			if (pMP->isDeleted())
-				continue;
-			
-			////퓨즈에서 다른 프레임과 매칭을 하지 못하면 삭제
-			/*if (pMP->mnFirstKeyFrameID + 3 > nTargetID && pMP->GetMapPointType() == MapPointType::PLANE_MP &&  pMP->GetNumConnectedFrames() == 1){
-				pMP->SetDelete(true);
-				pMP->Delete();
-				continue;
-			}*/
+	////20.01.02 deque에서 list로 변경함.
+	//for (auto iter = mlpFrames.begin(); iter != mlpFrames.end(); iter++) {
+	//	UVR_SLAM::Frame* pF = *iter;
+	//	for (int i = 0; i < pF->mvKeyPoints.size(); i++) {
+	//		UVR_SLAM::MapPoint *pMP = pF->mvpMPs[i];
+	//		if (!pMP)
+	//			continue;
+	//		if (pMP->isDeleted())
+	//			continue;
+	//		
+	//		////퓨즈에서 다른 프레임과 매칭을 하지 못하면 삭제
+	//		/*if (pMP->mnFirstKeyFrameID + 3 > nTargetID && pMP->GetMapPointType() == MapPointType::PLANE_MP &&  pMP->GetNumConnectedFrames() == 1){
+	//			pMP->SetDelete(true);
+	//			pMP->Delete();
+	//			continue;
+	//		}*/
 
-			if (pMP->GetRecentLocalMapID() == nTargetID)
-				continue;
+	//		if (pMP->GetRecentLocalMapID() == nTargetID)
+	//			continue;
 
-			switch (pMP->GetObjectType()) {
-			case  ObjectType::OBJECT_WALL:
-				mspWallMPs.insert(pMP);
-				break;
-			case ObjectType::OBJECT_FLOOR:
-				mspFloorMPs.insert(pMP);
-				break;
-			case ObjectType::OBJECT_CEILING:
-				mspCeilMPs.insert(pMP);
-				break;
-			default:
-				break;
-			}
+	//		switch (pMP->GetObjectType()) {
+	//		case  ObjectType::OBJECT_WALL:
+	//			mspWallMPs.insert(pMP);
+	//			break;
+	//		case ObjectType::OBJECT_FLOOR:
+	//			mspFloorMPs.insert(pMP);
+	//			break;
+	//		case ObjectType::OBJECT_CEILING:
+	//			mspCeilMPs.insert(pMP);
+	//			break;
+	//		default:
+	//			break;
+	//		}
 
-			mvpLocalMPs.push_back(pMP);
-			descLocalMap.push_back(pMP->GetDescriptor());
-			pMP->SetRecentLocalMapID(nTargetID);
-			
-		}
-	}
-	mpSystem->mbLocalMapUpdateEnd = true;
-	mpSystem->cvUseLocalMap.notify_one();
+	//		mvpLocalMPs.push_back(pMP);
+	//		descLocalMap.push_back(pMP->GetDescriptor());
+	//		pMP->SetRecentLocalMapID(nTargetID);
+	//		
+	//	}
+	//}
+	//mpSystem->mbLocalMapUpdateEnd = true;
+	//mpSystem->cvUseLocalMap.notify_one();
 	
 }
 ////Planar MapPoint도 즉각적으로 추가하기 위함.

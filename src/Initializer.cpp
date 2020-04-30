@@ -39,10 +39,6 @@ void UVR_SLAM::Initializer::Reset() {
 	mbInit = false;
 
 	mpTempFrame = mpInitFrame1;
-	mpTempFrame->mvMatchingPts = mpInitFrame1->mvPts;
-	for (int i = 0; i < mpInitFrame1->mvPts.size(); i++) {
-		mpTempFrame->mvMatchingIdxs.push_back(i);
-	}
 }
 
 
@@ -369,14 +365,17 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			UVR_SLAM::MapPoint* pNewMP = tempMPs[i];
 			auto pt1 = vTempMappedPts1[i];
 			auto pt2 = vTempMappedPts2[i];
-			pNewMP->AddDenseFrame(mpInitFrame1, pt1);
-			pNewMP->AddDenseFrame(mpInitFrame2, pt2);
+			pNewMP->AddFrame(mpInitFrame1->mpMatchInfo, i);
+			pNewMP->AddFrame(mpInitFrame2->mpMatchInfo, vTempMappedIDXs[i]);
+			//mpInitFrame2->mpMatchInfo->mvpMatchingMPs[vTempMappedIDXs[i]] = pNewMP;
+			//pNewMP->AddDenseFrame(mpInitFrame1, pt1);
+			//pNewMP->AddDenseFrame(mpInitFrame2, pt2);
 			pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
 			pNewMP->IncreaseVisible(2);
 			pNewMP->IncreaseFound(2);
 			mpSystem->mlpNewMPs.push_back(pNewMP);
 
-			mpInitFrame2->mpMatchInfo->mvpMatchingMPs[vTempMappedIDXs[i]] = pNewMP;
+			
 			//mpInitFrame2->mpMatchInfo->mvnMatchingMPIDXs.push_back(vTempMappedIDXs[i]);
 		}
 
@@ -505,7 +504,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		////호모그래피 시각화
 		
 		std::stringstream ss;
-		ss << "Optical flow init= " << nTest <<", "<<"||"<< nSegID <<", "<<mpInitFrame2->GetFrameID()<<"::"<<mpInitFrame2->mvMatchingPts.size() << ", "<<tttt;
+		ss << "Optical flow init= " << nTest <<", "<<"||"<< nSegID <<", "<<mpInitFrame2->GetFrameID()<<"::"<<mpInitFrame2->mpMatchInfo->mvMatchingPts.size() << ", "<<tttt;
 		cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 		cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 		imshow("Init::OpticalFlow ", debugging);

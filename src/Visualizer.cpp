@@ -220,26 +220,26 @@ void UVR_SLAM::Visualizer::Run() {
 			cv::Scalar color2 = cv::Scalar(0, 255, 0);
 			cv::Scalar color3 = cv::Scalar(0, 0, 0);
 
-			//////////////////////////////////////////////////////////////////////////////
-			/////////////전체 포인트 출력
-			auto mvpGlobalFrames = mpMap->GetFrames();
-			for (int i = 0; i < mvpGlobalFrames.size(); i++) {
-				UVR_SLAM::Frame* pF = mvpGlobalFrames[i];
-				auto mvpMPs = pF->GetMapPoints();
-				for (int j = 0; j < mvpMPs.size(); j++) {
-					UVR_SLAM::MapPoint* pMP = mvpMPs[j];
-					if (!pMP)
-						continue;
-					if (pMP->isDeleted())
-						continue;
-					cv::Mat x3D = pMP->GetWorldPos();
-					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
-					tpt += mVisMidPt;
-					cv::circle(tempVis, tpt, 2,cv::Scalar(0,0,0), -1);
-				}
-			}
-			/////////////전체 포인트 출력
-			//////////////////////////////////////////////////////////////////////////////
+			////////////////////////////////////////////////////////////////////////////////
+			///////////////전체 포인트 출력
+			//auto mvpGlobalFrames = mpMap->GetFrames();
+			//for (int i = 0; i < mvpGlobalFrames.size(); i++) {
+			//	UVR_SLAM::Frame* pF = mvpGlobalFrames[i];
+			//	auto mvpMPs = pF->GetMapPoints();
+			//	for (int j = 0; j < mvpMPs.size(); j++) {
+			//		UVR_SLAM::MapPoint* pMP = mvpMPs[j];
+			//		if (!pMP)
+			//			continue;
+			//		if (pMP->isDeleted())
+			//			continue;
+			//		cv::Mat x3D = pMP->GetWorldPos();
+			//		cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+			//		tpt += mVisMidPt;
+			//		cv::circle(tempVis, tpt, 2,cv::Scalar(0,0,0), -1);
+			//	}
+			//}
+			///////////////전체 포인트 출력
+			////////////////////////////////////////////////////////////////////////////////
 
 			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 			//local map
@@ -361,39 +361,40 @@ void UVR_SLAM::Visualizer::Run() {
 					cv::circle(tempVis, tpt, 2, color, -1);
 				}
 
-			auto vpFrameMPs = GetMPs();
-			for (int i = 0; i < vpFrameMPs.size(); i++) {
-				UVR_SLAM::MapPoint* pMP = vpFrameMPs[i];
-				if (!pMP)
-					continue;
-				if (pMP->isDeleted())
-					continue;
-				cv::Mat x3D = pMP->GetWorldPos();
-				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
-				tpt += mVisMidPt;
+			//auto vpFrameMPs = GetMPs();
+			//for (int i = 0; i < vpFrameMPs.size(); i++) {
+			//	UVR_SLAM::MapPoint* pMP = vpFrameMPs[i];
+			//	if (!pMP)
+			//		continue;
+			//	if (pMP->isDeleted())
+			//		continue;
+			//	cv::Mat x3D = pMP->GetWorldPos();
+			//	cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+			//	tpt += mVisMidPt;
 
-				/*if (pMP->GetNumConnectedFrames() == 1 && mvpWindowFrames[0]->GetKeyFrameID() == pMP->mnFirstKeyFrameID) {
-					cv::circle(tempVis, tpt, 4, cv::Scalar(0, 255, 255), -1);
-				}*/
+			//	/*if (pMP->GetNumConnectedFrames() == 1 && mvpWindowFrames[0]->GetKeyFrameID() == pMP->mnFirstKeyFrameID) {
+			//		cv::circle(tempVis, tpt, 4, cv::Scalar(0, 255, 255), -1);
+			//	}*/
 
-				if (pMP->GetMapPointType() == UVR_SLAM::PLANE_DENSE_MP){
-					if(pMP->GetPlaneID() > 0){
-						if(pMP->GetNumDensedFrames() > 2)
-							cv::circle(tempVis, tpt, 2, cv::Scalar(255, 0, 255), -1);
-						else {
-							cv::circle(tempVis, tpt, 2, cv::Scalar(255, 255, 0), -1);
-						}
-					}
-					else
-						cv::circle(tempVis, tpt, 2, cv::Scalar(0, 255, 255), -1);
-				}
-				else
-					cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
-				//cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
-				/*if (pMP->GetRecentLayoutFrameID() == nRecentLayoutFrameID) {
-					cv::circle(tempVis, tpt, 4, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()]/2, 2);
-				}*/
-			}
+			//	if (pMP->GetMapPointType() == UVR_SLAM::PLANE_DENSE_MP){
+			//		if(pMP->GetPlaneID() > 0){
+			//			if(pMP->GetNumDensedFrames() > 2)
+			//				cv::circle(tempVis, tpt, 2, cv::Scalar(255, 0, 255), -1);
+			//			else {
+			//				cv::circle(tempVis, tpt, 2, cv::Scalar(255, 255, 0), -1);
+			//			}
+			//		}
+			//		else
+			//			cv::circle(tempVis, tpt, 2, cv::Scalar(0, 255, 255), -1);
+			//	}
+			//	else
+			//		cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
+
+			//	//cv::circle(tempVis, tpt, 2, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()], -1);
+			//	/*if (pMP->GetRecentLayoutFrameID() == nRecentLayoutFrameID) {
+			//		cv::circle(tempVis, tpt, 4, ObjectColors::mvObjectLabelColors[pMP->GetObjectType()]/2, 2);
+			//	}*/
+			//}
 
 			//save map
 			//mpSystem->GetDirPath(mpMap->GetCurrFrame()->GetKeyFrameID());
@@ -437,98 +438,6 @@ void UVR_SLAM::Visualizer::SetFrameMatching(Frame* pF1, Frame* pF2, std::vector<
 	mbFrameMatching = true;
 }
 
-void UVR_SLAM::Visualizer::VisualizeTracking() {
-	//일단 테스트
-
-	
-	cv::Mat vis = mpMatchingFrame2->GetOriginalImage();
-	//cvtColor(vis, vis, CV_RGBA2BGR);
-	vis.convertTo(vis, CV_8UC3);
-
-
-
-	for (int i = 0; i < mpMatchingFrame2->mvKeyPoints.size(); i++) {
-		if (!mpMatchingFrame2->mvbMPInliers[i])
-			continue;
-		UVR_SLAM::MapPoint* pMP = mpMatchingFrame2->mvpMPs[i];
-		cv::circle(vis, mpMatchingFrame2->mvKeyPoints[i].pt, 1, cv::Scalar(255, 0, 255), -1);
-		if (pMP) {
-			if (pMP->isDeleted()) {
-				mpMatchingFrame2->mvbMPInliers[i] = false;
-				continue;
-			}
-			cv::Point2f p2D;
-			cv::Mat pCam;
-			pMP->Projection(p2D, pCam, mpMatchingFrame2->GetRotation(), mpMatchingFrame2->GetTranslation(), mpMatchingFrame2->mK, mnWidth, mnHeight);
-			UVR_SLAM::ObjectType type = pMP->GetObjectType();
-			cv::line(vis, p2D, mpMatchingFrame2->mvKeyPoints[i].pt, cv::Scalar(255, 255, 0), 1);
-			if (type != OBJECT_NONE)
-				circle(vis, p2D, 3, UVR_SLAM::ObjectColors::mvObjectLabelColors[type], -1);
-			if (pMP->GetPlaneID() > 0) {
-				circle(vis, p2D, 4, cv::Scalar(255, 0, 255), -1);
-			}
-		}
-	}
-
-	
-	auto mvpOPs = mpMatchingFrame2->GetObjectVector();
-	cv::Mat vis2 = mpMatchingFrame2->GetOriginalImage();
-	for (int i = 0; i < mpMatchingFrame2->mvKeyPoints.size(); i++) {
-		UVR_SLAM::ObjectType type = mvpOPs[i];
-		if (type != OBJECT_NONE)
-			circle(vis2, mpMatchingFrame2->mvKeyPoints[i].pt, 2, ObjectColors::mvObjectLabelColors[type], -1);
-	}
-	cv::imshow("Output::Tracking", vis);
-	cv::imshow("Output::Matching::SemanticFrame", vis2);
-	cv::waitKey(1);
-
-	std::stringstream ss;
-	ss << "../../bin/segmentation/res/img/img_" << mpMatchingFrame2->GetFrameID() << ".jpg";
-	cv::imwrite(ss.str(), vis);
-	cv::imwrite("../../bin/segmentation/res/labeling.jpg", vis2);
-}
-
-void UVR_SLAM::Visualizer::VisualizeFrameMatching() {
-
-	int nLastSIdx = mpFrameWindow->GetLastSemanticFrameIndex();
-	int nLastKIdx = mpFrameWindow->size()-1;
-	int nLastSFrameIdx = 0;
-	int nLastKFrameIdx = 0;
-	if(nLastSIdx >=0)
-		nLastSFrameIdx = mpFrameWindow->GetFrame(nLastSIdx)->GetFrameID();
-	if (nLastKIdx >= 0)
-		nLastKFrameIdx = mpFrameWindow->GetFrame(nLastKIdx)->GetFrameID();
-
-	cv::Mat img1 = mpMatchingFrame1->GetOriginalImage();
-	cv::Mat img2 = mpMatchingFrame2->GetOriginalImage();
-	cv::Point2f ptBottom = cv::Point2f(0, img1.rows);
-
-	cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
-	cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
-	cv::Mat debugging = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
-	img1.copyTo(debugging(mergeRect1));
-	img2.copyTo(debugging(mergeRect2));
-
-	/*for (int i = 0; i < mpMatchingFrame1->mvKeyPoints.size(); i++) {
-		cv::circle(debugging, mpMatchingFrame1->mvKeyPoints[i].pt, 1, cv::Scalar(255, 255, 0), -1);
-	}
-	for (int i = 0; i < mpMatchingFrame2->mvKeyPoints.size(); i++) {
-		cv::circle(debugging, mpMatchingFrame2->mvKeyPoints[i].pt+ ptBottom, 1, cv::Scalar(255, 255, 0), -1);
-	}*/
-	for (int i = 0; i < mvMatchInfos.size(); i++) {
-		if(mpMatchingFrame2->mvbMPInliers[mvMatchInfos[i].trainIdx])
-			cv::line(debugging, mpMatchingFrame1->mvKeyPoints[mvMatchInfos[i].queryIdx].pt, mpMatchingFrame2->mvKeyPoints[mvMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 0, 255));
-		else
-			cv::line(debugging, mpMatchingFrame1->mvKeyPoints[mvMatchInfos[i].queryIdx].pt, mpMatchingFrame2->mvKeyPoints[mvMatchInfos[i].trainIdx].pt + ptBottom, cv::Scalar(255, 255, 0));
-	}
-	std::stringstream ss;
-	ss <<"FID = "<< mpMatchingFrame2->GetFrameID()<<", KID = "<<nLastKFrameIdx<<", SID = "<<nLastSFrameIdx<<" ||"<< "Matching = " << mvMatchInfos.size()<<" || MPs = "<<mpMatchingFrame2->GetInliers();
-	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(img1.cols, 30), cv::Scalar::all(0), -1);
-	cv::putText(debugging, ss.str(), cv::Point2f(0,20), mnFontFace, mfFontScale, cv::Scalar::all(255));
-
-	cv::imshow("Test::Matching::Frame", debugging);
-	mbFrameMatching = false;
-}
 void UVR_SLAM::Visualizer::SetMPs(std::vector<UVR_SLAM::MapPoint*> vpMPs){
 	std::unique_lock<std::mutex> lock(mMutexFrameMPs);
 	mvpFrameMPs = std::vector<UVR_SLAM::MapPoint*>(vpMPs.begin(), vpMPs.end());
