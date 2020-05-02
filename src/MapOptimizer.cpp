@@ -98,7 +98,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			mpTargetFrame->mnLocalBAID = nTargetID;
 			std::cout << "BA::preprocessing::start" << std::endl;
 			std::chrono::high_resolution_clock::time_point temp_1 = std::chrono::high_resolution_clock::now();
-			std::vector<UVR_SLAM::MapPoint*> vpMPs, vpMPs2;
+			std::vector<UVR_SLAM::MapPoint*> vpMPs;// , vpMPs2;
 			std::vector<UVR_SLAM::Frame*> vpKFs;
 			for (int k = 0; k < 30; k++) {
 				if (!targetFrame)
@@ -112,15 +112,17 @@ void UVR_SLAM::MapOptimizer::Run() {
 						if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
 							continue;
 						}
-						if(vpMPs.size() < 2500){
+						/*if(vpMPs.size() < 2500){
 							vpMPs.push_back(pMPi);
 							pMPi->mnLocalBAID = nTargetID;
 						}
-						vpMPs2.push_back(pMPi);
+						vpMPs2.push_back(pMPi);*/
+						vpMPs.push_back(pMPi);
+						pMPi->mnLocalBAID = nTargetID;
 					}
 
 				}
-				if (vpMPs2.size() > 5000)
+				if (vpMPs.size() > 2000)
 					break;
 				//타겟 프레임 변경
 				targetFrame = targetFrame->mpMatchInfo->mpTargetFrame;
@@ -183,7 +185,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			auto du2 = std::chrono::duration_cast<std::chrono::milliseconds>(temp_3 - temp_2).count();
 			float t2 = du2 / 1000.0;*/
 			////Visualizer
-			mpVisualizer->SetMPs(vpMPs2);
+			//mpVisualizer->SetMPs(vpMPs2);
 			////preprocessing
 			///////////////////////////////////////////////////////////////
 			

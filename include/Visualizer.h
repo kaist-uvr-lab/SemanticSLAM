@@ -65,14 +65,15 @@ namespace UVR_SLAM {
 		std::mutex mMutexScale;
 	//local tracknig results
 	public:
-		void SetMPs(std::vector<UVR_SLAM::MapPoint*> vpMPs);
-		std::vector<UVR_SLAM::MapPoint*> GetMPs();
+		void SetMPs(std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<int> vnLabels);
+		void GetMPs(std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<int>& vnLabels);
 		void SetMatchInfo(MatchInfo* pMatch);
 		MatchInfo* GetMatchInfo();
 		MatchInfo* mpMatchInfo;
 	private:
 		std::mutex mMutexFrameMPs;
 		std::vector<UVR_SLAM::MapPoint*> mvpFrameMPs;
+		std::vector<int> mvnLabels;
 	};
 }
 #endif

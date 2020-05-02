@@ -16,6 +16,7 @@ namespace UVR_SLAM {
 	class System;
 	class Map;
 	class MapOptimizer;
+	class Visualizer;
 	class LocalMapper {
 	public:
 		LocalMapper();
@@ -30,6 +31,7 @@ namespace UVR_SLAM {
 		void SetFrameWindow(FrameWindow* pFrameWindow);
 		void SetMatcher(Matcher* pMatcher);
 		void SetMapOptimizer(MapOptimizer* pMapOptimizer);
+		void SetVisualizer(Visualizer* pVis);
 		////////////////
 		void InsertKeyFrame(UVR_SLAM::Frame *pKF);
 		//void InterruptLocalMapping();
@@ -75,6 +77,7 @@ namespace UVR_SLAM {
 		Map* mpMap;
 		MapOptimizer* mpMapOptimizer;
 		PlaneEstimator* mpPlaneEstimator;
+		Visualizer* mpVisualizer;
 		FrameWindow* mpFrameWindow;
 		Frame* mpTargetFrame, *mpPrevKeyFrame, *mpPPrevKeyFrame;
 		Matcher* mpMatcher;

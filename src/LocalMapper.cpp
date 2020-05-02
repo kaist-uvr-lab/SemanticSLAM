@@ -7,6 +7,7 @@
 #include <Matcher.h>
 #include <Optimization.h>
 #include <PlaneEstimator.h>
+#include <Visualizer.h>
 #include <MapOptimizer.h>
 #include <SemanticSegmentator.h>
 #include <opencv2/core/mat.hpp>
@@ -26,7 +27,10 @@ void UVR_SLAM::LocalMapper::SetSystem(System* pSystem) {
 void UVR_SLAM::LocalMapper::SetMapOptimizer(MapOptimizer* pMapOptimizer) {
 	mpMapOptimizer = pMapOptimizer;
 }
-
+void UVR_SLAM::LocalMapper::SetVisualizer(Visualizer* pVis)
+{
+	mpVisualizer = pVis;
+}
 void UVR_SLAM::LocalMapper::InsertKeyFrame(UVR_SLAM::Frame *pKF)
 {
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
@@ -118,10 +122,89 @@ void UVR_SLAM::LocalMapper::Run() {
 					//pMPi->AddDenseFrame(mpTargetFrame, pt);
 				}
 			}
+			//mpMap->AddFrame(mpTargetFrame);
 			//////////////업데이트 맵포인트
+
 			std::stringstream ssdir;
 			ssdir << mpSystem->GetDirPath(0) << "/kfmatching";// << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevFrame->GetKeyFrameID() << ".jpg";
 			mpTargetFrame->mpMatchInfo->Test();
+
+			/////////////////Fuse Map Points
+			auto refMatch = matchInfo;
+			auto target = matchInfo->mpTargetFrame;
+			auto ref = mpTargetFrame;
+			auto base = mpTargetFrame;
+			std::vector<int> vRefIDXs;// = ref->mpMatchInfo->mvnTargetMatchingPtIDXs;
+			std::vector<cv::Point2f> vRefPts;// = ref->mpMatchInfo->mvMatchingPts;
+			std::vector<UVR_SLAM::MapPoint*> vRefMPs;
+
+			//매칭이 존재하는 포인트를 저장
+			for (int i = 0; i < ref->mpMatchInfo->mvnTargetMatchingPtIDXs.size(); i++) {
+				if (!ref->mpMatchInfo->mvpMatchingMPs[i])
+					continue;
+				vRefIDXs.push_back(ref->mpMatchInfo->mvnTargetMatchingPtIDXs[i]);
+				vRefPts.push_back(ref->mpMatchInfo->mvMatchingPts[i]);
+				vRefMPs.push_back(ref->mpMatchInfo->mvpMatchingMPs[i]);
+			}
+			int nMatch = vRefPts.size();
+			int nTotalTest = 0;
+			while (target && nMatch > 50)
+				//while (target && nRes > 100)
+			{
+				auto refMatchInfo = ref->mpMatchInfo;
+				auto targetMatchInfo = target->mpMatchInfo;
+				std::vector<cv::Point2f> tempPts;
+				std::vector<int> tempIDXs;
+				std::vector<UVR_SLAM::MapPoint*> tempMPs;
+
+				int n = targetMatchInfo->nMatch;
+				//////////포인트 매칭
+				//새로 생기기 전이고 mp가 없으면 연결
+				for (int i = 0; i < vRefIDXs.size(); i++) {
+					int baseIDX = vRefIDXs[i]; //base의 pt
+					int targetIDX = targetMatchInfo->mvnMatchingPtIDXs[baseIDX];
+
+					auto pt1 = vRefPts[i];
+					auto pMP1 = vRefMPs[i];
+					if (targetIDX < n)
+						continue;
+					auto pMP2 = targetMatchInfo->mvpMatchingMPs[targetIDX];
+
+					//auto pt2 = targetMatchInfo->mvMatchingPts[targetIDX];
+					//cv::line(debugging, pt1, pt2, cv::Scalar(255, 255, 0), 1);
+
+					////여기서 MP 확인 후 ID가 다르면 교체.
+					////N이 작아야 이전 프레임으로 이동 가능함.
+					if (pMP2 && !pMP2->isDeleted()) {
+						int id1 = pMP1->mnMapPointID;
+						int id2 = pMP2->mnMapPointID;
+						if(id1 != id2){
+							std::cout <<"fUSE ::"<< pMP1->mnMapPointID << ", " << pMP2->mnMapPointID << std::endl;
+							nTotalTest++;
+						}
+						int idx = targetMatchInfo->mvnTargetMatchingPtIDXs[targetIDX];
+						tempIDXs.push_back(idx);
+						tempPts.push_back(pt1);
+						tempMPs.push_back(pMP1);
+					}
+					/*if (!targetMatchInfo->mvpMatchingMPs[targetIDX] && targetIDX < n) {
+					int idx = targetMatchInfo->mvnTargetMatchingPtIDXs[targetIDX];
+					tempIDXs.push_back(idx);
+					tempPts.push_back(pt1);
+					}
+					else if (targetIDX >= n) {
+					}*/
+				}
+				//update
+				vRefPts = tempPts;
+				vRefIDXs = tempIDXs;
+				vRefMPs = tempMPs;
+				ref = target;
+				target = target->mpMatchInfo->mpTargetFrame;
+				nMatch = vRefIDXs.size();
+			}
+
+			/////////////////Fuse Map Points
 
 			std::chrono::high_resolution_clock::time_point ba_start = std::chrono::high_resolution_clock::now();
 			if (mpMapOptimizer->isDoingProcess()) {
@@ -133,6 +216,37 @@ void UVR_SLAM::LocalMapper::Run() {
 				mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
 			}
 			
+			//////////////////////////////////////////
+			//////
+			auto targetFrame = mpTargetFrame;
+			///////////////////////////////////////////////////////////////
+			////preprocessing
+			int nTargetID = mpTargetFrame->GetFrameID();
+			mpTargetFrame->mnLocalBAID = nTargetID;
+			std::vector<UVR_SLAM::MapPoint*> vpMPs;
+			std::vector<int> vnLabels;
+			//for (int k = 0; k < 30; k++) {
+			while(targetFrame){				
+				if (!targetFrame)
+					break;
+				auto matchInfo = targetFrame->mpMatchInfo;
+				for (int i = 0; i < matchInfo->mvpMatchingMPs.size(); i++) {
+					auto pMPi = matchInfo->mvpMatchingMPs[i];
+					auto label = matchInfo->mvObjectLabels[i];
+					if (!pMPi || pMPi->isDeleted() || pMPi->GetRecentLocalMapID() == nTargetID) {
+						continue;
+					}
+					pMPi->SetRecentLocalMapID(nTargetID);
+					vpMPs.push_back(pMPi);
+					vnLabels.push_back(label);
+				}
+				//타겟 프레임 변경
+				targetFrame = targetFrame->mpMatchInfo->mpTargetFrame;
+			}
+			mpVisualizer->SetMPs(vpMPs, vnLabels);
+			//////
+			///////////////////////////////////////////////
+
 			//mpTargetFrame->mpMatchInfo->Test(ssdir.str());
 
 			//if ( mpPPrevKeyFrame && mpSystem->isInitialized()) {
@@ -164,7 +278,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			float t_test1 = du_test1 / 1000.0;
 			auto du_test2 = std::chrono::duration_cast<std::chrono::milliseconds>(lm_end - ba_start).count();
 			float t_test2 = du_test2 / 1000.0;
-			mpSystem->SetLocalMappingTime(t_test1, t_test2);
+			mpSystem->SetLocalMappingTime(t_test1, nTotalTest);
 
 			std::cout << "lm::end" << std::endl;
 			SetDoingProcess(false);
