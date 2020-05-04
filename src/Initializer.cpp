@@ -311,27 +311,26 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}*/
 		//////////세그멘테이션 대기
 
-		/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
-		////파라메터
-		//평면에 해당하는 맵포인트와 해당되는 포인트를 저장함.
-		std::vector<UVR_SLAM::MapPoint*> mvpFloorMPs;
-		std::vector<cv::Point2f> vTempFloorPts; //호모 그래피를 이용할 경우 사용
-
-		for (int i = 0; i < tempMPs.size(); i++) {
-			auto pt1 = vTempMappedPts1[i];
-			//auto pt2 = vTempMappedPts2[i];
-			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
-			
-			if (label1 == 150) {
-				mvpFloorMPs.push_back(tempMPs[i]);
-				//vTempFloorPts.push_back(pt2);
-			}
-			
-		}
-		/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
+		
 
 		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//////////////////////////////////////////////////////////평면 관련 기능들
+		/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
+		//std::vector<UVR_SLAM::MapPoint*> mvpFloorMPs;
+		//std::vector<cv::Point2f> vTempFloorPts; //호모 그래피를 이용할 경우 사용
+
+		//for (int i = 0; i < tempMPs.size(); i++) {
+		//	auto pt1 = vTempMappedPts1[i];
+		//	//auto pt2 = vTempMappedPts2[i];
+		//	int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
+
+		//	if (label1 == 150) {
+		//		mvpFloorMPs.push_back(tempMPs[i]);
+		//		//vTempFloorPts.push_back(pt2);
+		//	}
+
+		//}
+		/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
 		/////////////////////////////평면 초기화
 		//UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
 		//bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.4);
