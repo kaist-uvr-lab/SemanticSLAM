@@ -57,6 +57,13 @@ namespace UVR_SLAM {
 		float norm;
 		cv::Mat matPlaneParam;
 	public:
+		////
+		//단일 포인트에 대해서 평면을 생성하는 경우
+		//트래킹 도중에 생성이 가능함.
+		//이걸 제대로 동작하는지 확인하려면 match와 ratio를 이용하던가 하면 됨.
+		static cv::Mat CreatePlanarMapPoint(cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK);
+		////
+
 		float CalcOverlapMPs(PlaneInformation* p, int nID);
 		void Merge(PlaneInformation* p, int nID, float thresh);
 
@@ -74,7 +81,7 @@ namespace UVR_SLAM {
 		static cv::Mat PlaneWallEstimator(Line* line, cv::Mat normal1, cv::Mat invP, cv::Mat invT, cv::Mat invK);
 		static cv::Mat PlaneWallEstimator(cv::Vec4i line, cv::Mat normal1, cv::Mat invP, cv::Mat invT, cv::Mat invK);
 		static cv::Mat PlaneWallEstimator(UVR_SLAM::Frame* pCurrF, UVR_SLAM::Frame* pTargetF);
-		static cv::Mat CreatePlanarMapPoint(cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK);
+		
 		static cv::Mat FlukerLineProjection(cv::Mat P1, cv::Mat P2, cv::Mat R, cv::Mat t, cv::Mat K, float& m);
 		static void CalcFlukerLinePoints(cv::Point2f& sPt, cv::Point2f& ePt, float f1, float f2, cv::Mat mLine);
 		static cv::Point2f CalcLinePoint(float y, cv::Mat mLine);

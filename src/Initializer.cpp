@@ -315,52 +315,85 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		////파라메터
 		//평면에 해당하는 맵포인트와 해당되는 포인트를 저장함.
 		std::vector<UVR_SLAM::MapPoint*> mvpFloorMPs;
-		std::vector<cv::Point2f> vTempFloorPts;
+		std::vector<cv::Point2f> vTempFloorPts; //호모 그래피를 이용할 경우 사용
 
 		for (int i = 0; i < tempMPs.size(); i++) {
 			auto pt1 = vTempMappedPts1[i];
-			auto pt2 = vTempMappedPts2[i];
+			//auto pt2 = vTempMappedPts2[i];
 			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
-			/*int label2 = mpInitFrame2->matLabeled.at<uchar>(pt2.y / 2, pt2.x / 2);
-			if (label1 != label2)
-				continue;*/
+			
 			if (label1 == 150) {
 				mvpFloorMPs.push_back(tempMPs[i]);
-				vTempFloorPts.push_back(pt2);
+				//vTempFloorPts.push_back(pt2);
 			}
-			/*else if (label1 == 255) {
-				vWallPts1.push_back(pt1);
-				vWallPts2.push_back(pt2);
-			}*/
+			
 		}
 		/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
 
-		///////////////////////////평면 초기화
-		UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
-		bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.4);
-		cv::Mat param = pFloor->GetParam();
-		if (!bRes || abs(param.at<float>(1)) < 0.98)//98
-		{
-			mpTempFrame = mpInitFrame2;
-			return mbInit;
-		}
-		///////////////////////////평면 초기화
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		//////////////////////////////////////////////////////////평면 관련 기능들
+		/////////////////////////////평면 초기화
+		//UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
+		//bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.4);
+		//cv::Mat param = pFloor->GetParam();
+		//if (!bRes || abs(param.at<float>(1)) < 0.98)//98
+		//{
+		//	mpTempFrame = mpInitFrame2;
+		//	return mbInit;
+		//}
+		/////////////////////////////평면 초기화
 
-		///////////////////////////평면 정보 생성
-		////초기 평면 MP 설정 필요
-		mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
-		mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
-		cv::Mat invP, invT, invK;
-		mpInitFrame2->mpPlaneInformation->Calculate();
-		mpInitFrame2->mpPlaneInformation->GetInformation(invP, invT, invK);
-		///////////////////////////평면 정보 생성
+		/////////////////////////////평면 정보 생성
+		//////초기 평면 MP 설정 필요
+		//mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
+		//mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
+		//cv::Mat invP, invT, invK;
+		//mpInitFrame2->mpPlaneInformation->Calculate();
+		//mpInitFrame2->mpPlaneInformation->GetInformation(invP, invT, invK);
+		/////////////////////////////평면 정보 생성
+
+		/////////////////////////////평면 정보를 이용한 alignment
+		////cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(param).clone();
+		////cv::Mat normal;
+		////float dist;
+		////pFloor->GetParam(normal, dist);
+		////cv::Mat tempP = Rcw.t()*normal;
+		////if (tempP.at<float>(0) < 0.00001)
+		////	tempP.at<float>(0) = 0.0;
+		////if (tempP.at<float>(2) < 0.00001)
+		////	tempP.at<float>(2) = 0.0;
+
+		//////전체 맵포인트 변환
+		////for (int i = 0; i < tempMPs.size(); i++) {
+		////	UVR_SLAM::MapPoint* pMP = tempMPs[i];
+		////	/*if (!pMP)
+		////		continue;
+		////	if (pMP->isDeleted())
+		////		continue;*/
+		////	cv::Mat tempX = Rcw.t()*pMP->GetWorldPos();
+		////	pMP->SetWorldPos(tempX);
+		////}
+		//////평면 파라메터 변환
+		////pFloor->SetParam(tempP, dist);
+		/////////////////////////////평면 정보를 이용한 alignment
+		//std::cout << mpMap->mpFirstKeyFrame->mpPlaneInformation->GetFloorPlane()->GetParam() << std::endl << std::endl << std::endl;
+		//////////////////////////////////////////////////////////평면 관련 기능들
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		
 
 		//////////////////////////키프레임 생성
 		mpInitFrame2->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
+		//////////카메라 자세 변환 안하는 경우
 		mpInitFrame1->SetPose(cv::Mat::eye(3,3,CV_32FC1), cv::Mat::zeros(3,1,CV_32FC1));
 		mpInitFrame2->SetPose(R1, t1); //두번째 프레임은 median depth로 변경해야 함.
+		//////////카메라 자세 변환 안하는 경우
+		//////////카메라 자세 변환 하는 경우
+		//mpInitFrame1->SetPose(cv::Mat::eye(3, 3, CV_32FC1)*Rcw, cv::Mat::zeros(3, 1, CV_32FC1));
+		//mpInitFrame2->SetPose(R1*Rcw, t1); //두번째 프레임은 median depth로 변경해야 함.
+		//////////카메라 자세 변환 하는 경우
 		mpInitFrame1->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME, 0);
 		mpInitFrame2->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+		//맵포인트 정보 설정
 		for (int i = 0; i < tempMPs.size(); i++) {
 			UVR_SLAM::MapPoint* pNewMP = tempMPs[i];
 			auto pt1 = vTempMappedPts1[i];
@@ -374,8 +407,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			pNewMP->IncreaseVisible(2);
 			pNewMP->IncreaseFound(2);
 			mpSystem->mlpNewMPs.push_back(pNewMP);
-
-			
 			//mpInitFrame2->mpMatchInfo->mvnMatchingMPIDXs.push_back(vTempMappedIDXs[i]);
 		}
 
@@ -394,13 +425,21 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//////키프레임으로 업데이트 과정
 
 		/////////////레이아웃 추정
-		mpPlaneEstimator->InsertKeyFrame(mpInitFrame2);
+		//mpPlaneEstimator->InsertKeyFrame(mpInitFrame2);
 		/////////////레이아웃 추정
 
 		////////////////////시각화에 카메라 포즈를 출력하기 위해
-		mpFrameWindow->AddFrame(mpInitFrame1);
-		mpFrameWindow->AddFrame(mpInitFrame2);
+		///////////이것도 차후 없애야 함.
+		////여기서 무슨일 하는지 정리 후 삭제
+		///////////10개 중에 한개씩 저장. 그냥 평면 값 비교하기 위해
+		mpMap->AddFrame(mpInitFrame1);
+		/*mpMap->AddFrame(mpInitFrame1);
+		mpMap->AddFrame(mpInitFrame2);*/
+		//mpFrameWindow->AddFrame(mpInitFrame1);
+		//mpFrameWindow->AddFrame(mpInitFrame2);
 		////////////////////시각화에 카메라 포즈를 출력하기 위해
+		mpMap->mpFirstKeyFrame = mpInitFrame1;
+		mpVisualizer->SetMatchInfo(mpInitFrame2->mpMatchInfo);
 		
 		mbInit = true;
 		//////////////////////////키프레임 생성

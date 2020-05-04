@@ -177,19 +177,7 @@ namespace UVR_SLAM {
 
 //time 계산 관련해서 함수 만들기.
 	public:
-		void SetLocalMappingTime(float t1, float t2);
-		void GetLocalMappingTime(float& t1, float& t2);
-		//void SetLayoutTime(float t1);
-		//void GetLayoutTime(float& t1);
-		void SetSegFrameID(int n);
-		int GetSegFrameID();
-		void SetLocalMapperFrameID(int n);
-		int GetLocalMapperFrameID();
-		void SetPlaneFrameID(int n);
-		int GetPlaneFrameID();
-
-		void SetMapOptimizerID(int n);
-		int  GetMapOptimizerID();
+		
 	private:
 		std::mutex mMutexLocalMappingTime;
 		float mfLocalMappingTime1, mfLocalMappingTime2;
@@ -207,6 +195,9 @@ namespace UVR_SLAM {
 		void SetTrackerString(std::string str);
 		std::string GetTrackerString();
 
+		void SetLocalMapperString(std::string str);
+		std::string GetLocalMapperString();
+
 		void SetSegmentationString(std::string str);
 		std::string GetSegmentationString();
 
@@ -220,6 +211,8 @@ namespace UVR_SLAM {
 		std::string mStrTrackerString;
 		std::mutex mMutexSegmentationString;
 		std::string mStrSegmentationString;
+		std::mutex mMutexLocalMapperString;
+		std::string mStrLocalMapperString;
 		std::mutex mMutexMapOptimizer;
 		std::string mStrMapOptimizer;
 	////////////////////////////////////////////////////////////////////////

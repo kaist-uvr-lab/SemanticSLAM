@@ -306,54 +306,6 @@ std::string UVR_SLAM::System::GetDirPath(int id){
 //	t1 = mfLayoutTime;
 //}
 
-void UVR_SLAM::System::SetLocalMappingTime(float t1, float t2) {
-	std::unique_lock<std::mutex> lock(mMutexLocalMappingTime);
-	mfLocalMappingTime1 = t1;
-	mfLocalMappingTime2 = t2;
-}
-
-void UVR_SLAM::System::GetLocalMappingTime(float& t1, float& t2){
-	std::unique_lock<std::mutex> lock(mMutexLocalMappingTime);
-	t1 = mfLocalMappingTime1;
-	t2 = mfLocalMappingTime2;
-}
-void UVR_SLAM::System::SetSegFrameID(int n){
-	std::unique_lock<std::mutex> lock(mMutexSegID);
-	mnSegID = n;
-}
-int UVR_SLAM::System::GetSegFrameID(){
-	std::unique_lock<std::mutex> lock(mMutexSegID);
-	return mnSegID;
-}
-void UVR_SLAM::System::SetLocalMapperFrameID(int n)
-{
-	std::unique_lock<std::mutex> lock(mMutexLMID);
-	mnLoalMapperID = n;
-}
-int UVR_SLAM::System::GetLocalMapperFrameID(){
-	std::unique_lock<std::mutex> lock(mMutexLMID);
-	return mnLoalMapperID;
-}
-void UVR_SLAM::System::SetPlaneFrameID(int n)
-{
-	std::unique_lock<std::mutex> lock(mMutexPlaneID);
-	mnPlaneID = n;
-}
-int UVR_SLAM::System::GetPlaneFrameID() {
-	std::unique_lock<std::mutex> lock(mMutexPlaneID);
-	return mnPlaneID;
-}
-
-void UVR_SLAM::System::SetMapOptimizerID(int n)
-{
-	std::unique_lock<std::mutex> lock(mMutexMapOptimizerID);
-	mnMapOptimizerID = n;
-}
-int UVR_SLAM::System::GetMapOptimizerID() {
-	std::unique_lock<std::mutex> lock(mMutexMapOptimizerID);
-	return mnMapOptimizerID;
-}
-
 void UVR_SLAM::System::SetPlaneString(std::string str){
 	std::unique_lock<std::mutex> lock(mMutexPlaneString);
 	mStrPlaneString = str;
@@ -369,6 +321,14 @@ void UVR_SLAM::System::SetTrackerString(std::string str) {
 std::string UVR_SLAM::System::GetTrackerString() {
 	std::unique_lock<std::mutex> lock(mMutexTrackerString);
 	return mStrTrackerString;
+}
+void UVR_SLAM::System::SetLocalMapperString(std::string str) {
+	std::unique_lock<std::mutex> lock(mMutexLocalMapperString);
+	mStrLocalMapperString = str;
+}
+std::string UVR_SLAM::System::GetLocalMapperString() {
+	std::unique_lock<std::mutex> lock(mMutexLocalMapperString);
+	return mStrLocalMapperString;
 }
 void UVR_SLAM::System::SetSegmentationString(std::string str) {
 	std::unique_lock<std::mutex> lock(mMutexSegmentationString);

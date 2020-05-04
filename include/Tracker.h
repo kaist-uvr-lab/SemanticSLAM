@@ -40,12 +40,12 @@ namespace UVR_SLAM {
 		void SetVisualizer(Visualizer* pVis);
 	private:
 		bool CheckNeedKeyFrame(Frame* pCurr);
-		void UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs);
+		int UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs);
 	private:
 		int mnMaxFrames, mnMinFrames;
 		int mnWidth, mnHeight;
 		int mnMatching;
-		cv::Mat mK, mK2;
+		cv::Mat mK, mK2, mD;
 		bool mbInitializing;
 		bool mbFirstFrameAfterInit;
 		bool mbInitilized;

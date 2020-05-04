@@ -43,7 +43,7 @@ namespace UVR_SLAM {
 				}
 				ind /= 8;
 			}
-			std::cout << colormap << std::endl;
+			
 			for (int i = 0; i < colormap.rows; i++) {
 				cv::Vec3b color = cv::Vec3b(colormap.at<uchar>(i, 0), colormap.at<uchar>(i, 1), colormap.at<uchar>(i, 2));
 				mvObjectLabelColors.push_back(color);

@@ -60,6 +60,7 @@ namespace UVR_SLAM {
 		Frame* mpCurrFrame;
 		std::mutex mMutexCurrFrame;
 	public:
+		Frame* mpFirstKeyFrame;
 		UVR_SLAM::PlaneInformation* mpFloorPlane;
 ////평면 관리
 ////////////////////////////////

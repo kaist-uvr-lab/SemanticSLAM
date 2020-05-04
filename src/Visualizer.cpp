@@ -241,55 +241,55 @@ void UVR_SLAM::Visualizer::Run() {
 			///////////////전체 포인트 출력
 			////////////////////////////////////////////////////////////////////////////////
 
-			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-			//local map
-			auto mvpWindowFrames = mpFrameWindow->GetLocalMapFrames();
-			auto mvbLocalMapInliers = mpFrameWindow->GetLocalMapInliers();
-			auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
-			mvbLocalMapInliers = std::vector<bool>(mvpLocalMPs.size(), false);
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			////local map
+			//auto mvpWindowFrames = mpFrameWindow->GetLocalMapFrames();
+			//auto mvbLocalMapInliers = mpFrameWindow->GetLocalMapInliers();
+			//auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
+			//mvbLocalMapInliers = std::vector<bool>(mvpLocalMPs.size(), false);
 
-			/////////////line visualization
-			//std::cout << "LINE TEST" << std::endl;
-			RNG rng(12345);
+			///////////////line visualization
+			////std::cout << "LINE TEST" << std::endl;
+			//RNG rng(12345);
 
-			if (mpMap->isFloorPlaneInitialized() && mvpWindowFrames.size() > 0) {
-				auto mvpWalls = mpMap->GetWallPlanes();
-				UVR_SLAM::PlaneInformation* aplane = mpMap->mpFloorPlane;
-				cv::Mat planeParam = aplane->GetParam();
+			//if (mpMap->isFloorPlaneInitialized() && mvpWindowFrames.size() > 0) {
+			//	auto mvpWalls = mpMap->GetWallPlanes();
+			//	UVR_SLAM::PlaneInformation* aplane = mpMap->mpFloorPlane;
+			//	cv::Mat planeParam = aplane->GetParam();
 
-				cv::Mat K = mvpWindowFrames[0]->mK.clone();
-				cv::Mat invK = K.inv();
+			//	cv::Mat K = mvpWindowFrames[0]->mK.clone();
+			//	cv::Mat invK = K.inv();
 
-				for (int i = 0; i < mvpWalls.size(); i++) {
-					auto mvpLines = mvpWalls[i]->GetLines();
+			//	for (int i = 0; i < mvpWalls.size(); i++) {
+			//		auto mvpLines = mvpWalls[i]->GetLines();
 
-					for (int j = 0; j < mvpLines.size(); j++) {
+			//		for (int j = 0; j < mvpLines.size(); j++) {
 
-						auto mpFrame = mvpLines[j]->mpFrame;
-						cv::Mat invP, invK, invT;
-						mpFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
+			//			auto mpFrame = mvpLines[j]->mpFrame;
+			//			cv::Mat invP, invK, invT;
+			//			mpFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
 
-						auto mat = mvpLines[j]->GetLinePts();
-						for (int k = 0; k < mat.rows; k++) {
-							cv::Point2f topt = cv::Point2f(mat.row(k).at<float>(mnAxis1) * mnVisScale, -mat.row(k).at<float>(mnAxis2) * mnVisScale);
-							topt += mVisMidPt;
-							//cv::circle(tempVis, topt, 3, ObjectColors::mvObjectLabelColors[mvpWalls[i]->mnPlaneID + 10], -1);
-						}
-						/*
-						cv::Mat from = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mvpLines[j]->from, invP, invT, invK);
-						cv::Mat to   = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mvpLines[j]->to  , invP, invT, invK);
+			//			auto mat = mvpLines[j]->GetLinePts();
+			//			for (int k = 0; k < mat.rows; k++) {
+			//				cv::Point2f topt = cv::Point2f(mat.row(k).at<float>(mnAxis1) * mnVisScale, -mat.row(k).at<float>(mnAxis2) * mnVisScale);
+			//				topt += mVisMidPt;
+			//				//cv::circle(tempVis, topt, 3, ObjectColors::mvObjectLabelColors[mvpWalls[i]->mnPlaneID + 10], -1);
+			//			}
+			//			/*
+			//			cv::Mat from = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mvpLines[j]->from, invP, invT, invK);
+			//			cv::Mat to   = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mvpLines[j]->to  , invP, invT, invK);
 
-						cv::Point2f frompt = cv::Point2f(from.at<float>(0) * mnVisScale, -from.at<float>(2) * mnVisScale);
-						frompt += mVisMidPt;
-						cv::Point2f topt = cv::Point2f(to.at<float>(0) * mnVisScale, -to.at<float>(2) * mnVisScale);
-						topt += mVisMidPt;
+			//			cv::Point2f frompt = cv::Point2f(from.at<float>(0) * mnVisScale, -from.at<float>(2) * mnVisScale);
+			//			frompt += mVisMidPt;
+			//			cv::Point2f topt = cv::Point2f(to.at<float>(0) * mnVisScale, -to.at<float>(2) * mnVisScale);
+			//			topt += mVisMidPt;
 
-						cv::line(tempVis, frompt, topt, ObjectColors::mvObjectLabelColors[mvpWalls[i]->mnPlaneID-1],3);
-						*/
-					}
-				}
-			}
-			/////////////line visualization
+			//			cv::line(tempVis, frompt, topt, ObjectColors::mvObjectLabelColors[mvpWalls[i]->mnPlaneID-1],3);
+			//			*/
+			//		}
+			//	}
+			//}
+			///////////////line visualization
 
 			///////////////////////////////////////////////////////////////////////////////
 			////tracking results
@@ -298,33 +298,34 @@ void UVR_SLAM::Visualizer::Run() {
 			std::vector<int> vnLabels;
 			GetMPs(vpFrameMPs, vnLabels);
 			auto pMatchInfo = GetMatchInfo();
-			auto lastBAFrame = pMatchInfo->mpTargetFrame;
-			for (int i = 0; i < vpFrameMPs.size(); i++) {
-				auto pMPi = vpFrameMPs[i];
-				if (!pMPi || pMPi->isDeleted())
-					continue;
-				cv::Mat x3D = pMPi->GetWorldPos();
-				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
-				tpt += mVisMidPt;
-				bool bBA = false;
-				//bool bBA = pMPi->mnLocalBAID >= lastBAFrame->GetFrameID();
-				cv::Scalar color = cv::Scalar(0, 0, 0);
-				auto label = vnLabels[i];
-				if (label == 255){
-					color = cv::Scalar(255, 255, 0);
-					if (!bBA)
-						color /= 2;
-				}
-				else if (label == 150){
-					color = cv::Scalar(255, 0, 255);
-					if (!bBA)
-						color /= 2;
-				}
-				cv::circle(tempVis, tpt, 2, color, -1);
-			}
-			//tracking
 			
 			if(pMatchInfo){
+				auto lastBAFrame = pMatchInfo->mpTargetFrame;
+				for (int i = 0; i < vpFrameMPs.size(); i++) {
+					auto pMPi = vpFrameMPs[i];
+					if (!pMPi || pMPi->isDeleted())
+						continue;
+					cv::Mat x3D = pMPi->GetWorldPos();
+					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+					tpt += mVisMidPt;
+					//bool bBA = false;
+					bool bBA = pMPi->mnLocalBAID >= lastBAFrame->GetFrameID();
+					cv::Scalar color = cv::Scalar(0, 0, 0);
+					auto label = vnLabels[i];
+					if (label == 255) {
+						color = cv::Scalar(255, 255, 0);
+						if (!bBA)
+							color /= 2;
+					}
+					else if (label == 150) {
+						color = cv::Scalar(255, 0, 255);
+						if (!bBA)
+							color /= 2;
+					}
+					cv::circle(tempVis, tpt, 2, color, -1);
+				}
+				//tracking
+
 				for (int i = 0; i < pMatchInfo->mvMatchingPts.size(); i++) {
 					auto pMPi = pMatchInfo->mvpMatchingMPs[i];
 					auto label = pMatchInfo->mvObjectLabels[i];
@@ -388,19 +389,13 @@ void UVR_SLAM::Visualizer::Run() {
 
 			cv::imshow("Output::Trajectory", tempVis);
 			
-
 			//time 
 			cv::Mat imgTime = cv::Mat::zeros(500, 500, CV_8UC1);
 			cv::putText(imgTime, mpSystem->GetTrackerString(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			cv::putText(imgTime, mpSystem->GetSegmentationString(), cv::Point2f(0, 50), mnFontFace, mfFontScale, cv::Scalar::all(255));
-			cv::putText(imgTime, mpSystem->GetPlaneString(), cv::Point2f(0, 80), mnFontFace, mfFontScale, cv::Scalar::all(255));
-			cv::putText(imgTime, mpSystem->GetMapOptimizerString(), cv::Point2f(0, 140), mnFontFace, mfFontScale, cv::Scalar::all(255));
-			float lm1, lm2;
-			mpSystem->GetLocalMappingTime(lm1, lm2);
-			std::stringstream ssTime;
-			ssTime << "LocalMapping : " <<mpSystem->GetLocalMapperFrameID()<<"::"<< lm1 << " :: BA : " << lm2;
-			cv::putText(imgTime, ssTime.str(), cv::Point2f(0, 110), mnFontFace, mfFontScale, cv::Scalar::all(255));
-
+			cv::putText(imgTime, mpSystem->GetLocalMapperString(), cv::Point2f(0, 80), mnFontFace, mfFontScale, cv::Scalar::all(255));
+			cv::putText(imgTime, mpSystem->GetMapOptimizerString(), cv::Point2f(0, 110), mnFontFace, mfFontScale, cv::Scalar::all(255));
+			cv::putText(imgTime, mpSystem->GetPlaneString(), cv::Point2f(0, 140), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			cv::imshow("Output::Time", imgTime);
 
 			cv::waitKey(1);

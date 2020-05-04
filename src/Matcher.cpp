@@ -846,7 +846,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	return vpPts2.size();
 }
 
-int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, std::vector<int>& vnMPIDXs, cv::Mat& overlap, cv::Mat& debugging) {
+int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<cv::Point2f>& vpPts1, std::vector<cv::Point3f>& vpPts2, std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, std::vector<int>& vnMPIDXs, cv::Mat& overlap, cv::Mat& debugging) {
 	
 	//////////////////////////
 	////Optical flow
@@ -920,6 +920,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			pMPi->SetRecentTrackingFrameID(nCurrFrameID);
 			vpMPs.push_back(pMPi);
 			vnMPIDXs.push_back(vpPts.size()-1);
+			vpPts1.push_back(currPts[i]);
+			vpPts2.push_back(cv::Point3f(pMPi->GetWorldPos()));
 			cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 255, 0), -1);
 			cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 255, 0), -1);
 		}

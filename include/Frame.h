@@ -44,7 +44,7 @@ namespace UVR_SLAM {
 		bool CheckPt(cv::Point2f pt);
 		void AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label = 0);
 		void Test(std::string dirPath);
-		void Test();
+		void Test(cv::Mat& debug);
 		void AddMP(MapPoint* pMP, int idx);
 		void RemoveMP(int idx);
 	public:

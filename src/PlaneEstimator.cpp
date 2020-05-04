@@ -124,7 +124,14 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 	UVR_SLAM::Frame* pTestF = nullptr;
 
-	while (1) {
+	while (false) {
+
+		int mnFontFace = (2);
+		double mfFontScale = (0.6);
+		int mnDebugFontSize = 20;
+		int nFrameSize;
+		float pidst = 0.01;
+		float pratio = 0.25;
 		if (CheckNewKeyFrames()) {
 			
 			//저장 디렉토리 명 획득
@@ -133,13 +140,94 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			ProcessNewKeyFrame();
 			std::cout << "pe::start::"<<mpTargetFrame->GetKeyFrameID()<< std::endl;
 
+			/////////////////////////////현재 프레임에서 이용할 데이터 정보
 			auto prevFrame = mpTargetFrame->mpMatchInfo->mpTargetFrame;
 			auto prevMatchInfo = prevFrame->mpMatchInfo;
 			auto matchInfo = mpTargetFrame->mpMatchInfo;
+			/////////////////////////////현재 프레임에서 이용할 데이터 정보
+
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			//////////////////////////////////평면 찾는 과정
+			//평면은 현재 프레임이 아닌 이전 프레임에서 찾고, 현재 프레임에 같은 정보를 갖게 함.
+			//출력은 초기, 이전, 현재 프레임 정보를 출력함.
+			/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
+			////파라메터
+			//평면에 해당하는 맵포인트와 해당되는 포인트를 저장함.
+			std::vector<UVR_SLAM::MapPoint*> mvpFloorMPs;
+			for (int i = 0; i < prevMatchInfo->mvpMatchingMPs.size(); i++) {
+				int label = prevMatchInfo->mvObjectLabels[i];
+				if (label == 150) {
+					mvpFloorMPs.push_back(prevMatchInfo->mvpMatchingMPs[i]);
+				}
+			}
+			/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
+
+			/////////////////////////////평면 초기화
+			UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
+			bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, prevFrame->GetFrameID(), 1500, pidst, pratio);
+			cv::Mat param = pFloor->GetParam();
+			//if (!bRes || abs(param.at<float>(1)) < 0.98)//98
+			//{
+			//	mpTempFrame = mpInitFrame2;
+			//	return mbInit;
+			//}
+			/////////////////////////////평면 초기화
+
+			///////////////////////////////평면 정보 생성
+			////////초기 평면 MP 설정 필요
+			auto planeInfo1 = new UVR_SLAM::PlaneProcessInformation(prevFrame, pFloor);
+			planeInfo1->Calculate();
+			mpTargetFrame->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpTargetFrame, pFloor);
+			mpTargetFrame->mpPlaneInformation->Calculate();
+			//mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
+			//mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
+			//cv::Mat invP, invT, invK;
+			//mpInitFrame2->mpPlaneInformation->Calculate();
+			//mpInitFrame2->mpPlaneInformation->GetInformation(invP, invT, invK);
+			///////////////////////////평면 정보 생성
+			/////////평면 정보 확인
+			cv::Mat debug = cv::Mat::zeros(1000, 1000, CV_8UC1);
+			int nDebugRows = 20;
+			std::stringstream ssCurr;
+			ssCurr << "Curr::" << mpTargetFrame->GetKeyFrameID() << "::" << mpTargetFrame->mpPlaneInformation->GetFloorPlane()->GetParam().t()<<"::"<<pFloor->mnCount<<", "<<mvpFloorMPs.size();
+			cv::putText(debug, ssCurr.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
+			auto pInitInfo = mpMap->mpFirstKeyFrame->mpPlaneInformation->GetInformation();
+			float cos_val1 = pFloor->CalcCosineSimilarity(pInitInfo);
+			float dist_val1 = pFloor->CalcPlaneDistance(pInitInfo);
+			std::stringstream ssInit;
+			ssInit << "Init::" << mpMap->mpFirstKeyFrame->GetKeyFrameID() << "::" << mpMap->mpFirstKeyFrame->mpPlaneInformation->GetFloorPlane()->GetParam().t() << cos_val1 << ", " << dist_val1;
+			cv::putText(debug, ssInit.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
+			
+			std::stringstream ssPrev;
+			auto pPrevInfo = prevFrame->mpPlaneInformation->GetInformation();
+			float cos_val = pFloor->CalcCosineSimilarity(pPrevInfo);
+			float dist_val = pFloor->CalcPlaneDistance(pPrevInfo);
+			ssPrev << "Prev::" << prevFrame->GetKeyFrameID()<<"::"<<prevFrame->mpPlaneInformation->GetFloorPlane()->GetParam().t() << cos_val << ", " << dist_val;
+			cv::putText(debug, ssPrev.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
+			auto vpFrames = mpMap->GetFrames();
+			nFrameSize = 30;
+			if (nFrameSize > vpFrames.size())
+				nFrameSize = vpFrames.size();
+			for (int i = 0, idx = vpFrames.size() - 1; i < nFrameSize; i++, idx--) {
+				std::stringstream ss;
+				auto f = vpFrames[idx];
+				auto p = vpFrames[idx]->mpPlaneInformation->GetFloorPlane()->GetParam();
+				auto pinfo = vpFrames[idx]->mpPlaneInformation->GetInformation();
+				float cos_val = pFloor->CalcCosineSimilarity(pinfo);
+				float dist_val = pFloor->CalcPlaneDistance(pinfo);
+				ss<< "Prev::" << f->GetKeyFrameID() << "::" << p.t()<<cos_val<<", "<<dist_val;
+				cv::putText(debug, ss.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
+			}
+			imshow("plane test", debug);
+			prevFrame->mpPlaneInformation = planeInfo1;
+			if(prevFrame->GetKeyFrameID() %10==0)
+				mpMap->AddFrame(prevFrame);
+			///////////평면 정보 확인
+			////////////////////////////////////평면 찾는 과정
+			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 			/////////////Conneted Component Labeling & object labeling
 			cv::Mat segmented = prevFrame->matLabeled.clone();
-			std::cout << "seg::size::" << segmented.size() << std::endl;
 			std::chrono::high_resolution_clock::time_point saa = std::chrono::high_resolution_clock::now();
 			cv::Mat imgStructure = cv::Mat::zeros(segmented.size(), CV_8UC1);
 			cv::Mat imgWall = cv::Mat::zeros(segmented.size(), CV_8UC1);
@@ -1449,7 +1537,7 @@ bool UVR_SLAM::PlaneInformation::PlaneInitialization(UVR_SLAM::PlaneInformation*
 		UVR_SLAM::PlaneInformation::calcUnitNormalVector(X);
 		if (X.at<float>(1) > 0.0)
 			X *= -1.0;
-
+		pPlane->mnCount = pPlane->mvpMPs.size();
 		std::cout <<"PLANE::"<< planeRatio << std::endl;
 		//std::cout << "Update::" << pPlane->matPlaneParam.t() << ", " << X.t() <<", "<<pPlane->mvpMPs.size()<<", "<<nReject<< std::endl;
 		pPlane->SetParam(X.rowRange(0, 3), X.at<float>(3));
@@ -2024,6 +2112,42 @@ bool UVR_SLAM::PlaneEstimator::ConnectedComponentLabeling(cv::Mat img, cv::Mat& 
 	return true;
 }
 
+cv::Mat UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(cv::Mat P) {
+	//euler zxy
+	cv::Mat Nidealfloor = cv::Mat::zeros(3, 1, CV_32FC1);
+	cv::Mat normal = P.rowRange(0, 3);
+
+	Nidealfloor.at<float>(1) = -1.0;
+	float nx = P.at<float>(0);
+	float ny = P.at<float>(1);
+	float nz = P.at<float>(2);
+
+	float d1 = atan2(nx, -ny);
+	float d2 = atan2(-nz, sqrt(nx*nx + ny*ny));
+	cv::Mat R = UVR_SLAM::MatrixOperator::RotationMatrixFromEulerAngles(d1, d2, 0.0, "ZXY");
+
+
+	///////////한번 더 돌리는거 테스트
+	/*cv::Mat R1 = UVR_SLAM::MatrixOperator::RotationMatrixFromEulerAngle(d1, 'z');
+	cv::Mat R2 = UVR_SLAM::MatrixOperator::RotationMatrixFromEulerAngle(d2, 'x');
+	cv::Mat Nnew = R2.t()*R1.t()*normal;
+	float d3 = atan2(Nnew.at<float>(0), Nnew.at<float>(2));
+	cv::Mat Rfinal = UVR_SLAM::MatrixOperator::RotationMatrixFromEulerAngles(d1, d2, d3, "ZXY");*/
+	///////////한번 더 돌리는거 테스트
+
+	/*cv::Mat test1 = R*Nidealfloor;
+	cv::Mat test3 = R.t()*normal;
+	std::cout << "ATEST::" << P.t() << test1.t() << test3.t()<< std::endl;*/
+
+
+	/*
+	cv::Mat test2 = Rfinal*Nidealfloor;
+	cv::Mat test4 = Rfinal.t()*normal;
+	std::cout << d1 << ", " << d2 << ", " << d3 << std::endl;
+	std::cout << "ATEST::" << P.t() << test1.t() << test2.t() << test3.t() << test4.t() << std::endl;*/
+
+	return R;
+}
 
 ////////////////////////////////////////////////////////////////////////
 //////////코드 백업
@@ -2154,43 +2278,6 @@ void UVR_SLAM::PlaneEstimator::CreateWallMapPoints(std::vector<UVR_SLAM::MapPoin
 	//	}
 	//}
 
-}
-
-cv::Mat UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(cv::Mat P) {
-	////euler zxy
-	//cv::Mat Nidealfloor = cv::Mat::zeros(3, 1, CV_32FC1);
-	//cv::Mat normal = P.rowRange(0, 3);
-
-	//Nidealfloor.at<float>(1) = -1.0;
-	//float nx = P.at<float>(0);
-	//float ny = P.at<float>(1);
-	//float nz = P.at<float>(2);
-
-	//float d1 = atan2(nx, -ny);
-	//float d2 = atan2(-nz, sqrt(nx*nx + ny*ny));
-	//cv::Mat R = UVR_SLAM::MatrixOperator::RotationMatrixFromEulerAngles(d1, d2, 0.0, "ZXY");
-	//
-	//
-	/////////////한번 더 돌리는거 테스트
-	///*cv::Mat R1 = UVR_SLAM::MatrixOperator::RotationMatrixFromEulerAngle(d1, 'z');
-	//cv::Mat R2 = UVR_SLAM::MatrixOperator::RotationMatrixFromEulerAngle(d2, 'x');
-	//cv::Mat Nnew = R2.t()*R1.t()*normal;
-	//float d3 = atan2(Nnew.at<float>(0), Nnew.at<float>(2));
-	//cv::Mat Rfinal = UVR_SLAM::MatrixOperator::RotationMatrixFromEulerAngles(d1, d2, d3, "ZXY");*/
-	/////////////한번 더 돌리는거 테스트
-	//
-	///*cv::Mat test1 = R*Nidealfloor;
-	//cv::Mat test3 = R.t()*normal;
-	//std::cout << "ATEST::" << P.t() << test1.t() << test3.t()<< std::endl;*/
-	//
-	//
-	///*
-	//cv::Mat test2 = Rfinal*Nidealfloor;
-	//cv::Mat test4 = Rfinal.t()*normal;
-	//std::cout << d1 << ", " << d2 << ", " << d3 << std::endl;
-	//std::cout << "ATEST::" << P.t() << test1.t() << test2.t() << test3.t() << test4.t() << std::endl;*/
-
-	//return R;
 }
 
 void CheckWallNormal(cv::Mat& normal) {

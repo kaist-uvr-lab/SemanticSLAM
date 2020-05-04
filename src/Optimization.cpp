@@ -1200,8 +1200,6 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 	const float thHuberMono = sqrt(5.991);
 	const float thHuberStereo = sqrt(7.815);
 	
-	std::cout << "ba::0" << std::endl;
-	
 	for (int i =0; i < vpMPs.size(); i++)
 	{
 		MapPoint* pMP = vpMPs[i];
@@ -1251,7 +1249,6 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 		}
 
 	}
-	std::cout << "ba::1" << std::endl;
 
 	bStopBA = pMapOptimizer->isStopBA();
 	if (bStopBA)

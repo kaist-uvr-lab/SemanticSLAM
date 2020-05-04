@@ -839,14 +839,25 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 	}
 }
 
-void UVR_SLAM::MatchInfo::Test() {
-	
+void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
+
 	std::vector<cv::Point2f> vPts1, vPts2, vPts3;
 	std::vector<int> vIDXs1, vIDXs2, vIDXs3;
 
 	auto currFrame = mpRefFrame;
 	auto targetFrame = mpTargetFrame;
 	auto targettargetFrame = mpTargetFrame->mpMatchInfo->mpTargetFrame;
+
+	/////////debug
+	//cv::Mat targettargetImg = targettargetFrame->GetOriginalImage();
+	//cv::Mat currImg = currFrame->GetOriginalImage();
+	//cv::Point2f ptBottom = cv::Point2f(0, currImg.rows);
+	//cv::Rect mergeRect1 = cv::Rect(0, 0, currImg.cols, currImg.rows);
+	//cv::Rect mergeRect2 = cv::Rect(0, currImg.rows, currImg.cols, currImg.rows);
+	//debug = cv::Mat::zeros(currImg.rows * 2, currImg.cols, currImg.type());
+	//targettargetImg.copyTo(debug(mergeRect1));
+	//currImg.copyTo(debug(mergeRect2));
+	/////////debug
 
 	cv::Mat Pcurr, Ptarget, Ptargettarget;
 	cv::Mat Rcurr, Tcurr, Rtarget, Ttarget, Rtargettarget,Ttargettarget;
@@ -874,7 +885,7 @@ void UVR_SLAM::MatchInfo::Test() {
 
 		int idx2 = targetInfo->mvnMatchingPtIDXs[tidx1];
 		int idx3 = targetTargetInfo->mvnMatchingPtIDXs[tidx2];
-		//std::cout << tidx1 << ", " << tidx2 << ", " << idx2 << " " << idx3 <<"::"<<n<<", "<<targetTargetInfo->nMatch<<"::"<<targetInfo->mvnMatchingPtIDXs.size()<<", "<<targetTargetInfo->mvnMatchingPtIDXs.size()<< std::endl;
+		//std::cout << tidx1 << ", " << tidx2 << ", " << idx2 << " " << idx3 <<"::"<<n<<", "<<targetTargetInfo->nMatch<<"::"<<targetInfo->mvnMatchingPtIDXs.size()<<", "<<targetTargetInfo->mvnMatchingPtIDXs.size()<<", "<<targetTargetInfo->mvpMatchingMPs.size()<< std::endl;
 		
 		if (targetInfo->mvpMatchingMPs[idx2]){
 			//std::cout << "test::error111111111111111!!!!!!!!!!" << std::endl << std::endl;
@@ -891,6 +902,10 @@ void UVR_SLAM::MatchInfo::Test() {
 		vPts1.push_back(mvMatchingPts[i]);
 		vPts2.push_back(targetInfo->mvMatchingPts[idx2]);
 		vPts3.push_back(targetTargetInfo->mvMatchingPts[idx3]);
+
+		//////visualize
+		//cv::circle(debug, targetTargetInfo->mvMatchingPts[idx3], 2, cv::Scalar(255, 0, 255), -1);
+		//cv::circle(debug, mvMatchingPts[i] + ptBottom, 2, cv::Scalar(255, 0, 255), -1);
 	}
 	cv::Mat Map;
 	cv::triangulatePoints(K*Ptargettarget, K*Pcurr, vPts3, vPts1, Map);
@@ -907,18 +922,39 @@ void UVR_SLAM::MatchInfo::Test() {
 		cv::Mat proj2 = Rtarget*X3D + Ttarget;
 		cv::Mat proj3 = Rtargettarget*X3D + Ttargettarget;
 
+		////depth test
 		if (proj1.at<float>(2) < 0.0 || proj2.at<float>(2) < 0.0 || proj3.at<float>(2) < 0.0){
 			continue;
 		}
-		nRes++;
-		auto pMP = new UVR_SLAM::MapPoint(mpRefFrame, X3D, cv::Mat());
-		mvpMatchingMPs[vIDXs1[i]] = pMP;
-		targetInfo->mvpMatchingMPs[vIDXs2[i]] = pMP;
-		targetTargetInfo->mvpMatchingMPs[vIDXs3[i]] = pMP;
+		////depth test
 
+		//////////에러 확인
+		proj1 = K*proj1;
+		proj2 = K*proj2;
+		proj3 = K*proj3;
+		cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
+		cv::Point2f projected2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
+		cv::Point2f projected3(proj3.at<float>(0) / proj3.at<float>(2), proj3.at<float>(1) / proj3.at<float>(2));
 		auto pt1 = mvMatchingPts[vIDXs1[i]];
 		auto pt2 = targetInfo->mvMatchingPts[vIDXs2[i]];
 		auto pt3 = targetTargetInfo->mvMatchingPts[vIDXs3[i]];
+		auto diffPt1 = projected1 - pt1;
+		auto diffPt2 = projected2 - pt2;
+		auto diffPt3 = projected3 - pt3;
+		float err1 = sqrt(diffPt1.dot(diffPt1));
+		float err2 = sqrt(diffPt2.dot(diffPt2));
+		float err3 = sqrt(diffPt3.dot(diffPt3));
+		//////////에러 확인
+
+
+		nRes++;
+		auto pMP = new UVR_SLAM::MapPoint(mpRefFrame, X3D, cv::Mat());
+		/*mvpMatchingMPs[vIDXs1[i]] = pMP;
+		targetInfo->mvpMatchingMPs[vIDXs2[i]] = pMP;
+		targetTargetInfo->mvpMatchingMPs[vIDXs3[i]] = pMP;
+		auto pt1 = mvMatchingPts[vIDXs1[i]];
+		auto pt2 = targetInfo->mvMatchingPts[vIDXs2[i]];
+		auto pt3 = targetTargetInfo->mvMatchingPts[vIDXs3[i]];*/
 
 		pMP->AddFrame(currFrame->mpMatchInfo, vIDXs1[i]);
 		pMP->AddFrame(targetFrame->mpMatchInfo, vIDXs2[i]);

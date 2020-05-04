@@ -33,6 +33,9 @@ void UVR_SLAM::PlaneProcessInformation::Calculate(){
 	invP = invT.t()*planeParam;
 	invK = mpFrame->mK.inv();
 }
+UVR_SLAM::PlaneInformation* UVR_SLAM::PlaneProcessInformation::GetInformation() {
+	return mpFloor;
+}
 void UVR_SLAM::PlaneProcessInformation::GetInformation(cv::Mat& pInvP, cv::Mat& pInvT, cv::Mat& pInvK) {
 	std::unique_lock<std::mutex> lock(mMutexProessor);
 	pInvP = invP.clone();
