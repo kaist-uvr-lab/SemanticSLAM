@@ -907,9 +907,17 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 		//cv::circle(debug, targetTargetInfo->mvMatchingPts[idx3], 2, cv::Scalar(255, 0, 255), -1);
 		//cv::circle(debug, mvMatchingPts[i] + ptBottom, 2, cv::Scalar(255, 0, 255), -1);
 	}
+	////////삼각화로 맵생성
 	cv::Mat Map;
 	cv::triangulatePoints(K*Ptargettarget, K*Pcurr, vPts3, vPts1, Map);
-	
+	////////삼각화로 맵생성
+
+	///////데이터 전처리
+	cv::Mat Rcfromc = Rcurr.t();
+	cv::Mat Rttfromc = Rtargettarget.t();
+	cv::Mat invK = K.inv();
+	///////데이터 전처리
+
 	int nRes = 0;
 	for (int i = 0; i < Map.cols; i++) {
 		
@@ -928,7 +936,7 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 		}
 		////depth test
 
-		//////////에러 확인
+		////reprojection error
 		proj1 = K*proj1;
 		proj2 = K*proj2;
 		proj3 = K*proj3;
@@ -944,8 +952,24 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 		float err1 = sqrt(diffPt1.dot(diffPt1));
 		float err2 = sqrt(diffPt2.dot(diffPt2));
 		float err3 = sqrt(diffPt3.dot(diffPt3));
-		//////////에러 확인
-
+		if (err1 > 4.0 || err2 > 4.0 || err3 > 4.0)
+			continue;
+		////reprojection error
+		
+		////parallax check
+		//targettarget과 current만
+		cv::Mat xn1 = (cv::Mat_<float>(3, 1) << pt1.x, pt1.y, 1.0);
+		cv::Mat xn3 = (cv::Mat_<float>(3, 1) << pt3.x, pt3.y, 1.0);
+		//std::cout << xn1.t() << xn3.t();
+		cv::Mat ray1 = Rcfromc*invK*xn1;
+		cv::Mat ray3 = Rttfromc*invK*xn1;
+		//std::cout <<"\t"<< ray1.t() << ray3.t();
+		float cosParallaxRays = ray1.dot(ray3) / (cv::norm(ray1)*cv::norm(ray3));
+		//std::cout << cosParallaxRays << std::endl;
+		if (cosParallaxRays > 0.99999)
+			continue;
+		
+		////parallax check
 
 		nRes++;
 		auto pMP = new UVR_SLAM::MapPoint(mpRefFrame, X3D, cv::Mat());
