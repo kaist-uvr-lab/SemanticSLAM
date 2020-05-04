@@ -306,14 +306,9 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		/////median depth 
 		//////////////////////////////////////
 
-		//////////세그멘테이션 대기
-		/*while (!mpInitFrame2->isSegmented()) {
-		}*/
-		//////////세그멘테이션 대기
-
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		//////////////////////////////////////////////////////////평면 관련 기능들
 		/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
-		////파라메터
-		//평면에 해당하는 맵포인트와 해당되는 포인트를 저장함.
 		std::vector<UVR_SLAM::MapPoint*> mvpFloorMPs;
 		std::vector<cv::Point2f> vTempFloorPts; //호모 그래피를 이용할 경우 사용
 
@@ -321,61 +316,58 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			auto pt1 = vTempMappedPts1[i];
 			//auto pt2 = vTempMappedPts2[i];
 			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
-			
+
 			if (label1 == 150) {
 				mvpFloorMPs.push_back(tempMPs[i]);
 				//vTempFloorPts.push_back(pt2);
 			}
-			
+
 		}
-		/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
+		///////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
+		///////////////////////////평면 초기화
+		UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
+		bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.4);
+		cv::Mat param = pFloor->GetParam();
+		if (!bRes || abs(param.at<float>(1)) < 0.98)//98
+		{
+			mpTempFrame = mpInitFrame2;
+			return mbInit;
+		}
+		///////////////////////////평면 초기화
 
-		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		//////////////////////////////////////////////////////////평면 관련 기능들
-		/////////////////////////////평면 초기화
-		//UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
-		//bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.4);
-		//cv::Mat param = pFloor->GetParam();
-		//if (!bRes || abs(param.at<float>(1)) < 0.98)//98
-		//{
-		//	mpTempFrame = mpInitFrame2;
-		//	return mbInit;
+		///////////////////////////평면 정보 생성
+		////초기 평면 MP 설정 필요
+		mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
+		mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
+		cv::Mat invP, invT, invK;
+		mpInitFrame2->mpPlaneInformation->Calculate();
+		mpInitFrame2->mpPlaneInformation->GetInformation(invP, invT, invK);
+		///////////////////////////평면 정보 생성
+
+		///////////////////////////평면 정보를 이용한 alignment
+		//cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(param).clone();
+		//cv::Mat normal;
+		//float dist;
+		//pFloor->GetParam(normal, dist);
+		//cv::Mat tempP = Rcw.t()*normal;
+		//if (tempP.at<float>(0) < 0.00001)
+		//	tempP.at<float>(0) = 0.0;
+		//if (tempP.at<float>(2) < 0.00001)
+		//	tempP.at<float>(2) = 0.0;
+
+		////전체 맵포인트 변환
+		//for (int i = 0; i < tempMPs.size(); i++) {
+		//	UVR_SLAM::MapPoint* pMP = tempMPs[i];
+		//	/*if (!pMP)
+		//		continue;
+		//	if (pMP->isDeleted())
+		//		continue;*/
+		//	cv::Mat tempX = Rcw.t()*pMP->GetWorldPos();
+		//	pMP->SetWorldPos(tempX);
 		//}
-		/////////////////////////////평면 초기화
-
-		/////////////////////////////평면 정보 생성
-		//////초기 평면 MP 설정 필요
-		//mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
-		//mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
-		//cv::Mat invP, invT, invK;
-		//mpInitFrame2->mpPlaneInformation->Calculate();
-		//mpInitFrame2->mpPlaneInformation->GetInformation(invP, invT, invK);
-		/////////////////////////////평면 정보 생성
-
-		/////////////////////////////평면 정보를 이용한 alignment
-		////cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(param).clone();
-		////cv::Mat normal;
-		////float dist;
-		////pFloor->GetParam(normal, dist);
-		////cv::Mat tempP = Rcw.t()*normal;
-		////if (tempP.at<float>(0) < 0.00001)
-		////	tempP.at<float>(0) = 0.0;
-		////if (tempP.at<float>(2) < 0.00001)
-		////	tempP.at<float>(2) = 0.0;
-
-		//////전체 맵포인트 변환
-		////for (int i = 0; i < tempMPs.size(); i++) {
-		////	UVR_SLAM::MapPoint* pMP = tempMPs[i];
-		////	/*if (!pMP)
-		////		continue;
-		////	if (pMP->isDeleted())
-		////		continue;*/
-		////	cv::Mat tempX = Rcw.t()*pMP->GetWorldPos();
-		////	pMP->SetWorldPos(tempX);
-		////}
-		//////평면 파라메터 변환
-		////pFloor->SetParam(tempP, dist);
-		/////////////////////////////평면 정보를 이용한 alignment
+		////평면 파라메터 변환
+		//pFloor->SetParam(tempP, dist);
+		///////////////////////////평면 정보를 이용한 alignment
 		//std::cout << mpMap->mpFirstKeyFrame->mpPlaneInformation->GetFloorPlane()->GetParam() << std::endl << std::endl << std::endl;
 		//////////////////////////////////////////////////////////평면 관련 기능들
 		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
