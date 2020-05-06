@@ -49,7 +49,7 @@ namespace UVR_SLAM {
 		void RemoveMP(int idx);
 	public:
 		UVR_SLAM::Frame* mpTargetFrame, *mpRefFrame, *mpNextFrame;
-		int nMatch;
+		int mnTargetMatch; //이전 타겟 프레임과의 매칭 결과를 기록함. 타겟매칭벡터의 사이즈를 의미. 당연히 현재 매칭 벡터 결과가 이전 타겟 프레임과 연결하기 위한 것인데 현재 매칭벡터 크기가 이전 프레임과 매칭이 없으면 접근하면 안되는 것.
 		cv::Mat used; //자기 자신의 KP를 추가할 때 이미 매칭이 되었던 건지 확인하기 위해서
 		std::vector<int> mvObjectLabels;
 		std::vector<cv::Point2f> mvMatchingPts; //이전 프레임과의 매칭 결과(KP+MP)

@@ -247,9 +247,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			}
 		}
 		imshow("Output::Matching", debugImg);
-		for (int i = 0; i < vpTempPts.size(); i++) {
+		/*for (int i = 0; i < vpTempPts.size(); i++) {
 			cv::circle(vis, vpTempPts[i], 2, cv::Scalar(255, 0, 0), 1);
-		}
+		}*/
 		for (int i = 0; i < vpTempMPs.size(); i++) {
 			UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
 			if (!pMPi || pMPi->isDeleted())
@@ -259,13 +259,13 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			cv::Point2f p2D;
 			cv::Mat pCam;
 			bool b = pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
-			if (!b || !vbTempInliers[vnMPIDXs[i]]) {
+			/*if (!b || !vbTempInliers[vnMPIDXs[i]]) {
 				cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(0, 0, 255), 1);
 			}
 			else {
 				cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
-			}
-			
+			}*/
+			cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
 			//cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
 		}
 		std::stringstream ss;

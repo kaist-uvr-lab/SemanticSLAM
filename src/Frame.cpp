@@ -818,7 +818,7 @@ void UVR_SLAM::MatchInfo::SetLabel() {
 }
 void UVR_SLAM::MatchInfo::SetKeyFrame() {
 	mpTargetFrame->mpMatchInfo->mpNextFrame = mpRefFrame;
-	nMatch = mvMatchingPts.size();
+	mnTargetMatch = mvMatchingPts.size();
 	mvnTargetMatchingPtIDXs = std::vector<int>(mvnMatchingPtIDXs.begin(), mvnMatchingPtIDXs.end());
 	//현재 프레임의매칭 정보로 갱신
 	mvnMatchingPtIDXs.clear();
@@ -826,7 +826,7 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 		mvnMatchingPtIDXs.push_back(i);
 	}
 	cv::Mat aused = used.clone();
-	int nPts = nMatch;
+	int nPts = mnTargetMatch;
 	for (int i = 0; i < mpRefFrame->mvPts.size(); i++) {
 		auto pt = mpRefFrame->mvPts[i];
 		if (used.at<ushort>(pt)) {
@@ -872,17 +872,25 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 	
 	auto targetInfo = mpTargetFrame->mpMatchInfo;
 	auto targetTargetInfo = mpTargetFrame->mpMatchInfo->mpTargetFrame->mpMatchInfo;
-	int n = targetInfo->nMatch;
-	for (int i = 0; i < mvnTargetMatchingPtIDXs.size(); i++) {
+	
+	int nTargetTargetSize = targetTargetInfo->mvMatchingPts.size();
+
+	for (int i = 0; i < mnTargetMatch; i++) {
 		if (mvpMatchingMPs[i])
 			continue;
 		int tidx1 = mvnTargetMatchingPtIDXs[i];
-		if (tidx1 >= n) {
+		/*if (tidx1 > targetInfo->mvnTargetMatchingPtIDXs.size() || tidx1 >= n)
+			std::cout << "err::1" << tidx1 << ", " << targetInfo->mvnTargetMatchingPtIDXs.size() << ", " << targetInfo->mvnMatchingPtIDXs.size() << ", " << targetInfo->mvnMatchingMPIDXs.size() << std::endl;
+		*/
+		if (tidx1 >= targetInfo->mnTargetMatch) {
 			continue;
 		}
 		int tidx2 = targetInfo->mvnTargetMatchingPtIDXs[tidx1];
 		//std::cout << i << "::" << tidx1 << ", " << tidx2 <<"::" << mvnTargetMatchingPtIDXs.size() << ", " << mvMatchingPts.size() << "::" << targetInfo->mvnTargetMatchingPtIDXs.size() << " " << targetInfo->mvMatchingPts.size() << std::endl;
-
+		/*if (tidx2 > targetTargetInfo->mvnMatchingPtIDXs.size() )
+			std::cout << "err::2::" << tidx2 << ", " << targetTargetInfo->mvnMatchingPtIDXs.size() << ", " << targetTargetInfo->mvnMatchingMPIDXs.size() << std::endl;*/
+		if (tidx2 >= nTargetTargetSize)
+			continue;
 		int idx2 = targetInfo->mvnMatchingPtIDXs[tidx1];
 		int idx3 = targetTargetInfo->mvnMatchingPtIDXs[tidx2];
 		//std::cout << tidx1 << ", " << tidx2 << ", " << idx2 << " " << idx3 <<"::"<<n<<", "<<targetTargetInfo->nMatch<<"::"<<targetInfo->mvnMatchingPtIDXs.size()<<", "<<targetTargetInfo->mvnMatchingPtIDXs.size()<<", "<<targetTargetInfo->mvpMatchingMPs.size()<< std::endl;
@@ -908,8 +916,14 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 		//cv::circle(debug, mvMatchingPts[i] + ptBottom, 2, cv::Scalar(255, 0, 255), -1);
 	}
 	////////삼각화로 맵생성
+	//std::cout << "before triangle::" << vPts3.size() << std::endl;
+	if (vPts3.size() < 10){
+		//std::cout << "after triangle" << std::endl;
+		return;
+	}
 	cv::Mat Map;
 	cv::triangulatePoints(K*Ptargettarget, K*Pcurr, vPts3, vPts1, Map);
+	//std::cout << "after triangle::" << Map.size() << std::endl;
 	////////삼각화로 맵생성
 
 	///////데이터 전처리
@@ -956,20 +970,19 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 			continue;
 		////reprojection error
 		
-		////parallax check
-		//targettarget과 current만
-		cv::Mat xn1 = (cv::Mat_<float>(3, 1) << pt1.x, pt1.y, 1.0);
-		cv::Mat xn3 = (cv::Mat_<float>(3, 1) << pt3.x, pt3.y, 1.0);
-		//std::cout << xn1.t() << xn3.t();
-		cv::Mat ray1 = Rcfromc*invK*xn1;
-		cv::Mat ray3 = Rttfromc*invK*xn1;
-		//std::cout <<"\t"<< ray1.t() << ray3.t();
-		float cosParallaxRays = ray1.dot(ray3) / (cv::norm(ray1)*cv::norm(ray3));
-		//std::cout << cosParallaxRays << std::endl;
-		if (cosParallaxRays > 0.99999)
-			continue;
-		
-		////parallax check
+		//////parallax check
+		////targettarget과 current만
+		//cv::Mat xn1 = (cv::Mat_<float>(3, 1) << pt1.x, pt1.y, 1.0);
+		//cv::Mat xn3 = (cv::Mat_<float>(3, 1) << pt3.x, pt3.y, 1.0);
+		////std::cout << xn1.t() << xn3.t();
+		//cv::Mat ray1 = Rcfromc*invK*xn1;
+		//cv::Mat ray3 = Rttfromc*invK*xn3;
+		////std::cout <<"\t"<< ray1.t() << ray3.t();
+		//float cosParallaxRays = ray1.dot(ray3) / (cv::norm(ray1)*cv::norm(ray3));
+		////std::cout << cosParallaxRays << std::endl;
+		//if (cosParallaxRays > 0.99999) //9999 : 위안홀까지 가능, 99999 : 비전홀, N5
+		//	continue;
+		//////parallax check
 
 		nRes++;
 		auto pMP = new UVR_SLAM::MapPoint(mpRefFrame, X3D, cv::Mat());
@@ -984,7 +997,7 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 		pMP->AddFrame(targetFrame->mpMatchInfo, vIDXs2[i]);
 		pMP->AddFrame(targettargetFrame->mpMatchInfo, vIDXs3[i]);
 	}
-	std::cout << "lm::create new mp ::" <<vPts1.size()<<", "<< nRes <<" "<<Map.type()<< std::endl;
+	//std::cout << "lm::create new mp ::" <<vPts1.size()<<", "<< nRes <<" "<<Map.type()<< std::endl;
 }
 
 void UVR_SLAM::MatchInfo::Test(std::string dirPath) {
@@ -1030,7 +1043,7 @@ void UVR_SLAM::MatchInfo::Test(std::string dirPath) {
 		std::vector<cv::Point2f> tempPts;
 		std::vector<int> tempIDXs;
 
-		int n = targetMatchInfo->nMatch;
+		int n = targetMatchInfo->mnTargetMatch;
 		//////////포인트 매칭
 		//새로 생기기 전이고 mp가 없으면 연결
 		for (int i = 0; i < vRefIDXs.size(); i++) {

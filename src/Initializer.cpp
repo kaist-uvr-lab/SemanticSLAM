@@ -207,12 +207,12 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//////F, E를 통한 매칭 결과 반영
 
 		/////삼각화 : 기존 방법
-		std::vector<UVR_SLAM::InitialData*> vCandidates;
+		/*std::vector<UVR_SLAM::InitialData*> vCandidates;
 		UVR_SLAM::InitialData *mC1 = new UVR_SLAM::InitialData(count);
 		UVR_SLAM::InitialData *mC2 = new UVR_SLAM::InitialData(count);
 		UVR_SLAM::InitialData *mC3 = new UVR_SLAM::InitialData(count);
 		UVR_SLAM::InitialData *mC4 = new UVR_SLAM::InitialData(count);
-		int resIDX = -1;
+		int resIDX = -1;*/
 		/*vCandidates.push_back(mC1);
 		vCandidates.push_back(mC2);
 		vCandidates.push_back(mC3);
@@ -419,7 +419,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 		//////키프레임으로 업데이트 과정
 		//타겟 프레임과의 매칭 정보 저장
-		mpInitFrame1->mpMatchInfo->nMatch = mpInitFrame1->mpMatchInfo->mvMatchingPts.size();
+		mpInitFrame1->mpMatchInfo->mnTargetMatch = mpInitFrame1->mpMatchInfo->mvMatchingPts.size();
 		mpInitFrame2->mpMatchInfo->SetKeyFrame();
 		//////키프레임으로 업데이트 과정
 
