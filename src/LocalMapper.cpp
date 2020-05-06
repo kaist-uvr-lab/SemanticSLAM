@@ -111,6 +111,8 @@ void UVR_SLAM::LocalMapper::Run() {
 			//////200412
 			std::cout << "lm::start" << std::endl;
 			ProcessNewKeyFrame();
+			int nTargetID = mpTargetFrame->GetFrameID();
+
 			//////////////업데이트 맵포인트
 			auto matchInfo = mpTargetFrame->mpMatchInfo;
 			for (int i = 0; i < matchInfo->mvMatchingPts.size(); i++) {
@@ -123,6 +125,44 @@ void UVR_SLAM::LocalMapper::Run() {
 			}
 			//mpMap->AddFrame(mpTargetFrame);
 			//////////////업데이트 맵포인트
+
+			//////////////업데이트 키프레임
+			std::map<UVR_SLAM::Frame*, int> mmpCandidateKFs;
+			//int nTargetID = mpTargetFrame->GetFrameID();
+			int nMaxKF = 0;
+			int nMinKF = INT_MAX;
+			for (int i = 0; i < matchInfo->mvpMatchingMPs.size(); i++) {
+				UVR_SLAM::MapPoint* pMP = matchInfo->mvpMatchingMPs[i];
+				if (!pMP || pMP->isDeleted())
+					continue;
+				auto mmpMP = pMP->GetConnedtedFrames();
+				if (mmpMP.size() > nMaxKF)
+					nMaxKF = mmpMP.size();
+				for (auto biter = mmpMP.begin(), eiter = mmpMP.end(); biter != eiter; biter++) {
+					auto pMatchInfo = biter->first;
+					auto pkF = pMatchInfo->mpRefFrame;
+					//UVR_SLAM::Frame* pCandidateKF = biter->first;
+					if (nTargetID == pkF->GetFrameID())
+						continue;
+					mmpCandidateKFs[pkF]++;
+				}
+			}
+			std::cout << "lm::updatekf::" << mmpCandidateKFs.size() <<", "<< nMaxKF << std::endl;
+			for (auto biter = mmpCandidateKFs.begin(), eiter = mmpCandidateKFs.end(); biter != eiter; biter++) {
+				UVR_SLAM::Frame* pKF = biter->first;
+				int nCount = biter->second;
+				if (nMinKF > nCount)
+					nMinKF = nCount;
+				if (nCount > 10) {
+					//mpTargetFrame->AddKF(pKF);
+					//vPairs.push_back(std::make_pair(nCount, pKF));
+					mpTargetFrame->AddKF(pKF, nCount);
+					pKF->AddKF(mpTargetFrame, nCount);
+
+				}
+			}
+			std::cout << "lm::updatekf::" << mmpCandidateKFs.size() <<", "<<mpTargetFrame->GetConnectedKFs().size()<<", "<< nMinKF << ", " << nMaxKF << std::endl;
+			//////////////업데이트 키프레임
 
 			////////////////////////
 			///////매칭 결과 저장
@@ -279,7 +319,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			auto vtargetFrame = mpTargetFrame;
 			///////////////////////////////////////////////////////////////
 			////시각화용
-			int nTargetID = mpTargetFrame->GetFrameID();
+			//int nTargetID = mpTargetFrame->GetFrameID();
 			mpTargetFrame->mnLocalBAID = nTargetID;
 			std::vector<UVR_SLAM::MapPoint*> vpMPs;
 			std::vector<int> vnLabels;

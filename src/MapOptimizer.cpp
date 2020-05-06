@@ -86,55 +86,56 @@ void UVR_SLAM::MapOptimizer::Run() {
 			SetDoingProcess(true);
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
-			//std::cout << "ba::start::" << mpTargetFrame->GetFrameID() << std::endl;
+			std::cout << "ba::start::" << mpTargetFrame->GetFrameID() << std::endl;
 			mStrPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
 			StopBA(false);
 			auto currMatchInfo = mpTargetFrame->mpMatchInfo;
 			auto targetFrame = mpTargetFrame;
 			///////////////////////////////////////////////////////////////
 			////preprocessing
+			//std::cout << "ba::processing::start" << std::endl;
 			int nTargetID = mpTargetFrame->GetFrameID();
 			mpTargetFrame->mnLocalBAID = nTargetID;
 			//std::cout << "BA::preprocessing::start" << std::endl;
 			std::chrono::high_resolution_clock::time_point temp_1 = std::chrono::high_resolution_clock::now();
 			std::vector<UVR_SLAM::MapPoint*> vpMPs;// , vpMPs2;
 			std::vector<UVR_SLAM::Frame*> vpKFs;
-			for (int k = 0; k < 30; k++) {
-				if (!targetFrame)
-					break;
-				vpKFs.push_back(targetFrame);
-				if(targetFrame->mnLocalBAID != nTargetID){
-					targetFrame->mnLocalBAID = nTargetID;
-					auto matchInfo = targetFrame->mpMatchInfo;
-					for (int i = 0; i < matchInfo->mvpMatchingMPs.size(); i++) {
-						auto pMPi = matchInfo->mvpMatchingMPs[i];
-						if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
-							continue;
-						}
-						/*if(vpMPs.size() < 2500){
-							vpMPs.push_back(pMPi);
-							pMPi->mnLocalBAID = nTargetID;
-						}
-						vpMPs2.push_back(pMPi);*/
-						vpMPs.push_back(pMPi);
-						pMPi->mnLocalBAID = nTargetID;
-					}
-
-				}
-				if (vpMPs.size() > 2000)
-					break;
-				//타겟 프레임 변경
-				targetFrame = targetFrame->mpMatchInfo->mpTargetFrame;
-			}
-			
-
-			// Fixed Keyframes. Keyframes that see Local MapPoints but that are not Local Keyframes
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
+			
+			auto tempKFs1 = mpTargetFrame->GetConnectedKFs(15);
+			auto tempKFs2 = mpTargetFrame->GetConnectedKFs();
+			vpKFs.push_back(mpTargetFrame);
+			
+			for (int i = 0; i < tempKFs1.size(); i++){
+				tempKFs1[i]->mnLocalBAID = nTargetID;
+				vpKFs.push_back(tempKFs1[i]);
+			}
+			for (int i = 0; i < tempKFs2.size(); i++) {
+				if (tempKFs2[i]->mnLocalBAID != nTargetID && tempKFs2[i]->mnFixedBAID != nTargetID)
+				{
+					tempKFs2[i]->mnFixedBAID = nTargetID;
+					vpFixedKFs.push_back(tempKFs2[i]);
+				}
+			}
+
+			for (int k = 0; k < vpKFs.size(); k++){
+				auto pKFi = vpKFs[k];
+				auto matchInfo = pKFi->mpMatchInfo;
+				for (int i = 0; i < matchInfo->mvpMatchingMPs.size(); i++) {
+					auto pMPi = matchInfo->mvpMatchingMPs[i];
+					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
+						continue;
+					}
+					pMPi->mnLocalBAID = nTargetID;
+					vpMPs.push_back(pMPi);
+				}
+				if (vpMPs.size() > 1500)
+					break;
+			}
 			for (int i = 0; i < vpMPs.size(); i++)
 			{
 				UVR_SLAM::MapPoint* pMP = vpMPs[i];
 				auto observations = pMP->GetConnedtedFrames();
-				//map<KeyFrame*, size_t> observations = (*lit)->GetObservations();
 				for (auto mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
 				{
 					auto pMatch = mit->first;
@@ -147,7 +148,75 @@ void UVR_SLAM::MapOptimizer::Run() {
 					}
 				}
 			}
+			
+			////for (int k = 0; k < 30; k++) {
+			////	if (!targetFrame)
+			////		break;
+			////	vpKFs.push_back(targetFrame);
+			////	if(targetFrame->mnLocalBAID != nTargetID){
+			////		targetFrame->mnLocalBAID = nTargetID;
+			////		auto matchInfo = targetFrame->mpMatchInfo;
+			////		for (int i = 0; i < matchInfo->mvpMatchingMPs.size(); i++) {
+			////			auto pMPi = matchInfo->mvpMatchingMPs[i];
+			////			if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
+			////				continue;
+			////			}
+			////			/*if(vpMPs.size() < 2500){
+			////				vpMPs.push_back(pMPi);
+			////				pMPi->mnLocalBAID = nTargetID;
+			////			}
+			////			vpMPs2.push_back(pMPi);*/
+			////			vpMPs.push_back(pMPi);
+			////			pMPi->mnLocalBAID = nTargetID;
+			////		}
 
+			////	}
+			////	if (vpMPs.size() > 2000)
+			////		break;
+			////	//타겟 프레임 변경
+			////	targetFrame = targetFrame->mpMatchInfo->mpTargetFrame;
+			////}
+			//for (int k = 0; k < vpKFs.size(); k++){
+			//	auto pKFi = vpKFs[k];
+			//	if (pKFi->mnLocalBAID != nTargetID) {
+			//		pKFi->mnLocalBAID = nTargetID;
+			//		vpKFs2.push_back(pKFi);
+			//		auto matchInfo = pKFi->mpMatchInfo;
+			//		for (int i = 0; i < matchInfo->mvpMatchingMPs.size(); i++) {
+			//			auto pMPi = matchInfo->mvpMatchingMPs[i];
+			//			if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
+			//				continue;
+			//			}
+			//			vpMPs.push_back(pMPi);
+			//			pMPi->mnLocalBAID = nTargetID;
+			//		}
+
+			//	}
+			//	if (vpMPs.size() > 1500)
+			//		break;
+			//	
+			//}
+
+			//// Fixed Keyframes. Keyframes that see Local MapPoints but that are not Local Keyframes
+			//
+			//for (int i = 0; i < vpMPs.size(); i++)
+			//{
+			//	UVR_SLAM::MapPoint* pMP = vpMPs[i];
+			//	auto observations = pMP->GetConnedtedFrames();
+			//	//map<KeyFrame*, size_t> observations = (*lit)->GetObservations();
+			//	for (auto mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
+			//	{
+			//		auto pMatch = mit->first;
+			//		auto pKFi = pMatch->mpRefFrame;
+
+			//		if (pKFi->mnLocalBAID != nTargetID && pKFi->mnFixedBAID != nTargetID)
+			//		{
+			//			pKFi->mnFixedBAID = nTargetID;
+			//			vpFixedKFs.push_back(pKFi);
+			//		}
+			//	}
+			//}
+			//std::cout << "ba::processing::end" << std::endl;
 			//std::cout << "BA::preprocessing::end" << std::endl;
 			Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);
 			//			
@@ -199,7 +268,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::stringstream ss;
 			ss << "Map Optimizer::" << mpTargetFrame->GetKeyFrameID() <<"::"<<letime<<"||"<< vpKFs.size()<<", "<< vpFixedKFs.size()<<", "<<vpMPs.size();
 			mpSystem->SetMapOptimizerString(ss.str());
-			//std::cout << "ba::end::" << mpTargetFrame->GetKeyFrameID() << std::endl;
+			std::cout << "ba::end::" << mpTargetFrame->GetKeyFrameID() << std::endl;
 			//종료
 			SetDoingProcess(false);
 		}
