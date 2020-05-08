@@ -11,6 +11,8 @@ namespace UVR_SLAM {
 	class MatchInfo;
 	class MapPoint;
 	class FrameWindow;
+	class PlaneProcessInformation;
+	class PlaneInformation;
 	class System;
 	class Map;
 
@@ -74,6 +76,14 @@ namespace UVR_SLAM {
 		std::mutex mMutexFrameMPs;
 		std::vector<UVR_SLAM::MapPoint*> mvpFrameMPs;
 		std::vector<int> mvnLabels;
+	///////¹Ù´Ú È®ÀÎ¿ë
+	public:
+		void AddPlaneInfo(PlaneProcessInformation* pPlaneInfo);
+		std::vector<PlaneProcessInformation*> GetPlaneInfos();
+	private:
+		std::mutex mMutexPlaneInfo;
+		std::vector<PlaneProcessInformation*> mvpPlaneInfos;
+	///////¹Ù´Ú È®ÀÎ¿ë
 	};
 }
 #endif
