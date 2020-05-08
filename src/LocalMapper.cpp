@@ -341,6 +341,7 @@ void UVR_SLAM::LocalMapper::Run() {
 				//타겟 프레임 변경
 				vtargetFrame = vtargetFrame->mpMatchInfo->mpTargetFrame;
 			}
+
 			mpVisualizer->SetMPs(vpMPs, vnLabels);
 			//////
 			///////////////////////////////////////////////

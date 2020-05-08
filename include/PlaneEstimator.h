@@ -19,6 +19,7 @@ namespace UVR_SLAM {
 	class MapPoint;
 	class Initializer;
 	class Matcher;
+	class Visualizer;
 	class LineProcessor {
 	public:
 		float static CalcSlope(cv::Point2f pt1, cv::Point2f pt2) {
@@ -46,7 +47,6 @@ namespace UVR_SLAM {
 		std::vector<MapPoint*> mvpMPs;
 		std::vector<MapPoint*> tmpMPs; //이전에 만들어진 포인트 중에서 여러개 연결된 경우
 
-		
 		void SetParam(cv::Mat n, float d);
 		void GetParam(cv::Mat& n, float& d);
 		cv::Mat GetParam();
@@ -120,6 +120,7 @@ namespace UVR_SLAM {
 		void Reset();
 		void Run();
 		void SetSystem(System* pSystem);
+		void SetVisualizer(Visualizer* pVis);
 		void SetFrameWindow(FrameWindow* pFrameWindow);
 		void SetTargetFrame(Frame* pFrame);
 		void SetMatcher(Matcher* pMatcher);
@@ -129,10 +130,8 @@ namespace UVR_SLAM {
 
 	private:
 
-		
-
-		
 		void reversePlaneSign(cv::Mat& param);
+		int UpdatePlane(PlaneInformation* pPrevPlane, PlaneInformation* pCurrPlane, std::vector<UVR_SLAM::MapPoint*> vpMPs, int nTargetID, float thresh_distance);
 		void UpdatePlane(PlaneInformation* pPlane, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 		bool PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, UVR_SLAM::PlaneInformation* GroundPlane, int type, std::vector<UVR_SLAM::MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 		bool ConnectedComponentLabeling(cv::Mat img, cv::Mat& dst, cv::Mat& stat);
@@ -151,6 +150,7 @@ namespace UVR_SLAM {
 
 		cv::Mat mK;//
 		System* mpSystem;
+		Visualizer* mpVisualizer;
 		Map* mpMap;
 		std::mutex mMutexDoingProcess;
 		bool mbDoingProcess;

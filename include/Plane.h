@@ -22,6 +22,7 @@ namespace UVR_SLAM {
 			void GetInformation(cv::Mat& pInvP, cv::Mat& pInvT, cv::Mat& pInvK);
 			PlaneInformation* GetInformation();
 			PlaneInformation* GetFloorPlane();
+			Frame* GetReferenceFrame();
 		private:
 			std::mutex mMutexProessor;
 			Frame* mpFrame;

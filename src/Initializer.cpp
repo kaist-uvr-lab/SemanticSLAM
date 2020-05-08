@@ -316,39 +316,41 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//////////////////////////////////////////////////////////평면 관련 기능들
 		/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
-		//std::vector<UVR_SLAM::MapPoint*> mvpFloorMPs;
-		//std::vector<cv::Point2f> vTempFloorPts; //호모 그래피를 이용할 경우 사용
+		std::vector<UVR_SLAM::MapPoint*> mvpFloorMPs;
+		std::vector<cv::Point2f> vTempFloorPts; //호모 그래피를 이용할 경우 사용
 
-		//for (int i = 0; i < tempMPs.size(); i++) {
-		//	auto pt1 = vTempMappedPts1[i];
-		//	//auto pt2 = vTempMappedPts2[i];
-		//	int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
+		for (int i = 0; i < tempMPs.size(); i++) {
+			auto pt1 = vTempMappedPts1[i];
+			//auto pt2 = vTempMappedPts2[i];
+			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
 
-		//	if (label1 == 150) {
-		//		mvpFloorMPs.push_back(tempMPs[i]);
-		//		//vTempFloorPts.push_back(pt2);
-		//	}
-
-		//}
+			if (label1 == 150) {
+				mvpFloorMPs.push_back(tempMPs[i]);
+				//vTempFloorPts.push_back(pt2);
+			}
+		}
+		//mpVisualizer->SetFloorMPs(mvpFloorMPs, true);
 		/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
 		/////////////////////////////평면 초기화
-		//UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
-		//bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, 0.01, 0.4);
-		//cv::Mat param = pFloor->GetParam();
-		//if (!bRes || abs(param.at<float>(1)) < 0.98)//98
-		//{
-		//	mpTempFrame = mpInitFrame2;
-		//	return mbInit;
-		//}
+		UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
+		float pdist = 0.01;
+		bool bRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, mvpFloorMPs, mpInitFrame2->GetFrameID(), 1500, pdist, 0.4);
+		cv::Mat param = pFloor->GetParam();
+		if (!bRes || abs(param.at<float>(1)) < 0.98)//98
+		{
+			mpTempFrame = mpInitFrame2;
+			return mbInit;
+		}
 		/////////////////////////////평면 초기화
 
 		/////////////////////////////평면 정보 생성
 		//////초기 평면 MP 설정 필요
-		//mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
-		//mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
-		//cv::Mat invP, invT, invK;
-		//mpInitFrame2->mpPlaneInformation->Calculate();
-		//mpInitFrame2->mpPlaneInformation->GetInformation(invP, invT, invK);
+		mpInitFrame1->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame1, pFloor);
+		mpInitFrame2->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpInitFrame2, pFloor);
+		mpVisualizer->AddPlaneInfo(mpInitFrame1->mpPlaneInformation);
+		cv::Mat invP, invT, invK;
+		mpInitFrame2->mpPlaneInformation->Calculate();
+		mpInitFrame2->mpPlaneInformation->GetInformation(invP, invT, invK);
 		/////////////////////////////평면 정보 생성
 
 		/////////////////////////////평면 정보를 이용한 alignment
@@ -379,7 +381,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//////////////////////////////////////////////////////////평면 관련 기능들
 		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		
-
 		//////////////////////////키프레임 생성
 		mpInitFrame2->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
 		//////////카메라 자세 변환 안하는 경우
@@ -403,9 +404,9 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			//pNewMP->AddDenseFrame(mpInitFrame1, pt1);
 			//pNewMP->AddDenseFrame(mpInitFrame2, pt2);
 			pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
-			pNewMP->IncreaseVisible(2);
-			pNewMP->IncreaseFound(2);
-			mpSystem->mlpNewMPs.push_back(pNewMP);
+			//pNewMP->IncreaseVisible(2);
+			//pNewMP->IncreaseFound(2);
+			//mpSystem->mlpNewMPs.push_back(pNewMP);
 			//mpInitFrame2->mpMatchInfo->mvnMatchingMPIDXs.push_back(vTempMappedIDXs[i]);
 		}
 

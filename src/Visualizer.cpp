@@ -203,7 +203,6 @@ void UVR_SLAM::Visualizer::Run() {
 
 			if (mbFrameMatching) {
 				//VisualizeFrameMatching();
-
 				//VisualizeTracking();
 			}
 
@@ -298,7 +297,7 @@ void UVR_SLAM::Visualizer::Run() {
 			std::vector<int> vnLabels;
 			GetMPs(vpFrameMPs, vnLabels);
 			auto pMatchInfo = GetMatchInfo();
-			
+			int nRayoutFrameID = pMatchInfo->mpTargetFrame->GetKeyFrameID();
 			if(pMatchInfo){
 				auto lastBAFrame = pMatchInfo->mpTargetFrame;
 				for (int i = 0; i < vpFrameMPs.size(); i++) {
@@ -309,7 +308,8 @@ void UVR_SLAM::Visualizer::Run() {
 					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
 					tpt += mVisMidPt;
 					//bool bBA = false;
-					bool bBA = pMPi->mnLocalBAID >= lastBAFrame->GetFrameID();
+					bool bBA = pMPi->mnLocalBAID >= lastBAFrame->GetFrameID()-10;
+					//bool bBA = pMPi->GetRecentLayoutFrameID() >= nRayoutFrameID - 2;
 					cv::Scalar color = cv::Scalar(0, 0, 0);
 					auto label = vnLabels[i];
 					if (label == 255) {
@@ -324,24 +324,90 @@ void UVR_SLAM::Visualizer::Run() {
 					}
 					cv::circle(tempVis, tpt, 2, color, -1);
 				}
-				//tracking
-
-				for (int i = 0; i < pMatchInfo->mvMatchingPts.size(); i++) {
-					auto pMPi = pMatchInfo->mvpMatchingMPs[i];
-					auto label = pMatchInfo->mvObjectLabels[i];
+				/////floor mp
+				auto vpPlaneInfos = GetPlaneInfos();
+				for (int i = 0; i < vpPlaneInfos.size(); i++) {
+					auto pInfo = vpPlaneInfos[i];
+					auto pFloor = pInfo->GetFloorPlane();
+					auto tmpMPs = pFloor->tmpMPs;
+					auto vpMPs = pFloor->mvpMPs;
+					for (int j = 0; j < tmpMPs.size(); j++) {
+						auto pMPi = tmpMPs[j];
+						if (!pMPi || pMPi->isDeleted())
+							continue;
+						cv::Mat x3D = pMPi->GetWorldPos();
+						cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+						tpt += mVisMidPt;
+						cv::Scalar color = cv::Scalar(255, 255, 0);
+						cv::circle(tempVis, tpt, 2, color, -1);
+					}
+					for (int j = 0; j < vpMPs.size(); j++) {
+						auto pMPi = vpMPs[j];
+						if (!pMPi || pMPi->isDeleted())
+							continue;
+						cv::Mat x3D = pMPi->GetWorldPos();
+						cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+						tpt += mVisMidPt;
+						cv::Scalar color = cv::Scalar(255, 0, 255);
+						cv::circle(tempVis, tpt, 2, color, -1);
+					}
+				}
+				/*std::vector<UVR_SLAM::MapPoint*> mvpFloorMPs;
+				GetFloorMPs(mvpFloorMPs);
+				if (mbInitFloorMP) {
+					mvpInitFloorMPs = std::vector<UVR_SLAM::MapPoint*>(mvpFloorMPs.begin(), mvpFloorMPs.end());
+				}
+				
+				for (int i = 0; i < mvpInitFloorMPs.size(); i++) {
+					auto pMPi = mvpInitFloorMPs[i];
 					if (!pMPi || pMPi->isDeleted())
 						continue;
 					cv::Mat x3D = pMPi->GetWorldPos();
 					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
 					tpt += mVisMidPt;
-					cv::Scalar color = cv::Scalar(0, 0, 0);
-					if (label == 255)
-						color = cv::Scalar(255, 0, 0);
-					else if (label == 150)
-						color = cv::Scalar(0, 0, 255);
+					cv::Scalar color = cv::Scalar(255, 0, 255);
 					cv::circle(tempVis, tpt, 2, color, -1);
 				}
-				////tracking results
+				auto initFloorMPs = mpMap->mpFirstKeyFrame->mpPlaneInformation->GetFloorPlane()->mvpMPs;
+				for (int i = 0; i < initFloorMPs.size(); i++) {
+					auto pMPi = initFloorMPs[i];
+					if (!pMPi || pMPi->isDeleted())
+						continue;
+					cv::Mat x3D = pMPi->GetWorldPos();
+					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+					tpt += mVisMidPt;
+					cv::Scalar color = cv::Scalar(255, 255,0);
+					cv::circle(tempVis, tpt, 2, color, -1);
+				}
+
+				for (int i = 0; i < mvpFloorMPs.size(); i++) {
+					auto pMPi = mvpFloorMPs[i];
+					if (!pMPi || pMPi->isDeleted())
+						continue;
+					cv::Mat x3D = pMPi->GetWorldPos();
+					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+					tpt += mVisMidPt;
+					cv::Scalar color = cv::Scalar(255, 0, 255);
+					cv::circle(tempVis, tpt, 2, color, -1);
+				}*/
+				/////floor mp
+				////tracking
+				//for (int i = 0; i < pMatchInfo->mvMatchingPts.size(); i++) {
+				//	auto pMPi = pMatchInfo->mvpMatchingMPs[i];
+				//	auto label = pMatchInfo->mvObjectLabels[i];
+				//	if (!pMPi || pMPi->isDeleted())
+				//		continue;
+				//	cv::Mat x3D = pMPi->GetWorldPos();
+				//	cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+				//	tpt += mVisMidPt;
+				//	cv::Scalar color = cv::Scalar(0, 0, 0);
+				//	if (label == 255)
+				//		color = cv::Scalar(255, 0, 0);
+				//	else if (label == 150)
+				//		color = cv::Scalar(0, 0, 255);
+				//	cv::circle(tempVis, tpt, 2, color, -1);
+				//}
+				//////tracking results
 				////trajectory
 				//auto frames = mpMap->GetFrames();
 				auto lastFrame = pMatchInfo->mpRefFrame;//frames[frames.size() - 1];
@@ -370,6 +436,7 @@ void UVR_SLAM::Visualizer::Run() {
 					//타겟 프레임 변경
 					lastFrame = lastFrame->mpMatchInfo->mpTargetFrame;
 				}
+				
 			}
 			////trajectory
 			///////////////////////////////////////////////////////////////////////////////
@@ -430,3 +497,29 @@ UVR_SLAM::MatchInfo* UVR_SLAM::Visualizer::GetMatchInfo(){
 	std::unique_lock<std::mutex> lock(mMutexFrameMPs);
 	return mpMatchInfo;
 }
+
+void UVR_SLAM::Visualizer::AddPlaneInfo(PlaneProcessInformation* pPlane){
+	std::unique_lock<std::mutex> lock(mMutexPlaneInfo);
+	mvpPlaneInfos.push_back(pPlane);
+}
+std::vector<UVR_SLAM::PlaneProcessInformation*> UVR_SLAM::Visualizer::GetPlaneInfos() {
+	std::unique_lock<std::mutex> lock(mMutexPlaneInfo);
+	return std::vector<PlaneProcessInformation*>(mvpPlaneInfos.begin(), mvpPlaneInfos.end());
+}
+
+
+//void UVR_SLAM::Visualizer::SetFloorMPs(std::vector<UVR_SLAM::MapPoint*> vpMPs, bool bInit) {
+//	std::unique_lock<std::mutex> lock(mMutexFloorMPs);
+//	mbInitFloorMP = bInit;
+//	mvpFloorMPs = std::vector<UVR_SLAM::MapPoint*>(vpMPs.begin(), vpMPs.end());
+//	/*if(bInit){
+//		mvpInitFloorMPs = std::vector<UVR_SLAM::MapPoint*>(vpMPs.begin(), vpMPs.end());
+//	}
+//	else{
+//		
+//	}*/
+//}
+//void UVR_SLAM::Visualizer::GetFloorMPs(std::vector<UVR_SLAM::MapPoint*>& vpMPs) {
+//	std::unique_lock<std::mutex> lock(mMutexFloorMPs);
+//	vpMPs = std::vector<UVR_SLAM::MapPoint*>(mvpFloorMPs.begin(), mvpFloorMPs.end());
+//}

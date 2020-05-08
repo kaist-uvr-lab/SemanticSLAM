@@ -972,16 +972,16 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 		
 		//////parallax check
 		////targettarget과 current만
-		//cv::Mat xn1 = (cv::Mat_<float>(3, 1) << pt1.x, pt1.y, 1.0);
-		//cv::Mat xn3 = (cv::Mat_<float>(3, 1) << pt3.x, pt3.y, 1.0);
-		////std::cout << xn1.t() << xn3.t();
-		//cv::Mat ray1 = Rcfromc*invK*xn1;
-		//cv::Mat ray3 = Rttfromc*invK*xn3;
-		////std::cout <<"\t"<< ray1.t() << ray3.t();
-		//float cosParallaxRays = ray1.dot(ray3) / (cv::norm(ray1)*cv::norm(ray3));
-		////std::cout << cosParallaxRays << std::endl;
-		//if (cosParallaxRays > 0.99999) //9999 : 위안홀까지 가능, 99999 : 비전홀, N5
-		//	continue;
+		cv::Mat xn1 = (cv::Mat_<float>(3, 1) << pt1.x, pt1.y, 1.0);
+		cv::Mat xn3 = (cv::Mat_<float>(3, 1) << pt3.x, pt3.y, 1.0);
+		//std::cout << xn1.t() << xn3.t();
+		cv::Mat ray1 = Rcfromc*invK*xn1;
+		cv::Mat ray3 = Rttfromc*invK*xn3;
+		//std::cout <<"\t"<< ray1.t() << ray3.t();
+		float cosParallaxRays = ray1.dot(ray3) / (cv::norm(ray1)*cv::norm(ray3));
+		//std::cout << cosParallaxRays << std::endl;
+		if (cosParallaxRays > 0.99999) //9999 : 위안홀까지 가능, 99999 : 비전홀, N5
+			continue;
 		//////parallax check
 
 		nRes++;
