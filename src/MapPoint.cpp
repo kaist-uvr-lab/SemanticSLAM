@@ -186,13 +186,25 @@ void UVR_SLAM::MapPoint::AddFrame(UVR_SLAM::MatchInfo* pF, int idx) {
 	}
 }
 void UVR_SLAM::MapPoint::RemoveFrame(UVR_SLAM::MatchInfo* pF){
-	std::unique_lock<std::mutex> lockMP(mMutexMP);
-	auto res = mmpFrames.find(pF);
-	if (res != mmpFrames.end()) {
-		int idx = res->second;
-		res = mmpFrames.erase(res);
-		mnConnectedFrames--;
-		pF->RemoveMP(idx);
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexMP);
+		auto res = mmpFrames.find(pF);
+		if (res != mmpFrames.end()) {
+			int idx = res->second;
+			res = mmpFrames.erase(res);
+			mnConnectedFrames--;
+			pF->RemoveMP(idx);
+			if (mnConnectedFrames < 3)
+			{
+				mbDelete = true;
+			}
+		}
+	}
+	if (mbDelete) {
+		/*std::cout << "MP::RemoveFrame::Delete::Start" << std::endl;
+		std::cout << mnConnectedFrames << ", " << mmpFrames.size() << std::endl;*/
+		Delete();
+		//std::cout << "MP::RemoveFrame::Delete::End" << std::endl;
 	}
 }
 
