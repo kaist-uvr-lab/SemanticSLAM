@@ -454,7 +454,7 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 			//mpFrameWindow->SetMapPoint(nullptr, i);
 			//mpFrameWindow->SetBoolInlier(false, i);
 			//frame window와 현재 키프레임에 대해서 삭제될 포인트 처리가 필요할 수 있음.
-			pMP->SetDelete(true);
+			//pMP->SetDelete(true);
 			pMP->Delete();
 		}
 	}

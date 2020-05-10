@@ -53,7 +53,7 @@ namespace UVR_SLAM {
 		int GetPlaneID();
 		int GetMapPointID();
 		
-		void SetDelete(bool b);
+		//void SetDelete(bool b);
 		bool isDeleted();
 		
 		float GetMaxDistance();

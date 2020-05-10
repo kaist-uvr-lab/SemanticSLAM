@@ -70,7 +70,7 @@ void PlaneBAEdge::computeError(){
 	Vector3d normal = param1.head(3).normalized();
 	double dist = param1[3]/param1.head(3).squaredNorm();
 
-	_error[0] = normal.dot(param2) + dist;
+	_error[0] = -(normal.dot(param2) + dist);
 }
 void PlaneBAEdge::linearizeOplus(){
 	const PlaneVertex* v1 = static_cast<const PlaneVertex*>(_vertices[0]);
@@ -79,10 +79,10 @@ void PlaneBAEdge::linearizeOplus(){
 	Vector6d param1 = v1->estimate(); //평면
 	Vector3d param2 = v2->estimate(); //맵포인트
 
-	_jacobianOplusXi = Vector6d::Zero();
-	_jacobianOplusXi.head(3) = param2;
-	_jacobianOplusXi[3] = 1.0;
-	_jacobianOplusXj = param1.head(3).normalized();
+	_jacobianOplusXi = Vector6d::Zero(); //0일수도 있음.
+	_jacobianOplusXi.head(3) = -param2;
+	_jacobianOplusXi[3] = 0.0;
+	_jacobianOplusXj = -param1.head(3).normalized();
 }
 
 PlaneCorrelationBAEdge::PlaneCorrelationBAEdge(){}

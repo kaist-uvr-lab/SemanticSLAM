@@ -94,10 +94,10 @@ bool UVR_SLAM::MapPoint::isNewMP(){
 	return mbNewMP;
 }
 
-void UVR_SLAM::MapPoint::SetDelete(bool b) {
-	std::unique_lock<std::mutex> lockMP(mMutexMP);
-	mbDelete = b;
-}
+//void UVR_SLAM::MapPoint::SetDelete(bool b) {
+//	std::unique_lock<std::mutex> lockMP(mMutexMP);
+//	mbDelete = b;
+//}
 bool UVR_SLAM::MapPoint::isDeleted(){
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	return mbDelete;
@@ -186,18 +186,25 @@ void UVR_SLAM::MapPoint::AddFrame(UVR_SLAM::MatchInfo* pF, int idx) {
 	}
 }
 void UVR_SLAM::MapPoint::RemoveFrame(UVR_SLAM::MatchInfo* pF){
-	std::unique_lock<std::mutex> lockMP(mMutexMP);
-	auto res = mmpFrames.find(pF);
-	if (res != mmpFrames.end()) {
-		int idx = res->second;
-		res = mmpFrames.erase(res);
-		mnConnectedFrames--;
-		pF->RemoveMP(idx);
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexMP);
+		auto res = mmpFrames.find(pF);
+		if (res != mmpFrames.end()) {
+			int idx = res->second;
+			res = mmpFrames.erase(res);
+			mnConnectedFrames--;
+			pF->RemoveMP(idx);
+			if (mnConnectedFrames < 3)
+				mbDelete = true;
+		}
 	}
+	if (mbDelete)
+		Delete();
 }
 
 void UVR_SLAM::MapPoint::Delete() {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
+	mbDelete = true;
 	for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
 		auto* pF = iter->first;
 		auto idx = iter->second;
