@@ -452,26 +452,26 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		4) 맵포인트와의 연결도 필요할 듯.
 		5) 벽의 경우 미리 나누는 것도 중요함.
 		*/
-		//std::vector<cv::Point2f> vFloorPts1, vFloorPts2, vWallPts1, vWallPts2;
-		//for (int i = 0; i < vTempPts2.size(); i++) {
-		//	auto pt1 = vTempPts1[i];
-		//	auto pt2 = vTempPts2[i];
-		//	int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
-		//	/*int label2 = mpInitFrame2->matLabeled.at<uchar>(pt2.y / 2, pt2.x / 2);
-		//	if (label1 != label2)
-		//		continue;*/
-		//	if (label1 == 150) {
-		//		vFloorPts1.push_back(pt1);
-		//		vFloorPts2.push_back(pt2);
-		//	}
-		//	else if (label1 == 255) {
-		//		vWallPts1.push_back(pt1);
-		//		vWallPts2.push_back(pt2);
-		//	}
-		//}
-		//cv::Mat inlierH1, inlierH2;
-		//cv::Mat H1 = cv::findHomography(vFloorPts1, vFloorPts2, inlierH1, cv::RHO, 3.0);
-		//cv::Mat H2 = cv::findHomography( vWallPts1,  vWallPts2, inlierH2, cv::RHO, 3.0);
+		std::vector<cv::Point2f> vFloorPts1, vFloorPts2, vWallPts1, vWallPts2;
+		for (int i = 0; i < vTempPts2.size(); i++) {
+			auto pt1 = vTempPts1[i];
+			auto pt2 = vTempPts2[i];
+			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
+			/*int label2 = mpInitFrame2->matLabeled.at<uchar>(pt2.y / 2, pt2.x / 2);
+			if (label1 != label2)
+				continue;*/
+			if (label1 == 150) {
+				vFloorPts1.push_back(pt1);
+				vFloorPts2.push_back(pt2);
+			}
+			else if (label1 == 255) {
+				vWallPts1.push_back(pt1);
+				vWallPts2.push_back(pt2);
+			}
+		}
+		cv::Mat inlierH1, inlierH2;
+		cv::Mat H1 = cv::findHomography(vFloorPts1, vFloorPts2, inlierH1, cv::RHO, 3.0);
+		cv::Mat H2 = cv::findHomography( vWallPts1,  vWallPts2, inlierH2, cv::RHO, 3.0);
 		//std::vector<cv::Mat> Rs1, Ts1, Ns1;
 		//std::vector<cv::Mat> Rs2, Ts2, Ns2;
 		//cv::decomposeHomographyMat(H1, mK, Rs1, Ts1, Ns1);
@@ -521,15 +521,16 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 
 		////호모그래피 시각화
-		//for (int i = 0; i < vFloorPts1.size(); i++) {
-		//	if (inlierH1.at<uchar>(i)) {
-		//		cv::circle(debugging, vFloorPts1[i], 3, cv::Scalar(255, 0, 0), -1);
-		//		cv::circle(debugging, vFloorPts2[i] + ptBottom, 3, cv::Scalar(255, 0, 0), -1);
-		//	}
-		//	/*else {
-		//		cv::line(debugging, vFloorPts1[i], vFloorPts2[i] + ptBottom, cv::Scalar(255, 255, 0), 1);
-		//	}*/
-		//}
+		for (int i = 0; i < vFloorPts1.size(); i++) {
+			if (inlierH1.at<uchar>(i)) {
+				cv::circle(debugging, vFloorPts1[i], 3, cv::Scalar(255, 0, 0), -1);
+				cv::circle(debugging, vFloorPts2[i] + ptBottom, 3, cv::Scalar(255, 0, 0), -1);
+			}
+			else {
+				cv::circle(debugging, vFloorPts1[i], 3, cv::Scalar(0, 255, 0), -1);
+				cv::circle(debugging, vFloorPts2[i] + ptBottom, 3, cv::Scalar(0, 255, 0), -1);
+			}
+		}
 		//for (int i = 0; i < vWallPts1.size(); i++) {
 		//	if (inlierH2.at<uchar>(i)) {
 		//		//cv::line(debugging, vWallPts1[i], vWallPts2[i]+ptBottom, cv::Scalar(0, 255, 0), 1);

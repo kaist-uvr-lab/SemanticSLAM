@@ -5,6 +5,8 @@
 #include <FrameWindow.h>
 #include <MapPoint.h>
 #include <Optimization.h>
+#include <PlaneEstimator.h>
+#include <Plane.h>
 #include <Map.h>
 
 UVR_SLAM::MapOptimizer::MapOptimizer(std::string strPath, Map* pMap) : mpTargetFrame(nullptr), mbStopBA(false)
@@ -218,7 +220,22 @@ void UVR_SLAM::MapOptimizer::Run() {
 			//}
 			//std::cout << "ba::processing::end" << std::endl;
 			//std::cout << "BA::preprocessing::end" << std::endl;
-			Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);
+			///////////////////////////////////////////////////////////////////////////////////////////
+			////Optimization
+			if (mpTargetFrame->mpPlaneInformation) {
+				auto pPlaneInfo = mpTargetFrame->mpPlaneInformation->GetFloorPlane();
+				//float a = pPlaneInfo->GetParam().at<float>(1);
+				Optimization::OpticalLocalBundleAdjustmentWithPlane(this, pPlaneInfo, vpMPs, vpKFs, vpFixedKFs);
+				//float b = pPlaneInfo->GetParam().at<float>(1);
+			}
+			else {
+				Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);
+			}
+			//
+			////Optimization
+			///////////////////////////////////////////////////////////////////////////////////////////
+			
+
 			//			
 			//for(int j = 0; j < 1000; j++)
 			//for (int i = 0; i < vpMPs.size(); i++) {

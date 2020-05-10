@@ -147,7 +147,7 @@ void UVR_SLAM::LocalMapper::Run() {
 					mmpCandidateKFs[pkF]++;
 				}
 			}
-			std::cout << "lm::updatekf::" << mmpCandidateKFs.size() <<", "<< nMaxKF << std::endl;
+			
 			for (auto biter = mmpCandidateKFs.begin(), eiter = mmpCandidateKFs.end(); biter != eiter; biter++) {
 				UVR_SLAM::Frame* pKF = biter->first;
 				int nCount = biter->second;
@@ -161,7 +161,7 @@ void UVR_SLAM::LocalMapper::Run() {
 
 				}
 			}
-			std::cout << "lm::updatekf::" << mmpCandidateKFs.size() <<", "<<mpTargetFrame->GetConnectedKFs().size()<<", "<< nMinKF << ", " << nMaxKF << std::endl;
+			
 			//////////////업데이트 키프레임
 
 			////////////////////////
@@ -224,6 +224,9 @@ void UVR_SLAM::LocalMapper::Run() {
 			////맵포인트 생성
 			cv::Mat ddebug;
 			mpTargetFrame->mpMatchInfo->Test(ddebug);
+			/*std::stringstream ssdir;
+			ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << ".jpg";
+			imwrite(ssdir.str(), ddebug);*/
 			////맵포인트 생성
 			/////////////////
 			
@@ -304,6 +307,16 @@ void UVR_SLAM::LocalMapper::Run() {
 
 			///////////////////Fuse Map Points
 
+			//plane estimation에서 맵포인트를 생성할 때까지 락.
+			{
+				std::unique_lock<std::mutex> lock(mpSystem->mMutexUsePlaneEstimation);//mbPlanarMPEnd
+				while (!mpSystem->mbPlaneEstimationEnd) {
+					mpSystem->cvUsePlaneEstimation.wait(lock);
+				}
+			}
+
+			////////////////////////////////////////////////////////////////////////////
+			////BA 시작
 			std::chrono::high_resolution_clock::time_point ba_start = std::chrono::high_resolution_clock::now();
 			if (mpMapOptimizer->isDoingProcess()) {
 				//std::cout << "lm::ba::busy" << std::endl;
@@ -313,7 +326,10 @@ void UVR_SLAM::LocalMapper::Run() {
 				//std::cout << "lm::ba::idle" << std::endl;
 				mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
 			}
+			////BA 시작
+			////////////////////////////////////////////////////////////////////////////
 			
+
 			//////////////////////////////////////////
 			//////
 			auto vtargetFrame = mpTargetFrame;

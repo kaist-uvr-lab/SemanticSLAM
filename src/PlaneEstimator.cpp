@@ -33,6 +33,20 @@ mpPrevFrame(nullptr), mpPPrevFrame(nullptr), mpTargetFrame(nullptr)
 
 	mpMap = pMap;
 }
+void UVR_SLAM::PlaneInformation::SetParam(cv::Mat m) {
+	std::unique_lock<std::mutex> lockTemp(mMutexParam);
+	matPlaneParam = m.clone();
+
+	normal = matPlaneParam.rowRange(0, 3);
+	distance = matPlaneParam.at<float>(3);
+	norm = normal.dot(normal);
+	normal /= norm;
+	distance /= norm;
+	norm = 1.0;
+
+	normal.copyTo(matPlaneParam.rowRange(0, 3));
+	matPlaneParam.at<float>(3) = distance;
+}
 void UVR_SLAM::PlaneInformation::SetParam(cv::Mat n, float d){
 	std::unique_lock<std::mutex> lockTemp(mMutexParam);
 	matPlaneParam = cv::Mat::zeros(4, 1, CV_32FC1);
@@ -145,6 +159,13 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			ProcessNewKeyFrame();
 			std::cout << "pe::start::"<<mpTargetFrame->GetKeyFrameID()<< std::endl;
 
+			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			/////////////Lock
+			std::unique_lock<std::mutex> lockPlanar(mpSystem->mMutexUsePlaneEstimation);
+			mpSystem->mbPlaneEstimationEnd = true;
+			/////////////Lock
+			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 			/////////////////////////////현재 프레임에서 이용할 데이터 정보
 			int nTargetID = mpTargetFrame->GetKeyFrameID();
 			
@@ -161,7 +182,10 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			//출력은 초기, 이전, 현재 프레임 정보를 출력함.
 			/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
 			////파라메터
-			//평면에 해당하는 맵포인트와 해당되는 포인트를 저장함.
+			////평면에 해당하는 맵포인트와 해당되는 포인트를 저장함.
+			//1)여기에서 이전 평면 포인트도 일부분 받아오는 경우
+			////이전이전 프레임
+			
 			std::vector<UVR_SLAM::MapPoint*> mvpFloorMPs;
 			for (int i = 0; i < prevPrevMatchInfo->mvpMatchingMPs.size(); i++) {
 				int label = prevPrevMatchInfo->mvObjectLabels[i];
@@ -170,7 +194,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					continue;
 				pMPi->SetRecentLayoutFrameID(nTargetID);
 				mvpFloorMPs.push_back(pMPi);
+				//pMPi->SetPlaneID(1);
 			}
+			////이전 프레임
 			for (int i = 0; i < prevMatchInfo->mvpMatchingMPs.size(); i++) {
 				int label = prevMatchInfo->mvObjectLabels[i];
 				auto pMPi = prevMatchInfo->mvpMatchingMPs[i];
@@ -178,7 +204,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					continue;
 				pMPi->SetRecentLayoutFrameID(nTargetID);
 				mvpFloorMPs.push_back(pMPi);
+				//pMPi->SetPlaneID(1);
 			}
+			////현재 프레임
 			for (int i = 0; i < matchInfo->mvpMatchingMPs.size(); i++) {
 				int label = matchInfo->mvObjectLabels[i];
 				auto pMPi = matchInfo->mvpMatchingMPs[i];
@@ -186,7 +214,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					continue;
 				pMPi->SetRecentLayoutFrameID(nTargetID);
 				mvpFloorMPs.push_back(pMPi);
+				//pMPi->SetPlaneID(1);
 			}
+			////평면에 해당하는 맵포인트와 해당되는 포인트를 저장함.
 			int n1 = mvpFloorMPs.size();
 			int n2 = mvpFloorMPs.size();
 			int n3 = mvpFloorMPs.size();
@@ -194,6 +224,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			n2 = n3 = n4 = n5 = 0;
 			////auto tempMPs1 = std::vector<UVR_SLAM::MapPoint*>(mvpFloorMPs.begin(), mvpFloorMPs.end());
 			//현재 평면 추정 집합에 포함되는 포인트를 확인하기
+			////이전 두 프레임에서 평면 포함 과정
 			if (prevPrevFrame->mpPlaneInformation) {
 				auto prevPrevPlane = prevPrevFrame->mpPlaneInformation->GetFloorPlane();
 				n3 = prevPrevPlane->mvpMPs.size();
@@ -216,6 +247,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					}
 				}
 			}
+			////이전 두 프레임에서 평면 포함 과정
 			//
 			////auto tempMPs2 = std::vector<UVR_SLAM::MapPoint*>(mvpFloorMPs.begin(), mvpFloorMPs.end());
 			//if (prevFrame->mpPlaneInformation) {
@@ -233,8 +265,11 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			//}
 			
 			//mpVisualizer->SetFloorMPs(mvpFloorMPs);
-			if (mvpFloorMPs.size() < 100)
-				std::cout << "???????????" << std::endl << std::endl << std::endl;
+			if (mvpFloorMPs.size() < 50){
+				std::cout << "PE::"<<mvpFloorMPs.size()<<"::평면 포인트 부족" << std::endl << std::endl << std::endl;
+				SetBoolDoingProcess(false, 0);
+				continue;
+			}
 			/////////////////////바닥 초기화를 위한 세그멘테이션 정보를 이용한 평면 포인트 나누기
 
 			////평면 초기화
@@ -242,9 +277,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			int nSize = vpPlaneInfos.size() - 1;
 			auto pInfo = vpPlaneInfos[nSize]->GetFloorPlane();
 			UVR_SLAM::PlaneInformation* pCurrPlane = new UVR_SLAM::PlaneInformation();
-			int nRes = UpdatePlane(pInfo, pCurrPlane, mvpFloorMPs, nTargetID, pidst*1.5);
+			int nRes = UpdatePlane(pInfo, pCurrPlane, mvpFloorMPs, nTargetID, pidst);
 			auto planeInfo1 = new UVR_SLAM::PlaneProcessInformation(mpTargetFrame, pCurrPlane);
-			mpTargetFrame->mpPlaneInformation = planeInfo1;
+			mpTargetFrame->mpPlaneInformation = planeInfo1;//vpPlaneInfos[nSize]; //planeInfo1
 			mpVisualizer->AddPlaneInfo(planeInfo1);
 			cv::Mat debug = cv::Mat::zeros(1000, 1000, CV_8UC1);
 			std::stringstream aaass;
@@ -355,6 +390,14 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			///////////평면 정보 확인
 			////////////////////////////////////평면 찾는 과정
 			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			/////////////UnLock
+			lockPlanar.unlock();
+			mpSystem->cvUsePlaneEstimation.notify_all();
+			/////////////UnLock
+			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			
 
 			/////////////Conneted Component Labeling & object labeling
 			cv::Mat segmented = prevFrame->matLabeled.clone();

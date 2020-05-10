@@ -7,6 +7,7 @@
 #include <System.h>
 #include <ORBextractor.h>
 #include <Plane.h>
+#include <PlaneEstimator.h>
 
 bool UVR_SLAM::Frame::mbInitialComputations = true;
 float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
@@ -840,7 +841,8 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 }
 
 void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
-
+	//////수정사항 기록
+	////초기 버전
 	std::vector<cv::Point2f> vPts1, vPts2, vPts3;
 	std::vector<int> vIDXs1, vIDXs2, vIDXs3;
 
@@ -848,15 +850,27 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 	auto targetFrame = mpTargetFrame;
 	auto targettargetFrame = mpTargetFrame->mpMatchInfo->mpTargetFrame;
 
+	////200508
+	//1) 생성되는 포인트에 레이블링 기록을 이용하여 다시 평면을 이용하도록 함.
+	std::vector<int> vLabels1, vLabels2;
+	auto pTargetTargetPlaneProcess = targettargetFrame->mpPlaneInformation;
+	auto pTargetTargetPlaneInfo = pTargetTargetPlaneProcess->GetFloorPlane();
+	//2) 3이미지 사이의 호모그래피를 계산.
+	std::vector<cv::Point2f> vFloorPts1, vFloorPts2, vFloorPts3;
+	cv::Mat H12, H13, H23, I12, I13, I23; //호모그래피와 인라이어 저장한
+	//3) 평면을 한번에 추정하기.
+	cv::Mat data;
+	//////수정사항 기록
+
 	/////////debug
-	//cv::Mat targettargetImg = targettargetFrame->GetOriginalImage();
-	//cv::Mat currImg = currFrame->GetOriginalImage();
-	//cv::Point2f ptBottom = cv::Point2f(0, currImg.rows);
-	//cv::Rect mergeRect1 = cv::Rect(0, 0, currImg.cols, currImg.rows);
-	//cv::Rect mergeRect2 = cv::Rect(0, currImg.rows, currImg.cols, currImg.rows);
-	//debug = cv::Mat::zeros(currImg.rows * 2, currImg.cols, currImg.type());
-	//targettargetImg.copyTo(debug(mergeRect1));
-	//currImg.copyTo(debug(mergeRect2));
+	cv::Mat targettargetImg = targettargetFrame->GetOriginalImage();
+	cv::Mat currImg = currFrame->GetOriginalImage();
+	cv::Point2f ptBottom = cv::Point2f(0, currImg.rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, currImg.cols, currImg.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, currImg.rows, currImg.cols, currImg.rows);
+	debug = cv::Mat::zeros(currImg.rows * 2, currImg.cols, currImg.type());
+	targettargetImg.copyTo(debug(mergeRect1));
+	currImg.copyTo(debug(mergeRect2));
 	/////////debug
 
 	cv::Mat Pcurr, Ptarget, Ptargettarget;
@@ -903,6 +917,17 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 			//std::cout << "test::error2222222222222222222222!!!!!!!!!!" << std::endl << std::endl;
 			continue;
 		}
+
+		int label1 = targetTargetInfo->mvObjectLabels[idx3];
+		vLabels1.push_back(label1);
+		//int label2 = targetInfo->mvObjectLabels[idx2];
+		//vLabels2.push_back(label2);
+		if (label1 == 150) {
+			vFloorPts1.push_back(mvMatchingPts[i]);
+			vFloorPts2.push_back(targetInfo->mvMatchingPts[idx2]);
+			vFloorPts3.push_back(targetTargetInfo->mvMatchingPts[idx3]);
+		}
+
 		vIDXs1.push_back(i);
 		vIDXs2.push_back(idx2);
 		vIDXs3.push_back(idx3);
@@ -912,8 +937,8 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 		vPts3.push_back(targetTargetInfo->mvMatchingPts[idx3]);
 
 		//////visualize
-		//cv::circle(debug, targetTargetInfo->mvMatchingPts[idx3], 2, cv::Scalar(255, 0, 255), -1);
-		//cv::circle(debug, mvMatchingPts[i] + ptBottom, 2, cv::Scalar(255, 0, 255), -1);
+		cv::circle(debug, targetTargetInfo->mvMatchingPts[idx3], 2, cv::Scalar(255, 0, 255), -1);
+		cv::circle(debug, mvMatchingPts[i] + ptBottom, 2, cv::Scalar(255, 0, 255), -1);
 	}
 	////////삼각화로 맵생성
 	//std::cout << "before triangle::" << vPts3.size() << std::endl;
@@ -921,6 +946,22 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 		//std::cout << "after triangle" << std::endl;
 		return;
 	}
+	////////호모그래피
+	/*H12 = cv::findHomography(vFloorPts1, vFloorPts2, I12, cv::RHO, 3.0);
+	H13 = cv::findHomography(vFloorPts1, vFloorPts3, I13, cv::RHO, 3.0);
+	H23 = cv::findHomography(vFloorPts2, vFloorPts3, I23, cv::RHO, 3.0);
+	for (int i = 0; i < vFloorPts1.size(); i++) {
+		if (I12.at<uchar>(i) && I23.at<uchar>(i) && I13.at<uchar>(i)) {
+			cv::circle(debug, vFloorPts3[i], 3, cv::Scalar(255, 0, 0), -1);
+			cv::circle(debug, vFloorPts1[i] + ptBottom, 3, cv::Scalar(255, 0, 0), -1);
+		}
+		else {
+			cv::circle(debug, vFloorPts3[i], 3, cv::Scalar(0, 255, 0), -1);
+			cv::circle(debug, vFloorPts1[i] + ptBottom, 3, cv::Scalar(0, 255, 0), -1);
+		}
+	}*/
+	////////호모그래피
+
 	cv::Mat Map;
 	cv::triangulatePoints(K*Ptargettarget, K*Pcurr, vPts3, vPts1, Map);
 	//std::cout << "after triangle::" << Map.size() << std::endl;
@@ -929,7 +970,14 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 	///////데이터 전처리
 	cv::Mat Rcfromc = Rcurr.t();
 	cv::Mat Rttfromc = Rtargettarget.t();
-	cv::Mat invK = K.inv();
+	cv::Mat invT, invK, invP;
+	bool bPlaneMap = false;
+	auto targetTargetPlaneInfo = targettargetFrame->mpPlaneInformation;
+	if (targetTargetPlaneInfo) {
+		bPlaneMap = true;
+		targettargetFrame->mpPlaneInformation->Calculate();
+		targettargetFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
+	}
 	///////데이터 전처리
 
 	int nRes = 0;
@@ -972,20 +1020,58 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 		
 		//////parallax check
 		////targettarget과 current만
-		cv::Mat xn1 = (cv::Mat_<float>(3, 1) << pt1.x, pt1.y, 1.0);
-		cv::Mat xn3 = (cv::Mat_<float>(3, 1) << pt3.x, pt3.y, 1.0);
-		//std::cout << xn1.t() << xn3.t();
-		cv::Mat ray1 = Rcfromc*invK*xn1;
-		cv::Mat ray3 = Rttfromc*invK*xn3;
-		//std::cout <<"\t"<< ray1.t() << ray3.t();
-		float cosParallaxRays = ray1.dot(ray3) / (cv::norm(ray1)*cv::norm(ray3));
-		//std::cout << cosParallaxRays << std::endl;
-		if (cosParallaxRays > 0.99999) //9999 : 위안홀까지 가능, 99999 : 비전홀, N5
-			continue;
+		//cv::Mat xn1 = (cv::Mat_<float>(3, 1) << pt1.x, pt1.y, 1.0);
+		//cv::Mat xn3 = (cv::Mat_<float>(3, 1) << pt3.x, pt3.y, 1.0);
+		////std::cout << xn1.t() << xn3.t();
+		//cv::Mat ray1 = Rcfromc*invK*xn1;
+		//cv::Mat ray3 = Rttfromc*invK*xn3;
+		////std::cout <<"\t"<< ray1.t() << ray3.t();
+		//float cosParallaxRays = ray1.dot(ray3) / (cv::norm(ray1)*cv::norm(ray3));
+		////std::cout << cosParallaxRays << std::endl;
+		//if (cosParallaxRays > 0.99999) //9999 : 위안홀까지 가능, 99999 : 비전홀, N5
+		//	continue;
 		//////parallax check
+
+		/////평면 정보 확인
+		/*if (vLabels1[i] == 150) {
+			data.push_back(Map.col(i).t());
+		}*/
+		bool b = false;
+		if (bPlaneMap && vLabels1[i] == 150) {
+			cv::Mat a;
+			if(UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(pt3, invP, invT, invK, a)){
+				X3D = a;
+				b = true;
+			}
+			/*cv::Mat proja = Rtargettarget*a + Ttargettarget;
+			proja = K*proja;
+			cv::Point2f projecteda(proja.at<float>(0) / proja.at<float>(2), proja.at<float>(1) / proja.at<float>(2));
+			auto diffPta = projecteda - pt3;
+			float erra = sqrt(diffPta.dot(diffPta));
+
+			cv::Mat projb = Rtarget*a + Ttarget;
+			projb = K*projb;
+			cv::Point2f projectedb(projb.at<float>(0) / projb.at<float>(2), projb.at<float>(1) / projb.at<float>(2));
+			auto diffPtb = projectedb - pt2;
+			float errb = sqrt(diffPtb.dot(diffPtb));
+
+			cv::Mat projc = Rcurr*a + Tcurr;
+			projc = K*projc;
+			cv::Point2f projectedc(projc.at<float>(0) / projc.at<float>(2), projc.at<float>(1) / projc.at<float>(2));
+			auto diffPtc = projectedc - pt1;
+			float errc = sqrt(diffPtc.dot(diffPtc));*/
+
+			/*std::cout << "mp::" << a.t() << ", " << X3D.t() << std::endl;
+			std::cout << erra << ", " << err3 << std::endl;
+			std::cout << errb << ", " << err2 << std::endl;
+			std::cout << errc << ", " << err1 << std::endl;*/
+		}
+		/////평면 정보 확인
 
 		nRes++;
 		auto pMP = new UVR_SLAM::MapPoint(mpRefFrame, X3D, cv::Mat());
+		if (b)
+			pMP->SetPlaneID(1);
 		/*mvpMatchingMPs[vIDXs1[i]] = pMP;
 		targetInfo->mvpMatchingMPs[vIDXs2[i]] = pMP;
 		targetTargetInfo->mvpMatchingMPs[vIDXs3[i]] = pMP;
@@ -997,6 +1083,15 @@ void UVR_SLAM::MatchInfo::Test(cv::Mat& debug) {
 		pMP->AddFrame(targetFrame->mpMatchInfo, vIDXs2[i]);
 		pMP->AddFrame(targettargetFrame->mpMatchInfo, vIDXs3[i]);
 	}
+
+
+	////평면 추정
+	/*cv::Mat w, u, vt;
+	cv::SVD::compute(data, w, u, vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+	cv::Mat param = vt.row(3).clone().t();
+	std::cout << param.t() << std::endl;*/
+	//std::cout << data*param << std::endl;
+	////평면 추정
 	//std::cout << "lm::create new mp ::" <<vPts1.size()<<", "<< nRes <<" "<<Map.type()<< std::endl;
 }
 

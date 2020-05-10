@@ -17,6 +17,7 @@ namespace UVR_SLAM {
 	class MapOptimizer;
 	class FrameWindow;
 	class Map;
+	class PlaneInformation;
 	class Optimization {
 	public:
 
@@ -24,6 +25,7 @@ namespace UVR_SLAM {
 		////200411
 		static int PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool>& vbInliers, std::vector<int> vnIDXs);
 		static void OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer* pMapOptimizer, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<UVR_SLAM::Frame*> vpKFs, std::vector<UVR_SLAM::Frame*> vpFixedKFs);
+		static void OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::MapOptimizer* pMapOptimizer, PlaneInformation* pPlaneInfo, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<UVR_SLAM::Frame*> vpKFs, std::vector<UVR_SLAM::Frame*> vpFixedKFs);
 		static void OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer* pMapOptimizer, UVR_SLAM::Frame* pKF, UVR_SLAM::FrameWindow* pWindow);
 		////200411
 		////////////////////

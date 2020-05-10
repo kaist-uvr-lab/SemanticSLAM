@@ -266,10 +266,11 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
 			}*/
 			cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
-			//cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
+			if(pMPi->GetPlaneID() > 0)
+				cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
 		}
 		std::stringstream ss;
-		ss << "Traking = " << mnMatching <<", "<< nMP <<"::"<< tttt;
+		ss << "Traking = " << mnMatching <<", "<< nMP <<"::"<< tttt<<"::"<< angle;
 		cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
 		cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 		cv::imshow("Output::Tracking", vis);

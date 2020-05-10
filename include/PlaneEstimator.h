@@ -47,6 +47,7 @@ namespace UVR_SLAM {
 		std::vector<MapPoint*> mvpMPs;
 		std::vector<MapPoint*> tmpMPs; //이전에 만들어진 포인트 중에서 여러개 연결된 경우
 
+		void SetParam(cv::Mat p);
 		void SetParam(cv::Mat n, float d);
 		void GetParam(cv::Mat& n, float& d);
 		cv::Mat GetParam();
