@@ -16,6 +16,7 @@ namespace UVR_SLAM {
 		PLANE_DENSE_MP
 	};
 
+	class Map;
 	class Frame;
 	class MatchInfo;
 	class FrameWindow;
@@ -23,8 +24,8 @@ namespace UVR_SLAM {
 	public:
 		//초기 포즈 만들 때는 double형으로 형변환
 		MapPoint();
-		MapPoint(UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc);
-		MapPoint(UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype);
+		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, int label);
+		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int label);
 		virtual ~MapPoint();
 	public:
 		void SetWorldPos(cv::Mat X);
@@ -66,6 +67,7 @@ namespace UVR_SLAM {
 		int mnLocalBAID;
 
 	private:
+		Map* mpMap;
 		Frame* mpRefKF;
 		std::mutex mMutexMP;
 		bool mbDelete;

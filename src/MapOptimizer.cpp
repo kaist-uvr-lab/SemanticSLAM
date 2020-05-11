@@ -102,7 +102,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::vector<UVR_SLAM::Frame*> vpKFs;
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
 			
-			auto tempKFs1 = mpTargetFrame->GetConnectedKFs(15);
+			auto tempKFs1 = mpTargetFrame->GetConnectedKFs(5);
 			auto tempKFs2 = mpTargetFrame->GetConnectedKFs();
 			vpKFs.push_back(mpTargetFrame);
 			
@@ -126,11 +126,16 @@ void UVR_SLAM::MapOptimizer::Run() {
 					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
 						continue;
 					}
+					if (pMPi->GetNumConnectedFrames() < 3) {
+						//std::cout << "BA::Error::Case::1::"<< pKFi->GetKeyFrameID()<< std::endl << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+						//pMPi->Delete();
+						continue;
+					}
 					pMPi->mnLocalBAID = nTargetID;
 					vpMPs.push_back(pMPi);
 				}
-				if (vpMPs.size() > 1500)
-					break;
+				/*if (vpMPs.size() > 1500)
+					break;*/
 			}
 			for (int i = 0; i < vpMPs.size(); i++)
 			{
@@ -218,6 +223,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			//}
 			//std::cout << "ba::processing::end" << std::endl;
 			//std::cout << "BA::preprocessing::end" << std::endl;
+			//mpMap->SetNumDeleteMP();
 			Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);
 			//			
 			//for(int j = 0; j < 1000; j++)
@@ -262,6 +268,10 @@ void UVR_SLAM::MapOptimizer::Run() {
 			else*/
 			//Optimization::OpticalLocalBundleAdjustment(this, mpTargetFrame, mpFrameWindow);
 			
+			/*std::cout << "BA::Delete::Start" << std::endl;
+			mpMap->DeleteMPs();
+			std::cout << "BA::Delete::End" << std::endl;*/
+
 			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
 			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float letime = leduration / 1000.0;

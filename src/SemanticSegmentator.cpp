@@ -162,7 +162,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 				ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() << "=" << mpPrevTargetFrame->GetFrameID() << ", " << mpTargetFrame->GetFrameID() << " : " << tttt << "||" << tttt2 << std::endl;
 			else
 				ssa << "Seg";*/
-			ssa << "Segmentation : " << mpTargetFrame->GetFrameID() <<" : " << tttt << "||" << tttt2 << std::endl;
+			ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() <<" : " << tttt << "||" << tttt2 << std::endl;
 			//ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() << " : " << tttt << ", " << tttt5 << "||" << n1 << ", " << n2 << "::" << numOfLables;
 			mpSystem->SetSegmentationString(ssa.str());
 			//////디버깅 값 전달

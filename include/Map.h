@@ -8,7 +8,7 @@
 
 namespace UVR_SLAM {
 	class Frame;
-
+	class MapPoint;
 	class WallPlane;
 	class PlaneInformation;
 
@@ -33,6 +33,24 @@ namespace UVR_SLAM {
 	private:
 		std::mutex mMutexGlobalFrames;
 		std::vector<Frame*> mvpGlobalFrames;
+////////////////////////////////
+////맵포인트 관리
+	public:
+		void AddMap(MapPoint* pMP, int label);
+		void RemoveMap(MapPoint* pMP);
+		std::map<MapPoint*, int> GetMap();
+		void AddDeleteMP(MapPoint* pMP);
+		void DeleteMPs();
+		void SetNumDeleteMP();
+	private:
+		std::mutex mMutexMap;
+		std::map<MapPoint*, int> mmpMapMPs;
+		std::mutex mMutexDeleteMapPointSet;
+		std::set<MapPoint*> mspDeleteMPs;
+		std::queue<int> mQueueNumDelete;
+		int mnDeleteMPs;
+////맵포인트 관리
+////////////////////////////////
 
 ////////////////////////////////
 ////평면 관리

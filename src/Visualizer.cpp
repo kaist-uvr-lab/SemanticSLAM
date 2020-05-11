@@ -299,6 +299,33 @@ void UVR_SLAM::Visualizer::Run() {
 			GetMPs(vpFrameMPs, vnLabels);
 			auto pMatchInfo = GetMatchInfo();
 			
+			//////////////////////////////
+			//Map¿¡¼­ Á÷Á¢ È¹µæ
+			auto mmpMap = mpMap->GetMap();
+			for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
+				auto pMPi = iter->first;
+				int label = iter->second;
+				if (!pMPi || pMPi->isDeleted())
+					continue;
+				cv::Mat x3D = pMPi->GetWorldPos();
+				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+				tpt += mVisMidPt;
+				cv::Scalar color = cv::Scalar(0, 0, 0);
+				if (label == 255) {
+					color = cv::Scalar(125, 125, 0);
+					/*if (!bBA)
+						color /= 2;*/
+				}
+				else if (label == 150) {
+					color = cv::Scalar(125, 0, 125);
+					/*if (!bBA)
+						color /= 2;*/
+				}
+				cv::circle(tempVis, tpt, 2, color, -1);
+			}
+			//Map¿¡¼­ Á÷Á¢ È¹µæ
+			//////////////////////////////
+
 			if(pMatchInfo){
 				auto lastBAFrame = pMatchInfo->mpTargetFrame;
 				for (int i = 0; i < vpFrameMPs.size(); i++) {

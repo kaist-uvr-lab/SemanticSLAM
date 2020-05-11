@@ -277,7 +277,11 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			if(X3D.at<float>(2) < 0.0)
 				std::cout << X3D.t() << ", " << val << std::endl;
 			res3++;
-			tempMPs.push_back(new UVR_SLAM::MapPoint(mpInitFrame2, X3D.rowRange(0, 3), cv::Mat()));
+
+			auto pt1 = vTempMatchPts1[i];
+			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
+
+			tempMPs.push_back(new UVR_SLAM::MapPoint(mpMap, mpInitFrame2, X3D.rowRange(0, 3), cv::Mat(), label1));
 			vTempMappedPts1.push_back(vTempMatchPts1[i]);
 			vTempMappedPts2.push_back(vTempMatchPts2[i]);
 			vTempMappedIDXs.push_back(vTempMatchIDXs[i]);//

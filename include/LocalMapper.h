@@ -8,6 +8,7 @@
 
 namespace UVR_SLAM {
 	class Frame;
+	class MatchInfo;
 	class FrameWindow;
 	class PlaneEstimator;
 	class SemanticSegmentator;
@@ -40,6 +41,8 @@ namespace UVR_SLAM {
 		bool isDoingProcess();
 		void CalculateKFConnections();
 	private:
+		void CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& debug);
+		////////////////////////////////////////
 		void FuseMapPoints();
 		void FuseMapPoints(int nn);
 		int CreateMapPoints();
