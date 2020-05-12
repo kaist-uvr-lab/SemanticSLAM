@@ -436,10 +436,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		////여기서 무슨일 하는지 정리 후 삭제
 		///////////10개 중에 한개씩 저장. 그냥 평면 값 비교하기 위해
 		mpMap->AddFrame(mpInitFrame1);
-		/*mpMap->AddFrame(mpInitFrame1);
-		mpMap->AddFrame(mpInitFrame2);*/
-		//mpFrameWindow->AddFrame(mpInitFrame1);
-		//mpFrameWindow->AddFrame(mpInitFrame2);
+		mpMap->AddFrame(mpInitFrame2);
 		////////////////////시각화에 카메라 포즈를 출력하기 위해
 		mpMap->mpFirstKeyFrame = mpInitFrame1;
 		mpVisualizer->SetMatchInfo(mpInitFrame2->mpMatchInfo);

@@ -26,10 +26,8 @@ namespace UVR_SLAM {
 		std::vector<Frame*> GetFrames();
 		void SetCurrFrame(Frame* pF);
 		Frame* GetCurrFrame();
-
-
 		void ClearFrames();
-		void ClearWalls();
+		
 	private:
 		std::mutex mMutexGlobalFrames;
 		std::vector<Frame*> mvpGlobalFrames;
@@ -61,11 +59,10 @@ namespace UVR_SLAM {
 		void SetFloorPlaneInitialization(bool b);
 		bool isWallPlaneInitialized();
 		void SetWallPlaneInitialization(bool b);
-
+		void ClearWalls();
 		//Ãß°¡ & È¹µæ
 		std::vector<WallPlane*> GetWallPlanes();
 		void AddWallPlane(WallPlane* pWall);
-
 	private:
 		std::mutex mMutexInitFloorPlane;
 		bool mbInitFloorPlane;

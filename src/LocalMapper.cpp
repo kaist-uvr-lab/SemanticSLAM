@@ -63,7 +63,7 @@ void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
 
 	mpTargetFrame->Init(mpSystem->mpORBExtractor, mpSystem->mK, mpSystem->mD);
 	mpTargetFrame->mpMatchInfo->SetKeyFrame();
-
+	mpMap->AddFrame(mpTargetFrame);
 	mpTargetFrame->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
 
 	////이게 필요한지?
@@ -511,30 +511,24 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& 
 		if (pCurrMatchInfo->mvpMatchingMPs[i])
 			continue;
 		int tidx1 = pCurrMatchInfo->mvnTargetMatchingPtIDXs[i];
-		/*if (tidx1 > targetInfo->mvnTargetMatchingPtIDXs.size() || tidx1 >= n)
-		std::cout << "err::1" << tidx1 << ", " << targetInfo->mvnTargetMatchingPtIDXs.size() << ", " << targetInfo->mvnMatchingPtIDXs.size() << ", " << targetInfo->mvnMatchingMPIDXs.size() << std::endl;
-		*/
 		if (tidx1 >= targetInfo->mnTargetMatch) {
 			continue;
 		}
 		int tidx2 = targetInfo->mvnTargetMatchingPtIDXs[tidx1];
-		//std::cout << i << "::" << tidx1 << ", " << tidx2 <<"::" << mvnTargetMatchingPtIDXs.size() << ", " << mvMatchingPts.size() << "::" << targetInfo->mvnTargetMatchingPtIDXs.size() << " " << targetInfo->mvMatchingPts.size() << std::endl;
-		/*if (tidx2 > targetTargetInfo->mvnMatchingPtIDXs.size() )
-		std::cout << "err::2::" << tidx2 << ", " << targetTargetInfo->mvnMatchingPtIDXs.size() << ", " << targetTargetInfo->mvnMatchingMPIDXs.size() << std::endl;*/
 		if (tidx2 >= nTargetTargetSize)
 			continue;
 		int idx2 = targetInfo->mvnMatchingPtIDXs[tidx1];
 		int idx3 = targetTargetInfo->mvnMatchingPtIDXs[tidx2];
-		//std::cout << tidx1 << ", " << tidx2 << ", " << idx2 << " " << idx3 <<"::"<<n<<", "<<targetTargetInfo->nMatch<<"::"<<targetInfo->mvnMatchingPtIDXs.size()<<", "<<targetTargetInfo->mvnMatchingPtIDXs.size()<<", "<<targetTargetInfo->mvpMatchingMPs.size()<< std::endl;
-
+		
 		if (targetInfo->mvpMatchingMPs[idx2]) {
-			//std::cout << "test::error111111111111111!!!!!!!!!!" << std::endl << std::endl;
 			continue;
 		}
 		if (targetTargetInfo->mvpMatchingMPs[idx3]) {
-			//std::cout << "test::error2222222222222222222222!!!!!!!!!!" << std::endl << std::endl;
 			continue;
 		}
+
+		if (!targettargetFrame->isInImage(targetTargetInfo->mvMatchingPts[idx3].x, targetTargetInfo->mvMatchingPts[idx3].y, 10.0))
+			continue;
 		vIDXs1.push_back(i);
 		vIDXs2.push_back(idx2);
 		vIDXs3.push_back(idx3);

@@ -116,8 +116,6 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr) {
 		return false;
 
 	
-
-
 	////초기조건들
 	//bool c1a = pCurr->GetFrameID() >= nLastID + mnMaxFrames; //무조건 추가되는 상황
 	//bool c1b = pCurr->GetFrameID() >= nLastID + mnMinFrames; //최소한의 조건

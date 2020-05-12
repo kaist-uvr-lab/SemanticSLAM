@@ -370,33 +370,55 @@ void UVR_SLAM::Visualizer::Run() {
 				}
 				////tracking results
 				////trajectory
-				//auto frames = mpMap->GetFrames();
-				auto lastFrame = pMatchInfo->mpRefFrame;//frames[frames.size() - 1];
-				int nLastLocalMapID = lastFrame->GetFrameID();
-				std::vector<UVR_SLAM::Frame*> vpKFs;
-				for (int k = 0; k < 15; k++) {
-					if (!lastFrame)
-						break;
-					//시각화
-					cv::Mat t1 = lastFrame->GetCameraCenter();
+				auto frames = mpMap->GetFrames();
+				int nFrame = frames.size();
+				for (int i = 0; i < nFrame; i++) {
+					
+					cv::Mat t1 = frames[i]->GetCameraCenter();
 					cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, -t1.at<float>(mnAxis2)* mnVisScale);
 					pt1 += mVisMidPt;
-					if (k>0)
-						cv::circle(tempVis, pt1, 3, cv::Scalar(255, 255, 0), -1);
-					else {
+
+					if (i == nFrame - 1) {
 						cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
-						cv::Mat directionZ = lastFrame->GetRotation().row(2);
+						cv::Mat directionZ = frames[i]->GetRotation().row(2);
 						cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(mnAxis1)* mnVisScale / 10.0, -directionZ.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
 						cv::line(tempVis, pt1, dirPtZ, cv::Scalar(0, 0, 255), 2);
 
-						cv::Mat directionX = lastFrame->GetRotation().row(0);
+						cv::Mat directionX = frames[i]->GetRotation().row(0);
 						cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
 						cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
 						cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
 					}
-					//타겟 프레임 변경
-					lastFrame = lastFrame->mpMatchInfo->mpTargetFrame;
+					else {
+						cv::circle(tempVis, pt1, 3, cv::Scalar(255, 255, 0), -1);
+					}
 				}
+				//auto lastFrame = pMatchInfo->mpRefFrame;//frames[frames.size() - 1];
+				//int nLastLocalMapID = lastFrame->GetFrameID();
+				//std::vector<UVR_SLAM::Frame*> vpKFs;
+				//for (int k = 0; k < 15; k++) {
+				//	if (!lastFrame)
+				//		break;
+				//	//시각화
+				//	cv::Mat t1 = lastFrame->GetCameraCenter();
+				//	cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, -t1.at<float>(mnAxis2)* mnVisScale);
+				//	pt1 += mVisMidPt;
+				//	if (k>0)
+				//		cv::circle(tempVis, pt1, 3, cv::Scalar(255, 255, 0), -1);
+				//	else {
+				//		cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
+				//		cv::Mat directionZ = lastFrame->GetRotation().row(2);
+				//		cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(mnAxis1)* mnVisScale / 10.0, -directionZ.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
+				//		cv::line(tempVis, pt1, dirPtZ, cv::Scalar(0, 0, 255), 2);
+
+				//		cv::Mat directionX = lastFrame->GetRotation().row(0);
+				//		cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
+				//		cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
+				//		cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
+				//	}
+				//	//타겟 프레임 변경
+				//	lastFrame = lastFrame->mpMatchInfo->mpTargetFrame;
+				//}
 			}
 			////trajectory
 			///////////////////////////////////////////////////////////////////////////////
