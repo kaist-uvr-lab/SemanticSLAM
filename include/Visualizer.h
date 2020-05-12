@@ -10,7 +10,6 @@ namespace UVR_SLAM {
 	class Frame;
 	class MatchInfo;
 	class MapPoint;
-	class FrameWindow;
 	class PlaneProcessInformation;
 	class PlaneInformation;
 	class System;
@@ -24,37 +23,24 @@ namespace UVR_SLAM {
 
 	public:
 		void Run();
-		void SetFrameWindow(FrameWindow* pFrameWindow);
-		void SetTargetFrame(Frame* pFrame);
 		void SetSystem(System* pSystem);
 		void SetBoolDoingProcess(bool b);
 		bool isDoingProcess();
 	private:
 		System* mpSystem;
 		Map* mpMap;
-		FrameWindow* mpFrameWindow;
-		Frame* mpTargetFrame;
 		std::mutex mMutexDoingProcess;
 		bool mbDoingProcess;
 		int mnWidth, mnHeight;
 	public:
 		void Init();
-		void SetFrameMatching(Frame* pF1, Frame* pF2, std::vector<cv::DMatch> vMatchInfos);
-	private:
-		//SetFrameMatching에 이용할 데이터.
-		Frame* mpMatchingFrame1,*mpMatchingFrame2;
-		std::vector<cv::DMatch> mvMatchInfos;
-		bool mbFrameMatching;
-		bool mbTracking; //같이 수행되어도 됨
-	private:
-		
 	private:
 		int mnFontFace;//2
 		double mfFontScale;//1.2
 		//void PutText(cv::Mat src, std::string txt, , int x, int y);
 		//cv::putText(myImage, myText, myPoint, myFontFace, myFontScale, Scalar::all(255));
 	private:
-		cv::Mat mVisualized2DMap, mVisTrajectory, mVisMapPoints, mVisPoseGraph;
+		cv::Mat mVisPoseGraph;
 		cv::Point2f mVisMidPt, mVisPrevPt;
 		
 	//update scale
@@ -67,15 +53,11 @@ namespace UVR_SLAM {
 		std::mutex mMutexScale;
 	//local tracknig results
 	public:
-		void SetMPs(std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<int> vnLabels);
-		void GetMPs(std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<int>& vnLabels);
 		void SetMatchInfo(MatchInfo* pMatch);
 		MatchInfo* GetMatchInfo();
 		MatchInfo* mpMatchInfo;
 	private:
-		std::mutex mMutexFrameMPs;
-		std::vector<UVR_SLAM::MapPoint*> mvpFrameMPs;
-		std::vector<int> mvnLabels;
+		std::mutex mMutexMatchingInfo;
 	///////바닥 확인용
 	public:
 		void AddPlaneInfo(PlaneProcessInformation* pPlaneInfo);

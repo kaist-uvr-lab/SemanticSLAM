@@ -4,7 +4,6 @@
 #include <Map.h>
 #include <Plane.h>
 #include <Frame.h>
-#include <FrameWindow.h>
 #include <SegmentationData.h>
 #include <MapPoint.h>
 #include <Matcher.h>
@@ -57,16 +56,11 @@ UVR_SLAM::PlaneEstimator::~PlaneEstimator() {}
 void UVR_SLAM::PlaneEstimator::SetSystem(System* pSystem) {
 	mpSystem = pSystem;
 }
-void UVR_SLAM::PlaneEstimator::SetFrameWindow(UVR_SLAM::FrameWindow* pWindow) {
-	mpFrameWindow = pWindow;
-}
+
 void UVR_SLAM::PlaneEstimator::SetVisualizer(UVR_SLAM::Visualizer* pVis) {
 	mpVisualizer = pVis;
 }
-void UVR_SLAM::PlaneEstimator::SetTargetFrame(Frame* pFrame) {
-	mpPrevFrame = mpTargetFrame;
-	mpTargetFrame = pFrame;
-}
+
 void UVR_SLAM::PlaneEstimator::SetInitializer(UVR_SLAM::Initializer* pInitializer) {
 	mpInitializer = pInitializer;
 }

@@ -128,7 +128,6 @@ void UVR_SLAM::System::Init() {
 	//Visualizer
 	mpVisualizer = new Visualizer(mnWidth, mnHeight, mnVisScale, mpMap);
 	mpVisualizer->Init();
-	mpVisualizer->SetFrameWindow(mpFrameWindow);
 	mpVisualizer->SetSystem(this);
 	mptVisualizer = new std::thread(&UVR_SLAM::Visualizer::Run, mpVisualizer);
 
@@ -140,7 +139,6 @@ void UVR_SLAM::System::Init() {
 	//PlaneEstimator
 	mpPlaneEstimator = new UVR_SLAM::PlaneEstimator(mpMap,mstrFilePath, mK, mKforPL, mnWidth, mnHeight);
 	mpPlaneEstimator->SetSystem(this);
-	mpPlaneEstimator->SetFrameWindow(mpFrameWindow);
 	mpPlaneEstimator->SetMatcher(mpMatcher);
 	mptPlaneEstimator = new std::thread(&UVR_SLAM::PlaneEstimator::Run, mpPlaneEstimator);
 
@@ -153,7 +151,6 @@ void UVR_SLAM::System::Init() {
 
 	//local mapping thread
 	mpLocalMapper = new UVR_SLAM::LocalMapper(mpMap, mnWidth, mnHeight);
-	mpLocalMapper->SetFrameWindow(mpFrameWindow);
 	mpLocalMapper->SetMatcher(mpMatcher);
 	mpLocalMapper->SetPlaneEstimator(mpPlaneEstimator);
 	mpLocalMapper->SetLayoutEstimator(mpSegmentator);

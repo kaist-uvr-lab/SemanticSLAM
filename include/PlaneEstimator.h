@@ -121,8 +121,6 @@ namespace UVR_SLAM {
 		void Run();
 		void SetSystem(System* pSystem);
 		void SetVisualizer(Visualizer* pVis);
-		void SetFrameWindow(FrameWindow* pFrameWindow);
-		void SetTargetFrame(Frame* pFrame);
 		void SetMatcher(Matcher* pMatcher);
 		void SetInitializer(Initializer* pInitializer);
 		void SetBoolDoingProcess(bool b, int ptype);

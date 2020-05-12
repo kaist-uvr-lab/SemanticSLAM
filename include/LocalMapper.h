@@ -9,7 +9,6 @@
 namespace UVR_SLAM {
 	class Frame;
 	class MatchInfo;
-	class FrameWindow;
 	class PlaneEstimator;
 	class SemanticSegmentator;
 	class Matcher;
@@ -29,7 +28,6 @@ namespace UVR_SLAM {
 		void SetSystem(System* pSystem);
 		void SetPlaneEstimator(PlaneEstimator* pPlaneEstimator);
 		void SetLayoutEstimator(SemanticSegmentator* pEstimator);
-		void SetFrameWindow(FrameWindow* pFrameWindow);
 		void SetMatcher(Matcher* pMatcher);
 		void SetMapOptimizer(MapOptimizer* pMapOptimizer);
 		void SetVisualizer(Visualizer* pVis);
@@ -81,7 +79,6 @@ namespace UVR_SLAM {
 		MapOptimizer* mpMapOptimizer;
 		PlaneEstimator* mpPlaneEstimator;
 		Visualizer* mpVisualizer;
-		FrameWindow* mpFrameWindow;
 		Frame* mpTargetFrame, *mpPrevKeyFrame, *mpPPrevKeyFrame;
 		Matcher* mpMatcher;
 		int mnWidth, mnHeight;

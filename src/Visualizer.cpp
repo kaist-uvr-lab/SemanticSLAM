@@ -1,5 +1,4 @@
 #include <Visualizer.h>
-#include <FrameWindow.h>
 #include <Frame.h>
 #include <MapPoint.h>
 #include <System.h>
@@ -103,13 +102,9 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 	}
 }
 
-
 void UVR_SLAM::Visualizer::Init() {
 	
 	//Visualization
-	mVisualized2DMap = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
-	mVisTrajectory = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
-	mVisMapPoints = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
 	mVisPoseGraph = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
 	mVisMidPt = cv::Point2f(mnHeight, mnHeight);
 	mVisPrevPt = mVisMidPt;
@@ -143,7 +138,6 @@ void UVR_SLAM::Visualizer::Init() {
 	//cv::namedWindow("Output::Trajectory");
 	//cv::moveWindow("Output::Trajectory", nImageWindowStartX + mnWidth + mnWidth, 20);
 
-
 	//Output::Segmentation
 
 	//Opencv Image Window
@@ -170,14 +164,6 @@ void UVR_SLAM::Visualizer::SetSystem(UVR_SLAM::System* pSystem) {
 	mpSystem = pSystem;
 }
 
-void UVR_SLAM::Visualizer::SetFrameWindow(UVR_SLAM::FrameWindow* pFrameWindow) {
-	mpFrameWindow = pFrameWindow;
-}
-
-void UVR_SLAM::Visualizer::SetTargetFrame(Frame* pFrame) {
-	mpTargetFrame = pFrame;
-}
-
 void UVR_SLAM::Visualizer::SetBoolDoingProcess(bool b) {
 	std::unique_lock<std::mutex> lockTemp(mMutexDoingProcess);
 	mbDoingProcess = b;
@@ -201,15 +187,7 @@ void UVR_SLAM::Visualizer::Run() {
 
 		if (isDoingProcess()) {
 
-			if (mbFrameMatching) {
-				//VisualizeFrameMatching();
-
-				//VisualizeTracking();
-			}
-
 			cv::Mat tempVis = mVisPoseGraph.clone();
-			
-			//trajactory
 
 			//update pt
 			mVisMidPt += mPt;
@@ -220,87 +198,13 @@ void UVR_SLAM::Visualizer::Run() {
 			cv::Scalar color2 = cv::Scalar(0, 255, 0);
 			cv::Scalar color3 = cv::Scalar(0, 0, 0);
 
-			////////////////////////////////////////////////////////////////////////////////
-			///////////////전체 포인트 출력
-			//auto mvpGlobalFrames = mpMap->GetFrames();
-			//for (int i = 0; i < mvpGlobalFrames.size(); i++) {
-			//	UVR_SLAM::Frame* pF = mvpGlobalFrames[i];
-			//	auto mvpMPs = pF->GetMapPoints();
-			//	for (int j = 0; j < mvpMPs.size(); j++) {
-			//		UVR_SLAM::MapPoint* pMP = mvpMPs[j];
-			//		if (!pMP)
-			//			continue;
-			//		if (pMP->isDeleted())
-			//			continue;
-			//		cv::Mat x3D = pMP->GetWorldPos();
-			//		cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
-			//		tpt += mVisMidPt;
-			//		cv::circle(tempVis, tpt, 2,cv::Scalar(0,0,0), -1);
-			//	}
-			//}
-			///////////////전체 포인트 출력
-			////////////////////////////////////////////////////////////////////////////////
-
-			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-			////local map
-			//auto mvpWindowFrames = mpFrameWindow->GetLocalMapFrames();
-			//auto mvbLocalMapInliers = mpFrameWindow->GetLocalMapInliers();
-			//auto mvpLocalMPs = mpFrameWindow->GetLocalMap();
-			//mvbLocalMapInliers = std::vector<bool>(mvpLocalMPs.size(), false);
-
-			///////////////line visualization
-			////std::cout << "LINE TEST" << std::endl;
-			//RNG rng(12345);
-
-			//if (mpMap->isFloorPlaneInitialized() && mvpWindowFrames.size() > 0) {
-			//	auto mvpWalls = mpMap->GetWallPlanes();
-			//	UVR_SLAM::PlaneInformation* aplane = mpMap->mpFloorPlane;
-			//	cv::Mat planeParam = aplane->GetParam();
-
-			//	cv::Mat K = mvpWindowFrames[0]->mK.clone();
-			//	cv::Mat invK = K.inv();
-
-			//	for (int i = 0; i < mvpWalls.size(); i++) {
-			//		auto mvpLines = mvpWalls[i]->GetLines();
-
-			//		for (int j = 0; j < mvpLines.size(); j++) {
-
-			//			auto mpFrame = mvpLines[j]->mpFrame;
-			//			cv::Mat invP, invK, invT;
-			//			mpFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
-
-			//			auto mat = mvpLines[j]->GetLinePts();
-			//			for (int k = 0; k < mat.rows; k++) {
-			//				cv::Point2f topt = cv::Point2f(mat.row(k).at<float>(mnAxis1) * mnVisScale, -mat.row(k).at<float>(mnAxis2) * mnVisScale);
-			//				topt += mVisMidPt;
-			//				//cv::circle(tempVis, topt, 3, ObjectColors::mvObjectLabelColors[mvpWalls[i]->mnPlaneID + 10], -1);
-			//			}
-			//			/*
-			//			cv::Mat from = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mvpLines[j]->from, invP, invT, invK);
-			//			cv::Mat to   = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mvpLines[j]->to  , invP, invT, invK);
-
-			//			cv::Point2f frompt = cv::Point2f(from.at<float>(0) * mnVisScale, -from.at<float>(2) * mnVisScale);
-			//			frompt += mVisMidPt;
-			//			cv::Point2f topt = cv::Point2f(to.at<float>(0) * mnVisScale, -to.at<float>(2) * mnVisScale);
-			//			topt += mVisMidPt;
-
-			//			cv::line(tempVis, frompt, topt, ObjectColors::mvObjectLabelColors[mvpWalls[i]->mnPlaneID-1],3);
-			//			*/
-			//		}
-			//	}
-			//}
-			///////////////line visualization
-
 			///////////////////////////////////////////////////////////////////////////////
 			////tracking results
 			//local map
-			std::vector<UVR_SLAM::MapPoint*> vpFrameMPs;
-			std::vector<int> vnLabels;
-			GetMPs(vpFrameMPs, vnLabels);
 			auto pMatchInfo = GetMatchInfo();
 			
 			//////////////////////////////
-			//Map에서 직접 획득
+			//전체 맵포인트 시각화
 			auto mmpMap = mpMap->GetMap();
 			for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
 				auto pMPi = iter->first;
@@ -323,36 +227,38 @@ void UVR_SLAM::Visualizer::Run() {
 				}
 				cv::circle(tempVis, tpt, 2, color, -1);
 			}
-			//Map에서 직접 획득
+			//전체 맵포인트 시각화
 			//////////////////////////////
+
+			////trajectory
+			auto frames = mpMap->GetFrames();
+			int nFrame = frames.size();
+			for (int i = 0; i < nFrame; i++) {
+
+				cv::Mat t1 = frames[i]->GetCameraCenter();
+				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, -t1.at<float>(mnAxis2)* mnVisScale);
+				pt1 += mVisMidPt;
+
+				if (i == nFrame - 1) {
+					cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
+					cv::Mat directionZ = frames[i]->GetRotation().row(2);
+					cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(mnAxis1)* mnVisScale / 10.0, -directionZ.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
+					cv::line(tempVis, pt1, dirPtZ, cv::Scalar(0, 0, 255), 2);
+
+					cv::Mat directionX = frames[i]->GetRotation().row(0);
+					cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
+					cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
+					cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
+				}
+				else {
+					cv::circle(tempVis, pt1, 3, cv::Scalar(255, 255, 0), -1);
+				}
+			}
+			////trajectory	
 
 			if(pMatchInfo){
 				auto lastBAFrame = pMatchInfo->mpTargetFrame;
-				for (int i = 0; i < vpFrameMPs.size(); i++) {
-					auto pMPi = vpFrameMPs[i];
-					if (!pMPi || pMPi->isDeleted())
-						continue;
-					cv::Mat x3D = pMPi->GetWorldPos();
-					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
-					tpt += mVisMidPt;
-					//bool bBA = false;
-					bool bBA = pMPi->mnLocalBAID >= lastBAFrame->GetFrameID();
-					cv::Scalar color = cv::Scalar(0, 0, 0);
-					auto label = vnLabels[i];
-					if (label == 255) {
-						color = cv::Scalar(255, 255, 0);
-						if (!bBA)
-							color /= 2;
-					}
-					else if (label == 150) {
-						color = cv::Scalar(255, 0, 255);
-						if (!bBA)
-							color /= 2;
-					}
-					cv::circle(tempVis, tpt, 2, color, -1);
-				}
-				//tracking
-
+				
 				for (int i = 0; i < pMatchInfo->mvMatchingPts.size(); i++) {
 					auto pMPi = pMatchInfo->mvpMatchingMPs[i];
 					auto label = pMatchInfo->mvObjectLabels[i];
@@ -369,66 +275,14 @@ void UVR_SLAM::Visualizer::Run() {
 					cv::circle(tempVis, tpt, 2, color, -1);
 				}
 				////tracking results
-				////trajectory
-				auto frames = mpMap->GetFrames();
-				int nFrame = frames.size();
-				for (int i = 0; i < nFrame; i++) {
-					
-					cv::Mat t1 = frames[i]->GetCameraCenter();
-					cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, -t1.at<float>(mnAxis2)* mnVisScale);
-					pt1 += mVisMidPt;
-
-					if (i == nFrame - 1) {
-						cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
-						cv::Mat directionZ = frames[i]->GetRotation().row(2);
-						cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(mnAxis1)* mnVisScale / 10.0, -directionZ.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
-						cv::line(tempVis, pt1, dirPtZ, cv::Scalar(0, 0, 255), 2);
-
-						cv::Mat directionX = frames[i]->GetRotation().row(0);
-						cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
-						cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
-						cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
-					}
-					else {
-						cv::circle(tempVis, pt1, 3, cv::Scalar(255, 255, 0), -1);
-					}
-				}
-				//auto lastFrame = pMatchInfo->mpRefFrame;//frames[frames.size() - 1];
-				//int nLastLocalMapID = lastFrame->GetFrameID();
-				//std::vector<UVR_SLAM::Frame*> vpKFs;
-				//for (int k = 0; k < 15; k++) {
-				//	if (!lastFrame)
-				//		break;
-				//	//시각화
-				//	cv::Mat t1 = lastFrame->GetCameraCenter();
-				//	cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, -t1.at<float>(mnAxis2)* mnVisScale);
-				//	pt1 += mVisMidPt;
-				//	if (k>0)
-				//		cv::circle(tempVis, pt1, 3, cv::Scalar(255, 255, 0), -1);
-				//	else {
-				//		cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
-				//		cv::Mat directionZ = lastFrame->GetRotation().row(2);
-				//		cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(mnAxis1)* mnVisScale / 10.0, -directionZ.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
-				//		cv::line(tempVis, pt1, dirPtZ, cv::Scalar(0, 0, 255), 2);
-
-				//		cv::Mat directionX = lastFrame->GetRotation().row(0);
-				//		cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
-				//		cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
-				//		cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
-				//	}
-				//	//타겟 프레임 변경
-				//	lastFrame = lastFrame->mpMatchInfo->mpTargetFrame;
-				//}
+				
 			}
-			////trajectory
+			
 			///////////////////////////////////////////////////////////////////////////////
-
-
 
 			//save map
 			//mpSystem->GetDirPath(mpMap->GetCurrFrame()->GetKeyFrameID());
 			
-
 			//fuse time text 
 			std::stringstream ss;
 			//ss << "Fuse = " << mpFrameWindow->GetFuseTime()<<", PE = "<< mpFrameWindow->GetPETime();
@@ -454,28 +308,12 @@ void UVR_SLAM::Visualizer::Run() {
 }
 
 //////////////////////////////////////
-void UVR_SLAM::Visualizer::SetFrameMatching(Frame* pF1, Frame* pF2, std::vector<cv::DMatch> vMatchInfos) {
-	mpMatchingFrame1 = pF1;
-	mpMatchingFrame2 = pF2;
-	mvMatchInfos = std::vector<cv::DMatch>(vMatchInfos.begin(), vMatchInfos.end());
-	mbFrameMatching = true;
-}
 
-void UVR_SLAM::Visualizer::SetMPs(std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<int> vnLabels){
-	std::unique_lock<std::mutex> lock(mMutexFrameMPs);
-	mvpFrameMPs = std::vector<UVR_SLAM::MapPoint*>(vpMPs.begin(), vpMPs.end());
-	mvnLabels = std::vector<int>(vnLabels.begin(), vnLabels.end());
-}
-void UVR_SLAM::Visualizer::GetMPs(std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<int>& vnLabels){
-	std::unique_lock<std::mutex> lock(mMutexFrameMPs);
-	vpMPs = std::vector<UVR_SLAM::MapPoint*>(mvpFrameMPs.begin(), mvpFrameMPs.end());
-	vnLabels = std::vector<int>(mvnLabels.begin(), mvnLabels.end());
-}
 void UVR_SLAM::Visualizer::SetMatchInfo(MatchInfo* pMatch){
-	std::unique_lock<std::mutex> lock(mMutexFrameMPs);
+	std::unique_lock<std::mutex> lock(mMutexMatchingInfo);
 	mpMatchInfo = pMatch;
 }
 UVR_SLAM::MatchInfo* UVR_SLAM::Visualizer::GetMatchInfo(){
-	std::unique_lock<std::mutex> lock(mMutexFrameMPs);
+	std::unique_lock<std::mutex> lock(mMutexMatchingInfo);
 	return mpMatchInfo;
 }
