@@ -141,7 +141,13 @@ void RemoveMP(int idx);*/
 		int mnFuseFrameID;
 	
 	public:
+		void SetRecentTrackedFrameID(int id);
+		int GetRecentTrackedFrameID();
+	private:
+		int mnRecentTrackedFrameId;
+		std::mutex mMutexTrackedFrame;
 
+	public:
 		///////////////////////////////
 		////200423
 		MatchInfo* mpMatchInfo;

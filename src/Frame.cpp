@@ -16,7 +16,7 @@ float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeig
 static int nFrameID = 0;
 
 
-UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), 
+UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
 mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false)
 {
 	matOri = _src.clone();
@@ -26,7 +26,7 @@ mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false)
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
 	SetFrameID();
 }
-UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0)
+UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
 , mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
@@ -38,7 +38,7 @@ UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), 
 	SetFrameID();
 }
 
-UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0)
+UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
 , mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
@@ -52,6 +52,15 @@ UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, 
 
 UVR_SLAM::Frame::~Frame() {
 	close();
+}
+
+void UVR_SLAM::Frame::SetRecentTrackedFrameID(int id) {
+	std::unique_lock<std::mutex>(mMutexTrackedFrame);
+	mnRecentTrackedFrameId = id;
+}
+int UVR_SLAM::Frame::GetRecentTrackedFrameID() {
+	std::unique_lock<std::mutex>(mMutexTrackedFrame);
+	return mnRecentTrackedFrameId;
 }
 
 void UVR_SLAM::Frame::SetFrameType(int n) {

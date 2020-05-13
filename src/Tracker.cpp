@@ -163,6 +163,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		/////////Optical Flow Matching
 		////MatchInfo ¼³Á¤
+		mpRefKF->SetRecentTrackedFrameID(pCurr->GetFrameID());
 		pCurr->mpMatchInfo = new UVR_SLAM::MatchInfo(pCurr, mpRefKF, mnWidth, mnHeight);
 		cv::Mat prevR, prevT;
 		pPrev->GetPose(prevR, prevT);
