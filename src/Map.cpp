@@ -96,6 +96,32 @@ void UVR_SLAM::Map::ClearFrames() {
 	mvpLoopFrames.clear();
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////乞搁 包府
+void UVR_SLAM::Map::AddPlaneInfo(PlaneProcessInformation* pPlane) {
+	std::unique_lock<std::mutex> lock(mMutexPlaneInfo);
+	mvpPlaneInfos.push_back(pPlane);
+}
+std::vector<UVR_SLAM::PlaneProcessInformation*> UVR_SLAM::Map::GetPlaneInfos() {
+	std::unique_lock<std::mutex> lock(mMutexPlaneInfo);
+	return std::vector<PlaneProcessInformation*>(mvpPlaneInfos.begin(), mvpPlaneInfos.end());
+}
+/////乞搁 包府
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 void UVR_SLAM::Map::ClearWalls() {
 	std::unique_lock<std::mutex> lock(mMutexWallPlanes);
 	mvpWallPlanes.clear();

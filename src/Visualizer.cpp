@@ -212,18 +212,19 @@ void UVR_SLAM::Visualizer::Run() {
 				if (!pMPi || pMPi->isDeleted())
 					continue;
 				cv::Mat x3D = pMPi->GetWorldPos();
+				bool bPlane = pMPi->GetPlaneID() > 0;
 				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
 				tpt += mVisMidPt;
 				cv::Scalar color = cv::Scalar(0, 0, 0);
 				if (label == 255) {
 					color = cv::Scalar(125, 125, 0);
-					/*if (!bBA)
-						color /= 2;*/
+					if(bPlane)
+						color = cv::Scalar(255, 255, 0);
 				}
 				else if (label == 150) {
 					color = cv::Scalar(125, 0, 125);
-					/*if (!bBA)
-						color /= 2;*/
+					if (bPlane)
+						color = cv::Scalar(255, 0, 255);
 				}
 				cv::circle(tempVis, tpt, 2, color, -1);
 			}

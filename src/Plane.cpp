@@ -45,6 +45,9 @@ void UVR_SLAM::PlaneProcessInformation::GetInformation(cv::Mat& pInvP, cv::Mat& 
 UVR_SLAM::PlaneInformation* UVR_SLAM::PlaneProcessInformation::GetFloorPlane() {
 	return mpFloor;
 }
+UVR_SLAM::Frame* UVR_SLAM::PlaneProcessInformation::GetReferenceFrame() {
+	return mpFrame;
+}
 //PlaneProcessInformation
 /////////////////////////////////////////////////////////////
 

@@ -11,6 +11,7 @@ namespace UVR_SLAM {
 	class MapPoint;
 	class WallPlane;
 	class PlaneInformation;
+	class PlaneProcessInformation;
 
 	class Map {
 	public:
@@ -49,6 +50,17 @@ namespace UVR_SLAM {
 		int mnDeleteMPs;
 ////맵포인트 관리
 ////////////////////////////////
+
+////////////////////////////
+////평면 관리
+	public:
+		void AddPlaneInfo(PlaneProcessInformation* pPlaneInfo);
+		std::vector<PlaneProcessInformation*> GetPlaneInfos();
+	private:
+		std::mutex mMutexPlaneInfo;
+		std::vector<PlaneProcessInformation*> mvpPlaneInfos;
+////평면 관리
+////////////////////////////
 
 ////////////////////////////////
 ////평면 관리

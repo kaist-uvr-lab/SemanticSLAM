@@ -20,6 +20,7 @@ namespace UVR_SLAM {
 
 			void Calculate();
 			void GetInformation(cv::Mat& pInvP, cv::Mat& pInvT, cv::Mat& pInvK);
+			Frame* GetReferenceFrame();
 			PlaneInformation* GetInformation();
 			PlaneInformation* GetFloorPlane();
 		private:
