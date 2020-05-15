@@ -5,6 +5,8 @@
 #include <FrameWindow.h>
 #include <MapPoint.h>
 #include <Optimization.h>
+//#include <PlaneEstimator.h>
+#include <Plane.h>
 #include <Map.h>
 
 UVR_SLAM::MapOptimizer::MapOptimizer(std::string strPath, Map* pMap) : mpTargetFrame(nullptr), mbStopBA(false)
@@ -154,119 +156,20 @@ void UVR_SLAM::MapOptimizer::Run() {
 				}
 			}
 			
-			////for (int k = 0; k < 30; k++) {
-			////	if (!targetFrame)
-			////		break;
-			////	vpKFs.push_back(targetFrame);
-			////	if(targetFrame->mnLocalBAID != nTargetID){
-			////		targetFrame->mnLocalBAID = nTargetID;
-			////		auto matchInfo = targetFrame->mpMatchInfo;
-			////		for (int i = 0; i < matchInfo->mvpMatchingMPs.size(); i++) {
-			////			auto pMPi = matchInfo->mvpMatchingMPs[i];
-			////			if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
-			////				continue;
-			////			}
-			////			/*if(vpMPs.size() < 2500){
-			////				vpMPs.push_back(pMPi);
-			////				pMPi->mnLocalBAID = nTargetID;
-			////			}
-			////			vpMPs2.push_back(pMPi);*/
-			////			vpMPs.push_back(pMPi);
-			////			pMPi->mnLocalBAID = nTargetID;
-			////		}
-
-			////	}
-			////	if (vpMPs.size() > 2000)
-			////		break;
-			////	//타겟 프레임 변경
-			////	targetFrame = targetFrame->mpMatchInfo->mpTargetFrame;
-			////}
-			//for (int k = 0; k < vpKFs.size(); k++){
-			//	auto pKFi = vpKFs[k];
-			//	if (pKFi->mnLocalBAID != nTargetID) {
-			//		pKFi->mnLocalBAID = nTargetID;
-			//		vpKFs2.push_back(pKFi);
-			//		auto matchInfo = pKFi->mpMatchInfo;
-			//		for (int i = 0; i < matchInfo->mvpMatchingMPs.size(); i++) {
-			//			auto pMPi = matchInfo->mvpMatchingMPs[i];
-			//			if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
-			//				continue;
-			//			}
-			//			vpMPs.push_back(pMPi);
-			//			pMPi->mnLocalBAID = nTargetID;
-			//		}
-
-			//	}
-			//	if (vpMPs.size() > 1500)
-			//		break;
-			//	
-			//}
-
-			//// Fixed Keyframes. Keyframes that see Local MapPoints but that are not Local Keyframes
-			//
-			//for (int i = 0; i < vpMPs.size(); i++)
-			//{
-			//	UVR_SLAM::MapPoint* pMP = vpMPs[i];
-			//	auto observations = pMP->GetConnedtedFrames();
-			//	//map<KeyFrame*, size_t> observations = (*lit)->GetObservations();
-			//	for (auto mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
-			//	{
-			//		auto pMatch = mit->first;
-			//		auto pKFi = pMatch->mpRefFrame;
-
-			//		if (pKFi->mnLocalBAID != nTargetID && pKFi->mnFixedBAID != nTargetID)
-			//		{
-			//			pKFi->mnFixedBAID = nTargetID;
-			//			vpFixedKFs.push_back(pKFi);
-			//		}
-			//	}
-			//}
-			//std::cout << "ba::processing::end" << std::endl;
-			//std::cout << "BA::preprocessing::end" << std::endl;
 			//mpMap->SetNumDeleteMP();
-			Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);
-			//			
-			//for(int j = 0; j < 1000; j++)
-			//for (int i = 0; i < vpMPs.size(); i++) {
-			//	auto pMPi = vpMPs[i];
-			//}
-			//std::chrono::high_resolution_clock::time_point temp_2 = std::chrono::high_resolution_clock::now();
-			//std::list<UVR_SLAM::MapPoint*> lpMPs;
-			//std::list<UVR_SLAM::Frame*> lpKFs;
-			//targetFrame = mpTargetFrame;
-			//for (int i = 0; i < 10; i++) {
-			//	if (!targetFrame)
-			//		continue;
-			//	lpKFs.push_back(targetFrame);
-			//	auto matchInfo = targetFrame->mpMatchInfo;
-			//	for (int i = 0; i < matchInfo->mvpMatchingMPs.size(); i++) {
-			//		auto pMPi = matchInfo->mvpMatchingMPs[i];
-			//		if (!pMPi || pMPi->isDeleted()) {
-			//			continue;
-			//		}
-			//		lpMPs.push_back(pMPi);
-			//	}
-			//	//프레임 변경
-			//	targetFrame = targetFrame->mpMatchInfo->mpTargetFrame;
-			//}
-			//for (int j = 0; j < 1000; j++)
-			//for (auto iter = lpMPs.begin(); iter != lpMPs.end(); iter++) {
-			//	auto pMPi = *iter;
-			//}
-			/*std::chrono::high_resolution_clock::time_point temp_3 = std::chrono::high_resolution_clock::now();
-			auto du1 = std::chrono::duration_cast<std::chrono::milliseconds>(temp_2 - temp_1).count();
-			float t1 = du1 / 1000.0;
-			auto du2 = std::chrono::duration_cast<std::chrono::milliseconds>(temp_3 - temp_2).count();
-			float t2 = du2 / 1000.0;*/
-			////Visualizer
-			//mpVisualizer->SetMPs(vpMPs2);
-			////preprocessing
-			///////////////////////////////////////////////////////////////
-			
-			/*if(mpMap->isFloorPlaneInitialized())
-				Optimization::LocalBundleAdjustmentWithPlane(mpMap,mpTargetFrame, mpFrameWindow, &mbStopBA);
-			else*/
-			//Optimization::OpticalLocalBundleAdjustment(this, mpTargetFrame, mpFrameWindow);
+			auto vpPlaneInfos = mpMap->GetPlaneInfos();
+			int n = vpPlaneInfos.size() - 1;
+			if(n < 0)
+				Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);
+			else
+			{
+				std::cout << "ba::plane::start" << std::endl;
+				auto pInfo = vpPlaneInfos[n]->GetFloorPlane();
+				if (pInfo)
+					std::cout << "ba::plane::exist" << std::endl;
+				Optimization::OpticalLocalBundleAdjustmentWithPlane(this, pInfo, vpMPs, vpKFs, vpFixedKFs);
+				std::cout << "ba::plane::end" << std::endl;
+			}
 			
 			/*std::cout << "BA::Delete::Start" << std::endl;
 			mpMap->DeleteMPs();

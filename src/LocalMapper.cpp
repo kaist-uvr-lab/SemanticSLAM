@@ -6,6 +6,7 @@
 #include <Matcher.h>
 #include <Optimization.h>
 #include <PlaneEstimator.h>
+#include <Plane.h>
 #include <Visualizer.h>
 #include <MapOptimizer.h>
 #include <SemanticSegmentator.h>
@@ -361,7 +362,14 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& 
 	///////데이터 전처리
 	cv::Mat Rcfromc = Rcurr.t();
 	cv::Mat Rttfromc = Rtargettarget.t();
-	cv::Mat invK = K.inv();
+	cv::Mat invT, invK, invP;
+	bool bPlaneMap = false;
+	auto targetTargetPlaneInfo = targettargetFrame->mpPlaneInformation;
+	if (targetTargetPlaneInfo) {
+		bPlaneMap = true;
+		targetTargetPlaneInfo->Calculate();
+		targetTargetPlaneInfo->GetInformation(invP, invT, invK);
+	}
 	///////데이터 전처리
 
 	int nRes = 0;
@@ -416,8 +424,21 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& 
 		//	continue;
 		//////parallax check
 
+		///////////평면 정보로 맵생성
+		//if (bPlaneMap && vLabels3[i] == 150) {
+		//	cv::Mat a;
+		//	if (UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(pt3, invP, invT, invK, a)) {
+		//		X3D = a;
+		//		//b = true;
+		//	}
+		//}
+		///////////평면 정보로 맵생성
+
 		nRes++;
 		auto pMP = new UVR_SLAM::MapPoint(mpMap, currFrame, X3D, cv::Mat(), vLabels3[i]);
+		if (vLabels3[i] > 0)
+			pMP->SetPlaneID(1);
+
 		/*mvpMatchingMPs[vIDXs1[i]] = pMP;
 		targetInfo->mvpMatchingMPs[vIDXs2[i]] = pMP;
 		targetTargetInfo->mvpMatchingMPs[vIDXs3[i]] = pMP;

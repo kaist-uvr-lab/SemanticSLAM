@@ -111,20 +111,31 @@ void UVR_SLAM::Visualizer::Init() {
 
 	//set image
 	int nImageWindowStartX = -1690;
+	int nImageWindowEndX = 1920;
 	int nImageWIndowStartY1 = 20;
 	int nImageWIndowStartY2 = 50;
 
+	/////////////////////////////
+	////New 배치
+	cv::namedWindow("Output::PE::PARAM");
+	cv::moveWindow("Output::PE::PARAM", nImageWindowStartX, 0);
+	////New 배치
+	/////////////////////////////
+	
+
 	///////////////
-	cv::namedWindow("Output::Matching");
-	cv::moveWindow("Output::Matching", nImageWindowStartX, nImageWIndowStartY1);
+	/*cv::namedWindow("Output::Matching");
+	cv::moveWindow("Output::Matching", nImageWindowStartX, nImageWIndowStartY1);*/
 	cv::namedWindow("Output::Segmentation");
 	cv::moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1+2*mnHeight+30);
 	cv::namedWindow("Output::LoopFrame");
 	cv::moveWindow("Output::LoopFrame", nImageWindowStartX+mnWidth/2+15, nImageWIndowStartY1 + 2 * mnHeight + 35);
 	cv::namedWindow("Output::Tracking");
 	cv::moveWindow("Output::Tracking", nImageWindowStartX + mnWidth, nImageWIndowStartY1);
-	cv::namedWindow("Output::PlaneEstimation");
-	cv::moveWindow("Output::PlaneEstimation", nImageWindowStartX + mnWidth, 50 + mnHeight);
+	cv::namedWindow("Output::Time");
+	cv::moveWindow("Output::Time", nImageWindowStartX + mnWidth, 50 + mnHeight);
+	/*cv::namedWindow("Output::PlaneEstimation");
+	cv::moveWindow("Output::PlaneEstimation", nImageWindowStartX + mnWidth, 50 + mnHeight);*/
 	//cv::namedWindow("Output::Segmentation");
 	//cv::moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1);
 	//cv::namedWindow("Output::SegmentationMask");
@@ -132,8 +143,7 @@ void UVR_SLAM::Visualizer::Init() {
 	
 	cv::namedWindow("Output::Trajectory");
 	cv::moveWindow("Output::Trajectory", nImageWindowStartX + mnWidth + mnWidth, 20);
-	cv::namedWindow("Output::Time");
-	cv::moveWindow("Output::Time", nImageWindowStartX + mnWidth + mnWidth + mVisPoseGraph.cols, 20);
+	
 
 	//cv::namedWindow("Output::Trajectory");
 	//cv::moveWindow("Output::Trajectory", nImageWindowStartX + mnWidth + mnWidth, 20);
@@ -155,6 +165,8 @@ void UVR_SLAM::Visualizer::Init() {
 
 	cv::namedWindow("Test::Matching::Frame");
 	cv::moveWindow("Test::Matching::Frame", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth*0.7, 30 + mnHeight);
+
+	
 
 	cv::setMouseCallback("Output::Trajectory", UVR_SLAM::Visualizer::CallBackFunc, NULL);
 	nScale = mnVisScale;
@@ -225,6 +237,11 @@ void UVR_SLAM::Visualizer::Run() {
 					color = cv::Scalar(125, 0, 125);
 					if (bPlane)
 						color = cv::Scalar(255, 0, 255);
+				}
+				else if (label == 100) {
+					color = cv::Scalar(0, 125, 125);
+					if (bPlane)
+						color = cv::Scalar(0, 255, 255);
 				}
 				cv::circle(tempVis, tpt, 2, color, -1);
 			}

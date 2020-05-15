@@ -45,11 +45,13 @@ namespace UVR_SLAM {
 		int mnCount;
 		ObjectType mnPlaneType; //바닥, 벽, 천장
 		std::vector<MapPoint*> mvpMPs;
-		std::vector<MapPoint*> tmpMPs; //이전에 만들어진 포인트 중에서 여러개 연결된 경우
+		std::vector<MapPoint*> tmpMPs, tmpOutlierMPs; //이전에 만들어진 포인트 중에서 여러개 연결된 경우
 
+		void SetParam(cv::Mat m);
 		void SetParam(cv::Mat n, float d);
 		void GetParam(cv::Mat& n, float& d);
 		cv::Mat GetParam();
+		int GetNormalType(cv::Mat X);
 	private:
 		std::mutex mMutexParam;
 		cv::Mat normal;
@@ -88,7 +90,7 @@ namespace UVR_SLAM {
 		static cv::Mat PlaneLineEstimator(WallPlane* pWall, PlaneInformation* pFloor);
 
 		static bool calcUnitNormalVector(cv::Mat& X);
-		static bool PlaneInitialization(PlaneInformation* pPlane, std::vector<MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
+		static bool PlaneInitialization(PlaneInformation* pPlane, std::vector<MapPoint*> spMPs, std::vector<UVR_SLAM::MapPoint*>& vpOutlierMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 
 		static cv::Mat CalcPlaneRotationMatrix(cv::Mat P);
 		////바닥만 있을 때 덴스맵 생성

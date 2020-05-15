@@ -85,7 +85,6 @@ cv::Mat Converter::toCvMat(const Eigen::Matrix<double,3,1> &m)
     cv::Mat cvMat(3,1,CV_32F);
     for(int i=0;i<3;i++)
             cvMat.at<float>(i)=(float)m(i);
-
     return cvMat.clone();
 }
 
@@ -164,8 +163,8 @@ cv::Mat Converter::toCvMat(const Eigen::Matrix<double, 6, 1> &m)
 
 
 	cv::Mat cvMat(6, 1, CV_32F);
-	for (int i = 0; i<6; i++)
-		cvMat.at<float>(i) = temp(i);
+	for (int i = 0; i < 6; i++)
+		cvMat.at<float>(i) = temp[i];
 	//std::cout << "After = " << m.head(3).squaredNorm() << std::endl;
 	//std::cout << "After2 = " << temp.head(3).squaredNorm() << std::endl;
 	return cvMat.clone();

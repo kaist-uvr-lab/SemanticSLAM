@@ -974,7 +974,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	ss << "Optical flow tracking= " << res <<", "<<vpMPs.size()<<", "<<nBad<< "::" << avgDiff /res<<"::"<< tttt;
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-	imshow("Output::Matching", debugging);
+	//imshow("Output::Matching", debugging);
 	//imshow("Output::Matching::Target frame", debugging2);
 	/////////////////////////
 
