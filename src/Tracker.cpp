@@ -259,13 +259,28 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			cv::Mat pCam;
 			bool b = pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
 
+			int label = pPrev->mpMatchInfo->mvObjectLabels[vnIDXs[vnMPIDXs[i]]];
+			int pid = pMPi->GetPlaneID();
+			int type = pMPi->GetRecentLayoutFrameID();
+			cv::Scalar color(150, 150, 0);
+			if (type > 0 && label == 150) {
+				color = cv::Scalar(0, 0, 255);
+			}
+			else if (type > 0 && label == 100) {
+				color = cv::Scalar(0, 255, 0);
+				
+			}
+			if (pid <= 0)
+				color /= 2;
+			if(vbTempInliers[vnMPIDXs[i]])
+				cv::circle(vis, p2D, 2, color, -1);
 			/*if (!b || !vbTempInliers[vnMPIDXs[i]]) {
 				cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(0, 0, 255), 1);
 			}
 			else {
 				cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
 			}*/
-			cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
+			cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], color, 1);
 			//cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
 		}
 		std::stringstream ss;

@@ -436,8 +436,8 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& 
 
 		nRes++;
 		auto pMP = new UVR_SLAM::MapPoint(mpMap, currFrame, X3D, cv::Mat(), vLabels3[i]);
-		if (vLabels3[i] > 0)
-			pMP->SetPlaneID(1);
+		/*if (vLabels3[i] > 0)
+			pMP->SetPlaneID(1);*/
 
 		/*mvpMatchingMPs[vIDXs1[i]] = pMP;
 		targetInfo->mvpMatchingMPs[vIDXs2[i]] = pMP;

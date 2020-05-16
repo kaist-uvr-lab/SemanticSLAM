@@ -1129,7 +1129,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 
 	return nInitialCorrespondences - nBad;
 }
-void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::MapOptimizer* pMapOptimizer, PlaneInformation* pPlaneInfo, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<UVR_SLAM::Frame*> vpKFs, std::vector<UVR_SLAM::Frame*> vpFixedKFs) {
+void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::MapOptimizer* pMapOptimizer, PlaneProcessInformation* pPlaneInfo, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<UVR_SLAM::Frame*> vpKFs, std::vector<UVR_SLAM::Frame*> vpFixedKFs) {
 
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
@@ -1195,16 +1195,33 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 	////Plane Vertex 추가
 	int maxPlaneId = 0;
 	bool bPlane = false;
-	g2o::PlaneVertex* vPlaneVertex = new g2o::PlaneVertex();
-	if (pPlaneInfo) {
+	std::vector<g2o::PlaneVertex*> vPlaneVertices;
+	std::cout << "ba::test::1" << std::endl;
+	auto pFloor = pPlaneInfo->GetPlane(1);
+	auto pCeil = pPlaneInfo->GetPlane(2);
+	g2o::PlaneVertex *vpFloor, * vpCeil;
+	if (pFloor) {
 		bPlane = true;
-		vPlaneVertex->setEstimate(Converter::toVector6d(pPlaneInfo->GetParam()));
-		vPlaneVertex->setId(maxKFid + pPlaneInfo->mnPlaneID);
-		vPlaneVertex->setFixed(false);
-		optimizer.addVertex(vPlaneVertex);
-		if (pPlaneInfo->mnPlaneID > maxPlaneId)
-			maxPlaneId = pPlaneInfo->mnPlaneID;
+		vpFloor = new g2o::PlaneVertex();
+		vpFloor->setEstimate(Converter::toVector6d(pFloor->GetParam()));
+		vpFloor->setId(maxKFid + pFloor->mnPlaneID);
+		vpFloor->setFixed(false);
+		optimizer.addVertex(vpFloor);
+		vPlaneVertices.push_back(vpFloor);
+		if (pFloor->mnPlaneID > maxPlaneId)
+			maxPlaneId = pFloor->mnPlaneID;
 	}
+	if (pCeil) {
+		vpCeil = new g2o::PlaneVertex();
+		vpCeil->setEstimate(Converter::toVector6d(pCeil->GetParam()));
+		vpCeil->setId(maxKFid + pCeil->mnPlaneID);
+		vpCeil->setFixed(false);
+		optimizer.addVertex(vpCeil);
+		vPlaneVertices.push_back(vpCeil);
+		if (pCeil->mnPlaneID > maxPlaneId)
+			maxPlaneId = pCeil->mnPlaneID;
+	}
+	std::cout << "ba::test::2" << std::endl;
 	////Plane Vertex 추가
 	////////////평면 조인트 최적화
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1223,7 +1240,8 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 
 	const float thHuberMono = sqrt(5.991);
 	const float thHuberStereo = sqrt(7.815);
-
+	const float thHuberPlane = sqrt(0.01);
+	std::cout << "ba::test::3" << std::endl;
 	for (int i = 0; i < vpMPs.size(); i++)
 	{
 		MapPoint* pMP = vpMPs[i];
@@ -1231,7 +1249,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 			continue;
 		g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
 		vPoint->setEstimate(Converter::toVector3d(pMP->GetWorldPos()));
-		int id = pMP->mnMapPointID + +maxPlaneId + maxKFid + 1;
+		int id = pMP->mnMapPointID +maxPlaneId + maxKFid + 1;
 		vPoint->setId(id);
 		vPoint->setMarginalized(true);
 		optimizer.addVertex(vPoint);
@@ -1272,16 +1290,28 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 			vpMapPointEdgeMono.push_back(pMP);
 		}
 		/////Set Planar Edge
-		int pid = pMP->GetPlaneID();
-		if (pPlaneInfo && pid > 0) {
+		int ptype = pMP->GetRecentLayoutFrameID();
+		if (bPlane && ptype > 0) {
+			
+			int pid;
+			if (ptype == 1 && pFloor) {
+				pid = pFloor->mnPlaneID;
+			}
+			else if (ptype == 2 && pCeil) {
+				pid = pCeil->mnPlaneID;
+			}
+			else {
+				continue;
+			}
+			
 			g2o::PlaneBAEdge* e = new g2o::PlaneBAEdge();
 			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
-			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pPlaneInfo->mnPlaneID + maxKFid))); ///이부분은 추후 평면별로 변경이 필요함.
+			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pid + maxKFid))); ///이부분은 추후 평면별로 변경이 필요함.
 			e->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
 
 			g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
-			//e->setRobustKernel(rk);
-			//rk->setDelta(thPHuberPlane);
+			/*e->setRobustKernel(rk);
+			rk->setDelta(thHuberPlane);*/
 
 			optimizer.addEdge(e);
 			vpPlaneEdge.push_back(e);
@@ -1290,6 +1320,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 		}
 		/////Set Planar Edge
 	}
+	std::cout << "ba::test::4" << std::endl;
 	bStopBA = pMapOptimizer->isStopBA();
 	if (bStopBA)
 		return;
@@ -1328,9 +1359,12 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 			if (pMP->isDeleted())
 				continue;
 			if (e->chi2() > 0.01) {
-				//pMP->SetPlaneID(0);
+				pMP->SetPlaneID(0);
 				//std::cout << e->chi2() <<"::"<<pMP->GetConnedtedFrames().size()<< std::endl;
 				//e->setLevel(1);
+			}
+			else {
+				pMP->SetPlaneID(1);
 			}
 			e->setRobustKernel(0);
 		}
@@ -1367,29 +1401,32 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 		g2o::PlaneBAEdge* e = vpPlaneEdge[i];
 		MapPoint* pMP = vpPlaneEdgeMP[i];
 
-		//////테스트
-		cv::Mat temp = pMP->GetWorldPos();
-		temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
-		mat.push_back(temp.t());
-		//////테스트
-
+		////////테스트
+		//cv::Mat temp = pMP->GetWorldPos();
+		//temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
+		//mat.push_back(temp.t());
+		////////테스트
+		pMP->SetPlaneID(1);
 		if (pMP->isDeleted())
 			continue;
 		if (e->chi2() > 0.01) {
-			pMP->SetPlaneID(0);
+			//pMP->SetPlaneID(0);
 			//std::cout << e->chi2() <<"::"<<pMP->GetConnedtedFrames().size()<< std::endl;
 			//e->setLevel(1);
 		}
+		else {
+			//pMP->SetPlaneID(1);
+		}
 		//e->setRobustKernel(0);
 	}
-	//////테스트
-	if (pPlaneInfo && mat.rows > 0) {
-		cv::Mat pMat = pPlaneInfo->GetParam();
-		std::cout << "BA::PLANE::BEFORE::PARAM::" << pMat.t()<<", "<< vpPlaneEdge.size()<< std::endl;
-		auto val = cv::sum(abs(mat*pMat));
-		std::cout << "BA::PLANE::BEFORE::" << val.val[0]/ mat.rows << std::endl;
-	}
-	//////테스트
+	////////테스트
+	//if (pPlaneInfo && mat.rows > 0) {
+	//	cv::Mat pMat = pPlaneInfo->GetParam();
+	//	std::cout << "BA::PLANE::BEFORE::PARAM::" << pMat.t()<<", "<< vpPlaneEdge.size()<< std::endl;
+	//	auto val = cv::sum(abs(mat*pMat));
+	//	std::cout << "BA::PLANE::BEFORE::" << val.val[0]/ mat.rows << std::endl;
+	//}
+	////////테스트
 	
 	if (!vToErase.empty())
 	{
@@ -1430,35 +1467,43 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 	
 	///////////////////////////////////////////////
 	////평면 값 복원
-	if (pPlaneInfo) {
-
-		//////테스트
-		cv::Mat mat = cv::Mat::zeros(0, 4, CV_32FC1);
-		for (size_t i = 0, iend = vpPlaneEdge.size(); i < iend; i++) {
-			g2o::PlaneBAEdge* e = vpPlaneEdge[i];
-			MapPoint* pMP = vpPlaneEdgeMP[i];
-			if (!pMP || pMP->isDeleted())
-				continue;
-
-			cv::Mat temp = pMP->GetWorldPos();
-			temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
-			mat.push_back(temp.t());
-		}
-		std::cout << mat.size() << std::endl;
-		//////테스트
-
-		g2o::PlaneVertex* vPlane = static_cast<g2o::PlaneVertex*>(optimizer.vertex(pPlaneInfo->mnPlaneID + maxKFid));
-		pPlaneInfo->SetParam(Converter::toCvMat(vPlane->estimate()).rowRange(0, 4));
-
-		//////테스트
-		if (mat.rows > 0){
-			cv::Mat pMat = pPlaneInfo->GetParam();
-			auto val = cv::sum(abs(mat*pMat));
-			std::cout << "BA::PLANE::AFTER::PARAM::" << pMat.t() << std::endl;
-			std::cout << "BA::PLANE::AFTER::" << val.val[0] / mat.rows << std::endl;
-		}
-		//////테스트
+	if (pFloor) {
+		g2o::PlaneVertex* vPlane = static_cast<g2o::PlaneVertex*>(optimizer.vertex(pFloor->mnPlaneID + maxKFid));
+		pFloor->SetParam(Converter::toCvMat(vPlane->estimate()).rowRange(0, 4));
 	}
+	if (pCeil) {
+		g2o::PlaneVertex* vPlane = static_cast<g2o::PlaneVertex*>(optimizer.vertex(pCeil->mnPlaneID + maxKFid));
+		pCeil->SetParam(Converter::toCvMat(vPlane->estimate()).rowRange(0, 4));
+	}
+	//if (pPlaneInfo) {
+
+	//	////////테스트
+	//	//cv::Mat mat = cv::Mat::zeros(0, 4, CV_32FC1);
+	//	//for (size_t i = 0, iend = vpPlaneEdge.size(); i < iend; i++) {
+	//	//	g2o::PlaneBAEdge* e = vpPlaneEdge[i];
+	//	//	MapPoint* pMP = vpPlaneEdgeMP[i];
+	//	//	if (!pMP || pMP->isDeleted())
+	//	//		continue;
+
+	//	//	cv::Mat temp = pMP->GetWorldPos();
+	//	//	temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
+	//	//	mat.push_back(temp.t());
+	//	//}
+	//	//std::cout << mat.size() << std::endl;
+	//	////////테스트
+
+	//	/*g2o::PlaneVertex* vPlane = static_cast<g2o::PlaneVertex*>(optimizer.vertex(pPlaneInfo->mnPlaneID + maxKFid));
+	//	pPlaneInfo->SetParam(Converter::toCvMat(vPlane->estimate()).rowRange(0, 4));*/
+
+	//	////////테스트
+	//	//if (mat.rows > 0){
+	//	//	cv::Mat pMat = pPlaneInfo->GetParam();
+	//	//	auto val = cv::sum(abs(mat*pMat));
+	//	//	std::cout << "BA::PLANE::AFTER::PARAM::" << pMat.t() << std::endl;
+	//	//	std::cout << "BA::PLANE::AFTER::" << val.val[0] / mat.rows << std::endl;
+	//	//}
+	//	////////테스트
+	//}
 	////평면 값 복원
 	///////////////////////////////////////////////
 }

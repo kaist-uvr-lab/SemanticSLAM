@@ -9,10 +9,10 @@ static int nWallPlaneID = 0;
 
 /////////////////////////////////////////////////////////////
 //PlaneProcessInformation
-UVR_SLAM::PlaneProcessInformation::PlaneProcessInformation() {
+UVR_SLAM::PlaneProcessInformation::PlaneProcessInformation() :mpCeil(nullptr), mpFloor(nullptr), mpFrame(nullptr){
 
 }
-UVR_SLAM::PlaneProcessInformation::PlaneProcessInformation(Frame* pF, PlaneInformation* pPlane) {
+UVR_SLAM::PlaneProcessInformation::PlaneProcessInformation(Frame* pF, PlaneInformation* pPlane):mpCeil(nullptr){
 	mpFrame = pF;
 	mpFloor = pPlane;
 }
@@ -33,20 +33,35 @@ void UVR_SLAM::PlaneProcessInformation::Calculate(){
 	invP = invT.t()*planeParam;
 	invK = mpFrame->mK.inv();
 }
-UVR_SLAM::PlaneInformation* UVR_SLAM::PlaneProcessInformation::GetInformation() {
-	return mpFloor;
-}
 void UVR_SLAM::PlaneProcessInformation::GetInformation(cv::Mat& pInvP, cv::Mat& pInvT, cv::Mat& pInvK) {
 	std::unique_lock<std::mutex> lock(mMutexProessor);
 	pInvP = invP.clone();
 	pInvT = invT.clone();
 	pInvK = invK.clone();
 }
-UVR_SLAM::PlaneInformation* UVR_SLAM::PlaneProcessInformation::GetFloorPlane() {
-	return mpFloor;
+void UVR_SLAM::PlaneProcessInformation::SetReferenceFrame(Frame* pF) {
+	mpFrame = pF;
 }
 UVR_SLAM::Frame* UVR_SLAM::PlaneProcessInformation::GetReferenceFrame() {
 	return mpFrame;
+}
+void UVR_SLAM::PlaneProcessInformation::AddPlane(PlaneInformation* p, int type) {
+	if (type == 1) {
+		mpFloor = p;
+	}
+	else if (type == 2) {
+		mpCeil = p;
+	}
+}
+UVR_SLAM::PlaneInformation* UVR_SLAM::PlaneProcessInformation::GetPlane(int type){
+	UVR_SLAM::PlaneInformation* res = nullptr;
+	if (type == 1) {
+		res = mpFloor;
+	}
+	else if (type == 2) {
+		res = mpCeil;
+	}
+	return res;
 }
 //PlaneProcessInformation
 /////////////////////////////////////////////////////////////

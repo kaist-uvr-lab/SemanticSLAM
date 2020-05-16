@@ -224,7 +224,7 @@ void UVR_SLAM::Visualizer::Run() {
 				if (!pMPi || pMPi->isDeleted())
 					continue;
 				cv::Mat x3D = pMPi->GetWorldPos();
-				bool bPlane = pMPi->GetPlaneID() > 0;
+				bool bPlane = pMPi->GetRecentLayoutFrameID() > 0;
 				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
 				tpt += mVisMidPt;
 				cv::Scalar color = cv::Scalar(0, 0, 0);
@@ -269,7 +269,7 @@ void UVR_SLAM::Visualizer::Run() {
 					cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
 				}
 				else {
-					cv::circle(tempVis, pt1, 3, cv::Scalar(255, 255, 0), -1);
+					cv::circle(tempVis, pt1, 2, cv::Scalar(0, 0, 0), -1);
 				}
 			}
 			////trajectory	

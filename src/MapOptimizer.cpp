@@ -104,7 +104,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::vector<UVR_SLAM::Frame*> vpKFs;
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
 			
-			auto tempKFs1 = mpTargetFrame->GetConnectedKFs(5);
+			auto tempKFs1 = mpTargetFrame->GetConnectedKFs(2);
 			auto tempKFs2 = mpTargetFrame->GetConnectedKFs();
 			vpKFs.push_back(mpTargetFrame);
 			
@@ -163,12 +163,9 @@ void UVR_SLAM::MapOptimizer::Run() {
 				Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);
 			else
 			{
-				std::cout << "ba::plane::start" << std::endl;
-				auto pInfo = vpPlaneInfos[n]->GetFloorPlane();
-				if (pInfo)
-					std::cout << "ba::plane::exist" << std::endl;
-				Optimization::OpticalLocalBundleAdjustmentWithPlane(this, pInfo, vpMPs, vpKFs, vpFixedKFs);
-				std::cout << "ba::plane::end" << std::endl;
+				std::cout << "ba::1::"<<n<< std::endl;
+				Optimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpMPs, vpKFs, vpFixedKFs);
+				std::cout << "ba::2" << std::endl;
 			}
 			
 			/*std::cout << "BA::Delete::Start" << std::endl;

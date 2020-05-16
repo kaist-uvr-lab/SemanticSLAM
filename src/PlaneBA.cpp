@@ -82,7 +82,7 @@ void PlaneBAEdge::linearizeOplus(){
 	_jacobianOplusXi = Vector6d::Zero(); //0일수도 있음.
 	_jacobianOplusXi.head(3) = param2*0.0;
 	_jacobianOplusXi[3] = 0.0;
-	_jacobianOplusXj = param1.head(3).normalized()*2;
+	_jacobianOplusXj = param1.head(3).normalized();
 }
 
 PlaneCorrelationBAEdge::PlaneCorrelationBAEdge(){}
