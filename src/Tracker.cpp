@@ -213,7 +213,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				//mpRefKF->mpMatchInfo->SetKeyFrame();
 				mpLocalMapper->InsertKeyFrame(pCurr);
 				mpSegmentator->InsertKeyFrame(pCurr);
-				mpPlaneEstimator->InsertKeyFrame(pCurr);
+				//mpPlaneEstimator->InsertKeyFrame(pCurr);
 				//mpFrameWindow->AddFrame(pCurr);
 			}
 			/*if (!mpSegmentator->isDoingProcess() && !mpPlaneEstimator->isDoingProcess() && !mpRefKF->GetBoolMapping()) {

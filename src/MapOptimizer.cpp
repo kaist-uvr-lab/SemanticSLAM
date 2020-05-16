@@ -163,9 +163,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 				Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);
 			else
 			{
-				std::cout << "ba::1::"<<n<< std::endl;
 				Optimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpMPs, vpKFs, vpFixedKFs);
-				std::cout << "ba::2" << std::endl;
 			}
 			
 			/*std::cout << "BA::Delete::Start" << std::endl;

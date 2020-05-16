@@ -177,6 +177,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			
 			///////////////////Fuse Map Points
 
+			mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
 			std::chrono::high_resolution_clock::time_point ba_start = std::chrono::high_resolution_clock::now();
 			if (mpMapOptimizer->isDoingProcess()) {
 				//std::cout << "lm::ba::busy" << std::endl;

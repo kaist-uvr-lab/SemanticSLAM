@@ -40,6 +40,8 @@ int mnMaxMode = 3;
 int mnAxis1 = 0;
 int mnAxis2 = 2;
 
+bool bSaveMap = false;
+
 int nScale;
 int UVR_SLAM::Visualizer::GetScale(){
 	std::unique_lock<std::mutex>lock(mMutexScale);
@@ -56,6 +58,12 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 	{
 		//std::cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << std::endl;
 		sPt = cv::Point2f(x, y);
+
+		////button interface
+		if (sPt.x < 50 && sPt.y < 50) {
+			bSaveMap = true;
+		}
+		////button interface
 	}
 	else if (event == cv::EVENT_LBUTTONUP)
 	{
@@ -106,6 +114,7 @@ void UVR_SLAM::Visualizer::Init() {
 	
 	//Visualization
 	mVisPoseGraph = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
+	rectangle(mVisPoseGraph, cv::Rect(0, 0, 50, 50), cv::Scalar(255, 255, 0), -1);
 	mVisMidPt = cv::Point2f(mnHeight, mnHeight);
 	mVisPrevPt = mVisMidPt;
 
@@ -194,13 +203,84 @@ void UVR_SLAM::Visualizer::Run() {
 	for (int i = 0; i < tempColors.size(); i++) {
 		colors.push_back(cv::Scalar(tempColors[i].val[0], tempColors[i].val[1], tempColors[i].val[2]));
 	}
-	
+
 	while (1) {
+		
+		if (bSaveMap) {
+			
+			std::stringstream sss;
+			sss << mpSystem->GetDirPath(0) << "/map/map.txt";
+			std::ofstream f;
+			f.open(sss.str().c_str());
+			auto mmpMap = mpMap->GetMap();
+			for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
+				auto pMPi = iter->first;
+				int label = iter->second;
+				if (!pMPi || pMPi->isDeleted())
+					continue;
+				cv::Mat Xw = pMPi->GetWorldPos();
+				f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2) <<" "<<label<< std::endl;
+				/*bool bPlane = pMPi->GetRecentLayoutFrameID() > 0;
+				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+				tpt += mVisMidPt;
+				cv::Scalar color = cv::Scalar(0, 0, 0);
+				if (label == 255) {
+					color = cv::Scalar(125, 125, 0);
+					if (bPlane)
+						color = cv::Scalar(255, 255, 0);
+				}
+				else if (label == 150) {
+					color = cv::Scalar(125, 0, 125);
+					if (bPlane)
+						color = cv::Scalar(255, 0, 255);
+				}
+				else if (label == 100) {
+					color = cv::Scalar(0, 125, 125);
+					if (bPlane)
+						color = cv::Scalar(0, 255, 255);
+				}
+				cv::circle(tempVis, tpt, 2, color, -1);*/
+			}
+			f.close();
+			////////save txt
+			///*std::ofstream f;
+			//std::stringstream sss;
+			//sss << mStrPath.c_str() << "/plane.txt";
+			//f.open(sss.str().c_str());
+			//mvpMPs = mpTargetFrame->GetMapPoints();
+			//mvpOPs = mpTargetFrame->GetObjectVector();
+			//if(bLocalFloor)
+			//	for (int j = 0; j < mvpMPs.size(); j++) {
+			//		UVR_SLAM::MapPoint* pMP = mvpMPs[j];
+			//		if (!pMP) {
+			//			continue;
+			//		}
+			//		if (pMP->isDeleted()) {
+			//			continue;
+			//		}
+			//		cv::Mat Xw = pMP->GetWorldPos();
+			//	
+			//		if (pMP->GetPlaneID() > 0) {
+			//			if (pMP->GetPlaneID() == tempFloorID)
+			//			{
+			//				f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2) << " 1" << std::endl;
+			//			}
+			//			else if (pMP->GetPlaneID() == tempWallID) {
+			//				f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2) << " 2" << std::endl;
+			//			}
+			//		}
+			//		else
+			//			f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2) << " 0" << std::endl;
+			//	}
+			//f.close();*/
+			////////save txt
+			bSaveMap = false;
+		}
 
 		if (isDoingProcess()) {
 
 			cv::Mat tempVis = mVisPoseGraph.clone();
-
+			
 			//update pt
 			mVisMidPt += mPt;
 			mPt = cv::Point2f(0, 0);
@@ -295,19 +375,20 @@ void UVR_SLAM::Visualizer::Run() {
 				////tracking results
 				
 			}
-			
+
 			///////////////////////////////////////////////////////////////////////////////
 
 			//save map
 			//mpSystem->GetDirPath(mpMap->GetCurrFrame()->GetKeyFrameID());
 			
 			//fuse time text 
-			std::stringstream ss;
-			//ss << "Fuse = " << mpFrameWindow->GetFuseTime()<<", PE = "<< mpFrameWindow->GetPETime();
-			cv::rectangle(tempVis, cv::Point2f(0, 0), cv::Point2f(tempVis.cols, 30), cv::Scalar::all(0), -1);
-			cv::putText(tempVis, ss.str(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
+			//std::stringstream ss;
+			////ss << "Fuse = " << mpFrameWindow->GetFuseTime()<<", PE = "<< mpFrameWindow->GetPETime();
+			//cv::rectangle(tempVis, cv::Point2f(0, 0), cv::Point2f(tempVis.cols, 30), cv::Scalar::all(0), -1);
+			//cv::putText(tempVis, ss.str(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			//fuse time text
 
+			
 			cv::imshow("Output::Trajectory", tempVis);
 			
 			//time 

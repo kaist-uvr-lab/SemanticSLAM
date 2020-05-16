@@ -1196,7 +1196,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 	int maxPlaneId = 0;
 	bool bPlane = false;
 	std::vector<g2o::PlaneVertex*> vPlaneVertices;
-	std::cout << "ba::test::1" << std::endl;
+	
 	auto pFloor = pPlaneInfo->GetPlane(1);
 	auto pCeil = pPlaneInfo->GetPlane(2);
 	g2o::PlaneVertex *vpFloor, * vpCeil;
@@ -1221,7 +1221,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 		if (pCeil->mnPlaneID > maxPlaneId)
 			maxPlaneId = pCeil->mnPlaneID;
 	}
-	std::cout << "ba::test::2" << std::endl;
+	
 	////Plane Vertex 추가
 	////////////평면 조인트 최적화
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1241,7 +1241,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 	const float thHuberMono = sqrt(5.991);
 	const float thHuberStereo = sqrt(7.815);
 	const float thHuberPlane = sqrt(0.01);
-	std::cout << "ba::test::3" << std::endl;
+	
 	for (int i = 0; i < vpMPs.size(); i++)
 	{
 		MapPoint* pMP = vpMPs[i];
@@ -1310,8 +1310,8 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 			e->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
 
 			g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
-			/*e->setRobustKernel(rk);
-			rk->setDelta(thHuberPlane);*/
+			e->setRobustKernel(rk);
+			rk->setDelta(thHuberPlane);
 
 			optimizer.addEdge(e);
 			vpPlaneEdge.push_back(e);
@@ -1320,7 +1320,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 		}
 		/////Set Planar Edge
 	}
-	std::cout << "ba::test::4" << std::endl;
+	
 	bStopBA = pMapOptimizer->isStopBA();
 	if (bStopBA)
 		return;
@@ -1396,7 +1396,8 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 	//////테스트 코드
 	cv::Mat mat = cv::Mat::zeros(0, 4, CV_32FC1);
 	///////////////////////////////
-
+	int nBadPlane = 0;
+	std::vector<UVR_SLAM::MapPoint*> vErasePlanarMPs;
 	for (size_t i = 0, iend = vpPlaneEdge.size(); i < iend; i++) {
 		g2o::PlaneBAEdge* e = vpPlaneEdge[i];
 		MapPoint* pMP = vpPlaneEdgeMP[i];
@@ -1406,19 +1407,24 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 		//temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
 		//mat.push_back(temp.t());
 		////////테스트
-		pMP->SetPlaneID(1);
 		if (pMP->isDeleted())
 			continue;
 		if (e->chi2() > 0.01) {
-			//pMP->SetPlaneID(0);
+			nBadPlane++;
+			pMP->SetPlaneID(0);
 			//std::cout << e->chi2() <<"::"<<pMP->GetConnedtedFrames().size()<< std::endl;
 			//e->setLevel(1);
 		}
 		else {
-			//pMP->SetPlaneID(1);
+			pMP->SetPlaneID(1);
 		}
+		if (e->chi2() > 0.1) {
+			vErasePlanarMPs.push_back(pMP);
+		}
+		
 		//e->setRobustKernel(0);
 	}
+	std::cout << "ba::plane::" << nBadPlane << ", " << vpPlaneEdge.size() << std::endl;
 	////////테스트
 	//if (pPlaneInfo && mat.rows > 0) {
 	//	cv::Mat pMat = pPlaneInfo->GetParam();
@@ -1437,6 +1443,15 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 			pMPi->RemoveFrame(pMatch);
 		}
 	}
+	//////평면 거리가 큰 포인트 삭제
+	/*if (!vErasePlanarMPs.empty()) {
+		for (int i = 0; i < vErasePlanarMPs.size(); i++) {
+			auto pMP = vErasePlanarMPs[i];
+			pMP->Delete();
+		}
+	}*/
+	//////평면 거리가 큰 포인트 삭제
+
 	// Recover optimized data
 	//Keyframes
 	for (int i = 0; i < vpKFs.size(); i++)
