@@ -104,7 +104,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::vector<UVR_SLAM::Frame*> vpKFs;
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
 			
-			auto tempKFs1 = mpTargetFrame->GetConnectedKFs(2);
+			auto tempKFs1 = mpTargetFrame->GetConnectedKFs(15);
 			auto tempKFs2 = mpTargetFrame->GetConnectedKFs();
 			vpKFs.push_back(mpTargetFrame);
 			

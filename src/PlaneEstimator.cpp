@@ -333,7 +333,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
 			//vpCurrFloorMPs
 			//vpFloorMPs : 전체 포인트에 대해서 랜덤하게 일부를 뽑아서 평면 찾기
-			bool bFloorRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, vpFloorMPs, mvpOutlierFloorMPs, prevFrame->GetFrameID(), 1500, pidst, 0.1);
+			bool bFloorRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, vpCurrFloorMPs, mvpOutlierFloorMPs, prevFrame->GetFrameID(), 1500, pidst, 0.1);
 			//float orid;
 			if (bFloorRes) {
 				////평균으로 거리를 변환하는 것
@@ -385,7 +385,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			UVR_SLAM::PlaneInformation* pCeil = new UVR_SLAM::PlaneInformation();
 			if (bFloorRes && mvpCeilMPs.size() > 50) {
 				std::cout << vpCeilMPs.size() << std::endl;
-				bCeilRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pCeil, vpCeilMPs, mvpOutlierCeilMPs, prevFrame->GetFrameID(), 1500, pidst, 0.1);
+				bCeilRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pCeil, vpCurrCeilMPs, mvpOutlierCeilMPs, prevFrame->GetFrameID(), 1500, pidst, 0.1);
 				std::cout << vpCeilMPs.size() << std::endl;
 				if(bCeilRes){
 					cv::Mat n;
