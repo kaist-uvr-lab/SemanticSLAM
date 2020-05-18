@@ -207,9 +207,11 @@ void UVR_SLAM::Visualizer::Run() {
 	while (1) {
 		
 		if (bSaveMap) {
-			
+			auto frames = mpMap->GetFrames();
+			int nFrame = frames.size();
+			auto frame = frames[nFrame - 1];
 			std::stringstream sss;
-			sss << mpSystem->GetDirPath(0) << "/map/map.txt";
+			sss << mpSystem->GetDirPath(0) << "/map/map_"<< frame->GetKeyFrameID()<<".txt";
 			std::ofstream f;
 			f.open(sss.str().c_str());
 			auto mmpMap = mpMap->GetMap();
@@ -219,7 +221,7 @@ void UVR_SLAM::Visualizer::Run() {
 				if (!pMPi || pMPi->isDeleted())
 					continue;
 				cv::Mat Xw = pMPi->GetWorldPos();
-				f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2) <<" "<<label<< std::endl;
+				f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2) <<" "<<label<<" "<<pMPi->GetNumConnectedFrames()<< std::endl;
 				/*bool bPlane = pMPi->GetRecentLayoutFrameID() > 0;
 				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
 				tpt += mVisMidPt;
@@ -304,7 +306,7 @@ void UVR_SLAM::Visualizer::Run() {
 				if (!pMPi || pMPi->isDeleted())
 					continue;
 				cv::Mat x3D = pMPi->GetWorldPos();
-				bool bPlane = pMPi->GetRecentLayoutFrameID() > 0;
+				bool bPlane = pMPi->GetPlaneID() > 0;
 				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
 				tpt += mVisMidPt;
 				cv::Scalar color = cv::Scalar(0, 0, 0);
@@ -322,6 +324,10 @@ void UVR_SLAM::Visualizer::Run() {
 					color = cv::Scalar(0, 125, 125);
 					if (bPlane)
 						color = cv::Scalar(0, 255, 255);
+				}
+				if(pMPi->GetConnedtedFrames().size() < 7){
+					color = cv::Scalar(0, 0, 0);
+					continue;
 				}
 				cv::circle(tempVis, tpt, 2, color, -1);
 			}

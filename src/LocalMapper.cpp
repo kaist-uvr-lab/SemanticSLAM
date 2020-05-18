@@ -177,7 +177,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			
 			///////////////////Fuse Map Points
 
-			mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
+			//mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
 			std::chrono::high_resolution_clock::time_point ba_start = std::chrono::high_resolution_clock::now();
 			if (mpMapOptimizer->isDoingProcess()) {
 				//std::cout << "lm::ba::busy" << std::endl;
@@ -433,10 +433,25 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& 
 		//		//b = true;
 		//	}
 		//}
+		//////평면과의 거리를 확인하였음. 이들 대부분 평면에 포함이 안됨. 포함하게 하면 오히려 에러가 남...
+		//if (bPlaneMap && vLabels3[i] == 150)
+		//{
+		//	cv::Mat n;
+		//	float d;
+		//	targettargetFrame->mpPlaneInformation->GetPlane(1)->GetParam(n, d);
+		//	//std::cout << "new mp ::" << abs(X3D.dot(n) + d) << std::endl;;
+		//}
 		///////////평면 정보로 맵생성
 
 		nRes++;
-		auto pMP = new UVR_SLAM::MapPoint(mpMap, currFrame, X3D, cv::Mat(), vLabels3[i]);
+		int label = vLabels3[i];
+		auto pMP = new UVR_SLAM::MapPoint(mpMap, currFrame, X3D, cv::Mat(), label);
+		if (label == 150) {
+			pMP->SetPlaneID(1);
+		}
+		else if (label == 100) {
+			pMP->SetPlaneID(2);
+		}
 		/*if (vLabels3[i] > 0)
 			pMP->SetPlaneID(1);*/
 

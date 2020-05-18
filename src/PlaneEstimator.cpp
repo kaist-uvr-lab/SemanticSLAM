@@ -148,7 +148,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 	int mnDebugFontSize = 20;
 	int nFrameSize;
 	int nTrial = 500;
-	float pidst = 0.01;
+	float pidst = 0.05;//0.01
 	float pratio = 0.25;
 
 	int nLayoutFloor = 1;
@@ -170,6 +170,11 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
 			std::cout << "pe::start::"<<mpTargetFrame->GetKeyFrameID()<< std::endl;
+
+			///////////////////////////////평면 정보 시각화 관련 변수
+			cv::Mat debug = cv::Mat::zeros(1000, 640, CV_8UC1);
+			int nDebugRows = 20;
+			///////////////////////////////평면 정보 시각화 관련 변수
 
 			/////////////////////////////현재 프레임에서 이용할 데이터 정보
 			int nTargetID = mpTargetFrame->GetKeyFrameID();
@@ -194,7 +199,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 			/////////////////////////후보 포인트 추가
 			//GetRecentLayoutFrameID를 오브젝트 레이블로 변경함.
-			std::vector<UVR_SLAM::Frame*> vpKFs;
+			std::vector<UVR_SLAM::Frame*> vpKFs;// = prevFrame->GetConnectedKFs(10);
 			vpKFs.push_back(prevFrame);
 			vpKFs.push_back(prevPrevFrame);
 			vpKFs.push_back(mpTargetFrame);
@@ -208,32 +213,43 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					auto pMP = matchInfo->mvpMatchingMPs[k];
 					int label = matchInfo->mvObjectLabels[k];
 
-					if (!pMP || pMP->isDeleted() || pMP->GetRecentTrackingFrameID() < tempFrameID)
+					//if (!pMP || pMP->isDeleted() || pMP->GetRecentTrackingFrameID() < tempFrameID)
+					if (!pMP || pMP->isDeleted())
 						continue;
-
-					if (label == 150 && pMP->GetRecentLayoutFrameID() != nLayoutFloor) {
-						pMP->SetRecentLayoutFrameID(nLayoutFloor);
-						mvpFloorMPs.push_back(pMP);
-						//pMP->SetPlaneID(pF);
+					
+					if (label == 150) {
+						if (pMP->GetRecentLayoutFrameID() != nLayoutFloor && pMP->GetNumConnectedFrames() >= 7) {
+							pMP->SetRecentLayoutFrameID(nLayoutFloor);
+							mvpFloorMPs.push_back(pMP);
+						}
+						pMP->SetPlaneID(1);
 					}
 					else if (label == 255 && pMP->GetRecentLayoutFrameID() != nLayoutWall) {
-						pMP->SetRecentLayoutFrameID(nLayoutWall);
-						mvpWallMPs.push_back(pMP);
-						//pMP->SetPlaneID(3);
+						if (pMP->GetNumConnectedFrames()>=7) {
+							pMP->SetRecentLayoutFrameID(nLayoutWall);
+							mvpWallMPs.push_back(pMP);
+						}
 					}
-					else if (label == 100 && pMP->GetRecentLayoutFrameID() != nLayoutCeil) {
-						pMP->SetRecentLayoutFrameID(nLayoutCeil);
-						mvpCeilMPs.push_back(pMP);
-						//pMP->SetPlaneID(2);
+					else if (label == 100) {
+						if (pMP->GetRecentLayoutFrameID() != nLayoutCeil && pMP->GetNumConnectedFrames() >= 7) {
+							pMP->SetRecentLayoutFrameID(nLayoutCeil);
+							mvpCeilMPs.push_back(pMP);
+						}
+						pMP->SetPlaneID(2);
 					}
 				}
 			}
+			//랜덤인덱스 설정
 			int nMax = max(mvpFloorMPs.size(), max(mvpWallMPs.size(), mvpCeilMPs.size()));
 			if (nMax > vIndices.size()) {
 				for (int i = vIndices.size(); i < nMax; i++) {
 					vIndices.push_back(i);
 				}
 			}
+			////////추가 내용 출력
+			std::stringstream ababab;
+			ababab << "Curr::" <<mvpFloorMPs.size() << "||" << mvpWallMPs.size() << "||" << mvpCeilMPs.size();
+			cv::putText(debug, ababab.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
 			/////////////////////////후보 포인트 추가
 
 			/////////////////////////랜덤하게 고르기
@@ -254,7 +270,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			}
 			/////////////////////////랜덤하게 고르기
 
-			//////////////////현재 프레임에서만 후보 포인트 추가
+			////////////////////현재 프레임에서만 후보 포인트 추가
 			std::vector<UVR_SLAM::MapPoint*> vpCurrFloorMPs, vpCurrCeilMPs, vpCurrWallMPs;
 			for (int k = 0; k < prevPrevMatchInfo->mvpMatchingMPs.size(); k++) {
 				auto pMP = prevPrevMatchInfo->mvpMatchingMPs[k];
@@ -262,126 +278,24 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 				if (!pMP || pMP->isDeleted())
 					continue;
-				if (label == 150 && pMP->GetRecentLayoutFrameID() != nLayoutFloor) {
+				if (label == 255) {
+					vpCurrWallMPs.push_back(pMP);
+				}
+				if (label == 150) {
 					vpCurrFloorMPs.push_back(pMP);
 					//pMP->SetPlaneID(pF);
 				}
-				else if (label == 255 && pMP->GetRecentLayoutFrameID() != nLayoutWall) {
-					vpCurrWallMPs.push_back(pMP);
-					//pMP->SetPlaneID(3);
-				}
-				else if (label == 100 && pMP->GetRecentLayoutFrameID() != nLayoutCeil) {
+				if (label == 100) {
 					vpCurrCeilMPs.push_back(pMP);
 					//pMP->SetPlaneID(2);
 				}
 			}
-			//////////////////현재 프레임에서만 후보 포인트 추가
+			////////////////////현재 프레임에서만 후보 포인트 추가
 
 			/////////////////////////////////////////////////////////////////////
 			////연결된 키프레임 획득
 			std::vector<UVR_SLAM::MapPoint*> mvpOutlierFloorMPs, mvpOutlierWallMPs, mvpOutlierCeilMPs;
-			auto mvpKFs = prevPrevFrame->GetConnectedKFs();
-
-			//if (nSize >= 0) {
-			//	pLastInfo = vpPlaneInfos[nSize]->GetFloorPlane();
-			//	//mvpmp와 inlier
-			//	//전체 비율 N / 1000
-			//	int nPlanarSize = pLastInfo->mvpMPs.size();
-			//	int ratio = nPlanarSize / 1000;
-			//	if (nPlanarSize < 1000)
-			//		ratio = 1;
-			//	int pidx = 0;
-			//	for (int i = 0; i < nPlanarSize; i++) {
-			//		auto pMP = pLastInfo->mvpMPs[i];
-			//		if (!pMP || pMP->isDeleted() || pMP->GetRecentLayoutFrameID() == nTargetID)
-			//			continue;
-			//		pidx++;
-			//		if (pidx%ratio == 0) {
-			//			pMP->SetRecentLayoutFrameID(nTargetID);
-			//			pMP->SetPlaneID(1);
-			//			mvpFloorMPs.push_back(pMP);
-			//		}
-			//	}
-			//}
-			
-			////후보 포인트 획득
-			////후보 포인트에는 
-			//1) 평면 추적에 직접적으로 이용되는 포인트와
-			//2) 평면으로 최적화 되어야 하는 포인트로 나눔.
-			
-			bool bTest1 = false;
-			bool bTest2 = false;
-			bool bTest3= false;
-			//for (int i = 0; i < mvpKFs.size(); i++) {
-			//	auto tempMatchInfo = mvpKFs[i]->mpMatchInfo;
-			//	int tempFrameID = mvpKFs[i]->GetRecentTrackedFrameID();
-			//	if (mvpKFs[i]->GetKeyFrameID() == nTargetID)
-			//		bTest1 = true;
-			//	if (mvpKFs[i]->GetKeyFrameID() == prevFrame->GetKeyFrameID())
-			//		bTest2 = true;
-			//	if (mvpKFs[i]->GetKeyFrameID() == prevPrevFrame->GetKeyFrameID())
-			//		bTest3 = true;
-			//	for (int k = 0; k < tempMatchInfo->mvpMatchingMPs.size(); k++) {
-			//		auto pMP  = tempMatchInfo->mvpMatchingMPs[k];
-			//		int label = tempMatchInfo->mvObjectLabels[k];
-			//		
-			//		/*if (label != 150 || !pMP || pMP->isDeleted() || pMP->GetRecentTrackingFrameID() < tempFrameID || pMP->GetRecentLayoutFrameID() == nTargetID)
-			//			continue;
-			//		pMP->SetRecentLayoutFrameID(nTargetID);
-			//		pMP->SetPlaneID(1);
-			//		mvpFloorMPs.push_back(pMP);*/
-			//		if (!pMP || pMP->isDeleted() || pMP->GetRecentTrackingFrameID() < tempFrameID || pMP->GetRecentLayoutFrameID() == nTargetID)
-			//			continue;
-			//		
-			//		if (label == 150) {
-			//			pMP->SetRecentLayoutFrameID(nTargetID);
-			//			mvpFloorMPs.push_back(pMP);
-			//			//pMP->SetPlaneID(pF);
-			//		}
-			//		else if (label == 255) {
-			//			pMP->SetRecentLayoutFrameID(nTargetID);
-			//			mvpWallMPs.push_back(pMP);
-			//			//pMP->SetPlaneID(3);
-			//		}
-			//		else if (label == 100) {
-			//			pMP->SetRecentLayoutFrameID(nTargetID);
-			//			mvpCeilMPs.push_back(pMP);
-			//			//pMP->SetPlaneID(2);
-			//		}
-			//	}
-			//}
-
-			//int tempFrameID = prevPrevFrame->GetRecentTrackedFrameID();
-			//int n1 = 0;
-			//int n2 = 0;
-			//int n3 = 0;
-			//for (int k = 0; k < prevPrevMatchInfo->mvpMatchingMPs.size(); k++) {
-			//	auto pMP = prevPrevMatchInfo->mvpMatchingMPs[k];
-			//	int label = prevPrevMatchInfo->mvObjectLabels[k];
-
-			//	if (!pMP || pMP->isDeleted() || pMP->GetRecentTrackingFrameID() < tempFrameID || pMP->GetRecentLayoutFrameID() == nTargetID)
-			//		continue;
-
-			//	if (label == 150) {
-			//		pMP->SetRecentLayoutFrameID(nTargetID);
-			//		mvpFloorMPs.push_back(pMP);
-			//		//pMP->SetPlaneID(pF);
-			//		n1++;
-			//	}
-			//	else if (label == 255) {
-			//		pMP->SetRecentLayoutFrameID(nTargetID);
-			//		mvpWallMPs.push_back(pMP);
-			//		//pMP->SetPlaneID(3);
-			//		n2++;
-			//	}
-			//	else if (label == 100) {
-			//		pMP->SetRecentLayoutFrameID(nTargetID);
-			//		mvpCeilMPs.push_back(pMP);
-			//		//pMP->SetPlaneID(2);
-			//		n3++;
-			//	}
-			//}
-
+			std::vector<UVR_SLAM::MapPoint*> vpCurrOutlierFloorMPs, vpCurrOutlierCeilMPs, vpCurrOutlierWallMPs1, vpCurrOutlierWallMPs2;
 			//std::cout << "pe::candidate::" << mvpFloorMPs.size() << std::endl;
 			if (mvpFloorMPs.size() < 50) {
 				SetBoolDoingProcess(false, 0);
@@ -389,42 +303,91 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			}
 			////후보 포인트 획득
 			/////////////////////////////////////////////////////////////////////
+			
+			///////////////////////////////////////////////////////////////////////////////////////////////////////
+			//////////프레임 내에서 지지고 볶기
+			//bool bCurrFloor = false;
+			//bool bCurrCeil = false;
+			//bool bCurrWall1 = false;
+			//bool bCurrWall2 = false;
+			//
+			//UVR_SLAM::PlaneInformation* pCurrFloor = new UVR_SLAM::PlaneInformation();
+			//UVR_SLAM::PlaneInformation* pCurrCeil = new UVR_SLAM::PlaneInformation();
+			//UVR_SLAM::PlaneInformation* pCurrWall1 = new UVR_SLAM::PlaneInformation();
+			//UVR_SLAM::PlaneInformation* pCurrWall2 = new UVR_SLAM::PlaneInformation();
 
-			/////////////////////////////////////////////////////////////////////////////////////////////////////
-			////////프레임 내에서 지지고 볶기
-
-			////////프레임 내에서 지지고 볶기
-			/////////////////////////////////////////////////////////////////////////////////////////////////////
+			//if (vpCurrFloorMPs.size() > 100) {
+			//	bCurrFloor = UVR_SLAM::PlaneInformation::PlaneInitialization2(pCurrFloor, vpCurrFloorMPs, vpCurrOutlierFloorMPs, prevFrame->GetFrameID(), 1500, 0.05, 0.1);
+			//	if(bCurrFloor){
+			//		std::stringstream ss;
+			//		auto p = pCurrFloor->GetParam();
+			//		ss << "Floor::Curr::" << pCurrFloor->mvpMPs.size() << ", " << vpCurrOutlierFloorMPs.size() << ", " << vpCurrFloorMPs.size() << std::fixed << std::setprecision(3) << "::[" << p.at<float>(0) << " " << p.at<float>(1) << " " << p.at<float>(2) << " " << p.at<float>(3) << "] ";
+			//		cv::putText(debug, ss.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
+			//	}
+			//}
+			//////////프레임 내에서 지지고 볶기
+			///////////////////////////////////////////////////////////////////////////////////////////////////////
 
 			/////////////////////////////바닥 평면 추정
 			UVR_SLAM::PlaneProcessInformation* pPlaneInfo = new UVR_SLAM::PlaneProcessInformation();
 			UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
+			//vpCurrFloorMPs
+			//vpFloorMPs : 전체 포인트에 대해서 랜덤하게 일부를 뽑아서 평면 찾기
 			bool bFloorRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, vpFloorMPs, mvpOutlierFloorMPs, prevFrame->GetFrameID(), 1500, pidst, 0.1);
+			//float orid;
 			if (bFloorRes) {
-				pPlaneInfo->SetReferenceFrame(mpTargetFrame);
-				pPlaneInfo->AddPlane(pFloor, 1);
-				mpTargetFrame->mpPlaneInformation = pPlaneInfo;
-				mpMap->AddPlaneInfo(pPlaneInfo);
-				cv::Mat n;
-				float d;
-				pFloor->GetParam(n, d);
-				sumFloor += d; nFloor++;
-				d = sumFloor / nFloor;
-				pFloor->SetParam(n, d);
+				////평균으로 거리를 변환하는 것
+				//cv::Mat n;
+				//float d;
+				//pFloor->GetParam(n, d);
+				////orid = d;
+				//sumFloor += d; nFloor++;
+				//d = sumFloor / nFloor;
+				//pFloor->SetParam(n, d);
+				////평균으로 거리를 변환하는 것
 				mpGlobalFloor = pFloor;
+				////////평균 거리를 계산해보기
+				//auto pp = pFloor->GetParam();
+				//pp.at<float>(3) = 0.0;
+				//cv::Mat mMat = cv::Mat::zeros(0, 4, CV_32FC1);
+				//for (int i = 0; i < mvpFloorMPs.size(); i++) {
+				//	UVR_SLAM::MapPoint* pMP = mvpFloorMPs[i];
+				//	if (!pMP || pMP->isDeleted())
+				//		continue;
+				//	cv::Mat temp = pMP->GetWorldPos();
+				//	temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
+				//	mMat.push_back(temp.t());
+				//}
+				//abs(mMat*pp);
 			}
 			else if(mpGlobalFloor){
 				bFloorRes = true;
 				pFloor = mpGlobalFloor;
 			}
+			////평면 추정 정보 출력
+			if (bFloorRes) {
+
+				pPlaneInfo->SetReferenceFrame(mpTargetFrame);
+				pPlaneInfo->AddPlane(pFloor, 1);
+				mpTargetFrame->mpPlaneInformation = pPlaneInfo;
+				
+				ababab.str("");
+				auto p = pFloor->GetParam();
+				ababab << "Floor::" << pFloor->mvpMPs.size() << std::fixed << std::setprecision(3) << "::[" << p.at<float>(0) << " " << p.at<float>(1) << " " << p.at<float>(2) << " " << p.at<float>(3) << "] " <<"::" << nFloor;
+				cv::putText(debug, ababab.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
+			}
 			/////////////////////////////바닥 평면 추정
+
 			/////////////////////////////천장 평면 추정
+			//vpCurrCeilMPs : 현재프레임에서만 찾은 결과
+			//vpCeilMPs : 전체 천장 중 랜덤하게 일부 선택해서 평면 추정
 			bool bCeilRes = false;
 			UVR_SLAM::PlaneInformation* pCeil = new UVR_SLAM::PlaneInformation();
 			if (bFloorRes && mvpCeilMPs.size() > 50) {
+				std::cout << vpCeilMPs.size() << std::endl;
 				bCeilRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pCeil, vpCeilMPs, mvpOutlierCeilMPs, prevFrame->GetFrameID(), 1500, pidst, 0.1);
+				std::cout << vpCeilMPs.size() << std::endl;
 				if(bCeilRes){
-					pPlaneInfo->AddPlane(pCeil, 2);
 					cv::Mat n;
 					float d;
 					pCeil->GetParam(n, d);
@@ -438,22 +401,33 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					pCeil = mpGlobalCeil;
 				}
 			}
+			////천장 추정 내용 출력
+			if (bCeilRes) {
+				pPlaneInfo->AddPlane(pCeil, 2);
+
+				std::stringstream ss;
+				auto p = pCeil->GetParam();
+				float cos_val = pFloor->CalcCosineSimilarity(pCeil);
+				float dist_val = pFloor->CalcPlaneDistance(pCeil);
+				ss << "Ceil::" << pCeil->mvpMPs.size() << std::fixed << std::setprecision(3) << "::[" << p.at<float>(0) << " " << p.at<float>(1) << " " << p.at<float>(2) << " " << p.at<float>(3) << "] " << cos_val << ", " << dist_val;
+				cv::putText(debug, ss.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
+			}
 			/////////////////////////////천장 평면 추정
 			
-			/////////////////////바닥과 천장 거리를 이용한 스케일 추정
-			std::stringstream ssScale;
-			ssScale << "Scale::";
-			if (mpGlobalFloor && mpGlobalCeil) {
-				float fd, cd;
-				cv::Mat fn, cn;
-				mpGlobalFloor->GetParam(fn, fd);
-				mpGlobalCeil->GetParam(cn, cd);
-				cv::Mat currCenter = mpTargetFrame->GetCameraCenter();
-				float fdist = currCenter.dot(fn) + fd;
-				float cdist = currCenter.dot(cn) + cd;
-				ssScale << std::fixed << std::setprecision(3) <<currCenter.at<float>(0)<<", "<<currCenter.at<float>(1)<<", "<<currCenter.at<float>(2)<<"::"<< fdist << ", " << cdist;
-			}
-			/////////////////////바닥과 천장 거리를 이용한 스케일 추정
+			///////////////////////바닥과 천장 거리를 이용한 스케일 추정
+			//std::stringstream ssScale;
+			//ssScale << "Scale::";
+			//if (mpGlobalFloor && mpGlobalCeil) {
+			//	float fd, cd;
+			//	cv::Mat fn, cn;
+			//	mpGlobalFloor->GetParam(fn, fd);
+			//	mpGlobalCeil->GetParam(cn, cd);
+			//	cv::Mat currCenter = mpTargetFrame->GetCameraCenter();
+			//	float fdist = currCenter.dot(fn) + fd;
+			//	float cdist = currCenter.dot(cn) + cd;
+			//	ssScale << std::fixed << std::setprecision(3) <<currCenter.at<float>(0)<<", "<<currCenter.at<float>(1)<<", "<<currCenter.at<float>(2)<<"::"<< fdist << ", " << cdist;
+			//}
+			///////////////////////바닥과 천장 거리를 이용한 스케일 추정
 
 			////////////////////////////정면 벽 추정
 			int nCeil = 0;
@@ -477,41 +451,71 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			}*/
 			////////////////////////////정면 벽 추정
 
-
 			/////////////////////////////벽 평면1 추정
 			bool bWallRes1 = false;
 			UVR_SLAM::PlaneInformation* pWall1 = new UVR_SLAM::PlaneInformation();
-			/*
-			if (bFloor && mvpWallMPs.size() > 100) {
-				bWallRes1 = UVR_SLAM::PlaneInformation::PlaneInitialization(pWall1, mvpWallMPs, mvpOutlierWallMPs, prevFrame->GetFrameID(), nTrial, pidst, 0.1);
-			}*/
+			if (bFloorRes && vpCurrWallMPs.size() > 50) {
+				bWallRes1 = UVR_SLAM::PlaneInformation::PlaneInitialization(pWall1, vpCurrWallMPs, vpCurrOutlierWallMPs1, prevFrame->GetFrameID(), nTrial, 0.01, 0.1);
+			}
+			if (bWallRes1) {
+				pPlaneInfo->AddPlane(pWall1, pWall1->mnPlaneID);
+
+				for (int i = 0; i < pWall1->mvpMPs.size(); i++) {
+					pWall1->mvpMPs[i]->SetPlaneID(pWall1->mnPlaneID);
+				}
+				/*float d;
+				cv::Mat n;
+				pWall1->GetParam(n, d);
+				for(int j = 0; j < 1500; j++)
+					for (int i = 0; i < mvpFloorMPs.size(); i++) {
+						auto pMP = mvpFloorMPs[i];
+						if (!pMP || pMP->isDeleted())
+							continue;
+						auto X3D = pMP->GetWorldPos();
+						auto pdist = X3D.dot(n) + d;
+					}*/
+
+				std::stringstream ss;
+				auto p = pWall1->GetParam();
+				float cos_val = pFloor->CalcCosineSimilarity(pWall1);
+				float dist_val = pFloor->CalcPlaneDistance(pWall1);
+				ss << "Wall::1::" << pWall1->mvpMPs.size() << std::fixed << std::setprecision(3) << "::[" << p.at<float>(0) << " " << p.at<float>(1) << " " << p.at<float>(2) << " " << p.at<float>(3) << "] " << cos_val << ", " << dist_val;
+				cv::putText(debug, ss.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
+			}
 			/////////////////////////////벽 평면1 추정
 
 			/////////////////////////////벽 평면2 추정
 			bool bWallRes2 = false;
-			std::vector<UVR_SLAM::MapPoint*> mvpOutlierWallMPs2;
 			UVR_SLAM::PlaneInformation* pWall2 = new UVR_SLAM::PlaneInformation();
-			/*
-			if (bFloor && mvpOutlierWallMPs.size() > 100) {
-				bWallRes2 = UVR_SLAM::PlaneInformation::PlaneInitialization(pWall2, mvpOutlierWallMPs, mvpOutlierWallMPs, prevFrame->GetFrameID(), nTrial, pidst, 0.1);
-			}*/
+			if (bWallRes1 && vpCurrOutlierWallMPs1.size() > 50) {
+				bWallRes2 = UVR_SLAM::PlaneInformation::PlaneInitialization(pWall2, vpCurrOutlierWallMPs1, vpCurrOutlierWallMPs2, prevFrame->GetFrameID(), nTrial, 0.01, 0.1);
+			
+				if (bWallRes2) {
+					float cos_val = pWall1->CalcCosineSimilarity(pWall2);
+					float dist_val = pWall1->CalcPlaneDistance(pWall2);
+					if (cos_val < 0.999 || dist_val < 0.1) {
+						bWallRes2 = false;
+					}
+					else {
+						pPlaneInfo->AddPlane(pWall2, pWall2->mnPlaneID);
+
+						for (int i = 0; i < pWall2->mvpMPs.size(); i++) {
+							pWall2->mvpMPs[i]->SetPlaneID(pWall2->mnPlaneID);
+						}
+
+						auto p = pWall2->GetParam();
+						std::stringstream ss;
+						ss << "Wall::2::" << pWall2->mvpMPs.size() << std::fixed << std::setprecision(3) << "::[" << p.at<float>(0) << " " << p.at<float>(1) << " " << p.at<float>(2) << " " << p.at<float>(3) << "] " << cos_val << ", " << dist_val;
+						cv::putText(debug, ss.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
+					}
+				}
+			}
+			if(pPlaneInfo->GetPlanes().size() > 0)
+				mpMap->AddPlaneInfo(pPlaneInfo);
 			/////////////////////////////벽 평면2 추정
 
 			///////////////////////////////평면 정보 비교
-			cv::Mat debug = cv::Mat::zeros(1000, 640, CV_8UC1);
-			int nDebugRows = 20;
-			std::stringstream ababab;
-			ababab << "Curr::" << pFloor->mvpMPs.size() << "::" << mvpFloorMPs.size() << "||" << mvpWallMPs.size() << "||" << mvpCeilMPs.size() << "::" << vpCurrFloorMPs.size() << ", " << vpCurrWallMPs.size() << ", " << vpCurrCeilMPs.size();
-			
-			cv::putText(debug, ababab.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
-			cv::putText(debug, ssScale.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
-
-			if (bFloorRes) {
-				ababab.str("");
-				auto p = pFloor->GetParam();
-				ababab << "Floor::" << pFrontWall->mvpMPs.size() << std::fixed << std::setprecision(3) << "::[" << p.at<float>(0) << " " << p.at<float>(1) << " " << p.at<float>(2) << " " << p.at<float>(3) << "] " << sumFloor / nFloor<<"::"<< nFloor;
-				cv::putText(debug, ababab.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
-			}
+						
 			if (bFrontWall) {
 				std::stringstream ss;
 				auto p = pFrontWall->GetParam();
@@ -520,37 +524,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				ss << "Front::" << pFrontWall->mvpMPs.size() << std::fixed << std::setprecision(3) << "::[" << p.at<float>(0) << " " << p.at<float>(1) << " " << p.at<float>(2) << " " << p.at<float>(3) << "] " << cos_val << ", " << dist_val;
 				cv::putText(debug, ss.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
 			}
-			if (bWallRes1) {
-				std::stringstream ss;
-				auto p = pWall1->GetParam();
-				float cos_val = pFloor->CalcCosineSimilarity(pWall1);
-				float dist_val = pFloor->CalcPlaneDistance(pWall1);
-				ss << "Wall::1::" <<pWall1->mvpMPs.size()<< std::fixed << std::setprecision(3) << "::[" << p.at<float>(0) << " " << p.at<float>(1) << " " << p.at<float>(2) << " " << p.at<float>(3) << "] " << cos_val << ", " << dist_val;
-				cv::putText(debug, ss.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
-			}
-			if (bWallRes2) {
-				std::stringstream ss;
-				auto p = pWall2->GetParam();
-				float cos_val, dist_val;
-				if (bWallRes1) {
-					cos_val = pWall1->CalcCosineSimilarity(pWall2);
-					dist_val = pWall1->CalcPlaneDistance(pWall2);
-				}
-				else {
-					cos_val = pFloor->CalcCosineSimilarity(pWall2);
-					dist_val = pFloor->CalcPlaneDistance(pWall2);
-				}
-				ss << "Wall::2::" << pWall2->mvpMPs.size() << std::fixed << std::setprecision(3) << "::[" << p.at<float>(0) << " " << p.at<float>(1) << " " << p.at<float>(2) << " " << p.at<float>(3) << "] " << cos_val << ", " << dist_val;
-				cv::putText(debug, ss.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
-			}
-			if (bCeilRes) {
-				std::stringstream ss;
-				auto p = pCeil->GetParam();
-				float cos_val = pFloor->CalcCosineSimilarity(pCeil);
-				float dist_val = pFloor->CalcPlaneDistance(pCeil);
-				ss << "Ceil::" << pCeil->mvpMPs.size() << std::fixed << std::setprecision(3) << "::[" << p.at<float>(0) << " " << p.at<float>(1) << " " << p.at<float>(2) << " " << p.at<float>(3) << "] " << cos_val << ", " << dist_val;
-				cv::putText(debug, ss.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255)); nDebugRows += mnDebugFontSize;
-			}
+			
 			if (bFloorRes) {
 				//auto planeInfo1 = new UVR_SLAM::PlaneProcessInformation(mpTargetFrame, pFloor);
 				//if (bCeilRes)
@@ -1833,7 +1807,8 @@ bool UVR_SLAM::PlaneInformation::PlaneInitialization(UVR_SLAM::PlaneInformation*
 		mMat.push_back(temp.t());
 		vIdxs.push_back(i);
 	}
-
+	if (mMat.rows < 10)
+		return false;
 	std::random_device rn;
 	std::mt19937_64 rnd(rn());
 	std::uniform_int_distribution<int> range(0, mMat.rows-1);
@@ -1900,7 +1875,7 @@ bool UVR_SLAM::PlaneInformation::PlaneInitialization(UVR_SLAM::PlaneInformation*
 			if (pMP && !pMP->isDeleted()) {
 				//평면에 대한 레이블링이 필요함.
 				//pMP->SetRecentLayoutFrameID(nTargetID);
-				pMP->SetPlaneID(pPlane->mnPlaneID);
+				//pMP->SetPlaneID(pPlane->mnPlaneID);
 				pPlane->mvpMPs.push_back(pMP);
 				tempMat.push_back(mMat.row(i));
 			}
@@ -1929,7 +1904,115 @@ bool UVR_SLAM::PlaneInformation::PlaneInitialization(UVR_SLAM::PlaneInformation*
 		return false;
 	}
 }
+bool UVR_SLAM::PlaneInformation::PlaneInitialization2(UVR_SLAM::PlaneInformation* pPlane, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<UVR_SLAM::MapPoint*>& vpOutlierMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio) {
+	//RANSAC
+	int max_num_inlier = 0;
+	cv::Mat best_plane_param;
+	cv::Mat inlier;
 
+	cv::Mat param, paramStatus;
+
+	//초기 매트릭스 생성
+	cv::Mat mMat = cv::Mat::zeros(0, 4, CV_32FC1);
+	std::vector<int> vIdxs;
+	for (int i = 0; i < vpMPs.size(); i++) {
+		UVR_SLAM::MapPoint* pMP = vpMPs[i];
+		if (!pMP || pMP->isDeleted())
+			continue;
+		cv::Mat temp = pMP->GetWorldPos();
+		temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
+		mMat.push_back(temp.t());
+		vIdxs.push_back(i);
+	}
+	if (mMat.rows < 10)
+		return false;
+	std::random_device rn;
+	std::mt19937_64 rnd(rn());
+	std::uniform_int_distribution<int> range(0, mMat.rows - 1);
+
+	for (int n = 0; n < ransac_trial; n++) {
+
+		cv::Mat arandomPts = cv::Mat::zeros(0, 4, CV_32FC1);
+		//select pts
+		for (int k = 0; k < 3; k++) {
+			int randomNum = range(rnd);
+			cv::Mat temp = mMat.row(randomNum).clone();
+			arandomPts.push_back(temp);
+		}//select
+
+		 //SVD
+		cv::Mat X;
+		cv::Mat w, u, vt;
+		cv::SVD::compute(arandomPts, w, u, vt, cv::SVD::FULL_UV);
+		X = vt.row(3).clone();
+		cv::transpose(X, X);
+
+		calcUnitNormalVector(X);
+	
+		cv::Mat checkResidual = abs(mMat*X) < thresh_distance;
+		checkResidual = checkResidual / 255;
+		int temp_inlier = cv::countNonZero(checkResidual);
+
+		if (max_num_inlier < temp_inlier) {
+			max_num_inlier = temp_inlier;
+			param = X.clone();
+			paramStatus = checkResidual.clone();
+		}
+	}//trial
+
+	float planeRatio = ((float)max_num_inlier / mMat.rows);
+
+	if (planeRatio > thresh_ratio) {
+		cv::Mat tempMat = cv::Mat::zeros(0, 4, CV_32FC1);
+		cv::Mat pParam = param.clone();
+		pPlane->matPlaneParam = pParam.clone();
+		pPlane->mnPlaneID = ++nPlaneID;
+
+		cv::Mat normal = pParam.rowRange(0, 3);
+		float dist = pParam.at<float>(3);
+		pPlane->SetParam(normal, dist);
+		//pPlane->norm = sqrt(pPlane->normal.dot(pPlane->normal));
+
+		for (int i = 0; i < mMat.rows; i++) {
+			int checkIdx = paramStatus.at<uchar>(i);
+			//std::cout << checkIdx << std::endl;
+			UVR_SLAM::MapPoint* pMP = vpMPs[vIdxs[i]];
+			if (checkIdx == 0) {
+				vpOutlierMPs.push_back(pMP);
+				continue;
+			}
+			if (pMP && !pMP->isDeleted()) {
+				//평면에 대한 레이블링이 필요함.
+				//pMP->SetRecentLayoutFrameID(nTargetID);
+				//pMP->SetPlaneID(pPlane->mnPlaneID);
+				pPlane->mvpMPs.push_back(pMP);
+				tempMat.push_back(mMat.row(i));
+			}
+		}
+		//평면 정보 생성.
+
+		cv::Mat X;
+		cv::Mat w, u, vt;
+		cv::SVD::compute(tempMat, w, u, vt, cv::SVD::FULL_UV);
+		X = vt.row(3).clone();
+		cv::transpose(X, X);
+		UVR_SLAM::PlaneInformation::calcUnitNormalVector(X);
+		int idx = pPlane->GetNormalType(X);
+		if (X.at<float>(idx) > 0.0)
+			X *= -1.0;
+		pPlane->mnCount = pPlane->mvpMPs.size();
+		//std::cout <<"PLANE::"<< planeRatio << std::endl;
+		//std::cout << "Update::" << pPlane->matPlaneParam.t() << ", " << X.t() <<", "<<pPlane->mvpMPs.size()<<", "<<nReject<< std::endl;
+		pPlane->SetParam(X.rowRange(0, 3), X.at<float>(3));
+
+		return true;
+	}
+	else
+	{
+		//std::cout << "failed" << std::endl;
+		return false;
+	}
+}
 void UVR_SLAM::PlaneEstimator::UpdatePlane(PlaneInformation* pPlane, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio) {
 	auto mvpMPs = std::vector<UVR_SLAM::MapPoint*>(pPlane->mvpMPs.begin(), pPlane->mvpMPs.end());
 	std::vector<int> vIdxs(0);

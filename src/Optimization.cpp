@@ -1197,9 +1197,39 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 	bool bPlane = false;
 	std::vector<g2o::PlaneVertex*> vPlaneVertices;
 	
-	auto pFloor = pPlaneInfo->GetPlane(1);
-	auto pCeil = pPlaneInfo->GetPlane(2);
-	g2o::PlaneVertex *vpFloor, * vpCeil;
+	/*auto pFloor = pPlaneInfo->GetPlane(1);
+	auto pCeil = pPlaneInfo->GetPlane(2);*/
+
+	auto planes = pPlaneInfo->GetPlanes();
+	bPlane = true;
+	for (auto iter = planes.begin(); iter != planes.end(); iter++) {
+		auto plane = iter->second;
+		auto pid = iter->first;
+		g2o::PlaneVertex* vertex = new g2o::PlaneVertex();
+		vertex->setEstimate(Converter::toVector6d(plane->GetParam()));
+		vertex->setId(maxKFid + pid);
+		vertex->setFixed(pid == 1);
+		optimizer.addVertex(vertex);
+
+		//correlation
+		if (pid >= 2) {
+			int cor = 2;
+			if (pid > 2)
+				cor = 1;
+			g2o::PlaneCorrelationBAEdge* e = new g2o::PlaneCorrelationBAEdge();
+			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1 + maxKFid)));
+			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pid + maxKFid)));
+			e->type = cor;
+			e->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
+			optimizer.addEdge(e);
+		}
+		
+		vPlaneVertices.push_back(vertex);
+		if (pid > maxPlaneId)
+			maxPlaneId = pid;
+	}
+
+	/*g2o::PlaneVertex *vpFloor, * vpCeil;
 	if (pFloor) {
 		bPlane = true;
 		vpFloor = new g2o::PlaneVertex();
@@ -1220,7 +1250,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 		vPlaneVertices.push_back(vpCeil);
 		if (pCeil->mnPlaneID > maxPlaneId)
 			maxPlaneId = pCeil->mnPlaneID;
-	}
+	}*/
 	
 	////Plane Vertex 추가
 	////////////평면 조인트 최적화
@@ -1290,20 +1320,12 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 			vpMapPointEdgeMono.push_back(pMP);
 		}
 		/////Set Planar Edge
-		int ptype = pMP->GetRecentLayoutFrameID();
-		if (bPlane && ptype > 0) {
-			
-			int pid;
-			if (ptype == 1 && pFloor) {
-				pid = pFloor->mnPlaneID;
-			}
-			else if (ptype == 2 && pCeil) {
-				pid = pCeil->mnPlaneID;
-			}
-			else {
-				continue;
-			}
-			
+		//int ptype = pMP->GetRecentLayoutFrameID();
+		int ptype = pMP->GetPlaneID();
+		auto findres = planes.find(ptype);
+		if (findres != planes.end()) {
+			int pid = findres->first;
+
 			g2o::PlaneBAEdge* e = new g2o::PlaneBAEdge();
 			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
 			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pid + maxKFid))); ///이부분은 추후 평면별로 변경이 필요함.
@@ -1316,8 +1338,34 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 			optimizer.addEdge(e);
 			vpPlaneEdge.push_back(e);
 			vpPlaneEdgeMP.push_back(pMP);
-			//vpPlaneEdgePlane.push_back(pEstimator->GetPlane(pMP->GetPlaneID()));
 		}
+		//if (bPlane && ptype > 0) {
+		//	
+		//	int pid;
+		//	if (ptype == 1 && pFloor) {
+		//		pid = pFloor->mnPlaneID;
+		//	}
+		//	else if (ptype == 2 && pCeil) {
+		//		pid = pCeil->mnPlaneID;
+		//	}
+		//	else {
+		//		continue;
+		//	}
+		//	
+		//	g2o::PlaneBAEdge* e = new g2o::PlaneBAEdge();
+		//	e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
+		//	e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pid + maxKFid))); ///이부분은 추후 평면별로 변경이 필요함.
+		//	e->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
+
+		//	g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+		//	e->setRobustKernel(rk);
+		//	rk->setDelta(thHuberPlane);
+
+		//	optimizer.addEdge(e);
+		//	vpPlaneEdge.push_back(e);
+		//	vpPlaneEdgeMP.push_back(pMP);
+		//	//vpPlaneEdgePlane.push_back(pEstimator->GetPlane(pMP->GetPlaneID()));
+		//}
 		/////Set Planar Edge
 	}
 	
@@ -1364,7 +1412,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 				//e->setLevel(1);
 			}
 			else {
-				pMP->SetPlaneID(1);
+				//pMP->SetPlaneID(1);
 			}
 			e->setRobustKernel(0);
 		}
@@ -1409,14 +1457,14 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 		////////테스트
 		if (pMP->isDeleted())
 			continue;
-		if (e->chi2() > 0.01) {
+		if (e->chi2() > 0.05) {
 			nBadPlane++;
 			pMP->SetPlaneID(0);
 			//std::cout << e->chi2() <<"::"<<pMP->GetConnedtedFrames().size()<< std::endl;
 			//e->setLevel(1);
 		}
 		else {
-			pMP->SetPlaneID(1);
+			//pMP->SetPlaneID(1);
 		}
 		if (e->chi2() > 0.1) {
 			vErasePlanarMPs.push_back(pMP);
@@ -1424,7 +1472,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 		
 		//e->setRobustKernel(0);
 	}
-	std::cout << "ba::plane::" << nBadPlane << ", " << vpPlaneEdge.size() << std::endl;
+	std::cout << "ba::plane::" <<planes.size()<<"::"<< nBadPlane << ", " << vpPlaneEdge.size() << std::endl;
 	////////테스트
 	//if (pPlaneInfo && mat.rows > 0) {
 	//	cv::Mat pMat = pPlaneInfo->GetParam();
@@ -1482,14 +1530,20 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 	
 	///////////////////////////////////////////////
 	////평면 값 복원
-	if (pFloor) {
+	for (auto iter = planes.begin(); iter != planes.end(); iter++) {
+		int pid = iter->first;
+		auto plane = iter->second;
+		g2o::PlaneVertex* vPlane = static_cast<g2o::PlaneVertex*>(optimizer.vertex(pid + maxKFid));
+		plane->SetParam(Converter::toCvMat(vPlane->estimate()).rowRange(0, 4));
+	}
+	/*if (pFloor) {
 		g2o::PlaneVertex* vPlane = static_cast<g2o::PlaneVertex*>(optimizer.vertex(pFloor->mnPlaneID + maxKFid));
 		pFloor->SetParam(Converter::toCvMat(vPlane->estimate()).rowRange(0, 4));
 	}
 	if (pCeil) {
 		g2o::PlaneVertex* vPlane = static_cast<g2o::PlaneVertex*>(optimizer.vertex(pCeil->mnPlaneID + maxKFid));
 		pCeil->SetParam(Converter::toCvMat(vPlane->estimate()).rowRange(0, 4));
-	}
+	}*/
 	//if (pPlaneInfo) {
 
 	//	////////테스트

@@ -213,7 +213,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				//mpRefKF->mpMatchInfo->SetKeyFrame();
 				mpLocalMapper->InsertKeyFrame(pCurr);
 				mpSegmentator->InsertKeyFrame(pCurr);
-				//mpPlaneEstimator->InsertKeyFrame(pCurr);
+				mpPlaneEstimator->InsertKeyFrame(pCurr);
 				//mpFrameWindow->AddFrame(pCurr);
 			}
 			/*if (!mpSegmentator->isDoingProcess() && !mpPlaneEstimator->isDoingProcess() && !mpRefKF->GetBoolMapping()) {
@@ -263,12 +263,15 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			int pid = pMPi->GetPlaneID();
 			int type = pMPi->GetRecentLayoutFrameID();
 			cv::Scalar color(150, 150, 0);
-			if (type > 0 && label == 150) {
+			if (pid > 0 && label == 150) {
 				color = cv::Scalar(0, 0, 255);
 			}
-			else if (type > 0 && label == 100) {
+			else if (pid > 0 && label == 100) {
 				color = cv::Scalar(0, 255, 0);
-				
+			}
+			else if (pid > 0 && label == 255) {
+				//color = cv::Scalar(255, 0, 0);
+				color = UVR_SLAM::ObjectColors::mvObjectLabelColors[pid];
 			}
 			if (pid <= 0)
 				color /= 2;

@@ -20,15 +20,18 @@ namespace UVR_SLAM {
 
 			void AddPlane(PlaneInformation*, int type);
 			PlaneInformation* GetPlane(int type);
+			std::map<int, PlaneInformation*> GetPlanes();
+			//std::vector<PlaneInformation*> GetPlanes();
 
 			void Calculate();
 			void GetInformation(cv::Mat& pInvP, cv::Mat& pInvT, cv::Mat& pInvK);
 			Frame* GetReferenceFrame();
 			void SetReferenceFrame(Frame* pF);
 		private:
-			std::mutex mMutexProessor;
+			std::mutex mMutexProessor, mMutexPlanes;
 			Frame* mpFrame;
-			PlaneInformation *mpFloor, *mpCeil;
+			//PlaneInformation *mpFloor, *mpCeil;
+			std::map<int, PlaneInformation*> mmpPlanes;
 			cv::Mat invP, invT, invK;
 	};
 

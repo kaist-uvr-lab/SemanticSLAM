@@ -75,10 +75,11 @@ namespace UVR_SLAM {
 		void Init();
 
 	public:
+		void SaveTrajectory();
 		void SetBoolInit(bool b);
 		bool isInitialized();
 		void Reset();
-		void SetCurrFrame(cv::Mat img);
+		void SetCurrFrame(cv::Mat img, double t);
 		void Track();
 		void InitDirPath();
 		void SetDirPath(int id);

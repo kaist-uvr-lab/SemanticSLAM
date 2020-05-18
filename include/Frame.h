@@ -69,7 +69,7 @@ void RemoveMP(int idx);*/
 	};
 	class Frame {
 	public:
-		Frame(cv::Mat _src, int w, int h, cv::Mat mK);
+		Frame(cv::Mat _src, int w, int h, cv::Mat mK, double ts);
 		Frame(void* ptr, int id, int w, int h, cv::Mat mK);
 		Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat mK);
 		virtual ~Frame();
@@ -166,6 +166,7 @@ void RemoveMP(int idx);*/
 		//objectype
 		std::set<MapPoint*> mspFloorMPs, mspCeilMPs, mspWallMPs;
 		std::vector<std::multimap<ObjectType, int, std::greater<int>>> mvMapObjects;
+		double mdTimestamp;
 		//matching
 		cv::Mat mPlaneDescriptor;
 		cv::Mat mWallDescriptor;

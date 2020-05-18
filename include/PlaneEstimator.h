@@ -91,6 +91,7 @@ namespace UVR_SLAM {
 
 		static bool calcUnitNormalVector(cv::Mat& X);
 		static bool PlaneInitialization(PlaneInformation* pPlane, std::vector<MapPoint*> spMPs, std::vector<UVR_SLAM::MapPoint*>& vpOutlierMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
+		static bool PlaneInitialization2(PlaneInformation* pPlane, std::vector<MapPoint*> spMPs, std::vector<UVR_SLAM::MapPoint*>& vpOutlierMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 
 		static cv::Mat CalcPlaneRotationMatrix(cv::Mat P);
 		////¹Ù´Ú¸¸ ÀÖÀ» ¶§ µ§½º¸Ê »ý¼º

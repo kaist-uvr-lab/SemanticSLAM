@@ -9,19 +9,20 @@ static int nWallPlaneID = 0;
 
 /////////////////////////////////////////////////////////////
 //PlaneProcessInformation
-UVR_SLAM::PlaneProcessInformation::PlaneProcessInformation() :mpCeil(nullptr), mpFloor(nullptr), mpFrame(nullptr){
-
+UVR_SLAM::PlaneProcessInformation::PlaneProcessInformation() : mpFrame(nullptr){
+	//mpCeil(nullptr), mpFloor(nullptr)
 }
-UVR_SLAM::PlaneProcessInformation::PlaneProcessInformation(Frame* pF, PlaneInformation* pPlane):mpCeil(nullptr){
+UVR_SLAM::PlaneProcessInformation::PlaneProcessInformation(Frame* pF, PlaneInformation* pPlane):mpFrame(pF){
+	//mpCeil(nullptr), mpFloor(nullptr)
 	mpFrame = pF;
-	mpFloor = pPlane;
 }
 UVR_SLAM::PlaneProcessInformation::~PlaneProcessInformation(){}
 
 void UVR_SLAM::PlaneProcessInformation::Calculate(){
 	std::unique_lock<std::mutex> lock(mMutexProessor);
 	
-	cv::Mat planeParam = mpFloor->GetParam();
+	auto pFloor = mmpPlanes[1];
+	cv::Mat planeParam = pFloor->GetParam();
 	
 	cv::Mat R, t;
 	mpFrame->GetPose(R, t);
@@ -46,23 +47,40 @@ UVR_SLAM::Frame* UVR_SLAM::PlaneProcessInformation::GetReferenceFrame() {
 	return mpFrame;
 }
 void UVR_SLAM::PlaneProcessInformation::AddPlane(PlaneInformation* p, int type) {
-	if (type == 1) {
+	std::unique_lock<std::mutex> lock(mMutexPlanes);
+	/*if (type == 1) {
 		mpFloor = p;
 	}
 	else if (type == 2) {
 		mpCeil = p;
-	}
+	}*/
+	mmpPlanes[type] = p;
 }
 UVR_SLAM::PlaneInformation* UVR_SLAM::PlaneProcessInformation::GetPlane(int type){
-	UVR_SLAM::PlaneInformation* res = nullptr;
+	std::unique_lock<std::mutex> lock(mMutexPlanes);
+	auto findres = mmpPlanes.find(type);
+	if (findres == mmpPlanes.end())
+		return nullptr;
+	else
+		return findres->second;
+	/*UVR_SLAM::PlaneInformation* res = nullptr;
 	if (type == 1) {
 		res = mpFloor;
 	}
 	else if (type == 2) {
 		res = mpCeil;
 	}
-	return res;
+	return res;*/
 }
+std::map<int, UVR_SLAM::PlaneInformation*> UVR_SLAM::PlaneProcessInformation::GetPlanes() {
+	std::unique_lock<std::mutex> lock(mMutexPlanes);
+	/*std::vector<PlaneInformation*> temp;
+	for (auto iter = mmpPlanes.begin(); iter != mmpPlanes.end(); iter++) {
+		temp.push_back(iter->second);
+	}*/
+	return std::map<int, PlaneInformation*>(mmpPlanes.begin(), mmpPlanes.end());
+}
+
 //PlaneProcessInformation
 /////////////////////////////////////////////////////////////
 

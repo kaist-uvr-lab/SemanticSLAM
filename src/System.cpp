@@ -8,6 +8,7 @@
 #include <Visualizer.h>
 #include <MapOptimizer.h>
 #include <direct.h>
+#include <Converter.h>
 
 int UVR_SLAM::System::nKeyFrameID = 0;
 
@@ -96,6 +97,27 @@ bool UVR_SLAM::System::LoadVocabulary() {
 	std::cout << "number of words=" << voc_words.rows << std::endl;
 	return true;
 	
+}
+
+void UVR_SLAM::System::SaveTrajectory() {
+	auto vpKFs = mpMap->GetFrames();
+	std::string base = GetDirPath(0);
+	std::stringstream ssdir, ssfile;
+	ssdir << base << "/trajectory";
+	_mkdir(ssdir.str().c_str());
+	ssfile << ssdir.str() << "/our.txt";
+	std::ofstream f;
+	f.open(ssfile.str().c_str());
+	f << std::fixed;
+	for (int i = 0; i < vpKFs.size(); i++) {
+		auto pKF = vpKFs[i];
+		cv::Mat R, t;
+		pKF->GetPose(R, t);
+		std::vector<float> q = Converter::toQuaternion(R);
+		f << std::setprecision(6) << pKF->mdTimestamp << std::setprecision(7) << " " << t.at<float>(0) << " " << t.at<float>(1) << " " << t.at<float>(2)
+			<< " " << q[0] << " " << q[1] << " " << q[2] << " " << q[3] << std::endl;
+	}
+	f.close();
 }
 
 void UVR_SLAM::System::Init() {
@@ -197,9 +219,9 @@ void UVR_SLAM::System::Init() {
 	mfLocalMappingTime1 = mfLocalMappingTime2 = 0.0;
 }
 
-void UVR_SLAM::System::SetCurrFrame(cv::Mat img) {
+void UVR_SLAM::System::SetCurrFrame(cv::Mat img, double t) {
 	mpPrevFrame = mpCurrFrame;
-	mpCurrFrame = new UVR_SLAM::Frame(img, mnWidth, mnHeight, mK);
+	mpCurrFrame = new UVR_SLAM::Frame(img, mnWidth, mnHeight, mK, t);
 	//std::cout << mpCurrFrame->mnFrameID << std::endl;
 	//mpCurrFrame->Init(mpORBExtractor, mK, mD);
 	//mpCurrFrame->SetBowVec(fvoc);

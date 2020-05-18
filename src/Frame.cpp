@@ -16,8 +16,8 @@ float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeig
 static int nFrameID = 0;
 
 
-UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
-mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false)
+UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h, cv::Mat K, double ts):mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
+mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts)
 {
 	matOri = _src.clone();
 	cv::cvtColor(matOri, matFrame, CV_RGBA2GRAY);
@@ -27,7 +27,7 @@ mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false)
 	SetFrameID();
 }
 UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
-, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false)
+, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
@@ -39,7 +39,7 @@ UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), 
 }
 
 UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
-, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false)
+, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
