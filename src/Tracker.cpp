@@ -44,7 +44,7 @@ UVR_SLAM::Tracker::Tracker(Map* pMap, std::string strPath) : mbInitializing(fals
 
 	float fps = fs["Camera.fps"];
 	mnMaxFrames = fps;
-	mnMinFrames = fps / 7 ;//3
+	mnMinFrames = fps / 3 ;//3
 
 	mnWidth = fs["Image.width"];
 	mnHeight = fs["Image.height"];
@@ -104,7 +104,7 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr) {
 	bool c1 = pCurr->GetFrameID() >= nLastID + mnMinFrames; //최소한의 조건
 	bool c2 = mnMatching < 800; //pCurr->mpMatchInfo->mvMatchingPts.size() < 800;//mnMatching < 500;
 	bool c3 = false;//mnMatching < mpFrameWindow->mnLastMatches*0.8;
-	if (c2) { //c1 || c2 || c3
+	if ( c1 || c2 ) { //c1 || c2 || c3
 		/*if (!bLocalMappingIdle)
 		{
 			mpLocalMapper->StopLocalMapping(true);
@@ -155,6 +155,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			mpRefKF = pCurr;
 			mbInitilized = true;
 			mpSystem->SetBoolInit(true);
+			mpMap->AddTraFrame(mpInitializer->mpInitFrame1);
+			mpMap->AddTraFrame(pCurr);
 		}
 	}
 	else {
@@ -168,6 +170,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat prevR, prevT;
 		pPrev->GetPose(prevR, prevT);
 		pCurr->SetPose(prevR, prevT);
+		mpMap->AddTraFrame(pCurr);
 		////MatchInfo 설정
 		//초기 매칭 테스트
 		std::vector<UVR_SLAM::MapPoint*> vpTempMPs;
@@ -204,8 +207,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		int nMP = UpdateMatchingInfo(pPrev, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
 		
 		//키프레임 체크
-		float angle = mpRefKF->CalcDiffZ(pCurr);
-		if (CheckNeedKeyFrame(pCurr)) {
+		float angle = abs(pPrev->CalcDiffZ(pCurr));
+		if (CheckNeedKeyFrame(pCurr) && angle < 1.5) {
 			if (!mpSegmentator->isDoingProcess()) {
 				pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 				mpRefKF = pCurr;
@@ -287,7 +290,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			//cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
 		}
 		std::stringstream ss;
-		ss << "Traking = " << mnMatching <<", "<< nMP <<"::"<< tttt;
+		ss << "Traking = " << mnMatching <<", "<< nMP <<"::"<< tttt<<"::"<<angle;
 		cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
 		cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 		cv::imshow("Output::Tracking", vis);

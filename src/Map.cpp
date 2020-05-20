@@ -96,6 +96,15 @@ void UVR_SLAM::Map::ClearFrames() {
 	mvpLoopFrames.clear();
 }
 
+void UVR_SLAM::Map::AddTraFrame(Frame* pF) {
+	std::unique_lock<std::mutex> lock(mMutexAllFrames);
+	mvpAllTrajectoryFrames.push_back(pF);
+}
+std::vector<UVR_SLAM::Frame*> UVR_SLAM::Map::GetAllTrajectoryFrames() {
+	std::unique_lock<std::mutex> lock(mMutexAllFrames);
+	return std::vector<UVR_SLAM::Frame*>(mvpAllTrajectoryFrames.begin(), mvpAllTrajectoryFrames.end());
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////평면 관리
 void UVR_SLAM::Map::AddPlaneInfo(PlaneProcessInformation* pPlane) {

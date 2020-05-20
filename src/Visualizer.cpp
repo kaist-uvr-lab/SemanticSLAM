@@ -41,6 +41,7 @@ int mnAxis1 = 0;
 int mnAxis2 = 2;
 
 bool bSaveMap = false;
+bool bShowOnlyTrajectory = true;
 
 int nScale;
 int UVR_SLAM::Visualizer::GetScale(){
@@ -62,6 +63,8 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 		////button interface
 		if (sPt.x < 50 && sPt.y < 50) {
 			bSaveMap = true;
+		}else if (sPt.x < 50 && (sPt.y >= 50 && sPt.y < 100)) {
+			bShowOnlyTrajectory = !bShowOnlyTrajectory;
 		}
 		////button interface
 	}
@@ -115,6 +118,7 @@ void UVR_SLAM::Visualizer::Init() {
 	//Visualization
 	mVisPoseGraph = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
 	rectangle(mVisPoseGraph, cv::Rect(0, 0, 50, 50), cv::Scalar(255, 255, 0), -1);
+	rectangle(mVisPoseGraph, cv::Rect(0, 50, 50, 50), cv::Scalar(0, 255, 255), -1);
 	mVisMidPt = cv::Point2f(mnHeight, mnHeight);
 	mVisPrevPt = mVisMidPt;
 
@@ -296,44 +300,69 @@ void UVR_SLAM::Visualizer::Run() {
 			////tracking results
 			//local map
 			auto pMatchInfo = GetMatchInfo();
-			
-			//////////////////////////////
-			//전체 맵포인트 시각화
-			auto mmpMap = mpMap->GetMap();
-			for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
-				auto pMPi = iter->first;
-				int label = iter->second;
-				if (!pMPi || pMPi->isDeleted())
-					continue;
-				cv::Mat x3D = pMPi->GetWorldPos();
-				bool bPlane = pMPi->GetPlaneID() > 0;
-				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
-				tpt += mVisMidPt;
-				cv::Scalar color = cv::Scalar(0, 0, 0);
-				if (label == 255) {
-					color = cv::Scalar(125, 125, 0);
-					if(bPlane)
-						color = cv::Scalar(255, 255, 0);
+			if(bShowOnlyTrajectory){
+				//////////////////////////////
+				//전체 맵포인트 시각화
+				auto mmpMap = mpMap->GetMap();
+				for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
+					auto pMPi = iter->first;
+					int label = iter->second;
+					if (!pMPi || pMPi->isDeleted())
+						continue;
+					cv::Mat x3D = pMPi->GetWorldPos();
+					bool bPlane = pMPi->GetPlaneID() > 0;
+					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+					tpt += mVisMidPt;
+					cv::Scalar color = cv::Scalar(0, 0, 0);
+					if (label == 255) {
+						color = cv::Scalar(125, 125, 0);
+						if(bPlane)
+							color = cv::Scalar(255, 255, 0);
+					}
+					else if (label == 150) {
+						color = cv::Scalar(125, 0, 125);
+						if (bPlane)
+							color = cv::Scalar(255, 0, 255);
+					}
+					else if (label == 100) {
+						color = cv::Scalar(0, 125, 125);
+						if (bPlane)
+							color = cv::Scalar(0, 255, 255);
+					}
+					if(pMPi->GetConnedtedFrames().size() < 7){
+						color = cv::Scalar(0, 0, 0);
+						continue;
+					}
+					cv::circle(tempVis, tpt, 2, color, -1);
 				}
-				else if (label == 150) {
-					color = cv::Scalar(125, 0, 125);
-					if (bPlane)
-						color = cv::Scalar(255, 0, 255);
-				}
-				else if (label == 100) {
-					color = cv::Scalar(0, 125, 125);
-					if (bPlane)
-						color = cv::Scalar(0, 255, 255);
-				}
-				if(pMPi->GetConnedtedFrames().size() < 7){
-					color = cv::Scalar(0, 0, 0);
-					continue;
-				}
-				cv::circle(tempVis, tpt, 2, color, -1);
-			}
-			//전체 맵포인트 시각화
-			//////////////////////////////
+				//전체 맵포인트 시각화
+				//////////////////////////////
 
+				////////////////////////////////////////////////////////////
+				/////트래킹 결과 출력
+				if (pMatchInfo) {
+					auto lastBAFrame = pMatchInfo->mpTargetFrame;
+
+					for (int i = 0; i < pMatchInfo->mvMatchingPts.size(); i++) {
+						auto pMPi = pMatchInfo->mvpMatchingMPs[i];
+						auto label = pMatchInfo->mvObjectLabels[i];
+						if (!pMPi || pMPi->isDeleted())
+							continue;
+						cv::Mat x3D = pMPi->GetWorldPos();
+						cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+						tpt += mVisMidPt;
+						cv::Scalar color = cv::Scalar(0, 0, 0);
+						if (label == 255)
+							color = cv::Scalar(255, 0, 0);
+						else if (label == 150)
+							color = cv::Scalar(0, 0, 255);
+						cv::circle(tempVis, tpt, 2, color, -1);
+					}
+					////tracking results
+				}
+				/////트래킹 결과 출력
+				////////////////////////////////////////////////////////////
+				}
 			////trajectory
 			auto frames = mpMap->GetFrames();
 			int nFrame = frames.size();
@@ -360,27 +389,7 @@ void UVR_SLAM::Visualizer::Run() {
 			}
 			////trajectory	
 
-			if(pMatchInfo){
-				auto lastBAFrame = pMatchInfo->mpTargetFrame;
-				
-				for (int i = 0; i < pMatchInfo->mvMatchingPts.size(); i++) {
-					auto pMPi = pMatchInfo->mvpMatchingMPs[i];
-					auto label = pMatchInfo->mvObjectLabels[i];
-					if (!pMPi || pMPi->isDeleted())
-						continue;
-					cv::Mat x3D = pMPi->GetWorldPos();
-					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
-					tpt += mVisMidPt;
-					cv::Scalar color = cv::Scalar(0, 0, 0);
-					if (label == 255)
-						color = cv::Scalar(255, 0, 0);
-					else if (label == 150)
-						color = cv::Scalar(0, 0, 255);
-					cv::circle(tempVis, tpt, 2, color, -1);
-				}
-				////tracking results
-				
-			}
+			
 
 			///////////////////////////////////////////////////////////////////////////////
 

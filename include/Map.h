@@ -50,7 +50,14 @@ namespace UVR_SLAM {
 		int mnDeleteMPs;
 ////맵포인트 관리
 ////////////////////////////////
-
+/////////trajectory 출력용
+	public:
+		void AddTraFrame(Frame* pF);
+		std::vector<Frame*> GetAllTrajectoryFrames();
+	private:
+		std::vector<Frame*> mvpAllTrajectoryFrames;
+		std::mutex mMutexAllFrames;
+/////////trajectory 출력용
 ////////////////////////////
 ////평면 관리
 	public:

@@ -955,12 +955,13 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	//	int idx2 = vnIDXs[idx];
 	//	auto pt1 = vpPts[idx] + ptBottom;
 	//	auto pt2 = curr->mpMatchInfo->mpTargetFrame->mpMatchInfo->mvMatchingPts[prev->mpMatchInfo->mvnMatchingPtIDXs[idx2]];
-	//	cv::line(debugging2, pt1, pt2, cv::Scalar(255, 0, 255), 2);
+	//	cv::line(debugging, pt1, pt2, cv::Scalar(255, 0, 255), 2);
 
 	//	cv::Point2f p2D;
 	//	cv::Mat pCam;
 	//	vpMPs[i]->Projection(p2D, pCam, R, t, curr->mK, 640,360);
-	//	cv::line(debugging2, p2D+ptBottom, pt1, cv::Scalar(255, 0, 0), 2);
+	//	cv::line(debugging, p2D+ptBottom, pt1, cv::Scalar(255, 0, 0), 2);
+	//	cv::line(debugging, p2D, pt2, cv::Scalar(255, 0, 0), 2);
 	//	//cv::circle(debugging2, pt1, 2, cv::Scalar(255, 0, 0), -1);
 	//	//std::cout << "a::" << i << ", " << vnMPIDXs[i] <<p2D<< vpPts[idx]<< std::endl;
 	//}
@@ -969,12 +970,15 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 	double tttt = duration / 1000.0;
 
+
+
 	//fuse time text 
 	std::stringstream ss;
 	ss << "Optical flow tracking= " << res <<", "<<vpMPs.size()<<", "<<nBad<< "::" << avgDiff /res<<"::"<< tttt;
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-	//imshow("Output::Matching", debugging);
+	/*imshow("Output::Matching", debugging);
+	waitKey();*/
 	//imshow("Output::Matching::Target frame", debugging2);
 	/////////////////////////
 

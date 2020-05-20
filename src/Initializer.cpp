@@ -289,29 +289,48 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			int val = matTriangulateInliers.at<uchar>(i);
 			if (val == 0)
 				continue;
-			cv::Mat X3D = Map3D.col(i);
+			///////////////뎁스값 체크
+			cv::Mat X3D = Map3D.col(i).clone();
 			X3D.convertTo(X3D, CV_32FC1);
 			X3D /= X3D.at<float>(3);
-			if(X3D.at<float>(2) < 0.0)
+			if(X3D.at<float>(2) < 0.0){
 				std::cout << X3D.t() << ", " << val << std::endl;
-			res3++;
-
+				continue;
+			}
+			///////////////reprojection error
+			X3D = X3D.rowRange(0, 3);
+			cv::Mat proj1 = X3D.clone();
+			cv::Mat proj2 = R1*X3D + t1;
+			proj1 = mK*proj1;
+			proj2 = mK*proj2;
+			cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
+			cv::Point2f projected2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
 			auto pt1 = vTempMatchPts1[i];
+			auto pt2 = vTempMatchPts2[i];
+			auto diffPt1 = projected1 - pt1;
+			auto diffPt2 = projected2 - pt2;
+			float err1 = (diffPt1.dot(diffPt1));
+			float err2 = (diffPt2.dot(diffPt2));
+			if (err1 > 4.0 || err2 > 4.0)
+				continue;
+			
+			///////////////reprojection error
+			res3++;
 			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
-
-			tempMPs.push_back(new UVR_SLAM::MapPoint(mpMap, mpInitFrame2, X3D.rowRange(0, 3), cv::Mat(), label1));
+			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpInitFrame2, X3D, cv::Mat(), label1);
+			tempMPs.push_back(pMP);
 			vTempMappedPts1.push_back(vTempMatchPts1[i]);
 			vTempMappedPts2.push_back(vTempMatchPts2[i]);
-			vTempMappedIDXs.push_back(vTempMatchIDXs[i]);//
+			vTempMappedIDXs.push_back(vTempMatchIDXs[i]);
 		}
 		//////맵생성 : opencv
-		std::cout << "init::3::3" << std::endl;
 		//////////////////////////////////////
 		/////median depth 
 		float medianDepth;
 		//mpInitFrame1->ComputeSceneMedianDepth(tempMPs, vCandidates[resIDX]->R, vCandidates[resIDX]->t, medianDepth);
 		mpInitFrame1->ComputeSceneMedianDepth(tempMPs, R1, t1, medianDepth);
 		std::cout << "init::3::4" << std::endl;
+		
 		float invMedianDepth = 1.0f / medianDepth;
 		if (medianDepth < 0.0) {
 			mpTempFrame = mpInitFrame2;
@@ -421,8 +440,15 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			UVR_SLAM::MapPoint* pNewMP = tempMPs[i];
 			auto pt1 = vTempMappedPts1[i];
 			auto pt2 = vTempMappedPts2[i];
-			pNewMP->AddFrame(mpInitFrame1->mpMatchInfo, i);
-			pNewMP->AddFrame(mpInitFrame2->mpMatchInfo, vTempMappedIDXs[i]);
+			
+			int idx2 = vTempMappedIDXs[i];
+			int idx1 = vTempIndexs[idx2];
+
+			auto pt3 = mpInitFrame1->mpMatchInfo->mvMatchingPts[idx1];
+			auto pt4 = mpInitFrame2->mpMatchInfo->mvMatchingPts[idx2];
+
+			pNewMP->AddFrame(mpInitFrame1->mpMatchInfo, idx1);
+			pNewMP->AddFrame(mpInitFrame2->mpMatchInfo, idx2);
 			//mpInitFrame2->mpMatchInfo->mvpMatchingMPs[vTempMappedIDXs[i]] = pNewMP;
 			//pNewMP->AddDenseFrame(mpInitFrame1, pt1);
 			//pNewMP->AddDenseFrame(mpInitFrame2, pt2);
@@ -467,6 +493,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpMap->mpFirstKeyFrame = mpInitFrame1;
 		mpVisualizer->SetMatchInfo(mpInitFrame2->mpMatchInfo);
 		mbInit = true;
+		std::cout << "Initializer::Success" << std::endl << std::endl << std::endl;
 		//////////////////////////키프레임 생성
 		
 		///////////////호모그래피 테스트
@@ -502,7 +529,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//cv::decomposeHomographyMat(H1, mK, Rs1, Ts1, Ns1);
 		//cv::decomposeHomographyMat(H2, mK, Rs2, Ts2, Ns2);
 		//std::cout << "R::" << R1 << std::endl;
-		//for (int i = 0; i < Ns2.size(); i++) {
+		//for (ipnt i = 0; i < Ns2.size(); i++) {
 		//	std::cout <<"Normal::"<<Ns1[i].t()<< Ns2[i].t() << std::endl;
 		//	std::cout << "Rot::" << Rs1[i].t() << std::endl << Rs2[i].t() << std::endl;
 		//}
@@ -531,19 +558,33 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		for (int i = 0; i < mpInitFrame2->mpMatchInfo->mvnTargetMatchingPtIDXs.size(); i++) {
 			int idx = mpInitFrame2->mpMatchInfo->mvnTargetMatchingPtIDXs[i];
 			
-			/*cv::Point2f pt1 = mpInitFrame1->mvMatchingPts[idx];
-			cv::Point2f pt2 = mpInitFrame2->mvMatchingPts[i] + ptBottom;*/
-			cv::Point2f pt1 = vTempPts1[i];
-			cv::Point2f pt2 = vTempPts2[i] + ptBottom;
+			cv::Point2f pt1 = mpInitFrame1->mpMatchInfo->mvMatchingPts[idx];
+			cv::Point2f pt2 = mpInitFrame2->mpMatchInfo->mvMatchingPts[i] + ptBottom;
+			if(mpInitFrame2->mpMatchInfo->mvpMatchingMPs[i]){
+				cv::Mat X3D = mpInitFrame2->mpMatchInfo->mvpMatchingMPs[i]->GetWorldPos();
 
-			if(vFInliers[i]){
+				cv::Mat proj1 = X3D.clone();
+				cv::Mat proj2 = R1*X3D + t1;
+				proj1 = mK*proj1;
+				proj2 = mK*proj2;
+				cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
+				cv::Point2f projected2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
+				projected2 += ptBottom;
+				cv::line(debugging, pt1, projected1, cv::Scalar(255, 0, 255), 1);
+				cv::line(debugging, pt2, projected2, cv::Scalar(255, 0, 255), 1);
+			}
+			/*cv::Point2f pt1 = vTempPts1[i];
+			cv::Point2f pt2 = vTempPts2[i] + ptBottom;*/
+
+			/*if(vFInliers[i]){
 				cv::line(debugging, pt1, pt2, cv::Scalar(255, 0, 255), 1);
 				nTest++;
 			}
 			else
-				cv::line(debugging, pt1, pt2, cv::Scalar(0, 0, 255), 1);
+				cv::line(debugging, pt1, pt2, cv::Scalar(0, 0, 255), 1);*/
 
 			cv::circle(debugging, pt1, 1, cv::Scalar(255, 255, 0), -1);
+
 			cv::circle(debugging, pt2, 1, cv::Scalar(255, 255, 0), -1);
 		}
 

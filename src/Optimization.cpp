@@ -1211,18 +1211,19 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 		vertex->setFixed(pid == 1);
 		optimizer.addVertex(vertex);
 
-		////correlation
-		//if (pid >= 2) {
-		//	int cor = 2;
-		//	if (pid > 2)
-		//		cor = 1;
-		//	g2o::PlaneCorrelationBAEdge* e = new g2o::PlaneCorrelationBAEdge();
-		//	e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1 + maxKFid)));
-		//	e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pid + maxKFid)));
-		//	e->type = cor;
-		//	e->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
-		//	optimizer.addEdge(e);
-		//}
+		//////correlation
+		if (pid >= 2) {
+			int cor = 2;
+			if (pid > 2)
+				cor = 1;
+			g2o::PlaneCorrelationBAEdge* e = new g2o::PlaneCorrelationBAEdge();
+			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1 + maxKFid)));
+			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pid + maxKFid)));
+			e->type = cor;
+			e->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
+			optimizer.addEdge(e);
+		}
+		//////correlation
 		
 		vPlaneVertices.push_back(vertex);
 		if (pid > maxPlaneId)

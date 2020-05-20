@@ -128,40 +128,37 @@ bool UVR_SLAM::MapPoint::isInFrame(UVR_SLAM::MatchInfo* pF) {
 
 //결합되어 삭제되는 맵포인트가 실행됨
 void UVR_SLAM::MapPoint::Fuse(UVR_SLAM::MapPoint* pMP) {
-	//if (this->mnMapPointID == pMP->mnMapPointID)
-	//	return;
-	//int nvisible, nfound;
-	//std::map<Frame*, int> obs;
-	//{
-	//	std::unique_lock<std::mutex> lock(mMutexFeatures);
-	//	std::unique_lock<std::mutex> lock2(mMutexMP);
-	//	obs = mmpFrames;
-	//	mmpFrames.clear();
-	//	nvisible = mnVisible;
-	//	nfound = mnFound;
-	//	mbDelete = true;
-	//	//std::cout << "MapPoint::Fuse::" << obs.size() << std::endl;
-	//}
-	//for (std::map<Frame*, int>::iterator mit = obs.begin(), mend = obs.end(); mit != mend; mit++)
-	//{
-	//	// Replace measurement in keyframe
-	//	Frame* pKF = mit->first;
+	if (this->mnMapPointID == pMP->mnMapPointID)
+		return;
+	int nvisible, nfound;
+	std::map<MatchInfo*, int> obs;
+	{
+		std::unique_lock<std::mutex> lock(mMutexFeatures);
+		std::unique_lock<std::mutex> lock2(mMutexMP);
+		obs = mmpFrames;
+		mmpFrames.clear();
+		nvisible = mnVisible;
+		nfound = mnFound;
+		mbDelete = true;
+		//std::cout << "MapPoint::Fuse::" << obs.size() << std::endl;
+	}
+	for (std::map<MatchInfo*, int>::iterator mit = obs.begin(), mend = obs.end(); mit != mend; mit++)
+	{
+		// Replace measurement in keyframe
+		MatchInfo* pKF = mit->first;
 
-	//	if (!pMP->isInFrame(pKF))
-	//	{
-	//		pKF->mvpMPs[mit->second] = pMP;
-	//		pKF->mvbMPInliers[mit->second] = true;
-	//		pMP->AddFrame(pKF, mit->second);
-	//	}
-	//	else
-	//	{
-	//		pKF->mvpMPs[mit->second] = nullptr;
-	//		pKF->mvbMPInliers[mit->second] = false;
-	//		//pKF->EraseMapPointMatch(mit->second);
-	//	}
-	//}
-	//pMP->IncreaseFound(nfound);
-	//pMP->IncreaseVisible(nvisible);
+		if (!pMP->isInFrame(pKF))
+		{
+			//pKF->mvpMatchingMPs[mit->second]
+			pMP->AddFrame(pKF, mit->second);
+		}
+		else
+		{
+			pKF->mvpMatchingMPs[mit->second] = nullptr;
+		}
+	}
+	pMP->IncreaseFound(nfound);
+	pMP->IncreaseVisible(nvisible);
 }
 
 float UVR_SLAM::MapPoint::GetFVRatio() {

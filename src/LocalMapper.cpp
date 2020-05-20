@@ -160,7 +160,6 @@ void UVR_SLAM::LocalMapper::Run() {
 					//vPairs.push_back(std::make_pair(nCount, pKF));
 					mpTargetFrame->AddKF(pKF, nCount);
 					pKF->AddKF(mpTargetFrame, nCount);
-
 				}
 			}
 			std::cout << "lm::updatekf::" <<mpTargetFrame->GetKeyFrameID()<<"::"<< mmpCandidateKFs.size() <<", "<<mpTargetFrame->GetConnectedKFs().size()<<", "<< nMinKF << ", " << nMaxKF << std::endl;
@@ -170,12 +169,62 @@ void UVR_SLAM::LocalMapper::Run() {
 			////¸ÊÆ÷ÀÎÆ® »ý¼º
 			cv::Mat ddebug;
 			CreateMapPoints(mpTargetFrame->mpMatchInfo, ddebug);
+			std::stringstream ssdir;
+			//ssdir << mpSystem->GetDirPath(0) << "/kfmatching";// << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevFrame->GetKeyFrameID() << ".jpg";
+			/*ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << ".jpg";
+			imwrite(ssdir.str(), ddebug);*/
 			////¸ÊÆ÷ÀÎÆ® »ý¼º
 			/////////////////
 			
-			///////////////////Fuse Map Points
-			
-			///////////////////Fuse Map Points
+			/////////////////////Fuse Map Points
+			//auto mvpKFs = mpTargetFrame->GetConnectedKFs();
+			//cv::Mat fuseMap = mpTargetFrame->GetOriginalImage();
+			//cv::Mat fuseIdx = cv::Mat::ones(fuseMap.size(), CV_16SC1)*-1;
+			//for (int i = 0; i < mpTargetFrame->mpMatchInfo->mvMatchingPts.size(); i++) {
+			//	auto pt = mpTargetFrame->mpMatchInfo->mvMatchingPts[i];
+			//	cv::circle(fuseMap, pt, 1, cv::Scalar(255, 255, 0), -1);
+			//	fuseIdx.at<short>(pt) = i;
+			//}
+			//cv::Mat R, t;
+			//mpTargetFrame->GetPose(R, t);
+			//for (int i = 0; i < mvpKFs.size(); i++) {
+			//	auto pMatchInfo = mvpKFs[i]->mpMatchInfo;
+			//	for (int j = 0; j < pMatchInfo->mvpMatchingMPs.size(); j++) {
+			//		auto pMP = pMatchInfo->mvpMatchingMPs[j];
+			//		if (!pMP || pMP->isDeleted())
+			//			continue;
+			//		if (pMP->isInFrame(mpTargetFrame->mpMatchInfo))
+			//			continue;
+			//		auto X3D = pMP->GetWorldPos();
+			//		cv::Mat proj = mpTargetFrame->mK*(R*X3D + t);
+			//		//proj = *proj;
+			//		cv::Point2f pt(proj.at<float>(0) / proj.at<float>(2), proj.at<float>(1) / proj.at<float>(2));
+			//		if (!mpTargetFrame->isInImage(pt.x, pt.y, 10.0))
+			//			continue;
+			//		int idx = fuseIdx.at<short>(pt);
+			//		if (idx < 0){
+			//			cv::circle(fuseMap, pt, 2, cv::Scalar(0, 0, 255), -1);
+			//			continue;
+			//		}
+			//		auto pMPi = mpTargetFrame->mpMatchInfo->mvpMatchingMPs[idx];
+			//		if (!pMPi || pMPi->isDeleted()) {
+			//			cv::circle(fuseMap, pt, 2, cv::Scalar(0, 255, 0), -1);
+			//			//pMP->AddFrame(mpTargetFrame->mpMatchInfo, idx);
+			//			fuseIdx.at<short>(pt) = idx;
+			//		}
+			//		if (pMPi && !pMPi->isDeleted()) {
+			//			if (pMP->mnMapPointID == pMPi->mnMapPointID) {
+			//				cv::circle(fuseMap, pt, 2, cv::Scalar(255, 0, 255), -1);
+			//			}
+			//			else
+			//			{
+			//				cv::circle(fuseMap, pt, 2, cv::Scalar(0, 255, 255), -1);
+			//			}
+			//		}
+			//	}
+			//}
+			//imshow("fuse:", fuseMap); waitKey(1);
+			/////////////////////Fuse Map Points
 
 			//mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
 			std::chrono::high_resolution_clock::time_point ba_start = std::chrono::high_resolution_clock::now();
@@ -285,14 +334,14 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& 
 	auto targettargetFrame = targetFrame->mpMatchInfo->mpTargetFrame;
 
 	/////////debug
-	//cv::Mat targettargetImg = targettargetFrame->GetOriginalImage();
-	//cv::Mat currImg = currFrame->GetOriginalImage();
-	//cv::Point2f ptBottom = cv::Point2f(0, currImg.rows);
-	//cv::Rect mergeRect1 = cv::Rect(0, 0, currImg.cols, currImg.rows);
-	//cv::Rect mergeRect2 = cv::Rect(0, currImg.rows, currImg.cols, currImg.rows);
-	//debug = cv::Mat::zeros(currImg.rows * 2, currImg.cols, currImg.type());
-	//targettargetImg.copyTo(debug(mergeRect1));
-	//currImg.copyTo(debug(mergeRect2));
+	cv::Mat targettargetImg = targettargetFrame->GetOriginalImage();
+	cv::Mat currImg = currFrame->GetOriginalImage();
+	cv::Point2f ptBottom = cv::Point2f(0, currImg.rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, currImg.cols, currImg.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, currImg.rows, currImg.cols, currImg.rows);
+	debug = cv::Mat::zeros(currImg.rows * 2, currImg.cols, currImg.type());
+	targettargetImg.copyTo(debug(mergeRect1));
+	currImg.copyTo(debug(mergeRect2));
 	/////////debug
 
 	cv::Mat Pcurr, Ptarget, Ptargettarget;
@@ -338,16 +387,18 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& 
 		vIDXs2.push_back(idx2);
 		vIDXs3.push_back(idx3);
 
+		//////visualize
+		cv::circle(debug, targetTargetInfo->mvMatchingPts[idx3], 2, cv::Scalar(255, 255, 0), -1);
+		cv::circle(debug, pCurrMatchInfo->mvMatchingPts[i] + ptBottom, 2, cv::Scalar(255, 255, 0), -1);
+		//////visualize
+
 		vPts1.push_back(pCurrMatchInfo->mvMatchingPts[i]);
 		vPts2.push_back(targetInfo->mvMatchingPts[idx2]);
 		vPts3.push_back(targetTargetInfo->mvMatchingPts[idx3]);
 
 		int label3 = targetTargetInfo->mvObjectLabels[idx3];
 		vLabels3.push_back(label3);
-
-		//////visualize
-		//cv::circle(debug, targetTargetInfo->mvMatchingPts[idx3], 2, cv::Scalar(255, 0, 255), -1);
-		//cv::circle(debug, mvMatchingPts[i] + ptBottom, 2, cv::Scalar(255, 0, 255), -1);
+		
 	}
 	////////»ï°¢È­·Î ¸Ê»ý¼º
 	//std::cout << "before triangle::" << vPts3.size() << std::endl;
@@ -377,7 +428,6 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& 
 	for (int i = 0; i < Map.cols; i++) {
 
 		cv::Mat X3D = Map.col(i);
-		//X3D.convertTo(X3D, CV_32FC1);
 		X3D /= X3D.at<float>(3);
 		X3D = X3D.rowRange(0, 3);
 
@@ -404,10 +454,10 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& 
 		auto diffPt1 = projected1 - pt1;
 		auto diffPt2 = projected2 - pt2;
 		auto diffPt3 = projected3 - pt3;
-		float err1 = sqrt(diffPt1.dot(diffPt1));
-		float err2 = sqrt(diffPt2.dot(diffPt2));
-		float err3 = sqrt(diffPt3.dot(diffPt3));
-		if (err1 > 4.0 || err2 > 4.0 || err3 > 4.0)
+		float err1 = (diffPt1.dot(diffPt1));
+		float err2 = (diffPt2.dot(diffPt2));
+		float err3 = (diffPt3.dot(diffPt3));
+		if (err1 > 5.991 || err2 > 5.991 || err3 > 5.991)
 			continue;
 		////reprojection error
 
@@ -465,6 +515,11 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& 
 		pMP->AddFrame(currFrame->mpMatchInfo, vIDXs1[i]);
 		pMP->AddFrame(targetFrame->mpMatchInfo, vIDXs2[i]);
 		pMP->AddFrame(targettargetFrame->mpMatchInfo, vIDXs3[i]);
+
+		//////visualize
+		cv::circle(debug, targetTargetInfo->mvMatchingPts[vIDXs3[i]], 2, cv::Scalar(255, 0, 0), -1);
+		cv::circle(debug, pCurrMatchInfo->mvMatchingPts[vIDXs1[i]] + ptBottom, 2, cv::Scalar(255, 0, 0), -1);
+		//////visualize
 	}
 	//std::cout << "lm::create new mp ::" <<vPts1.size()<<", "<< nRes <<" "<<Map.type()<< std::endl;
 }

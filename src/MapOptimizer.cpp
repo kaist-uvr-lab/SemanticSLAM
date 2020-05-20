@@ -104,7 +104,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::vector<UVR_SLAM::Frame*> vpKFs;
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
 			
-			auto tempKFs1 = mpTargetFrame->GetConnectedKFs(15);
+			auto tempKFs1 = mpTargetFrame->GetConnectedKFs(2);
 			auto tempKFs2 = mpTargetFrame->GetConnectedKFs();
 			vpKFs.push_back(mpTargetFrame);
 			
@@ -112,6 +112,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 				tempKFs1[i]->mnLocalBAID = nTargetID;
 				vpKFs.push_back(tempKFs1[i]);
 			}
+			
 			for (int i = 0; i < tempKFs2.size(); i++) {
 				if (tempKFs2[i]->mnLocalBAID != nTargetID && tempKFs2[i]->mnFixedBAID != nTargetID)
 				{
@@ -129,15 +130,11 @@ void UVR_SLAM::MapOptimizer::Run() {
 						continue;
 					}
 					if (pMPi->GetNumConnectedFrames() < 3) {
-						//std::cout << "BA::Error::Case::1::"<< pKFi->GetKeyFrameID()<< std::endl << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
-						//pMPi->Delete();
 						continue;
 					}
 					pMPi->mnLocalBAID = nTargetID;
 					vpMPs.push_back(pMPi);
 				}
-				/*if (vpMPs.size() > 1500)
-					break;*/
 			}
 			for (int i = 0; i < vpMPs.size(); i++)
 			{

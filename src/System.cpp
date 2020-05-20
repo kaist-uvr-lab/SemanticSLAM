@@ -100,10 +100,13 @@ bool UVR_SLAM::System::LoadVocabulary() {
 }
 
 void UVR_SLAM::System::SaveTrajectory() {
+	//auto vpKFs = mpMap->GetAllTrajectoryFrames();
 	auto vpKFs = mpMap->GetFrames();
 	std::string base = GetDirPath(0);
 	std::stringstream ssdir, ssfile;
-	ssdir << base << "/trajectory";
+	/*std::stringstream ssDirPath;
+	ssDirPath << "../../bin/SLAM/KeyframeDebugging/"*/
+	ssdir << "../../bin/SLAM/KeyframeDebugging/trajectory";
 	_mkdir(ssdir.str().c_str());
 	ssfile << ssdir.str() << "/our.txt";
 	std::ofstream f;
@@ -113,6 +116,8 @@ void UVR_SLAM::System::SaveTrajectory() {
 		auto pKF = vpKFs[i];
 		cv::Mat R, t;
 		pKF->GetPose(R, t);
+		R = R.t();
+		t = -R*t;
 		std::vector<float> q = Converter::toQuaternion(R);
 		f << std::setprecision(6) << pKF->mdTimestamp << std::setprecision(7) << " " << t.at<float>(0) << " " << t.at<float>(1) << " " << t.at<float>(2)
 			<< " " << q[0] << " " << q[1] << " " << q[2] << " " << q[3] << std::endl;
