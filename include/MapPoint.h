@@ -24,8 +24,8 @@ namespace UVR_SLAM {
 	public:
 		//초기 포즈 만들 때는 double형으로 형변환
 		MapPoint();
-		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, int label);
-		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int label);
+		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, int label, int nOctave = 0);
+		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int label, int nOctave = 0);
 		virtual ~MapPoint();
 	public:
 		void SetWorldPos(cv::Mat X);
@@ -65,6 +65,7 @@ namespace UVR_SLAM {
 		int mnMapPointID;
 		int mnFirstKeyFrameID;
 		int mnLocalBAID;
+		int mnOctave;
 
 	private:
 		Map* mpMap;

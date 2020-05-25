@@ -161,7 +161,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 	float sumCeil = 0.0;
 	int nCeil = 0;
 
-	while (true) {
+	while (false) {
 
 		if (CheckNewKeyFrames()) {
 			

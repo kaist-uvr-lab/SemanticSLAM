@@ -42,20 +42,29 @@ namespace UVR_SLAM {
 		void SetKeyFrame();
 		void SetLabel();
 		bool CheckPt(cv::Point2f pt);
-		void AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label = 0);
+		void AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label = 0, int octave = 0);
+		
+//////////////////
 		void AddMP(MapPoint* pMP, int idx);
 		void RemoveMP(int idx);
+		//MapPoint* GetMP(int idx);
+	private:
+		std::mutex mMutexMP;
+//////////////////
 	public:
 		UVR_SLAM::Frame* mpTargetFrame, *mpRefFrame, *mpNextFrame;
 		int mnTargetMatch; //이전 타겟 프레임과의 매칭 결과를 기록함. 타겟매칭벡터의 사이즈를 의미. 당연히 현재 매칭 벡터 결과가 이전 타겟 프레임과 연결하기 위한 것인데 현재 매칭벡터 크기가 이전 프레임과 매칭이 없으면 접근하면 안되는 것.
 		cv::Mat used; //자기 자신의 KP를 추가할 때 이미 매칭이 되었던 건지 확인하기 위해서
 		std::vector<int> mvObjectLabels;
+		std::vector<int> mvnOctaves;
 		std::vector<cv::Point2f> mvMatchingPts; //이전 프레임과의 매칭 결과(KP+MP)
 		std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs; //사이즈는 위의 벡터와 같음. nullptr이 존재하며, MP가 있는 경우에만 들어가있음.
 		std::vector<int> mvnTargetMatchingPtIDXs, mvnNextMatchingPtIDXs, mvnMatchingPtIDXs, mvnMatchingMPIDXs; //키프레임과 연결되는 인덱스 값, MP의 경우 현재 프레임 매칭 결과 중 MP와 바로 연결되기 위한 인덱스 값이 됨.
 		//mvnTargetMatchingPtIDXs : 새롭게 키프레임 될 때 타겟 프레임의 매칭 정보를 저장.
 		//mvnMatchingPtIDXs 얘를 타겟으로 삼는 애들과의 매칭을 위해
 		//mvnMatchingMPIDXs
+
+	
 
 ///////////////////////////
 //Add, Remove와 관련된 것들이 추가 예정
@@ -111,6 +120,7 @@ void RemoveMP(int idx);*/
 		int GetFrameID();
 		bool CheckBaseLine(Frame* pTargetKF);
 		bool ComputeSceneMedianDepth(std::vector<UVR_SLAM::MapPoint*> vpMPs, cv::Mat R, cv::Mat t, float& fMedianDepth);
+		
 		cv::Mat GetCameraCenter();
 		void SetInliers(int nInliers);
 		int GetInliers();
@@ -135,6 +145,14 @@ void RemoveMP(int idx);*/
 		//std::vector<UVR_SLAM::Frame*> GetConnectedKFs();
 		std::vector<UVR_SLAM::Frame*> GetConnectedKFs(int n = 0);
 		std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> GetConnectedKFsWithWeight();
+////////////////
+	public:
+		void ComputeSceneMedianDepth();
+		float GetSceneMedianDepth();
+	private:
+		float mfMedianDepth;
+		std::mutex mMutexMedianDepth;
+	////////////////
 	public:
 		int mnLocalMapFrameID;
 		int mnLocalBAID, mnFixedBAID;
@@ -155,6 +173,7 @@ void RemoveMP(int idx);*/
 		////Optical flow를 적용한 방식
 		//이미지 픽셀에 키포인트 순서를 저장.
 		std::vector<cv::Point2f> mvPts; //키포인트의 포인트만 별도로 빼냄.
+		std::vector<int> mvnOctaves;
 		//매칭 정보를 저장
 		///////////////////////////////
 

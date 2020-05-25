@@ -1021,7 +1021,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 
 	const float deltaMono = sqrt(5.991);
 	const float deltaStereo = sqrt(7.815);
-
+	auto mvInvLevelSigma2 = pFrame->mpMatchInfo->mpTargetFrame->mvInvLevelSigma2;
 	{
 		for (int i = 0; i<N; i++)
 		{
@@ -1039,8 +1039,9 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 
 			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
 			e->setMeasurement(obs);
-			//const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
-			e->setInformation(Eigen::Matrix2d::Identity());// *invSigma2);
+			int octave = pMP->mnOctave;
+			const float invSigma2 = mvInvLevelSigma2[octave];
+			e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
 
 			g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
 			e->setRobustKernel(rk);
@@ -1281,6 +1282,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 		g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
 		vPoint->setEstimate(Converter::toVector3d(pMP->GetWorldPos()));
 		int id = pMP->mnMapPointID +maxPlaneId + maxKFid + 1;
+		int octave = pMP->mnOctave;
 		vPoint->setId(id);
 		vPoint->setMarginalized(true);
 		optimizer.addVertex(vPoint);
@@ -1303,7 +1305,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
 			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->GetKeyFrameID())));
 			e->setMeasurement(obs);
-			const float &invSigma2 = 1.0;
+			const float &invSigma2 = pKFi->mvInvLevelSigma2[octave];
 			e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
 
 			g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
@@ -1656,6 +1658,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 		g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
 		vPoint->setEstimate(Converter::toVector3d(pMP->GetWorldPos()));
 		int id = pMP->mnMapPointID + maxKFid + 1;
+		int octave = pMP->mnOctave;
 		vPoint->setId(id);
 		vPoint->setMarginalized(true);
 		optimizer.addVertex(vPoint);
@@ -1678,7 +1681,9 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
 			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->GetKeyFrameID())));
 			e->setMeasurement(obs);
-			const float &invSigma2 = 1.0;
+
+			const float &invSigma2 = pKFi->mvInvLevelSigma2[octave];
+
 			e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
 
 			g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;

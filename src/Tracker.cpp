@@ -104,7 +104,7 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr) {
 	bool c1 = pCurr->GetFrameID() >= nLastID + mnMinFrames; //최소한의 조건
 	bool c2 = mnMatching < 800; //pCurr->mpMatchInfo->mvMatchingPts.size() < 800;//mnMatching < 500;
 	bool c3 = false;//mnMatching < mpFrameWindow->mnLastMatches*0.8;
-	if ( c1 || c2 ) { //c1 || c2 || c3
+	if ( c2 ) { //c1 || c2 || c3
 		/*if (!bLocalMappingIdle)
 		{
 			mpLocalMapper->StopLocalMapping(true);
@@ -161,6 +161,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 	}
 	else {
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+		std::cout << "tracker::start" << std::endl;
 		//std::cout << mpMap->mpFirstKeyFrame->mpPlaneInformation->GetFloorPlane()->GetParam() << std::endl << std::endl << std::endl;
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		/////////Optical Flow Matching
@@ -182,7 +183,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat debugImg;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->GetOriginalImage().size(), CV_8UC1);
 		int nMatch = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vpTempPts, vpTempPts1, vpTempPts2, vbTempInliers, vnIDXs, vnMPIDXs, overlap, debugImg); //pCurr
-		//graph-based
+		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
+																																											//graph-based
 		mnMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);
 		////solvepnp
 		/*mnMatching = 0;
@@ -208,8 +210,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		
 		//키프레임 체크
 		float angle = abs(pPrev->CalcDiffZ(pCurr));
-		if (CheckNeedKeyFrame(pCurr) && angle < 1.5) {
-			if (!mpSegmentator->isDoingProcess()) {
+		if (CheckNeedKeyFrame(pCurr) && angle < 3.0) {
+			if (!mpSegmentator->isDoingProcess() && pCurr->CheckBaseLine(mpRefKF)) {
 				pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 				mpRefKF = pCurr;
 				//mpRefKF->Init(mpSystem->mpORBExtractor, mpSystem->mK, mpSystem->mD);
@@ -230,28 +232,42 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		}
 		////////Optical Flow Matching
 
+		///////////////////SAVE TRACKING RESULTS
+		/*std::stringstream ssdir;
+		ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" << pCurr->GetFrameID() << "_tracking.jpg";
+		imwrite(ssdir.str(), debugImg);*/
+		///////////////////SAVE TRACKING RESULTS
+
+		std::cout << "tracker::end" << std::endl;
+
 		////////Visualization & 시간 계산
 		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
-		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
-		double tttt = duration / 1000.0;
 		
+		auto duration1 = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_a - tracking_start).count();
+		double t1 = duration1 / 1000.0;
+		auto duration2 = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_a).count();
+		double t2 = duration2 / 1000.0;
+
+		//////시각화1
 		cv::Mat vis = pCurr->GetOriginalImage();
-		vis.convertTo(vis, CV_8UC3);
+		//vis.convertTo(vis, CV_8UC3);
 		cv::Mat R = pCurr->GetRotation();
 		cv::Mat t = pCurr->GetTranslation();
-		for (int i = 0; i < vpTempPts.size(); i++) {
-			int label = pPrev->mpMatchInfo->mvObjectLabels[vnIDXs[i]];
-			if (label == 150) {
-				cv::circle(debugImg, vpTempPts[i], 3, cv::Scalar(255, 0, 255), 1);
-			}
-			else if (label == 255) {
-				cv::circle(debugImg, vpTempPts[i], 3, cv::Scalar(0, 255, 255), 1);
-			}
-		}
+		//for (int i = 0; i < vpTempPts.size(); i++) {
+		//	int label = pPrev->mpMatchInfo->mvObjectLabels[vnIDXs[i]];
+		//	if (label == 150) {
+		//		cv::circle(debugImg, vpTempPts[i], 3, cv::Scalar(255, 0, 255), 1);
+		//	}
+		//	else if (label == 255) {
+		//		cv::circle(debugImg, vpTempPts[i], 3, cv::Scalar(0, 255, 255), 1);
+		//	}
+		//}
+		//////시각화1
 		//imshow("Output::Matching", debugImg);
 		/*for (int i = 0; i < vpTempPts.size(); i++) {
 			cv::circle(vis, vpTempPts[i], 2, cv::Scalar(255, 0, 0), 1);
 		}*/
+		//////시각화2
 		for (int i = 0; i < vpTempMPs.size(); i++) {
 			UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
 			if (!pMPi || pMPi->isDeleted())
@@ -272,9 +288,10 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			else if (pid > 0 && label == 100) {
 				color = cv::Scalar(0, 255, 0);
 			}
-			else if (pid > 0 && label == 255) {
-				//color = cv::Scalar(255, 0, 0);
-				color = UVR_SLAM::ObjectColors::mvObjectLabelColors[pid];
+			//else if (pid > 0 && label == 255) {
+			else if (label == 255) {
+				color = cv::Scalar(255, 0, 0);
+				//color = UVR_SLAM::ObjectColors::mvObjectLabelColors[pid];
 			}
 			if (pid <= 0)
 				color /= 2;
@@ -289,8 +306,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], color, 1);
 			//cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
 		}
+		//////시각화2
 		std::stringstream ss;
-		ss << "Traking = " << mnMatching <<", "<< nMP <<"::"<< tttt<<"::"<<angle;
+		ss << "Traking = " << mnMatching <<", "<< nMP <<"::"<< t1<<", "<<t2<<"::"<<angle;
 		cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
 		cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 		cv::imshow("Output::Tracking", vis);
@@ -394,7 +412,8 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 				std::cout << "tracking::update::error::" << vnIDXs[i] << std::endl;*/
 			//curr->mpMatchInfo->mpTargetFrame->mpMatchInfo->mvMatchingPts[prev->mpMatchInfo->mvnMatchingPtIDXs[i]]
 			//pMatchInfo->AddMatchingPt(pt, pMP, pPrevMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]], pPrevMatchInfo->mvObjectLabels[vnIDXs[i]]);
-			pMatchInfo->AddMatchingPt(pt, pMP, pPrevMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]], mpRefKF->mpMatchInfo->mvObjectLabels[pPrev->mpMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]]]);
+			pMatchInfo->AddMatchingPt(pt, pMP, pPrevMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]], mpRefKF->mpMatchInfo->mvObjectLabels[pPrev->mpMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]]]
+				, mpRefKF->mpMatchInfo->mvnOctaves[pPrev->mpMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]]]);
 			if (pMP) {
 				nres++;
 			}

@@ -345,24 +345,28 @@ int UVR_SLAM::Frame::TrackedMapPoints(int minObservation) {
 
 //Ow2가 현재 함수를 콜한 쪽이며, neighbor keyframe, Ow1이 현재 키프레임
 //메디안 뎁스는 neighbor에서 계산함. 이 함수는 변경 가능함.
+//현재 키프레임에서 이전 프레임을 불러오는 형태.
+//즉 이걸 키프레임 추가 과정에서 쓸려면
+//this가 curr frame
+//target = prev keyframe
 bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pTargetKF) {
-
-	/*cv::Mat Ow1 = pTargetKF->GetCameraCenter();
-	cv::Mat Ow2 = this->GetCameraCenter();
+	
+	cv::Mat Ow1 = this->GetCameraCenter();
+	cv::Mat Ow2 = pTargetKF->GetCameraCenter();
 
 	cv::Mat vBaseline = Ow2 - Ow1;
 	float baseline = cv::norm(vBaseline);
 
-	float medianDepthKF2;
-	if (!this->ComputeSceneMedianDepth(medianDepthKF2)) {
+	float medianDepthKF2 = pTargetKF->GetSceneMedianDepth();
+	if(medianDepthKF2 < 0.0)
 		return false;
-	}
 
 	float ratioBaselineDepth = baseline / medianDepthKF2;
 
 	if (ratioBaselineDepth<0.01)
 		return false;
-	return true;*/
+
+	return true;
 }
 
 //두 키프레임의 베이스라인을 계산할 때 이용 됨.
@@ -391,8 +395,41 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(std::vector<UVR_SLAM::MapPoint*> v
 	int nidx = vDepths.size() / 2;
 	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
 	fMedianDepth = vDepths[(nidx) / 2];
-	std::cout << "median depth ::" << fMedianDepth << std::endl;
 	return true;
+}
+
+void UVR_SLAM::Frame::ComputeSceneMedianDepth()
+{
+	std::vector<float> vDepths;
+	cv::Mat Rcw2 = R.row(2);
+	Rcw2 = Rcw2.t();
+	float zcw = t.at<float>(2);
+	auto vpMPs = mpMatchInfo->mvpMatchingMPs;
+	for (int i = 0; i < vpMPs.size(); i++)
+	{
+		UVR_SLAM::MapPoint* pMP = vpMPs[i];
+		if (!pMP || pMP->isDeleted()) {
+			continue;
+		}
+		cv::Mat x3Dw = pMP->GetWorldPos();
+		float z = (float)Rcw2.dot(x3Dw) + zcw;
+		vDepths.push_back(z);
+	}
+	if (vDepths.size() == 0){
+		mfMedianDepth = -1.0;
+		return;
+	}
+	int nidx = vDepths.size() / 2;
+	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexMedianDepth);
+		mfMedianDepth = vDepths[(nidx) / 2];
+	}
+}
+
+float UVR_SLAM::Frame::GetSceneMedianDepth() {
+	std::unique_lock<std::mutex> lockMP(mMutexMedianDepth);
+	return mfMedianDepth;
 }
 
 cv::Mat UVR_SLAM::Frame::GetCameraCenter() {
@@ -497,15 +534,18 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 		ExtractORB(matFrame, mvTempKPs, tempDesc);
 		matDescriptor = cv::Mat::zeros(0, tempDesc.cols, tempDesc.type());
 	}
+
 	cv::Mat overlap = cv::Mat::zeros(matFrame.size(), CV_8UC1);
-	
 	for (int i = 0; i < mvTempKPs.size(); i++) {
+
 		if (!CheckKeyPointOverlap(overlap, mvTempKPs[i].pt)) {
 			continue;
 		}
+
 		mvKeyPoints.push_back(mvTempKPs[i]);
 		matDescriptor.push_back(tempDesc.row(i));
 		//200410 추가
+		mvnOctaves.push_back(mvTempKPs[i].octave);
 		mvPts.push_back(mvTempKPs[i].pt);
 		//200410 추가
 	}
@@ -745,20 +785,21 @@ bool UVR_SLAM::Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit)
 	if (dist<minDistance || dist>maxDistance)
 		return false;*/
 
-	const cv::Mat PO = P - Ow;
-	const float dist = cv::norm(PO);
+	/////////////////Viewing angle
+	//const cv::Mat PO = P - Ow;
+	//const float dist = cv::norm(PO);
 
-	// Check viewing angle
-	cv::Mat Pn = pMP->GetNormal();
+	//// Check viewing angle
+	//cv::Mat Pn = pMP->GetNormal();
 
-	const float viewCos = PO.dot(Pn) / dist;
+	//const float viewCos = PO.dot(Pn) / dist;
 
-	if (viewCos<viewingCosLimit)
-		return false;
+	//if (viewCos<viewingCosLimit)
+	//	return false;
+	/////////////////Viewing angle
 
 	//// Predict scale in the image
 	//const int nPredictedLevel = pMP->PredictScale(dist, this);
-
 	//// Data used by the tracking
 	//pMP->mbTrackInView = true;
 	//pMP->mTrackProjX = u;
@@ -810,11 +851,12 @@ bool UVR_SLAM::MatchInfo::CheckPt(cv::Point2f pt) {
 	}
 	return used.at<ushort>(pt);
 }
-void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label) {
+void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label, int octave) {
 	this->mvMatchingPts.push_back(pt);
 	this->mvnMatchingPtIDXs.push_back(idx);
 	this->mvpMatchingMPs.push_back(pMP);
 	this->mvObjectLabels.push_back(label);
+	this->mvnOctaves.push_back(octave);
 	cv::circle(used, pt, 2, cv::Scalar(255), -1);
 }
 void UVR_SLAM::MatchInfo::SetLabel() {
@@ -841,7 +883,9 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 		if (used.at<ushort>(pt)) {
 			continue;
 		}
+		auto octave = mpRefFrame->mvnOctaves[i];
 		mvMatchingPts.push_back(pt);
+		mvnOctaves.push_back(octave);
 		mvnMatchingPtIDXs.push_back(nPts++);
 		mvpMatchingMPs.push_back(nullptr);
 		mvObjectLabels.push_back(0);

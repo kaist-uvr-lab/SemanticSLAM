@@ -109,6 +109,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 			//////200412
 			std::cout << "lm::start" << std::endl;
+
 			ProcessNewKeyFrame();
 			int nTargetID = mpTargetFrame->GetFrameID();
 
@@ -123,6 +124,7 @@ void UVR_SLAM::LocalMapper::Run() {
 				}
 			}
 			//mpMap->AddFrame(mpTargetFrame);
+			mpTargetFrame->ComputeSceneMedianDepth();
 			//////////////업데이트 맵포인트
 
 			//////////////업데이트 키프레임
@@ -146,7 +148,7 @@ void UVR_SLAM::LocalMapper::Run() {
 					mmpCandidateKFs[pkF]++;
 				}
 			}
-			std::cout << "lm::updatekf::" << mmpCandidateKFs.size() <<", "<< nMaxKF << std::endl;
+			
 			nMaxKF = 0;
 			for (auto biter = mmpCandidateKFs.begin(), eiter = mmpCandidateKFs.end(); biter != eiter; biter++) {
 				UVR_SLAM::Frame* pKF = biter->first;
@@ -162,21 +164,42 @@ void UVR_SLAM::LocalMapper::Run() {
 					pKF->AddKF(mpTargetFrame, nCount);
 				}
 			}
-			std::cout << "lm::updatekf::" <<mpTargetFrame->GetKeyFrameID()<<"::"<< mmpCandidateKFs.size() <<", "<<mpTargetFrame->GetConnectedKFs().size()<<", "<< nMinKF << ", " << nMaxKF << std::endl;
 			//////////////업데이트 키프레임
 
 			/////////////////
 			////맵포인트 생성
 			cv::Mat ddebug;
 			CreateMapPoints(mpTargetFrame->mpMatchInfo, ddebug);
-			std::stringstream ssdir;
+			//std::stringstream ssdir;
 			//ssdir << mpSystem->GetDirPath(0) << "/kfmatching";// << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevFrame->GetKeyFrameID() << ".jpg";
 			/*ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << ".jpg";
 			imwrite(ssdir.str(), ddebug);*/
 			////맵포인트 생성
+			std::cout << "lm::newmp" << std::endl;
 			/////////////////
 			
-			/////////////////////Fuse Map Points
+			/////////////////Save Keyframe optical flow matching results
+			/*auto prevFrame = mpTargetFrame->mpMatchInfo->mpTargetFrame;
+			std::vector<std::pair<cv::Point2f, cv::Point2f>> vPairs1, vPairs2;
+			cv::Mat kfdebug1, kfdebug2;
+			mpMatcher->OpticalMatchingForMapping(mpTargetFrame, prevFrame, vPairs1, kfdebug1);
+			std::stringstream ssdir;
+			ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetFrameID() <<"_"<<prevFrame->GetFrameID()<< ".jpg";
+			imwrite(ssdir.str(), kfdebug1);*/
+			/*
+			auto prevPrevFrame = mpTargetFrame->mpMatchInfo->mpTargetFrame->mpMatchInfo->mpTargetFrame;
+			mpMatcher->OpticalMatchingForMapping(mpTargetFrame, prevPrevFrame, vPairs2, kfdebug2);
+			ssdir.str("");
+			ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetFrameID() << "_" << prevPrevFrame->GetFrameID() << ".jpg";
+			imwrite(ssdir.str(), kfdebug2);
+			*/
+			/////////////////Save Keyframe optical flow matching results
+
+			///////////////////////Fuse Map Points
+			//////빨간 : 이전 프레임에는 존재하나, 현재 프레임에서는 포인트도 존재하지 않음.
+			//////녹색 : 포인트는 존재하나, MP가 없음.
+			//////분홍 : 맵포인트도 있음. 둘이 일치.
+			//////노랑 : 맵포인트도 있음. 둘이 다름.
 			//auto mvpKFs = mpTargetFrame->GetConnectedKFs();
 			//cv::Mat fuseMap = mpTargetFrame->GetOriginalImage();
 			//cv::Mat fuseIdx = cv::Mat::ones(fuseMap.size(), CV_16SC1)*-1;
@@ -202,32 +225,35 @@ void UVR_SLAM::LocalMapper::Run() {
 			//		if (!mpTargetFrame->isInImage(pt.x, pt.y, 10.0))
 			//			continue;
 			//		int idx = fuseIdx.at<short>(pt);
-			//		if (idx < 0){
+			//		if (idx < 0) {
 			//			cv::circle(fuseMap, pt, 2, cv::Scalar(0, 0, 255), -1);
 			//			continue;
 			//		}
+			//		if (idx >= mpTargetFrame->mpMatchInfo->mvpMatchingMPs.size())
+			//			std::cout << "???????????????????????????????????????????????????????????????????????????????????????????????????????????????" << std::endl;
 			//		auto pMPi = mpTargetFrame->mpMatchInfo->mvpMatchingMPs[idx];
 			//		if (!pMPi || pMPi->isDeleted()) {
-			//			cv::circle(fuseMap, pt, 2, cv::Scalar(0, 255, 0), -1);
-			//			//pMP->AddFrame(mpTargetFrame->mpMatchInfo, idx);
-			//			fuseIdx.at<short>(pt) = idx;
+			//			cv::circle(fuseMap, pt, 2, cv::Scalar(255, 0, 0), -1);
+			//			pMP->AddFrame(mpTargetFrame->mpMatchInfo, idx);
+			//			//fuseIdx.at<short>(pt) = idx;
 			//		}
-			//		if (pMPi && !pMPi->isDeleted()) {
-			//			if (pMP->mnMapPointID == pMPi->mnMapPointID) {
-			//				cv::circle(fuseMap, pt, 2, cv::Scalar(255, 0, 255), -1);
-			//			}
-			//			else
-			//			{
-			//				cv::circle(fuseMap, pt, 2, cv::Scalar(0, 255, 255), -1);
-			//			}
+			//		else if (pMPi && !pMPi->isDeleted()) {
+			//			//if (pMP->mnMapPointID == pMPi->mnMapPointID) {
+			//			//	cv::circle(fuseMap, pt, 2, cv::Scalar(255, 0, 255), -1);
+			//			//}
+			//			//else
+			//			//{
+			//			//	cv::circle(fuseMap, pt, 2, cv::Scalar(0, 255, 255), -1);
+			//			//	//fuse
+			//			//}
 			//		}
 			//	}
 			//}
+			//std::cout << "lm::fuse::end" << std::endl;
 			//imshow("fuse:", fuseMap); waitKey(1);
 			/////////////////////Fuse Map Points
 
 			//mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
-			std::chrono::high_resolution_clock::time_point ba_start = std::chrono::high_resolution_clock::now();
 			if (mpMapOptimizer->isDoingProcess()) {
 				//std::cout << "lm::ba::busy" << std::endl;
 				mpMapOptimizer->StopBA(true);
@@ -236,15 +262,12 @@ void UVR_SLAM::LocalMapper::Run() {
 				//std::cout << "lm::ba::idle" << std::endl;
 				mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
 			}
-
 			std::chrono::high_resolution_clock::time_point lm_end = std::chrono::high_resolution_clock::now();
 			auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(lm_end - lm_start).count();
 			float t_test1 = du_test1 / 1000.0;
-			auto du_test2 = std::chrono::duration_cast<std::chrono::milliseconds>(lm_end - ba_start).count();
-			float t_test2 = du_test2 / 1000.0;
 
 			std::stringstream ssa;
-			ssa << "LocalMapping : " << mpTargetFrame->GetKeyFrameID() <<"::"<<mpTargetFrame->GetConnectedKFs().size()<< "::" << t_test1<<"::"<< matchInfo->mvnTargetMatchingPtIDXs.size()<<", "<< matchInfo->mvnMatchingPtIDXs.size();
+			ssa << "LocalMapping : " << mpTargetFrame->GetKeyFrameID() <<"::"<< t_test1 <<"::"<<mpTargetFrame->GetConnectedKFs().size()<< ", " << nMinKF<<", "<<nMaxKF<<"::"<< matchInfo->mvnTargetMatchingPtIDXs.size()<<", "<< matchInfo->mvnMatchingPtIDXs.size();
 			mpSystem->SetLocalMapperString(ssa.str());
 
 			std::cout << "lm::end" << std::endl;
@@ -495,7 +518,8 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& 
 
 		nRes++;
 		int label = vLabels3[i];
-		auto pMP = new UVR_SLAM::MapPoint(mpMap, currFrame, X3D, cv::Mat(), label);
+		int octave = targetTargetInfo->mvnOctaves[vIDXs3[i]];
+		auto pMP = new UVR_SLAM::MapPoint(mpMap, currFrame, X3D, cv::Mat(), label, octave);
 		if (label == 150) {
 			pMP->SetPlaneID(1);
 		}
@@ -515,7 +539,7 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& 
 		pMP->AddFrame(currFrame->mpMatchInfo, vIDXs1[i]);
 		pMP->AddFrame(targetFrame->mpMatchInfo, vIDXs2[i]);
 		pMP->AddFrame(targettargetFrame->mpMatchInfo, vIDXs3[i]);
-
+		//pMP->UpdateNormalAndDepth();
 		//////visualize
 		cv::circle(debug, targetTargetInfo->mvMatchingPts[vIDXs3[i]], 2, cv::Scalar(255, 0, 0), -1);
 		cv::circle(debug, pCurrMatchInfo->mvMatchingPts[vIDXs1[i]] + ptBottom, 2, cv::Scalar(255, 0, 0), -1);

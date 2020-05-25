@@ -116,8 +116,8 @@ void UVR_SLAM::System::SaveTrajectory() {
 		auto pKF = vpKFs[i];
 		cv::Mat R, t;
 		pKF->GetPose(R, t);
-		R = R.t();
-		t = -R*t;
+		R = R.t(); //inverse
+		t = -R*t;  //camera center
 		std::vector<float> q = Converter::toQuaternion(R);
 		f << std::setprecision(6) << pKF->mdTimestamp << std::setprecision(7) << " " << t.at<float>(0) << " " << t.at<float>(1) << " " << t.at<float>(2)
 			<< " " << q[0] << " " << q[1] << " " << q[2] << " " << q[3] << std::endl;

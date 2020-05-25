@@ -79,6 +79,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame1->mpMatchInfo->mpTargetFrame = nullptr;
 		mpInitFrame1->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame1->GetOriginalImage().size(), CV_16SC1);
 		mpInitFrame1->mpMatchInfo->mvMatchingPts = mpInitFrame1->mvPts;
+		mpTempFrame->mpMatchInfo->mvnOctaves = mpInitFrame1->mvnOctaves;
 		for (int i = 0; i < mpInitFrame1->mvPts.size(); i++) {
 			mpTempFrame->mpMatchInfo->mvnMatchingPtIDXs.push_back(i);
 		}
@@ -91,20 +92,10 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		///////////////////////////////////////////////////////////////////////////////////////
 		//200419
 		//두번째 키프레임은 초기화가 성공하거나 키프레임을 교체할 때 세그멘테이션을 수행함.
-		std::cout << "init::0" << std::endl;
 		mpInitFrame2 = pFrame;
 		bool bSegment = false;
 		int nSegID = mpInitFrame1->GetFrameID();
-		////////세그멘테이션 확인 후 시작
-		/*if(!mpSegmentator->isDoingProcess())
-		{ 
-			mpSegmentator->InsertKeyFrame(mpInitFrame2);
-			nSegID = mpInitFrame2->GetFrameID();
-			bSegment = true;
-		}*/
-		////////세그멘테이션 확인 후 시작
-
-		std::cout << "init::0::" <<mpTempFrame->mpMatchInfo->mvMatchingPts.size()<< std::endl;
+		
 		int nMatchingThresh = mpTempFrame->mpMatchInfo->mvMatchingPts.size()*0.6;
 		std::vector<cv::Point2f> vTempPts1, vTempPts2;
 		std::vector<bool> vTempInliers;
@@ -117,8 +108,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 		double tttt = duration / 1000.0;
 
-		std::cout << "init::1::"<<count << std::endl;
-
 		/////////매칭 확인
 		if (count < nMatchingThresh) {
 			while (mpSegmentator->isDoingProcess());
@@ -127,61 +116,23 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			std::cout << "Initializer::replace::keyframe1" << std::endl;
 			return mbInit;
 		}
-		//if (count < nMatchingThresh && bSegment) {
-		//	//대기
-		//	while (!mpInitFrame1->isSegmented()) {
-		//	}
-		//	while (!mpInitFrame2->isSegmented()) {
-		//	}
-		//	delete mpInitFrame1;
-
-		//	////////replace initial frame
-		//	mpInitFrame1 = mpInitFrame2;
-		//	mpTempFrame = mpInitFrame1;
-		//	
-		//	mpInitFrame1->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
-		//	mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo();
-		//	mpInitFrame1->mpMatchInfo->mpRefFrame = mpInitFrame1;
-		//	mpInitFrame1->mpMatchInfo->mpTargetFrame = nullptr;
-		//	mpInitFrame1->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame1->GetOriginalImage().size(), CV_16SC1);
-		//	mpInitFrame1->mpMatchInfo->mvMatchingPts = mpInitFrame1->mvPts;
-		//	for (int i = 0; i < mpInitFrame1->mvPts.size(); i++) {
-		//		mpTempFrame->mpMatchInfo->mvnMatchingPtIDXs.push_back(i);
-		//	}
-		//	mpInitFrame1->mpMatchInfo->mvObjectLabels = std::vector<int>(mpInitFrame1->mpMatchInfo->mvMatchingPts.size(), 0);
-		//	mpInitFrame1->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(mpInitFrame1->mpMatchInfo->mvMatchingPts.size(), nullptr);
-
-		//	/*mpTempFrame->mvMatchingPts = mpInitFrame1->mvPts;
-		//	for (int i = 0; i < mpInitFrame1->mvPts.size(); i++) {
-		//		mpTempFrame->mvMatchingIdxs.push_back(i);
-		//	}*/
-		//	////////replace initial frame
-		//	return mbInit;
-		//}
-		/////////매칭 확인
-
-		////////현재 프레임의 매칭 정보 복사 및 초기 프레임의 포인트 저장
 		
+		////////현재 프레임의 매칭 정보 복사 및 초기 프레임의 포인트 저장
 		mpInitFrame2->mpMatchInfo = new UVR_SLAM::MatchInfo();
 		mpInitFrame2->mpMatchInfo->mpTargetFrame = mpInitFrame1;
 		mpInitFrame2->mpMatchInfo->mpRefFrame = mpInitFrame2;
 		mpInitFrame2->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame2->GetOriginalImage().size(), CV_16SC1);
 		mpInitFrame2->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(vTempPts2.size(), nullptr);
 		for (int i = 0; i < vTempPts2.size(); i++) {
+			int idx = vTempIndexs[i];
 			mpInitFrame2->mpMatchInfo->mvMatchingPts.push_back(vTempPts2[i]);
-			mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.push_back(vTempIndexs[i]);
+			mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.push_back(idx);
 			mpInitFrame2->mpMatchInfo->mvObjectLabels.push_back(0);
+			mpInitFrame2->mpMatchInfo->mvnOctaves.push_back(mpInitFrame1->mpMatchInfo->mvnOctaves[idx]);
+			vTempPts1.push_back(mpInitFrame1->mpMatchInfo->mvMatchingPts[idx]);
 			cv::circle(mpInitFrame2->mpMatchInfo->used, vTempPts2[i], 2, cv::Scalar(255), -1);
-			vTempPts1.push_back(mpInitFrame1->mpMatchInfo->mvMatchingPts[vTempIndexs[i]]);
-
-			/*mpInitFrame2->mvMatchingPts.push_back(vTempPts2[i]);
-			mpInitFrame2->mvMatchingIdxs.push_back(vTempIndexs[i]);
-			vTempPts1.push_back(mpInitFrame1->mvMatchingPts[vTempIndexs[i]]);*/
-			//resMatches.push_back(std::make_pair(vTempPts1[i], vTempPts2[i]));
 		}
 		////////현재 프레임의 매칭 정보 복사
-
-		std::cout << "init::2" << std::endl;
 
 		/////////////////////Fundamental Matrix Decomposition & Triangulation
 		std::vector<uchar> vFInliers;
@@ -191,14 +142,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		std::vector<bool> vbFtest;
 		cv::Mat F12;
 		float score;
-		//mpMatcher->FindFundamental(mpInitFrame1, mpInitFrame2, resMatches, vbFtest, score, F12);
-		////F 찾기 : 기존 방법
-
-		//////F 찾기 : Opencv
-		/*F12 = cv::findFundamentalMat(vTempPts1, vTempPts2, vFInliers, cv::FM_RANSAC);
-		F12.convertTo(F12, CV_32FC1);*/
-		//////F 찾기 : Opencv
-
+		
 		////E  찾기 : OpenCV
 		cv::Mat E12 = cv::findEssentialMat(vTempPts1, vTempPts2, mK, cv::FM_RANSAC, 0.999, 1.0, vFInliers);
 		////E  찾기 : OpenCV
@@ -213,27 +157,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			}
 		}
 		count = resMatches.size();
-		std::cout << "init::2::fundamental::" << count << std::endl;
 		//////F, E를 통한 매칭 결과 반영
-
-		/////삼각화 : 기존 방법
-		/*std::vector<UVR_SLAM::InitialData*> vCandidates;
-		UVR_SLAM::InitialData *mC1 = new UVR_SLAM::InitialData(count);
-		UVR_SLAM::InitialData *mC2 = new UVR_SLAM::InitialData(count);
-		UVR_SLAM::InitialData *mC3 = new UVR_SLAM::InitialData(count);
-		UVR_SLAM::InitialData *mC4 = new UVR_SLAM::InitialData(count);
-		int resIDX = -1;*/
-		/*vCandidates.push_back(mC1);
-		vCandidates.push_back(mC2);
-		vCandidates.push_back(mC3);
-		vCandidates.push_back(mC4);
-		SetCandidatePose(F12, resMatches, vCandidates);
-		int resIDX = SelectCandidatePose(vCandidates);
-		if (resIDX < 0)
-			resIDX = 0;*/
-		
-		std::cout << "init::3::1" << std::endl;
-			/////삼각화 : 기존 방법
 		///////삼각화 : OpenCV
 		cv::Mat R1, t1;
 		cv::Mat matTriangulateInliers;
@@ -243,44 +167,16 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		int res2 = cv::recoverPose(E12, vTempMatchPts1, vTempMatchPts2, K, R1, t1, 50.0, matTriangulateInliers,Map3D);
 		R1.convertTo(R1, CV_32FC1);
 		t1.convertTo(t1, CV_32FC1);
-		////int res2 = cv::recoverPose(E12, vTempMatchPts1, vTempMatchPts2, mK, R1, t1, matTriangulateInliers);
-		///////삼각화 : OpenCV
 		///////////////////////Fundamental Matrix Decomposition & Triangulation
 
-		std::cout << "init::3::t::" << res2 << std::endl;
-
 		////////////삼각화 결과에 따른 초기화 판단
-		////기존 버전
-		/*if (resIDX < 0 || !bSegment) {
-			mpTempFrame = mpInitFrame2;
-			return mbInit;
-		}*/
-		////기존 버전
-		//////Opencv
-		//if (res2 < 0.9*count || !bSegment) {
 		if (res2 < 0.9*count) {
 			mpTempFrame = mpInitFrame2;
-			std::cout << "init::3::t2::"<<bSegment<<  std::endl;
 			return mbInit;
 		}
-		//////Opencv
 		////////////삼각화 결과에 따른 초기화 판단
 
-		std::cout << "init::3::2" << std::endl;
-
 		//////////////////////////////////////
-		////맵생성 : 기존
-		/*std::vector<UVR_SLAM::MapPoint*> tempMPs;
-		for (int i = 0; i < vCandidates[resIDX]->mvX3Ds.size(); i++) {
-			if (vCandidates[resIDX]->vbTriangulated[i]) {
-				auto pt1 = resMatches[i].first;
-				auto pt2 = resMatches[i].second;
-				UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame1, vCandidates[resIDX]->mvX3Ds[i], cv::Mat());
-				tempMPs.push_back(pNewMP);
-			}
-		}*/
-		////맵생성 : 기존
-		//////맵생성 : opencv
 		std::vector<UVR_SLAM::MapPoint*> tempMPs;
 		std::vector<cv::Point2f> vTempMappedPts1, vTempMappedPts2; //맵포인트로 생성된 포인트 정보를 저장
 		std::vector<int> vTempMappedIDXs; //vTempMatch에서 다시 일부분을 저장. 초기 포인트와 대응되는 위치를 저장.
@@ -313,7 +209,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			float err2 = (diffPt2.dot(diffPt2));
 			if (err1 > 4.0 || err2 > 4.0)
 				continue;
-			
 			///////////////reprojection error
 			res3++;
 			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
@@ -323,13 +218,10 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			vTempMappedPts2.push_back(vTempMatchPts2[i]);
 			vTempMappedIDXs.push_back(vTempMatchIDXs[i]);
 		}
-		//////맵생성 : opencv
 		//////////////////////////////////////
 		/////median depth 
 		float medianDepth;
-		//mpInitFrame1->ComputeSceneMedianDepth(tempMPs, vCandidates[resIDX]->R, vCandidates[resIDX]->t, medianDepth);
 		mpInitFrame1->ComputeSceneMedianDepth(tempMPs, R1, t1, medianDepth);
-		std::cout << "init::3::4" << std::endl;
 		
 		float invMedianDepth = 1.0f / medianDepth;
 		if (medianDepth < 0.0) {
@@ -345,15 +237,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			pMP->SetWorldPos(pMP->GetWorldPos()*invMedianDepth);
 		}
 		t1 *= invMedianDepth;
-		/////median depth 
 		//////////////////////////////////////
-
-		//////////세그멘테이션 대기
-		/*while (!mpInitFrame2->isSegmented()) {
-		}*/
-		//////////세그멘테이션 대기
-
-		std::cout << "init::4" << std::endl;
 
 		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//////////////////////////////////////////////////////////평면 관련 기능들
@@ -420,8 +304,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//std::cout << mpMap->mpFirstKeyFrame->mpPlaneInformation->GetFloorPlane()->GetParam() << std::endl << std::endl << std::endl;
 		//////////////////////////////////////////////////////////평면 관련 기능들
 		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		
-		std::cout << "init::5" << std::endl;
 
 		//////////////////////////키프레임 생성
 		mpInitFrame2->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
@@ -449,17 +331,17 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 			pNewMP->AddFrame(mpInitFrame1->mpMatchInfo, idx1);
 			pNewMP->AddFrame(mpInitFrame2->mpMatchInfo, idx2);
+			pNewMP->mnOctave = mpInitFrame1->mpMatchInfo->mvnOctaves[idx1];
 			//mpInitFrame2->mpMatchInfo->mvpMatchingMPs[vTempMappedIDXs[i]] = pNewMP;
 			//pNewMP->AddDenseFrame(mpInitFrame1, pt1);
 			//pNewMP->AddDenseFrame(mpInitFrame2, pt2);
 			pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
 			pNewMP->IncreaseVisible(2);
 			pNewMP->IncreaseFound(2);
+			//pNewMP->UpdateNormalAndDepth();
 			mpSystem->mlpNewMPs.push_back(pNewMP);
 			//mpInitFrame2->mpMatchInfo->mvnMatchingMPIDXs.push_back(vTempMappedIDXs[i]);
 		}
-
-		std::cout << "init::6" << std::endl;
 
 		/////////////////////Object labeling
 		mpInitFrame1->mpMatchInfo->SetLabel();
@@ -541,8 +423,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpVisualizer->SetBoolDoingProcess(true);
 		}
 		//////////////////////////////시각화 설정
-
-		std::cout << "init::7" << std::endl;
 
 		///////////debug
 		cv::Mat prevImg = mpInitFrame1->GetOriginalImage();

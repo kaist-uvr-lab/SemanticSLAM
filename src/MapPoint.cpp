@@ -8,17 +8,17 @@ static int nMapPointID = 0;
 
 UVR_SLAM::MapPoint::MapPoint()
 	:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
-	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1)
+	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(0)
 {}
-UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF,cv::Mat _p3D, cv::Mat _desc, int label)
+UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF,cv::Mat _p3D, cv::Mat _desc, int label, int octave)
 : mpMap(pMap), mpRefKF(pRefKF),p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
-, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1)
+, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(octave)
 {
 	mpMap->AddMap(this, label);
 }
-UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int label)
+UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int label, int octave)
 : mpMap(pMap), mpRefKF(pRefKF), p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
-, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1)
+, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(octave)
 {
 	mpMap->AddMap(this, label);
 }
@@ -285,9 +285,9 @@ void UVR_SLAM::MapPoint::UpdateNormalAndDepth()
 		n++;
 	}
 
-	/*cv::Mat PC = Pos - pRefKF->GetCameraCenter();
+	cv::Mat PC = Pos - pRefKF->GetCameraCenter();
 	const float dist = cv::norm(PC);
-	const int level = pRefKF->mvKeyPoints[observations[pRefKF]].octave;
+	const int level = mnOctave;
 	const float levelScaleFactor = pRefKF->mvScaleFactors[level];
 	const int nLevels = pRefKF->mnScaleLevels;
 
@@ -296,7 +296,7 @@ void UVR_SLAM::MapPoint::UpdateNormalAndDepth()
 		mfMaxDistance = dist*levelScaleFactor;
 		mfMinDistance = mfMaxDistance / pRefKF->mvScaleFactors[nLevels - 1];
 		mNormalVector = normal / n;
-	}*/
+	}
 }
 
 int UVR_SLAM::MapPoint::PredictScale(const float &currentDist, Frame* pKF)
