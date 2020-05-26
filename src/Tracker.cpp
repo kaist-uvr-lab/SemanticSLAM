@@ -233,9 +233,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		////////Optical Flow Matching
 
 		///////////////////SAVE TRACKING RESULTS
-		/*std::stringstream ssdir;
+		std::stringstream ssdir;
 		ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" << pCurr->GetFrameID() << "_tracking.jpg";
-		imwrite(ssdir.str(), debugImg);*/
+		imwrite(ssdir.str(), debugImg);
 		///////////////////SAVE TRACKING RESULTS
 
 		std::cout << "tracker::end" << std::endl;

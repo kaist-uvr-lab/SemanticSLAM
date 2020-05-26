@@ -130,8 +130,10 @@ void UVR_SLAM::Visualizer::Init() {
 
 	/////////////////////////////
 	////New 배치
-	cv::namedWindow("Output::PE::PARAM");
-	cv::moveWindow("Output::PE::PARAM", nImageWindowStartX, 0);
+	/*cv::namedWindow("Output::PE::PARAM");
+	cv::moveWindow("Output::PE::PARAM", nImageWindowStartX, 0);*/
+	cv::namedWindow("edge+optical");
+	cv::moveWindow("edge+optical", nImageWindowStartX, 0);
 	////New 배치
 	/////////////////////////////
 	

@@ -864,18 +864,18 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	cv::Mat currImg = curr->GetOriginalImage();
 	
 	///////debug
-	/*cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
+	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
 	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
 	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
 	debugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
 	prevImg.copyTo(debugging(mergeRect1));
-	currImg.copyTo(debugging(mergeRect2));*/
+	currImg.copyTo(debugging(mergeRect2));
 	
 	///////////
 	//matKPs, mvKPs
 	//init -> curr·Î ¸ÅÄª
 	////////
-	std::vector<cv::Point2f> prevPts, currPts, tempPts;
+	std::vector<cv::Point2f> prevPts, currPts;
 	prevPts = prev->mpMatchInfo->mvMatchingPts;//prev->mvMatchingPts;
 	int maxLvl = 3;
 	int searchSize = 21;
@@ -935,16 +935,47 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		//cv::line(debugging2, curr->mpMatchInfo->mpTargetFrame->mpMatchInfo->mvMatchingPts[prev->mpMatchInfo->mvnMatchingPtIDXs[i]], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
 		res++;
 	}
+	////////////////////////////////
+	////////Edge Test
+	std::chrono::high_resolution_clock::time_point edge_start = std::chrono::high_resolution_clock::now();
+	prevPts = prev->mvEdgePts;//prev->mvMatchingPts;
+	maxLvl = 1;
+	searchSize = 21;
+	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
+	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
+	//cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	cv::calcOpticalFlowPyrLK(prevImg, currImg, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	for (int i = 0; i < prevPts.size(); i+=10) {
+		if (status[i] == 0) {
+			continue;
+		}
 
-	//std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
-	//auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
-	//double tttt = duration / 1000.0;
+		if (!curr->isInImage(currPts[i].x, currPts[i].y, 10)) {
+			continue;
+		}
+	
+		//¸ÅÄª °á°ú
+		float diffX = abs(prevPts[i].x - currPts[i].x);
+		if (diffX > 25) {
+			continue;
+		}
+		cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 255, 0), -1);
+		cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 255, 0), -1);
+		cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0), 1);
+	}
+	////////Edge Test
+	////////////////////////////////
 
-	////fuse time text 
-	//std::stringstream ss;
-	//ss << "Optical flow tracking= " << res <<", "<<vpMPs.size()<<", "<<nBad<< "::" << tttt;
-	//cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
-	//cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - edge_start).count();
+	double tttt = duration / 1000.0;
+
+	//fuse time text 
+	std::stringstream ss;
+	ss << "Optical flow tracking= " << res <<", "<<vpMPs.size()<<", "<<nBad<< "::" << tttt;
+	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
+	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+	cv::imshow("edge+optical", debugging);
 	return res;
 }
 

@@ -111,20 +111,30 @@ bool UVR_SLAM::MapPoint::isDeleted(){
 
 void UVR_SLAM::MapPoint::IncreaseVisible(int n)
 {
-	std::unique_lock<std::mutex> lock(mMutexFeatures);
+	std::unique_lock<std::mutex> lock(mMutexMP);
 	mnVisible += n;
 }
 
 void UVR_SLAM::MapPoint::IncreaseFound(int n)
 {
-	std::unique_lock<std::mutex> lock(mMutexFeatures);
+	std::unique_lock<std::mutex> lock(mMutexMP);
 	mnFound += n;
 }
 
 bool UVR_SLAM::MapPoint::isInFrame(UVR_SLAM::MatchInfo* pF) {
-	std::unique_lock<std::mutex> lock(mMutexFeatures);
+	std::unique_lock<std::mutex> lock(mMutexMP);
 	return mmpFrames.count(pF);
 }
+
+int UVR_SLAM::MapPoint::GetPointIndexInFrame(MatchInfo* pF) {
+	std::unique_lock<std::mutex> lock(mMutexMP);
+	auto res = mmpFrames.find(pF);
+	if (res == mmpFrames.end())
+		return -1;
+	else
+		return res->second;
+}
+
 
 //결합되어 삭제되는 맵포인트가 실행됨
 void UVR_SLAM::MapPoint::Fuse(UVR_SLAM::MapPoint* pMP) {
@@ -133,7 +143,7 @@ void UVR_SLAM::MapPoint::Fuse(UVR_SLAM::MapPoint* pMP) {
 	int nvisible, nfound;
 	std::map<MatchInfo*, int> obs;
 	{
-		std::unique_lock<std::mutex> lock(mMutexFeatures);
+		//std::unique_lock<std::mutex> lock(mMutexFeatures);
 		std::unique_lock<std::mutex> lock2(mMutexMP);
 		obs = mmpFrames;
 		mmpFrames.clear();

@@ -24,6 +24,17 @@ mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), md
 	matFrame.convertTo(matFrame, CV_8UC1);
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
+	//////////canny
+	cv::Mat filtered;
+	GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
+	cv::Canny(filtered, mEdgeImg, 50, 200);
+	for (int y = 0; y < matFrame.rows; y++) {
+		for (int x = 0; x < matFrame.cols; x++) {
+			if (mEdgeImg.at<uchar>(y, x) > 0)
+				mvEdgePts.push_back(cv::Point2f(x, y));
+		}
+	}
+	//////////canny
 	SetFrameID();
 }
 UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
@@ -35,6 +46,17 @@ UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), 
 	matFrame.convertTo(matFrame, CV_8UC1);
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
+	//////////canny
+	cv::Mat filtered;
+	GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
+	cv::Canny(filtered, mEdgeImg, 50, 200);
+	for (int y = 0; y < matFrame.rows; y++) {
+		for (int x = 0; x < matFrame.cols; x++) {
+			if (mEdgeImg.at<uchar>(y, x) > 0)
+				mvEdgePts.push_back(cv::Point2f(x, y));
+		}
+	}
+	//////////canny
 	SetFrameID();
 }
 

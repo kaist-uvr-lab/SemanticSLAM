@@ -178,6 +178,63 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::cout << "lm::newmp" << std::endl;
 			/////////////////
 			
+			////////////////////////////////////////////////////////////////////////////////////
+			/////KF-kF 매칭 성능 확인
+			auto mvpConnectedKFs = mpTargetFrame->GetConnectedKFs(10);
+			auto pTargetMatch = mpTargetFrame->mpMatchInfo;
+			auto mK = mpTargetFrame->mK.clone();
+			auto mvpMPs = std::vector<UVR_SLAM::MapPoint*>(pTargetMatch->mvpMatchingMPs.begin(), pTargetMatch->mvpMatchingMPs.end());
+			auto mvKPs = std::vector<cv::Point2f>(pTargetMatch->mvMatchingPts.begin(), pTargetMatch->mvMatchingPts.end());
+			cv::Mat prevImg = mpTargetFrame->GetOriginalImage();
+			cv::Mat tdebugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+			cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
+			cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+			cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+			std::stringstream ssdir;
+			for (int i = 0; i < mvpConnectedKFs.size(); i++) {
+
+				auto pKFi = mvpConnectedKFs[i];
+				auto pMatch = pKFi->mpMatchInfo;
+				cv::Mat R, t;
+				pKFi->GetPose(R, t);
+
+				/////debug image
+				cv::Mat currImg = pKFi->GetOriginalImage();
+				prevImg.copyTo(tdebugging(mergeRect1));
+				currImg.copyTo(tdebugging(mergeRect2));
+				/////debug image
+				for (int j = 0; j <mvpMPs.size(); j++) {
+					auto pMPj = mvpMPs[j];
+					if (!pMPj || pMPj->isDeleted() || !pMPj->isInFrame(pMatch))
+						continue;
+					auto idx = pMPj->GetPointIndexInFrame(pMatch);
+					if (idx == -1)
+						std::cout << "lm::kf::error::1!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+					if(idx >= pMatch->mvMatchingPts.size())
+						std::cout << "lm::kf::error::2!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+					auto pt1 = mvKPs[j];
+					auto pt2 = pMatch->mvMatchingPts[idx]+ptBottom;
+					auto X3D = pMPj->GetWorldPos();
+
+					cv::Mat proj = mK*(R*X3D + t);
+					auto p2D = cv::Point2f(proj.at<float>(0) / proj.at<float>(2), proj.at<float>(1) / proj.at<float>(2));
+					if(!pKFi->isInImage(p2D.x, p2D.y))
+						std::cout << "lm::kf::error::3!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+					p2D += ptBottom;
+					
+					cv::circle(tdebugging, pt1, 2, cv::Scalar(255, 255, 0), -1);
+					cv::line(tdebugging, pt2, p2D, cv::Scalar(255, 255, 0), 2);
+				}
+				////파일 저장
+				/*ssdir.str("");
+				ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << "_" << pKFi->GetKeyFrameID() << ".jpg";
+				if(i%5==0)
+					imwrite(ssdir.str(), tdebugging);*/
+				////파일 저장
+			}
+			/////KF-kF 매칭 성능 확인
+			////////////////////////////////////////////////////////////////////////////////////
+
 			/////////////////Save Keyframe optical flow matching results
 			/*auto prevFrame = mpTargetFrame->mpMatchInfo->mpTargetFrame;
 			std::vector<std::pair<cv::Point2f, cv::Point2f>> vPairs1, vPairs2;

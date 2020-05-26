@@ -33,6 +33,7 @@ namespace UVR_SLAM {
 		void SetNewMP(bool _b);
 		bool isNewMP();
 		bool isInFrame(MatchInfo* pF);
+		int GetPointIndexInFrame(MatchInfo* pF);
 
 		void UpdateNormalAndDepth();
 		int PredictScale(const float &currentDist, Frame* pKF);

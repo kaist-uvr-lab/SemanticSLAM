@@ -167,6 +167,9 @@ void RemoveMP(int idx);*/
 
 	public:
 		///////////////////////////////
+		////200526
+		cv::Mat mEdgeImg;
+		std::vector<cv::Point2f> mvEdgePts;
 		////200423
 		MatchInfo* mpMatchInfo;
 		////200410
@@ -176,7 +179,6 @@ void RemoveMP(int idx);*/
 		std::vector<int> mvnOctaves;
 		//매칭 정보를 저장
 		///////////////////////////////
-
 		std::vector<cv::KeyPoint> mvKeyPoints, mvKeyPointsUn, mvkInliers, mvTempKPs;
 		cv::Mat matDescriptor;
 		cv::Mat undistorted;
