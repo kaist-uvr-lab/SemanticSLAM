@@ -78,6 +78,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame1->mpMatchInfo->mpRefFrame = mpInitFrame1;
 		mpInitFrame1->mpMatchInfo->mpTargetFrame = nullptr;
 		mpInitFrame1->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame1->GetOriginalImage().size(), CV_16SC1);
+		mpInitFrame1->mpMatchInfo->edgeMap = cv::Mat::zeros(mpInitFrame1->GetOriginalImage().size(), CV_8UC1);
 		mpInitFrame1->mpMatchInfo->mvMatchingPts = mpInitFrame1->mvPts;
 		mpTempFrame->mpMatchInfo->mvnOctaves = mpInitFrame1->mvnOctaves;
 		for (int i = 0; i < mpInitFrame1->mvPts.size(); i++) {
@@ -122,6 +123,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame2->mpMatchInfo->mpTargetFrame = mpInitFrame1;
 		mpInitFrame2->mpMatchInfo->mpRefFrame = mpInitFrame2;
 		mpInitFrame2->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame2->GetOriginalImage().size(), CV_16SC1);
+		mpInitFrame2->mpMatchInfo->edgeMap = cv::Mat::zeros(mpInitFrame2->GetOriginalImage().size(), CV_8UC1);
 		mpInitFrame2->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(vTempPts2.size(), nullptr);
 		for (int i = 0; i < vTempPts2.size(); i++) {
 			int idx = vTempIndexs[i];

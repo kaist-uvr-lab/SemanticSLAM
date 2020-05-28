@@ -861,6 +861,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	std::vector<uchar> status;
 	std::vector<float> err;
 	cv::Mat prevImg = prev->GetOriginalImage();
+	//cv::Mat prevImg = curr->mpMatchInfo->mpTargetFrame->GetOriginalImage();
 	cv::Mat currImg = curr->GetOriginalImage();
 	
 	///////debug
@@ -938,31 +939,62 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	////////////////////////////////
 	////////Edge Test
 	std::chrono::high_resolution_clock::time_point edge_start = std::chrono::high_resolution_clock::now();
-	prevPts = prev->mvEdgePts;//prev->mvMatchingPts;
-	maxLvl = 1;
-	searchSize = 21;
+	std::vector<cv::Point2f> tempPts;
+	cv::Mat tempEdgeMap = cv::Mat::zeros(prevImg.size(), CV_8UC1);
+	int nEdge = 0;
+	prevPts = prev->mpMatchInfo->mvEdgePts;//prev->mvMatchingPts;
+	maxLvl = 3;
+	searchSize = 21;//21
 	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
 	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
-	//cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
-	cv::calcOpticalFlowPyrLK(prevImg, currImg, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
-	for (int i = 0; i < prevPts.size(); i+=10) {
+	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	//cv::calcOpticalFlowPyrLK(prevImg, currImg, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	for (int i = 0; i < prevPts.size(); i+=1) {
 		if (status[i] == 0) {
 			continue;
 		}
-
 		if (!curr->isInImage(currPts[i].x, currPts[i].y, 10)) {
 			continue;
 		}
-	
 		//매칭 결과
 		float diffX = abs(prevPts[i].x - currPts[i].x);
 		if (diffX > 25) {
 			continue;
 		}
-		cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 255, 0), -1);
-		cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 255, 0), -1);
-		cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0), 1);
+		////바로 추가
+		if (!curr->mpMatchInfo->CheckOpticalPointOverlap(curr->mpMatchInfo->edgeMap, 1,10, currPts[i])) {
+			continue;
+		}
+		curr->mpMatchInfo->mvEdgePts.push_back(currPts[i]);
+		/*int prevIdx = prev->mpMatchInfo->mvnEdgePtIDXs[i];
+		curr->mpMatchInfo->mvnEdgePtIDXs.push_back(prevIdx);*/
+		//cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0), 1);
+		cv::circle(debugging, prevPts[i], 1, cv::Scalar(0, 0, 255), -1);
+		cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(0, 0, 255), -1);
+		////바로 추가
+		////컨티뉴이티 체크
+		/*tempEdgeMap.at<uchar>(currPts[i]) = 255;
+		tempPts.push_back(currPts[i]);*/
+		////컨티뉴이티 체크
+		nEdge++;
 	}
+	imshow("edge edge", curr->mpMatchInfo->edgeMap); cv::waitKey(1);
+	////Check continuity
+	/*int k = 2;
+	int nk = 2 * k + 1;
+	for (int i = 0; i < tempPts.size(); i++) {
+		auto pt = tempPts[i];
+		cv::Rect rect = cv::Rect(pt.x - k, pt.y - k, nk, nk);
+		auto val = countNonZero(tempEdgeMap(rect))-1;
+		if(val > 0){
+			if (!curr->mpMatchInfo->CheckOpticalPointOverlap(curr->mpMatchInfo->edgeMap, 1, 10, currPts[i]))
+				continue;
+			curr->mpMatchInfo->mvEdgePts.push_back(tempPts[i]);
+			cv::circle(debugging, prevPts[i], 1, cv::Scalar(0, 0, 255), -1);
+			cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(0, 0, 255), -1);
+		}
+	}*/
+	////Check continuity
 	////////Edge Test
 	////////////////////////////////
 
@@ -972,7 +1004,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 
 	//fuse time text 
 	std::stringstream ss;
-	ss << "Optical flow tracking= " << res <<", "<<vpMPs.size()<<", "<<nBad<< "::" << tttt;
+	//ss << "Optical flow tracking= " << res <<", "<<vpMPs.size()<<", "<<nBad<< "::" << tttt;
+	ss << "Optical flow tracking= " << nEdge << "::" << tttt;
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 	cv::imshow("edge+optical", debugging);

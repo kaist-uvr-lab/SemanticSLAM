@@ -24,17 +24,17 @@ mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), md
 	matFrame.convertTo(matFrame, CV_8UC1);
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
-	//////////canny
-	cv::Mat filtered;
-	GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
-	cv::Canny(filtered, mEdgeImg, 50, 200);
-	for (int y = 0; y < matFrame.rows; y++) {
-		for (int x = 0; x < matFrame.cols; x++) {
-			if (mEdgeImg.at<uchar>(y, x) > 0)
-				mvEdgePts.push_back(cv::Point2f(x, y));
-		}
-	}
-	//////////canny
+	////////////canny
+	//cv::Mat filtered;
+	//GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
+	//cv::Canny(filtered, mEdgeImg, 50, 200);
+	//for (int y = 0; y < matFrame.rows; y++) {
+	//	for (int x = 0; x < matFrame.cols; x++) {
+	//		if (mEdgeImg.at<uchar>(y, x) > 0)
+	//			mvEdgePts.push_back(cv::Point2f(x, y));
+	//	}
+	//}
+	////////////canny
 	SetFrameID();
 }
 UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
@@ -46,17 +46,17 @@ UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), 
 	matFrame.convertTo(matFrame, CV_8UC1);
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
-	//////////canny
-	cv::Mat filtered;
-	GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
-	cv::Canny(filtered, mEdgeImg, 50, 200);
-	for (int y = 0; y < matFrame.rows; y++) {
-		for (int x = 0; x < matFrame.cols; x++) {
-			if (mEdgeImg.at<uchar>(y, x) > 0)
-				mvEdgePts.push_back(cv::Point2f(x, y));
-		}
-	}
-	//////////canny
+	////////////canny
+	//cv::Mat filtered;
+	//GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
+	//cv::Canny(filtered, mEdgeImg, 50, 200);
+	//for (int y = 0; y < matFrame.rows; y++) {
+	//	for (int x = 0; x < matFrame.cols; x++) {
+	//		if (mEdgeImg.at<uchar>(y, x) > 0)
+	//			mvEdgePts.push_back(cv::Point2f(x, y));
+	//	}
+	//}
+	////////////canny
 	SetFrameID();
 }
 
@@ -602,6 +602,18 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	//mvpMPs 초기화
 	//cv::undistort(matOri, undistorted, mK, mDistCoef);
 	
+	//////////canny
+	cv::Mat filtered;
+	GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
+	cv::Canny(filtered, mEdgeImg, 50, 150);
+	for (int y = 0; y < matFrame.rows; y++) {
+		for (int x = 0; x < matFrame.cols; x++) {
+			if (mEdgeImg.at<uchar>(y, x) > 0)
+				mvEdgePts.push_back(cv::Point2f(x, y));
+		}
+	}
+	//////////canny
+
 	/*mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
 	mvbMPInliers = std::vector<bool>(mvKeyPoints.size(), false);
 	mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);*/
@@ -864,6 +876,7 @@ UVR_SLAM::MatchInfo::MatchInfo(Frame* pRef, Frame* pTarget, int w, int h){
 	mpTargetFrame = pTarget;
 	mpRefFrame = pRef;
 	used = cv::Mat::zeros(h, w, CV_16UC1);
+	edgeMap = cv::Mat::zeros(h, w, CV_8UC1);
 }
 UVR_SLAM::MatchInfo::~MatchInfo(){}
 bool UVR_SLAM::MatchInfo::CheckPt(cv::Point2f pt) {
@@ -873,6 +886,20 @@ bool UVR_SLAM::MatchInfo::CheckPt(cv::Point2f pt) {
 	}
 	return used.at<ushort>(pt);
 }
+
+bool UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt) {
+	//range option도 필요할 듯
+	if (pt.x < margin || pt.x >= used.cols - margin || pt.y < margin || pt.y >= used.rows - margin) {
+		return false;
+	}
+	if (overlap.at<uchar>(pt) > 0) {
+		return false;
+	}
+	//overlap.at<uchar>(pt) = 255;
+	circle(overlap, pt, radius, cv::Scalar(255), -1);
+	return true;
+}
+
 void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label, int octave) {
 	this->mvMatchingPts.push_back(pt);
 	this->mvnMatchingPtIDXs.push_back(idx);
@@ -905,6 +932,7 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 		if (used.at<ushort>(pt)) {
 			continue;
 		}
+		//cv::circle(used, pt, 2, cv::Scalar(255), -1);
 		auto octave = mpRefFrame->mvnOctaves[i];
 		mvMatchingPts.push_back(pt);
 		mvnOctaves.push_back(octave);
@@ -912,6 +940,31 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 		mvpMatchingMPs.push_back(nullptr);
 		mvObjectLabels.push_back(0);
 	}
+
+	/////Edge
+	//mvEdgePts = mpRefFrame->mvEdgePts;
+	//추후 엣지도 없는 부분에 대해서 추가하는 형태로 진행
+	//일부분만 추가하는 경우
+	//mvEdgePts.clear();
+	//mvnEdgePtIDXs.clear();
+	if (mvEdgePts.size() < 1500) {
+		for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += 5) {
+			if (!CheckOpticalPointOverlap(edgeMap, 1, 10, mpRefFrame->mvEdgePts[i])) {
+				continue;
+			}
+			mvEdgePts.push_back(mpRefFrame->mvEdgePts[i]);
+			mvnEdgePtIDXs.push_back(i);
+		}
+	}
+	
+	//위에 처럼 edgemap이 존재해야 함.
+	/*for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i++) {
+		if (!CheckOpticalPointOverlap(edgeMap, 1, 10, mpRefFrame->mvEdgePts[i])){
+			continue;
+		}
+		mvEdgePts.push_back(mpRefFrame->mvEdgePts[i]);
+	}*/
+	/////Edge
 }
 
 void UVR_SLAM::MatchInfo::AddMP(UVR_SLAM::MapPoint* pMP, int idx) {
