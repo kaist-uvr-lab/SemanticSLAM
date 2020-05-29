@@ -16,7 +16,9 @@ int N_thresh_init_triangulate = 60; //80
 
 UVR_SLAM::Initializer::Initializer() :mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr), mpTempFrame(nullptr){
 }
-UVR_SLAM::Initializer::Initializer(System* pSystem, Map* pMap, cv::Mat _K) : mpSystem(pSystem), mK(_K), mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr), mpTempFrame(nullptr) {
+UVR_SLAM::Initializer::Initializer(System* pSystem, Map* pMap, cv::Mat _K, int w, int h) : mpSystem(pSystem), mK(_K), mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr), mpTempFrame(nullptr),
+mnWidth(w), mnHeight(h)
+{
 	mpMap = pMap;
 	//mK.convertTo(mK,CV_64FC1);
 }
@@ -74,7 +76,9 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame1 = pFrame;
 		mpTempFrame = mpInitFrame1;
 		mpInitFrame1->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
-		mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo();
+		mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo(mpInitFrame1, nullptr, mnWidth, mnHeight);
+		mpInitFrame1->mpMatchInfo->SetKeyFrame();
+		/*mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo();
 		mpInitFrame1->mpMatchInfo->mpRefFrame = mpInitFrame1;
 		mpInitFrame1->mpMatchInfo->mpTargetFrame = nullptr;
 		mpInitFrame1->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame1->GetOriginalImage().size(), CV_16SC1);
@@ -85,7 +89,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpTempFrame->mpMatchInfo->mvnMatchingPtIDXs.push_back(i);
 		}
 		mpInitFrame1->mpMatchInfo->mvObjectLabels = std::vector<int>(mpInitFrame1->mpMatchInfo->mvMatchingPts.size(), 0);
-		mpInitFrame1->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(mpInitFrame1->mpMatchInfo->mvMatchingPts.size(), nullptr);
+		mpInitFrame1->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(mpInitFrame1->mpMatchInfo->mvMatchingPts.size(), nullptr);*/
 		mpSegmentator->InsertKeyFrame(mpInitFrame1);
 		return mbInit;
 	}
@@ -94,9 +98,16 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//200419
 		//두번째 키프레임은 초기화가 성공하거나 키프레임을 교체할 때 세그멘테이션을 수행함.
 		mpInitFrame2 = pFrame;
+		//////매칭 정보 생성
+		mpInitFrame2->mpMatchInfo = new UVR_SLAM::MatchInfo(mpInitFrame2, mpInitFrame1, mnWidth, mnHeight);
+		/*mpInitFrame2->mpMatchInfo->mpTargetFrame = mpInitFrame1;
+		mpInitFrame2->mpMatchInfo->mpRefFrame = mpInitFrame2;
+		mpInitFrame2->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame2->GetOriginalImage().size(), CV_16SC1);
+		mpInitFrame2->mpMatchInfo->edgeMap = cv::Mat::zeros(mpInitFrame2->GetOriginalImage().size(), CV_8UC1);*/
+		
+		//////매칭 정보 생성
 		bool bSegment = false;
 		int nSegID = mpInitFrame1->GetFrameID();
-		
 		int nMatchingThresh = mpTempFrame->mpMatchInfo->mvMatchingPts.size()*0.6;
 		std::vector<cv::Point2f> vTempPts1, vTempPts2;
 		std::vector<bool> vTempInliers;
@@ -119,11 +130,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 		
 		////////현재 프레임의 매칭 정보 복사 및 초기 프레임의 포인트 저장
-		mpInitFrame2->mpMatchInfo = new UVR_SLAM::MatchInfo();
-		mpInitFrame2->mpMatchInfo->mpTargetFrame = mpInitFrame1;
-		mpInitFrame2->mpMatchInfo->mpRefFrame = mpInitFrame2;
-		mpInitFrame2->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame2->GetOriginalImage().size(), CV_16SC1);
-		mpInitFrame2->mpMatchInfo->edgeMap = cv::Mat::zeros(mpInitFrame2->GetOriginalImage().size(), CV_8UC1);
 		mpInitFrame2->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(vTempPts2.size(), nullptr);
 		for (int i = 0; i < vTempPts2.size(); i++) {
 			int idx = vTempIndexs[i];

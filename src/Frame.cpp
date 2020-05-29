@@ -184,11 +184,11 @@ void UVR_SLAM::Frame::process(cv::Ptr<cv::Feature2D> detector) {
 	detector->detectAndCompute(matFrame, cv::noArray(), mvKeyPoints, matDescriptor);
 }
 
-bool CheckKeyPointOverlap(cv::Mat& overlap, cv::Point2f pt) {
+bool CheckKeyPointOverlap(cv::Mat& overlap, cv::Point2f pt, int r) {
 	if (overlap.at<uchar>(pt) > 0) {
 		return false;
 	}
-	circle(overlap, pt, 3, cv::Scalar(255), -1);
+	circle(overlap, pt, r, cv::Scalar(255), -1);
 	return true;
 }
 /////////////////////////////////
@@ -560,7 +560,7 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	cv::Mat overlap = cv::Mat::zeros(matFrame.size(), CV_8UC1);
 	for (int i = 0; i < mvTempKPs.size(); i++) {
 
-		if (!CheckKeyPointOverlap(overlap, mvTempKPs[i].pt)) {
+		if (!CheckKeyPointOverlap(overlap, mvTempKPs[i].pt, 3)) {
 			continue;
 		}
 
@@ -603,6 +603,7 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	//cv::undistort(matOri, undistorted, mK, mDistCoef);
 	
 	//////////canny
+	//edge는 setkeyframe에서 추가.
 	cv::Mat filtered;
 	GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
 	cv::Canny(filtered, mEdgeImg, 50, 150);
@@ -917,7 +918,8 @@ void UVR_SLAM::MatchInfo::SetLabel() {
 	}
 }
 void UVR_SLAM::MatchInfo::SetKeyFrame() {
-	mpTargetFrame->mpMatchInfo->mpNextFrame = mpRefFrame;
+	if(mpTargetFrame)
+		mpTargetFrame->mpMatchInfo->mpNextFrame = mpRefFrame;
 	mnTargetMatch = mvMatchingPts.size();
 	mvnTargetMatchingPtIDXs = std::vector<int>(mvnMatchingPtIDXs.begin(), mvnMatchingPtIDXs.end());
 	//현재 프레임의매칭 정보로 갱신
@@ -925,29 +927,46 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 	for (int i = 0; i < mvMatchingPts.size(); i++) {
 		mvnMatchingPtIDXs.push_back(i);
 	}
-	cv::Mat aused = used.clone();
-	int nPts = mnTargetMatch;
-	for (int i = 0; i < mpRefFrame->mvPts.size(); i++) {
-		auto pt = mpRefFrame->mvPts[i];
-		if (used.at<ushort>(pt)) {
-			continue;
-		}
-		//cv::circle(used, pt, 2, cv::Scalar(255), -1);
-		auto octave = mpRefFrame->mvnOctaves[i];
-		mvMatchingPts.push_back(pt);
-		mvnOctaves.push_back(octave);
-		mvnMatchingPtIDXs.push_back(nPts++);
-		mvpMatchingMPs.push_back(nullptr);
-		mvObjectLabels.push_back(0);
-	}
 
+	//키포인트 추가
+	int nPts = mnTargetMatch;
+	if (mvMatchingPts.size() < 2000) {
+		for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += 5) {
+			if (!CheckOpticalPointOverlap(used, 1, 10, mpRefFrame->mvEdgePts[i])) {
+				continue;
+			}
+			mvMatchingPts.push_back(mpRefFrame->mvEdgePts[i]);
+			mvnOctaves.push_back(0);
+			mvnMatchingPtIDXs.push_back(nPts++);
+			mvpMatchingMPs.push_back(nullptr);
+			mvObjectLabels.push_back(0);
+		}
+		for (int i = 0; i < mpRefFrame->mvPts.size(); i+= 5) {
+			auto pt = mpRefFrame->mvPts[i];
+			/*if (used.at<ushort>(pt)) {
+				continue;
+			}*/
+			if (!CheckOpticalPointOverlap(used, 1, 10, pt)) {
+				continue;
+			}
+			//cv::circle(used, pt, 2, cv::Scalar(255), -1);
+			auto octave = mpRefFrame->mvnOctaves[i];
+			mvMatchingPts.push_back(pt);
+			mvnOctaves.push_back(octave);
+			mvnMatchingPtIDXs.push_back(nPts++);
+			mvpMatchingMPs.push_back(nullptr);
+			mvObjectLabels.push_back(0);
+		}
+	}
 	/////Edge
 	//mvEdgePts = mpRefFrame->mvEdgePts;
 	//추후 엣지도 없는 부분에 대해서 추가하는 형태로 진행
 	//일부분만 추가하는 경우
 	//mvEdgePts.clear();
 	//mvnEdgePtIDXs.clear();
-	if (mvEdgePts.size() < 1500) {
+	
+
+	/*if (mvEdgePts.size() < 1500) {
 		for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += 5) {
 			if (!CheckOpticalPointOverlap(edgeMap, 1, 10, mpRefFrame->mvEdgePts[i])) {
 				continue;
@@ -955,7 +974,7 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 			mvEdgePts.push_back(mpRefFrame->mvEdgePts[i]);
 			mvnEdgePtIDXs.push_back(i);
 		}
-	}
+	}*/
 	
 	//위에 처럼 edgemap이 존재해야 함.
 	/*for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i++) {

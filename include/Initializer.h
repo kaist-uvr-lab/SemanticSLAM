@@ -25,7 +25,7 @@ namespace UVR_SLAM {
 	public:
 		Initializer();
 		Initializer(cv::Mat _K);
-		Initializer(System* pSystem, Map* pMap, cv::Mat _K);
+		Initializer(System* pSystem, Map* pMap, cv::Mat _K, int w, int h);
 		virtual ~Initializer();
 
 ////////////////////////////
@@ -67,7 +67,7 @@ namespace UVR_SLAM {
 		bool mbInit;
 		Matcher* mpMatcher;
 		cv::Mat mK;
-		
+		int mnWidth, mnHeight;
 	};
 }
 
