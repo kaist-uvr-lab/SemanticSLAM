@@ -173,11 +173,11 @@ void UVR_SLAM::Frame::GetPose(cv::Mat&_R, cv::Mat& _t) {
 }
 cv::Mat UVR_SLAM::Frame::GetRotation() {
 	std::unique_lock<std::mutex>(mMutexPose);
-	return R;
+	return R.clone();
 }
 cv::Mat UVR_SLAM::Frame::GetTranslation() {
 	std::unique_lock<std::mutex>(mMutexPose);
-	return t;
+	return t.clone();
 }
 
 void UVR_SLAM::Frame::process(cv::Ptr<cv::Feature2D> detector) {
@@ -861,14 +861,16 @@ void UVR_SLAM::Frame::Reset() {
 	mmpConnectedKFs.clear();
 }
 
-float UVR_SLAM::Frame::CalcDiffZ(UVR_SLAM::Frame* pF) {
-	cv::Mat DirZ1 = R.row(2);
+float UVR_SLAM::Frame::CalcDiffAngleAxis(UVR_SLAM::Frame* pF) {
+	/*cv::Mat DirZ1 = R.row(2);
 	cv::Mat DirZ2 = pF->GetRotation().row(2);
 	float dist1 = sqrt(DirZ1.dot(DirZ1));
 	float dist2 = sqrt(DirZ2.dot(DirZ2));
 	float val = DirZ1.dot(DirZ2);
-	val = acos(val / (dist1*dist2))*UVR_SLAM::MatrixOperator::rad2deg;
-	return val;
+	val = acos(val / (dist1*dist2))*UVR_SLAM::MatrixOperator::rad2deg;*/
+	cv::Mat R2 = pF->GetRotation();
+	cv::Mat temp =  UVR_SLAM::MatrixOperator::LOG(R.t()*R2);
+	return sqrt(temp.dot(temp))*UVR_SLAM::MatrixOperator::rad2deg;
 }
 
 //////////////matchinfo

@@ -108,7 +108,7 @@ void RemoveMP(int idx);*/
 		void RemoveMP(int idx);
 		
 		void Reset();
-		float CalcDiffZ(UVR_SLAM::Frame* pF);
+		float CalcDiffAngleAxis(UVR_SLAM::Frame* pF);
 
 		//UVR_SLAM::MapPoint* GetMapPoint(int idx);
 		//void SetMapPoint(UVR_SLAM::MapPoint* pMP, int idx);
@@ -187,6 +187,7 @@ void RemoveMP(int idx);*/
 		cv::Mat matDescriptor;
 		cv::Mat undistorted;
 		fbow::fBow mBowVec;
+		int mnFrameID;  //프레임 아이디로 저장
 	public:
 		//objectype
 		std::set<MapPoint*> mspFloorMPs, mspCeilMPs, mspWallMPs;
@@ -222,7 +223,7 @@ void RemoveMP(int idx);*/
 		std::mutex mMutexSegmented;
 	private:
 		int mnKeyFrameID;
-		int mnFrameID;
+		
 		std::mutex mMutexNumInliers;
 		std::mutex mMutexFrame, mMutexPose;
 		std::mutex mMutexDepthRange;

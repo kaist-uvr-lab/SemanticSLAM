@@ -303,14 +303,14 @@ cv::Mat UVR_SLAM::MatrixOperator::EXP6X44(double vx, double vy, double vz, doubl
 cv::Mat UVR_SLAM::MatrixOperator::LOG(cv::Mat rmat) {
 	cv::Mat res = cv::Mat::zeros(3, 1, CV_32FC1);
 	float traceR = rmat.at<float>(0, 0) + rmat.at<float>(1, 1) + rmat.at<float>(2, 2);
+	
 	if (traceR == 3.0) {
 
 	}
 	else {
 		float theta = acos((traceR - 1.0f) / 2.0);
 		float temp = sin(theta);
-
-		if (abs(theta)> 2.5e-4)
+		if (abs(theta)< 2.5e-4)
 			return res;
 		temp = theta / (2.0*temp);
 		res.at<float>(0) = rmat.at<float>(2, 1) - rmat.at<float>(1, 2);
