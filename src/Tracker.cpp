@@ -256,11 +256,12 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크
 		if (CheckNeedKeyFrame(pCurr)) {
-			pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-			mpRefKF = pCurr;
-			mpLocalMapper->InsertKeyFrame(pCurr);
-			mpSegmentator->InsertKeyFrame(pCurr);
-			mpPlaneEstimator->InsertKeyFrame(pCurr);
+			auto pNewKF = pCurr;
+			pNewKF->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+			mpRefKF = pNewKF;
+			mpLocalMapper->InsertKeyFrame(pNewKF);
+			mpSegmentator->InsertKeyFrame(pNewKF);
+			mpPlaneEstimator->InsertKeyFrame(pNewKF);
 		}
 		////////////////////이전 버전
 		//float angle = (mpRefKF->CalcDiffAngleAxis(pCurr));

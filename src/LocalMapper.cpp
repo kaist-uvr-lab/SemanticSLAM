@@ -64,7 +64,7 @@ void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
 	mpTargetFrame->mpMatchInfo->SetKeyFrame();
 	mpMap->AddFrame(mpTargetFrame);
 	mpTargetFrame->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
-
+	
 	////이게 필요한지?
 	//이전 키프레임 정보 획득 후 현재 프레임을 윈도우에 추가
 	//mpPrevKeyFrame = mpFrameWindow->back();
@@ -165,6 +165,17 @@ void UVR_SLAM::LocalMapper::Run() {
 				}
 			}
 			//////////////업데이트 키프레임
+
+			/////////////VoW 매칭
+			/*auto vpNeighKFs = mpTargetFrame->GetConnectedKFs();
+			for (int i = 0; i < vpNeighKFs.size(); i++) {
+				auto pKFi = vpNeighKFs[i];
+				if (mpTargetFrame->Score(pKFi) < 0.01) {
+					imshow("Loop!!", pKFi->GetOriginalImage());
+					cv::waitKey(1);
+				}
+			}*/
+			/////////////VoW 매칭
 
 			/////////////////
 			////맵포인트 생성

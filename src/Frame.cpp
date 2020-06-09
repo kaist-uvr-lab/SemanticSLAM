@@ -932,7 +932,8 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 
 	//키포인트 추가
 	int nPts = mnTargetMatch;
-	if (mvMatchingPts.size() < 2000) {
+	//if (mvMatchingPts.size() < 2000) {
+	if (mvMatchingPts.size() < 5000) {
 		for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += 5) {
 			if (!CheckOpticalPointOverlap(used, 1, 10, mpRefFrame->mvEdgePts[i])) {
 				continue;
@@ -943,7 +944,7 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 			mvpMatchingMPs.push_back(nullptr);
 			mvObjectLabels.push_back(0);
 		}
-		for (int i = 0; i < mpRefFrame->mvPts.size(); i+= 5) {
+		for (int i = 0; i < mpRefFrame->mvPts.size(); i+= 2) {
 			auto pt = mpRefFrame->mvPts[i];
 			/*if (used.at<ushort>(pt)) {
 				continue;
