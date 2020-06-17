@@ -586,22 +586,38 @@ cv::Point2f CalcLinePoint(float val, Point3f mLine, bool opt) {
 	return cv::Point2f(x, y);
 }
 
+float CalcNCC(cv::Mat src1, cv::Mat src2) {
+	cv::Mat vec1 = src1.reshape(1, src1.rows*src1.cols*src1.channels());
+	cv::Mat vec2 = src2.reshape(1, src1.rows*src1.cols*src1.channels());
+
+	float len1 = (vec1.dot(vec1));
+	float len2 = (vec2.dot(vec2));
+	if (len1 < 0.001 || len2 < 0.001)
+		return 0.0;
+	float len = sqrt(len1)*sqrt(len2);
+	return abs(vec1.dot(vec2))/ len;
+}
+
 float CalcSSD(cv::Mat src1, cv::Mat src2) {
 	cv::Mat diff = abs(src1 - src2);
+	return diff.dot(diff);
+	/*
+	float sum = 0.0;
+	int num = diff.cols*diff.rows;
+	sum = sqrt(diff.dot(diff));*/
+	cv::Mat a = diff.reshape(1, diff.rows*diff.cols*diff.channels());
+	//std::cout << "aaaa:" << a.dot(a) << std::endl << a << std::endl;
+
+	float res2 = diff.dot(diff);
+	float res1 = a.dot(a);
+
+	
+	
 	float sum = 0.0;
 	int num = diff.cols*diff.rows;
 	sum = sqrt(diff.dot(diff));
-
-	/*int num = diff.cols*diff.rows*diff.channels();
-	for (int x = 0; x < diff.cols; x++) {
-		for (int y = 0; y < diff.rows; y++) {
-			cv::Vec3b temp = diff.at<Vec3b>(y, x);
-			sum += temp.val[0];
-			sum += temp.val[1];
-			sum += temp.val[2];
-		}
-	}*/
 	return sum / num;
+	
 }
 
 cv::Mat CreateWorldPoint(cv::Point2f pt, cv::Mat invT, cv::Mat invK, float depth){
@@ -1030,7 +1046,8 @@ int UVR_SLAM::Matcher::OpticalKeyframeAndFrameMatchingForTracking(Frame* prev, F
 	int searchSize = 21;
 	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
 	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
-	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	//cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	cv::calcOpticalFlowPyrLK(prevImg, currImg, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
 	//바운더리 에러도 고려해야 함.
 	
 	int nRes = 0;
@@ -1057,6 +1074,8 @@ int UVR_SLAM::Matcher::OpticalKeyframeAndFrameMatchingForTracking(Frame* prev, F
 	//	nRes++;
 	//}
 
+	std::vector<cv::Point2f> tPrevPts, tCurrPts;
+
 	for (int i = 0; i < prevPts.size(); i++) {
 		if (status[i] == 0) {
 			continue;
@@ -1072,11 +1091,187 @@ int UVR_SLAM::Matcher::OpticalKeyframeAndFrameMatchingForTracking(Frame* prev, F
 			continue;
 		}
 
-		cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 0, 255),-1);
-		cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);
+		tPrevPts.push_back(prevPts[i]);
+		tCurrPts.push_back(currPts[i]);
+
+		/*cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 0, 255),-1);
+		cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);*/
 		nRes++;
 	}
 
+	//////////////////////////////////////////
+	////Epipolar constraints
+	cv::Mat Rcurr, Tcurr, Rprev, Tprev;
+	prev->GetPose(Rprev, Tprev);
+	curr->GetPose(Rcurr, Tcurr);
+	cv::Mat mK = prev->mK.clone();
+	cv::Mat mD = prev->mDistCoef.clone();
+	cv::Mat mK2 = prev->mK.clone();
+	cv::Mat mD2 = prev->mDistCoef.clone();
+	cv::Mat F12 = CalcFundamentalMatrix(Rprev, Tprev, Rcurr, Tcurr, mK);
+
+	/////////////////////////////Rectification
+	/////포인트 매칭을 위해서
+	cv::Mat used = cv::Mat::zeros(prevImg.size(), CV_16UC1);
+	for (int i = 0; i < tPrevPts.size(); i+=20) {
+		used.at<ushort>(tPrevPts[i]) = i + 1;
+	}
+	/////포인트 매칭을 위해서
+
+	cv::Mat R, t;
+	/*R = Rprev*Rcurr.t();
+	t = -Rprev*Rcurr.t()*Tcurr + Tprev;*/
+	R = Rprev.t()*Rcurr;
+	t = -Rprev.t()*Tprev + Rprev.t()*Tcurr;
+
+	R.convertTo(R, CV_64FC1);
+	t.convertTo(t, CV_64FC1);
+	cv::Mat Q;
+	cv::Mat R1, R2, P1, P2;
+	
+	stereoRectify(mK, mD, mK, mD, prevImg.size(), R, t, R1, R2, P1, P2, Q);
+
+	cv::Mat mapPrev1, mapPrev2;
+	cv::Mat mapCurr1, mapCurr2;
+	initUndistortRectifyMap(mK, mD, R1, P1.colRange(0,3).rowRange(0,3), prevImg.size(), CV_32FC1, mapPrev1, mapPrev2);
+	initUndistortRectifyMap(mK, mD, R2, P2.colRange(0,3).rowRange(0,3), prevImg.size(), CV_32FC1, mapCurr1, mapCurr2);
+
+	cv::Mat prevRectified, currRectified;
+	remap(prevImg, prevRectified, mapPrev1, mapPrev2, cv::INTER_LINEAR);
+	remap(currImg, currRectified, mapCurr1, mapCurr2, cv::INTER_LINEAR);
+
+	cv::Point2f ptRight = cv::Point2f(prevImg.cols,0);
+	cv::Rect rmergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+	cv::Rect rmergeRect2 = cv::Rect(prevImg.cols, 0, prevImg.cols, prevImg.rows);
+	cv::Mat rectified = cv::Mat::zeros(prevImg.rows, prevImg.cols * 2, prevImg.type());
+	prevRectified.copyTo(rectified(rmergeRect1));
+	currRectified.copyTo(rectified(rmergeRect2));
+
+	////SSD 설정
+	int nHalfWindowSize = 5;
+	int nFullWindow = nHalfWindowSize * 2 + 1;
+	////SSD 설정
+
+	for (int y = 0; y < prevRectified.rows; y++) {
+		for (int x = 0; x < prevRectified.cols; x++) {
+			
+			cv::Point2f prevPt(mapPrev1.at<float>(y,x), mapPrev2.at<float>(y,x)); //이게 원래 이미지에서의 위치임.
+			
+			if (!prev->isInImage(prevPt.x, prevPt.y, 10.0))
+				continue;
+
+			if (used.at<ushort>(prevPt) > 0) {
+				cv::Point2d pt(x, y);
+				cv::line(rectified, cv::Point2f(0, pt.y), cv::Point2f(rectified.cols, pt.y), cv::Scalar(255, 0, 0));
+				cv::circle(rectified, pt, 2, cv::Scalar(0, 0, 255));
+				/*cv::line(rectified, cv::Point2f(0, prevPt.y), cv::Point2f(rectified.cols, prevPt.y), cv::Scalar(255, 0, 0));
+				cv::circle(rectified, prevPt, 2, cv::Scalar(0, 0, 255));*/
+
+				////ssd를 위한 rect 체크 및 획득
+				bool b1 = CheckBoundary(pt.x - nHalfWindowSize, pt.y - nHalfWindowSize, prevImg.rows, prevImg.cols);
+				bool b2 = CheckBoundary(pt.x + nHalfWindowSize, pt.y + nHalfWindowSize, prevImg.rows, prevImg.cols);
+				cv::Rect rect1 = cv::Rect(pt.x - nHalfWindowSize, pt.y - nHalfWindowSize, nFullWindow, nFullWindow);
+				if (!b1 || !b2)
+					continue;
+				cv::Mat prevPatch = prevRectified(rect1);
+				float minValue = 0;//
+				cv::Point2f minPt(0,0);
+				bool bMin = false;
+				for (int nx = 15; nx < prevImg.cols - 15; nx++) {
+					cv::Point2f pt2(nx, pt.y);
+					bool b3 = CheckBoundary(pt2.x - nHalfWindowSize, pt2.y - nHalfWindowSize, prevImg.rows, prevImg.cols);
+					bool b4 = CheckBoundary(pt2.x + nHalfWindowSize, pt2.y + nHalfWindowSize, prevImg.rows, prevImg.cols);
+					cv::Rect rect2 = cv::Rect(pt2.x - nHalfWindowSize, pt2.y - nHalfWindowSize, nFullWindow, nFullWindow);
+					
+					if (b3 && b4) {
+						cv::Mat currPatch = currRectified(rect2);
+						/*float val = CalcSSD(prevPatch, currPatch);
+						if (val < 5.0) {
+							bMin = true;
+							cv::circle(rectified, pt2 + ptRight, 2, cv::Scalar(0, 0, 255));
+							if (val < minValue) {
+								minPt = pt2;
+								minValue = val;
+							}
+						}*/
+						std::cout << "??" << std::endl;
+						float val = CalcNCC(prevPatch, currPatch);
+						std::cout << "val::" << val << std::endl;
+						if (val > 0.9) {
+							bMin = true;
+							cv::circle(rectified, pt2 + ptRight, 2, cv::Scalar(0, 0, 255));
+							if (val > minValue) {
+								minPt = pt2;
+								minValue = val;
+							}
+						}
+					}
+				}
+				if (bMin) {
+					cv::circle(rectified, minPt + ptRight, 2, cv::Scalar(255, 255, 0));
+				}
+				
+				
+				////ssd를 위한 rect 체크 및 획득
+
+			}
+		}
+	}
+
+	//float nfx = (float)P1.at<double>(0, 0);
+	//float ncx = (float)P1.at<double>(0, 2);
+	//float nfy = (float)P1.at<double>(1, 1);
+	//float ncy = (float)P1.at<double>(1, 2);
+	//std::cout << mapPrev1.type() <<", "<<mapPrev1.channels()<<"???????????????????" << std::endl;
+	//for (int i = 0; i < tPrevPts.size(); i += 20) {
+	//	auto prevPt = tPrevPts[i];
+	//	cv::Point2f rPrevPt(prevPt.x*nfx + ncx, prevPt.y*nfy + ncy);
+	//	//cv::Point2f rPrevPt(mapPrev1.at<float>(prevPt), mapPrev2.at<float>(prevPt));
+	//	cv::circle(rectified, rPrevPt, 2, cv::Scalar(0, 0, 255));
+	//	cv::line(rectified, cv::Point2f(0, rPrevPt.y), cv::Point2f(rectified.cols, rPrevPt.y), cv::Scalar(255, 0, 0));
+	//}
+
+	imshow("rectified", rectified);
+	//imshow("rectified::curr", currRectified);
+	cv::waitKey(1);
+	/////////////////////////////Rectification
+
+	vector<cv::Point3f> lines[2];
+	cv::computeCorrespondEpilines(tPrevPts, 2, F12, lines[0]);
+	RNG rng(12345);
+	for (int i = 0; i < tPrevPts.size(); i+=20) {
+		
+		float m = 9999.0;
+		if (lines[0][i].x != 0)
+			m = abs(lines[0][i].x / lines[0][i].y);
+		bool opt = false;
+		if (m > 1.0)
+			opt = true;
+		cv::Scalar color(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
+		////////에피 라인 
+		cv::Point2f spt, ept, lpt;
+		if (opt) {
+			spt = CalcLinePoint(0.0, lines[0][i], opt);
+			lpt = CalcLinePoint(tCurrPts[i].y, lines[0][i], opt);
+			ept = CalcLinePoint(prevImg.rows, lines[0][i], opt);
+		}
+		else {
+			spt = CalcLinePoint(0.0, lines[0][i], opt);
+			lpt = CalcLinePoint(tCurrPts[i].x, lines[0][i], opt);
+			ept = CalcLinePoint(prevImg.cols, lines[0][i], opt);
+		}
+		spt += ptBottom;
+		ept += ptBottom;
+		lpt += ptBottom;
+		cv::line(debugging, spt, ept, color, 1);
+		cv::line(debugging, tCurrPts[i]+ptBottom, lpt, color, 1);
+		cv::circle(debugging, tPrevPts[i], 1, color, -1);
+		cv::circle(debugging, tCurrPts[i] + ptBottom, 1, color, -1);
+		////////에피 라인 
+	}
+	////Epipolar constraints
+	//////////////////////////////////////////
+	
 
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
@@ -1189,6 +1384,288 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* prev, Frame* curr, std::
 	imshow("Mapping::OpticalFlow ", debugging);
 	/////////////////////////
 	return res;
+}
+
+int UVR_SLAM::Matcher::OpticalMatchingForFuseWithEpipolarGeometry(Frame* prev, Frame* curr, cv::Mat& debugging) {
+	//////////////////////////
+	////Optical flow
+	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+	std::vector<cv::Mat> currPyr, prevPyr;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	cv::Mat prevImg = prev->GetOriginalImage();
+	//cv::Mat prevImg = curr->mpMatchInfo->mpTargetFrame->GetOriginalImage();
+	cv::Mat currImg = curr->GetOriginalImage();
+
+	///////debug
+	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+	debugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+	prevImg.copyTo(debugging(mergeRect1));
+	currImg.copyTo(debugging(mergeRect2));
+
+	///////////
+	//matKPs, mvKPs
+	//init -> curr로 매칭
+	////////
+	std::vector<cv::Point2f> prevPts, currPts;
+	std::vector<int> vIdxs;
+	for (int i = 0; i < prev->mpMatchInfo->mnTargetMatch; i++) {
+		//projection test
+		auto pMPi = prev->mpMatchInfo->mvpMatchingMPs[i];
+		if (!pMPi || pMPi->isDeleted())
+			continue;
+		auto X3D = pMPi->GetWorldPos();
+		auto prevPt = prev->mpMatchInfo->mvMatchingPts[i];
+		auto currPt = curr->Projection(X3D);
+		if (!curr->isInImage(currPt.x, currPt.y, 10.0)) {
+			continue;
+		}
+		prevPts.push_back(prevPt);
+		currPts.push_back(currPt);
+		vIdxs.push_back(i);
+	}
+
+	//////////////////////////////////////////
+	////Epipolar constraints
+	cv::Mat Rcurr, Tcurr, Rprev, Tprev;
+	prev->GetPose(Rprev, Tprev);
+	curr->GetPose(Rcurr, Tcurr);
+	cv::Mat mK = prev->mK.clone();
+	cv::Mat mD = prev->mDistCoef.clone();
+	cv::Mat mK2 = prev->mK.clone();
+	cv::Mat mD2 = prev->mDistCoef.clone();
+	cv::Mat F12 = CalcFundamentalMatrix(Rprev, Tprev, Rcurr, Tcurr, mK);
+
+	/////////////////////////////Rectification
+	/////포인트 매칭을 위해서
+	cv::Mat used = cv::Mat::zeros(prevImg.size(), CV_16UC1);
+	for (int i = 0; i < prevPts.size(); i += 5) {
+		used.at<ushort>(prevPts[i]) = i + 1;
+	}
+	cv::Mat used2 = cv::Mat::zeros(prevImg.size(), CV_16UC1);
+	for (int i = 0; i < currPts.size(); i += 5) {
+		used2.at<ushort>(currPts[i]) = i + 1;
+	}
+	/////포인트 매칭을 위해서
+
+	cv::Mat R, t;
+	/*R = Rprev*Rcurr.t();
+	t = -Rprev*Rcurr.t()*Tcurr + Tprev;*/
+	R = Rprev.t()*Rcurr;
+	t = -Rprev.t()*Tprev + Rprev.t()*Tcurr;
+
+	R.convertTo(R, CV_64FC1);
+	t.convertTo(t, CV_64FC1);
+	cv::Mat Q;
+	cv::Mat R1, R2, P1, P2;
+
+	stereoRectify(mK, mD, mK, mD, prevImg.size(), R, t, R1, R2, P1, P2, Q);
+
+	cv::Mat mapPrev1, mapPrev2;
+	cv::Mat mapCurr1, mapCurr2;
+	initUndistortRectifyMap(mK, mD, R1, P1.colRange(0, 3).rowRange(0, 3), prevImg.size(), CV_32FC1, mapPrev1, mapPrev2);
+	initUndistortRectifyMap(mK, mD, R2, P2.colRange(0, 3).rowRange(0, 3), prevImg.size(), CV_32FC1, mapCurr1, mapCurr2);
+
+	cv::Mat prevRectified, currRectified;
+	remap(prevImg, prevRectified, mapPrev1, mapPrev2, cv::INTER_LINEAR);
+	remap(currImg, currRectified, mapCurr1, mapCurr2, cv::INTER_LINEAR);
+
+	//흑백 변환
+	cv::Mat prevGrayImg, currGrayImg;
+	cvtColor(prevRectified, prevGrayImg, CV_BGR2GRAY);
+	cvtColor(currRectified, currGrayImg, CV_BGR2GRAY);
+	prevGrayImg.convertTo(prevGrayImg, CV_8UC1);
+	currGrayImg.convertTo(currGrayImg, CV_8UC1);
+
+	//이미지 복사
+	cv::Point2f ptRight = cv::Point2f(prevImg.cols, 0);
+	cv::Rect rmergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+	cv::Rect rmergeRect2 = cv::Rect(prevImg.cols, 0, prevImg.cols, prevImg.rows);
+	cv::Mat rectified = cv::Mat::zeros(prevImg.rows, prevImg.cols * 2, prevImg.type());
+	prevRectified.copyTo(rectified(rmergeRect1));
+	currRectified.copyTo(rectified(rmergeRect2));
+
+	////SSD 설정
+	int nHalfWindowSize = 5;
+	int nFullWindow = nHalfWindowSize * 2 + 1;
+	////SSD 설정
+
+	for (int y = 0; y < prevRectified.rows; y++) {
+		for (int x = 0; x < prevRectified.cols; x++) {
+			cv::Point2f pt(x, y);
+			cv::Point2f currPt(mapCurr1.at<float>(y, x), mapCurr2.at<float>(y, x)); //이게 원래 이미지에서의 위치임.
+			cv::Point2f prevPt(mapPrev1.at<float>(y, x), mapPrev2.at<float>(y, x));
+
+			if (prev->isInImage(prevPt.x, prevPt.y, 10.0) && used.at<ushort>(prevPt) > 0) {
+				int idx = used.at<ushort>(prevPt) - 1;
+				bool b = prev->mpMatchInfo->mvpMatchingMPs[vIdxs[idx]]->isInFrame(curr->mpMatchInfo);
+				if (b)
+					cv::circle(rectified, pt, 3, cv::Scalar(255, 0, 255));
+				else
+					cv::circle(rectified, pt, 3, cv::Scalar(0, 0, 255));
+			}
+			if (prev->isInImage(currPt.x, currPt.y, 10.0) && used2.at<ushort>(currPt) > 0) {
+				int idx = used2.at<ushort>(currPt) - 1;
+				bool b = prev->mpMatchInfo->mvpMatchingMPs[vIdxs[idx]]->isInFrame(curr->mpMatchInfo);
+				if(b)
+					cv::circle(rectified, pt + ptRight, 3, cv::Scalar(255, 0, 255),-1);
+				else
+					cv::circle(rectified, pt + ptRight, 3, cv::Scalar(0, 0, 255),-1);
+			}
+		}
+	}
+
+	cv::Mat temp = prevImg.clone();
+	for (int i = 0; i < prevPts.size(); i++) {
+		cv::circle(temp, prevPts[i], 3, cv::Scalar(0, 0, 255), 1);
+	}
+	imshow("test::prev::", temp);
+
+	for (int y = 0; y < prevRectified.rows; y++) {
+		for (int x = 0; x < prevRectified.cols; x++) {
+
+			cv::Point2f prevPt(mapPrev1.at<float>(y, x), mapPrev2.at<float>(y, x)); //이게 원래 이미지에서의 위치임.
+
+			if (!prev->isInImage(prevPt.x, prevPt.y, 10.0))
+				continue;
+
+			if (used.at<ushort>(prevPt) > 0) {
+				
+				int idx = used.at<ushort>(prevPt) - 1;
+				bool b = prev->mpMatchInfo->mvpMatchingMPs[vIdxs[idx]]->isInFrame(curr->mpMatchInfo);
+				cv::Point2d pt(x, y);
+				if (b) {
+					cv::circle(rectified, pt, 2, cv::Scalar(0, 0, 255),-1);
+				}
+				else {
+					cv::circle(rectified, pt, 2, cv::Scalar(0,255,0),-1);
+				}
+				//cv::line(rectified, cv::Point2f(0, pt.y), cv::Point2f(rectified.cols, pt.y), cv::Scalar(255, 0, 0));
+				/*cv::line(rectified, cv::Point2f(0, prevPt.y), cv::Point2f(rectified.cols, prevPt.y), cv::Scalar(255, 0, 0));
+				cv::circle(rectified, prevPt, 2, cv::Scalar(0, 0, 255));*/
+
+				////ssd를 위한 rect 체크 및 획득
+				bool b1 = CheckBoundary(pt.x - nHalfWindowSize, pt.y - nHalfWindowSize, prevImg.rows, prevImg.cols);
+				bool b2 = CheckBoundary(pt.x + nHalfWindowSize, pt.y + nHalfWindowSize, prevImg.rows, prevImg.cols);
+				cv::Rect rect1 = cv::Rect(pt.x - nHalfWindowSize, pt.y - nHalfWindowSize, nFullWindow, nFullWindow);
+				if (!b1 || !b2)
+					continue;
+				cv::Mat prevPatch = prevGrayImg(rect1).clone();
+				float minValue = 0; //0;FLT_MAX;
+				cv::Point2f minPt(0, 0);
+				bool bMin = false;
+				
+				for (int nx = 15; nx < prevImg.cols - 15; nx++) {
+					cv::Point2f pt2(nx, pt.y);
+					bool b3 = CheckBoundary(pt2.x - nHalfWindowSize, pt2.y - nHalfWindowSize, prevImg.rows, prevImg.cols);
+					bool b4 = CheckBoundary(pt2.x + nHalfWindowSize, pt2.y + nHalfWindowSize, prevImg.rows, prevImg.cols);
+					cv::Rect rect2 = cv::Rect(pt2.x - nHalfWindowSize, pt2.y - nHalfWindowSize, nFullWindow, nFullWindow);
+					
+					if (b3 && b4) {
+						cv::Mat currPatch = currGrayImg(rect2).clone();
+						
+						/*float val = CalcSSD(prevPatch, currPatch); 
+						if (val < 10000.0) {
+							bMin = true;
+							cv::circle(rectified, pt2 + ptRight, 2, cv::Scalar(0, 0, 255));
+							if (val < minValue) {
+								minPt = pt2;
+								minValue = val;
+							}
+						}*/
+						
+						float val = CalcNCC(prevPatch, currPatch);
+						if (val > 0.99) {
+							bMin = true;
+							//cv::circle(rectified, pt2 + ptRight, 2, cv::Scalar(0, 0, 255));
+							if (val > minValue) {
+								minPt = pt2;
+								minValue = val;
+							}
+						}
+					}
+				}
+				
+				if (bMin) {
+					//std::cout << minValue << std::endl;
+					cv::circle(rectified, minPt + ptRight, 2, cv::Scalar(0, 255, 0));
+				}
+				////ssd를 위한 rect 체크 및 획득
+
+			}
+		}
+	}
+
+	//float nfx = (float)P1.at<double>(0, 0);
+	//float ncx = (float)P1.at<double>(0, 2);
+	//float nfy = (float)P1.at<double>(1, 1);
+	//float ncy = (float)P1.at<double>(1, 2);
+	//std::cout << mapPrev1.type() <<", "<<mapPrev1.channels()<<"???????????????????" << std::endl;
+	//for (int i = 0; i < tPrevPts.size(); i += 20) {
+	//	auto prevPt = tPrevPts[i];
+	//	cv::Point2f rPrevPt(prevPt.x*nfx + ncx, prevPt.y*nfy + ncy);
+	//	//cv::Point2f rPrevPt(mapPrev1.at<float>(prevPt), mapPrev2.at<float>(prevPt));
+	//	cv::circle(rectified, rPrevPt, 2, cv::Scalar(0, 0, 255));
+	//	cv::line(rectified, cv::Point2f(0, rPrevPt.y), cv::Point2f(rectified.cols, rPrevPt.y), cv::Scalar(255, 0, 0));
+	//}
+
+	
+	//imshow("rectified::curr", currRectified);
+	cv::waitKey(1);
+	/////////////////////////////Rectification
+
+	//vector<cv::Point3f> lines[2];
+	//cv::computeCorrespondEpilines(tPrevPts, 2, F12, lines[0]);
+	//RNG rng(12345);
+	//for (int i = 0; i < tPrevPts.size(); i += 20) {
+
+	//	float m = 9999.0;
+	//	if (lines[0][i].x != 0)
+	//		m = abs(lines[0][i].x / lines[0][i].y);
+	//	bool opt = false;
+	//	if (m > 1.0)
+	//		opt = true;
+	//	cv::Scalar color(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
+	//	////////에피 라인 
+	//	cv::Point2f spt, ept, lpt;
+	//	if (opt) {
+	//		spt = CalcLinePoint(0.0, lines[0][i], opt);
+	//		lpt = CalcLinePoint(tCurrPts[i].y, lines[0][i], opt);
+	//		ept = CalcLinePoint(prevImg.rows, lines[0][i], opt);
+	//	}
+	//	else {
+	//		spt = CalcLinePoint(0.0, lines[0][i], opt);
+	//		lpt = CalcLinePoint(tCurrPts[i].x, lines[0][i], opt);
+	//		ept = CalcLinePoint(prevImg.cols, lines[0][i], opt);
+	//	}
+	//	spt += ptBottom;
+	//	ept += ptBottom;
+	//	lpt += ptBottom;
+	//	cv::line(debugging, spt, ept, color, 1);
+	//	cv::line(debugging, tCurrPts[i] + ptBottom, lpt, color, 1);
+	//	cv::circle(debugging, tPrevPts[i], 1, color, -1);
+	//	cv::circle(debugging, tCurrPts[i] + ptBottom, 1, color, -1);
+	//	////////에피 라인 
+	//}
+	////Epipolar constraints
+	//////////////////////////////////////////
+
+
+	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	double tttt = duration / 1000.0;
+
+	//fuse time text 
+	std::stringstream ss;
+	ss << "Optical flow init= " << prevPts.size() << ", " << tttt;
+	cv::rectangle(rectified, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
+	cv::putText(rectified, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+	//imshow("edge+optical", debugging);
+	imshow("rectified", rectified);
+	///////////////////////////
+
 }
 ////200410 Optical flow
 ///////////////////////////////////////////////////////////////////////////////////////////////////////

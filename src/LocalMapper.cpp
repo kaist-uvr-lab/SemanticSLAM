@@ -189,6 +189,20 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::cout << "lm::newmp" << std::endl;
 			/////////////////
 			
+			////////////////
+			////KF-KF rectification
+			auto pPrevKF = mpTargetFrame->mpMatchInfo->mpTargetFrame;
+			auto pPrevPrevKF = pPrevKF->mpMatchInfo->mpTargetFrame;
+			auto vpNeighKFs = mpTargetFrame->GetConnectedKFs();
+			auto pLastKF = vpNeighKFs[vpNeighKFs.size() - 1];
+			cv::Mat imgKFNF;
+			mpMatcher->OpticalMatchingForFuseWithEpipolarGeometry(pLastKF, mpTargetFrame, imgKFNF);
+			std::stringstream ssdira;
+			ssdira << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetFrameID() << "_" << pLastKF->GetFrameID() << "_tracking.jpg";
+			imwrite(ssdira.str(), imgKFNF);
+			////KF-KF rectification
+			///////////////
+
 			////////////////////////////////////////////////////////////////////////////////////
 			/////KF-kF 매칭 성능 확인
 			auto mvpConnectedKFs = mpTargetFrame->GetConnectedKFs(10);

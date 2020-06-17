@@ -223,10 +223,10 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
 		////////KF-F matching test
 		/*cv::Mat imgKFNF;
-		mpMatcher->OpticalKeyframeAndFrameMatchingForTracking(mpRefKF, pCurr, imgKFNF);
+		mpMatcher->OpticalKeyframeAndFrameMatchingForTracking(mpRefKF, mpRefKF->mpMatchInfo->mpTargetFrame, imgKFNF);
 		std::stringstream ssdira;
 		ssdira << mpSystem->GetDirPath(0) << "/kfmatching/" <<mpRefKF->GetFrameID()<<"_"<< pCurr->GetFrameID() << "_tracking.jpg";
-		imwrite(ssdir.str(), imgKFNF);*/
+		imwrite(ssdira.str(), imgKFNF);*/
 		////////KF-F matching test
 
 		//graph-based
