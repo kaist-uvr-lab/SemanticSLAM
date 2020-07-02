@@ -128,6 +128,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			//////////////업데이트 맵포인트
 
 			//////////////업데이트 키프레임
+			//이건 단순히 해당 키프레임에서 추적되는 맵포인트가 연결되어 있는 프레임들의 리스트에 불과함.
 			std::map<UVR_SLAM::Frame*, int> mmpCandidateKFs;
 			//int nTargetID = mpTargetFrame->GetFrameID();
 			int nMaxKF = 0;
@@ -186,12 +187,118 @@ void UVR_SLAM::LocalMapper::Run() {
 			/*ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << ".jpg";
 			imwrite(ssdir.str(), ddebug);*/
 			////맵포인트 생성
-			std::cout << "lm::newmp" << std::endl;
 			/////////////////
 			
 			////////////////
+			////Fuse :: Three view :: base version
+			//쓰리뷰는 당연히 두 이미지의 동일한 곳에서 포인트가 있어야 의미가 있는 것이라 버린다...
+			{
+				auto vpKFs = mpTargetFrame->GetConnectedKFs(7);
+				if (vpKFs.size() > 4) {
+					auto pFuseKF1 = vpKFs[3];
+					auto pFuseKF2 = vpKFs[vpKFs.size() - 1];
+
+					cv::Mat Rtarget, Ttarget, Rfuse1, Tfuse1, Rfuse2, Tfuse2;
+					mpTargetFrame->GetPose(Rtarget, Ttarget);
+					pFuseKF1->GetPose(Rfuse1, Tfuse1);
+					pFuseKF2->GetPose(Rfuse2, Tfuse2);
+					cv::Mat mK = mpTargetFrame->mK.clone();
+					cv::Mat FfromFuse1toTarget = mpMatcher->CalcFundamentalMatrix(Rfuse1, Tfuse1, Rtarget, Ttarget, mK);
+					cv::Mat FfromFuse2toTarget = mpMatcher->CalcFundamentalMatrix(Rfuse2, Tfuse2, Rtarget, Ttarget, mK);
+
+					cv::Mat imgFuse1 = pFuseKF1->GetOriginalImage();
+					cv::Mat imgFuse2 = pFuseKF2->GetOriginalImage();
+					cv::Mat imgTarget = mpTargetFrame->GetOriginalImage();
+
+					std::vector<cv::Point3f> lines[2];
+					cv::Mat matLines;
+					std::vector<cv::Point2f> pts1, pts2, ptsInFuse1;
+					std::vector<UVR_SLAM::MapPoint*> vpMPs;
+					for (int i = 0; i < pFuseKF2->mpMatchInfo->mnTargetMatch; i++) {
+						auto pMPi = pFuseKF2->mpMatchInfo->mvpMatchingMPs[i];
+						if (!pMPi || pMPi->isDeleted())
+							continue;
+						auto X3D = pMPi->GetWorldPos();
+						auto currPt = mpTargetFrame->Projection(X3D);
+						if (!mpTargetFrame->isInImage(currPt.x, currPt.y, 10.0)) {
+							continue;
+						}
+						vpMPs.push_back(pMPi);
+						pts1.push_back(pFuseKF2->mpMatchInfo->mvMatchingPts[i]);
+					}
+					cv::computeCorrespondEpilines(pts1, 2, FfromFuse2toTarget, lines[0]);
+
+					for (int i = 0; i < lines[0].size(); i++) {
+						float a1 = lines[0][i].x;
+						float b1 = lines[0][i].y;
+						float c1 = lines[0][i].z;
+
+						auto pMPi = vpMPs[i];
+						auto X3D = pMPi->GetWorldPos();
+						auto currPt = mpTargetFrame->Projection(X3D);
+						float dist = currPt.x*a1 + currPt.y*b1 + c1;
+						if (pMPi->isInFrame(mpTargetFrame->mpMatchInfo))
+							continue;
+						if (dist < 1.0) {
+							cv::circle(imgTarget, currPt, 3, cv::Scalar(255, 0, 255), -1);
+							cv::circle(imgFuse2, pts1[i], 3, cv::Scalar(255, 0, 255), -1);
+						}
+						else {
+							cv::circle(imgTarget, currPt, 3, cv::Scalar(0, 0, 255), -1);
+							cv::circle(imgFuse2, pts1[i], 3, cv::Scalar(0, 0, 255), -1);
+						}
+					}
+					/*for (int i = 0; i < pFuseKF2->mpMatchInfo->mnTargetMatch; i++) {
+						auto pMPi = pFuseKF2->mpMatchInfo->mvpMatchingMPs[i];
+						if (!pMPi || pMPi->isDeleted())
+							continue;
+						auto X3D = pMPi->GetWorldPos();
+						auto currPt = mpTargetFrame->Projection(X3D);
+						if (!mpTargetFrame->isInImage(currPt.x, currPt.y, 10.0)) {
+							continue;
+						}
+						pts2.push_back(pFuseKF2->mpMatchInfo->mvMatchingPts[i]);
+					}
+					cv::computeCorrespondEpilines(pts2, 2, FfromFuse2toTarget, lines[1]);*/
+					
+					/*float a1 = lines[0][0].x;
+					float b1 = lines[0][0].y;
+					float c1 = lines[0][0].z;
+					if(abs(b1) > 0.00001){
+
+						cv::circle(imgFuse1, pts1[0], 3, cv::Scalar(255, 0, 255), -1);
+
+						for (int j = 0; j < lines[1].size(); j++) {
+							float a2 = lines[1][j].x;
+							float b2 = lines[1][j].y;
+							float c2 = lines[1][j].z;
+							float a = a1*b2 - a2*b1;
+							if (abs(a) < 0.00001)
+								continue;
+							float b = b1*c2 - b2*c1;
+							float x = b / a;
+							float y = -a1 / b1*x - c1 / b1;
+						
+							cv::Point2f pt(x, y);
+							if (!mpTargetFrame->isInImage(x, y, 10.0)) {
+								continue;
+							}
+							cv::circle(imgTarget, pt, 3, cv::Scalar(255, 0, 255), -1);
+						}
+					}*/
+
+					//cv::imshow("fuse::1", imgFuse1);
+					cv::imshow("fuse::2", imgFuse2);
+					cv::imshow("fuase::curr", imgTarget);
+					cv::waitKey(1);
+				}
+			}
+			////Fuse :: Three view :: base version
+			////////////////
+			
+			////////////////
 			////KF-KF rectification
-			auto pPrevKF = mpTargetFrame->mpMatchInfo->mpTargetFrame;
+			/*auto pPrevKF = mpTargetFrame->mpMatchInfo->mpTargetFrame;
 			auto pPrevPrevKF = pPrevKF->mpMatchInfo->mpTargetFrame;
 			auto vpNeighKFs = mpTargetFrame->GetConnectedKFs();
 			auto pLastKF = vpNeighKFs[vpNeighKFs.size() - 1];
@@ -199,64 +306,64 @@ void UVR_SLAM::LocalMapper::Run() {
 			mpMatcher->OpticalMatchingForFuseWithEpipolarGeometry(pLastKF, mpTargetFrame, imgKFNF);
 			std::stringstream ssdira;
 			ssdira << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetFrameID() << "_" << pLastKF->GetFrameID() << "_tracking.jpg";
-			imwrite(ssdira.str(), imgKFNF);
+			imwrite(ssdira.str(), imgKFNF);*/
 			////KF-KF rectification
 			///////////////
 
 			////////////////////////////////////////////////////////////////////////////////////
 			/////KF-kF 매칭 성능 확인
-			auto mvpConnectedKFs = mpTargetFrame->GetConnectedKFs(10);
-			auto pTargetMatch = mpTargetFrame->mpMatchInfo;
-			auto mK = mpTargetFrame->mK.clone();
-			auto mvpMPs = std::vector<UVR_SLAM::MapPoint*>(pTargetMatch->mvpMatchingMPs.begin(), pTargetMatch->mvpMatchingMPs.end());
-			auto mvKPs = std::vector<cv::Point2f>(pTargetMatch->mvMatchingPts.begin(), pTargetMatch->mvMatchingPts.end());
-			cv::Mat prevImg = mpTargetFrame->GetOriginalImage();
-			cv::Mat tdebugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
-			cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
-			cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
-			cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
-			std::stringstream ssdir;
-			for (int i = 0; i < mvpConnectedKFs.size(); i++) {
+			//auto mvpConnectedKFs = mpTargetFrame->GetConnectedKFs(10);
+			//auto pTargetMatch = mpTargetFrame->mpMatchInfo;
+			//auto mK = mpTargetFrame->mK.clone();
+			//auto mvpMPs = std::vector<UVR_SLAM::MapPoint*>(pTargetMatch->mvpMatchingMPs.begin(), pTargetMatch->mvpMatchingMPs.end());
+			//auto mvKPs = std::vector<cv::Point2f>(pTargetMatch->mvMatchingPts.begin(), pTargetMatch->mvMatchingPts.end());
+			//cv::Mat prevImg = mpTargetFrame->GetOriginalImage();
+			//cv::Mat tdebugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+			//cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
+			//cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+			//cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+			//std::stringstream ssdir;
+			//for (int i = 0; i < mvpConnectedKFs.size(); i++) {
 
-				auto pKFi = mvpConnectedKFs[i];
-				auto pMatch = pKFi->mpMatchInfo;
-				cv::Mat R, t;
-				pKFi->GetPose(R, t);
+			//	auto pKFi = mvpConnectedKFs[i];
+			//	auto pMatch = pKFi->mpMatchInfo;
+			//	cv::Mat R, t;
+			//	pKFi->GetPose(R, t);
 
-				/////debug image
-				cv::Mat currImg = pKFi->GetOriginalImage();
-				prevImg.copyTo(tdebugging(mergeRect1));
-				currImg.copyTo(tdebugging(mergeRect2));
-				/////debug image
-				for (int j = 0; j <mvpMPs.size(); j++) {
-					auto pMPj = mvpMPs[j];
-					if (!pMPj || pMPj->isDeleted() || !pMPj->isInFrame(pMatch))
-						continue;
-					auto idx = pMPj->GetPointIndexInFrame(pMatch);
-					if (idx == -1)
-						std::cout << "lm::kf::error::1!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
-					if(idx >= pMatch->mvMatchingPts.size())
-						std::cout << "lm::kf::error::2!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
-					auto pt1 = mvKPs[j];
-					auto pt2 = pMatch->mvMatchingPts[idx]+ptBottom;
-					auto X3D = pMPj->GetWorldPos();
+			//	/////debug image
+			//	cv::Mat currImg = pKFi->GetOriginalImage();
+			//	prevImg.copyTo(tdebugging(mergeRect1));
+			//	currImg.copyTo(tdebugging(mergeRect2));
+			//	/////debug image
+			//	for (int j = 0; j <mvpMPs.size(); j++) {
+			//		auto pMPj = mvpMPs[j];
+			//		if (!pMPj || pMPj->isDeleted() || !pMPj->isInFrame(pMatch))
+			//			continue;
+			//		auto idx = pMPj->GetPointIndexInFrame(pMatch);
+			//		if (idx == -1)
+			//			std::cout << "lm::kf::error::1!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+			//		if(idx >= pMatch->mvMatchingPts.size())
+			//			std::cout << "lm::kf::error::2!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+			//		auto pt1 = mvKPs[j];
+			//		auto pt2 = pMatch->mvMatchingPts[idx]+ptBottom;
+			//		auto X3D = pMPj->GetWorldPos();
 
-					cv::Mat proj = mK*(R*X3D + t);
-					auto p2D = cv::Point2f(proj.at<float>(0) / proj.at<float>(2), proj.at<float>(1) / proj.at<float>(2));
-					if(!pKFi->isInImage(p2D.x, p2D.y))
-						std::cout << "lm::kf::error::3!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
-					p2D += ptBottom;
-					
-					cv::circle(tdebugging, pt1, 2, cv::Scalar(255, 255, 0), -1);
-					cv::line(tdebugging, pt2, p2D, cv::Scalar(255, 255, 0), 2);
-				}
-				////파일 저장
-				/*ssdir.str("");
-				ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << "_" << pKFi->GetKeyFrameID() << ".jpg";
-				if(i%5==0)
-					imwrite(ssdir.str(), tdebugging);*/
-				////파일 저장
-			}
+			//		cv::Mat proj = mK*(R*X3D + t);
+			//		auto p2D = cv::Point2f(proj.at<float>(0) / proj.at<float>(2), proj.at<float>(1) / proj.at<float>(2));
+			//		if(!pKFi->isInImage(p2D.x, p2D.y))
+			//			std::cout << "lm::kf::error::3!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+			//		p2D += ptBottom;
+			//		
+			//		cv::circle(tdebugging, pt1, 2, cv::Scalar(255, 255, 0), -1);
+			//		cv::line(tdebugging, pt2, p2D, cv::Scalar(255, 255, 0), 2);
+			//	}
+			//	////파일 저장
+			//	/*ssdir.str("");
+			//	ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << "_" << pKFi->GetKeyFrameID() << ".jpg";
+			//	if(i%5==0)
+			//		imwrite(ssdir.str(), tdebugging);*/
+			//	////파일 저장
+			//}
 			/////KF-kF 매칭 성능 확인
 			////////////////////////////////////////////////////////////////////////////////////
 
