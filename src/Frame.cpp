@@ -3,6 +3,7 @@
 //
 
 #include <Frame.h>
+#include <MapGrid.h>
 #include <MatrixOperator.h>
 #include <System.h>
 #include <ORBextractor.h>
@@ -604,9 +605,10 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	
 	//////////canny
 	//edge는 setkeyframe에서 추가.
-	cv::Mat filtered;
-	GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
-	cv::Canny(filtered, mEdgeImg, 50, 150);
+	//canny는 이전에 돌리고 엣지 포인트만 여기서 추가하기.(0704)
+	//cv::Mat filtered;
+	//GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
+	//cv::Canny(filtered, mEdgeImg, 50, 200);//150
 	for (int y = 0; y < matFrame.rows; y++) {
 		for (int x = 0; x < matFrame.cols; x++) {
 			if (mEdgeImg.at<uchar>(y, x) > 0)
@@ -625,6 +627,12 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	mObjectDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
 	mPlaneDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
 	mLabelStatus = cv::Mat::zeros(mvKeyPoints.size(), 1, CV_8UC1);*/
+}
+
+void UVR_SLAM::Frame::DetectEdge() {
+	cv::Mat filtered;
+	GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
+	cv::Canny(filtered, mEdgeImg, 50, 200);//150
 }
 
 void UVR_SLAM::Frame::ExtractORB(const cv::Mat &im, std::vector<cv::KeyPoint>& vKPs, cv::Mat& desc)
@@ -843,6 +851,51 @@ bool UVR_SLAM::Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit)
 	//pMP->mnTrackScaleLevel = nPredictedLevel;
 	//pMP->mTrackViewCos = viewCos;
 
+	return true;
+}
+
+bool UVR_SLAM::Frame::isInFrustum(MapGrid *pMG, float viewingCosLimit) {
+
+	// 3D in absolute coordinates
+	cv::Mat P = pMG->Xw.clone();
+
+	// 3D in camera coordinates
+	cv::Mat R, t;
+	GetPose(R, t);
+	cv::Mat Ow = GetCameraCenter();
+	const cv::Mat Pc = R*P + t;
+	const float &PcX = Pc.at<float>(0);
+	const float &PcY = Pc.at<float>(1);
+	const float &PcZ = Pc.at<float>(2);
+
+	// Check positive depth
+	if (PcZ<0.0f)
+		return false;
+
+	// Project in image and check it is not outside
+	const float invz = 1.0f / PcZ;
+	const float u = fx*PcX*invz + cx;
+	const float v = fy*PcY*invz + cy;
+
+	if (u<mnMinX || u>mnMaxX)
+		return false;
+	if (v<mnMinY || v>mnMaxY)
+		return false;
+
+	
+	/////////////////Viewing angle
+	//const cv::Mat PO = P - Ow;
+	//const float dist = cv::norm(PO);
+
+	//// Check viewing angle
+	//cv::Mat Pn = pMP->GetNormal();
+
+	//const float viewCos = PO.dot(Pn) / dist;
+
+	//if (viewCos<viewingCosLimit)
+	//	return false;
+	/////////////////Viewing angle
+	
 	return true;
 }
 

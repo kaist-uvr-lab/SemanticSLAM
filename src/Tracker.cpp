@@ -221,15 +221,20 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat overlap = cv::Mat::zeros(pCurr->GetOriginalImage().size(), CV_8UC1);
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vpTempPts, vpTempPts1, vpTempPts2, vbTempInliers, vnIDXs, vnMPIDXs, overlap, debugImg); //pCurr
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
+		
 		////////KF-F matching test
-		/*cv::Mat imgKFNF;
+		cv::Mat dddddbug;
+		mpMatcher->OpticalMatchingForTracking2(mpRefKF, pCurr, dddddbug);
+		/*
+		cv::Mat imgKFNF;
 		mpMatcher->OpticalKeyframeAndFrameMatchingForTracking(mpRefKF, mpRefKF->mpMatchInfo->mpTargetFrame, imgKFNF);
+		*/
 		std::stringstream ssdira;
 		ssdira << mpSystem->GetDirPath(0) << "/kfmatching/" <<mpRefKF->GetFrameID()<<"_"<< pCurr->GetFrameID() << "_tracking.jpg";
-		imwrite(ssdira.str(), imgKFNF);*/
+		imwrite(ssdira.str(), dddddbug);
 		////////KF-F matching test
 
-		//graph-based
+		//graph-based0.
 		mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);
 		////solvepnp
 		/*mnMatching = 0;

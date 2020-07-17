@@ -114,6 +114,25 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//리사이즈 안하면 칼라이미지로
 			int status = 0;
 			JSONConverter::RequestPOST(ip, port, resized_color, segmented, mpTargetFrame->GetFrameID(), status);
+
+			////////////////////////////
+			//제안서 세그멘테이션 테스트
+			cv::Mat tempImg = cv::imread("D:/abcabcabc.png");
+			cv::Mat tempSeg, tempSegColor;
+			JSONConverter::RequestPOST(ip, port, tempImg, tempSeg, mpTargetFrame->GetFrameID(), status);
+			tempSegColor = cv::Mat::zeros(tempSeg.size(), CV_8UC3);
+			for (int x = 0; x < tempSeg.cols; x++) {
+				for (int y = 0; y < tempSeg.rows; y++) {
+					int label = tempSeg.at<uchar>(y, x);
+					tempSegColor.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
+				}
+			}
+			cv::resize(tempSegColor, tempSegColor, cv::Size(tempImg.cols, tempImg.rows));
+			cv::addWeighted(tempSegColor, 0.5, tempImg, 0.5, 0.0, tempImg);
+			imshow("aaaaaa", tempImg); waitKey(1);
+			imwrite("D:/aaaseg.jpg", tempSegColor);
+			////////////////////////////
+
 			//cv::resize(segmented, segmented, colorimg.size());
 			
 			int nRatio = colorimg.rows / segmented.rows;

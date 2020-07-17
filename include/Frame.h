@@ -34,6 +34,7 @@ namespace UVR_SLAM {
 	class PlaneInformation;
 	class PlaneProcessInformation;
 	class Line;
+	class MapGrid;
 	class MatchInfo {
 	public:
 		MatchInfo();
@@ -57,6 +58,7 @@ namespace UVR_SLAM {
 		int mnTargetMatch; //이전 타겟 프레임과의 매칭 결과를 기록함. 타겟매칭벡터의 사이즈를 의미. 당연히 현재 매칭 벡터 결과가 이전 타겟 프레임과 연결하기 위한 것인데 현재 매칭벡터 크기가 이전 프레임과 매칭이 없으면 접근하면 안되는 것.
 		cv::Mat used; //자기 자신의 KP를 추가할 때 이미 매칭이 되었던 건지 확인하기 위해서
 		cv::Mat edgeMap; //8UC1 -> 16SC1로 변경 예정. 연속성이라던가 실제 포인트 위치를 접근하기 위해
+		std::vector<int> mvnVisibles, mvnMatches;
 		std::vector<int> mvObjectLabels;
 		std::vector<int> mvnOctaves;
 		std::vector<cv::Point2f> mvMatchingPts; //이전 프레임과의 매칭 결과(KP+MP)
@@ -131,6 +133,7 @@ void RemoveMP(int idx);*/
 
 		bool isInImage(float u, float v, float w = 0);
 		bool isInFrustum(MapPoint *pMP, float viewingCosLimit);
+		bool isInFrustum(MapGrid *pMG, float viewingCosLimit);
 		cv::Point2f Projection(cv::Mat w3D);
 
 		//////////////////////////////
@@ -287,6 +290,7 @@ void RemoveMP(int idx);*/
 		std::vector<std::size_t> mGrid[FRAME_GRID_COLS][FRAME_GRID_ROWS];
 
 		void Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d);
+		void DetectEdge();
 		void ExtractORB(const cv::Mat &im, std::vector<cv::KeyPoint>& vKPs, cv::Mat& desc);
 		void UndistortKeyPoints();
 		void ComputeImageBounds(const cv::Mat &imLeft);

@@ -233,6 +233,7 @@ void UVR_SLAM::MapPoint::Delete() {
 		mmpFrames.clear();
 	}
 	mpMap->RemoveMap(this);
+	mpMap->DeleteMapPoint(this);
 }
 void UVR_SLAM::MapPoint::SetDescriptor(cv::Mat _desc){
 	std::unique_lock<std::mutex> lockMP(mMutexMP);

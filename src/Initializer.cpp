@@ -348,6 +348,12 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			pNewMP->IncreaseFound(2);
 			//pNewMP->UpdateNormalAndDepth();
 			mpSystem->mlpNewMPs.push_back(pNewMP);
+			auto pt3D = mpMap->ProjectMapPoint(pNewMP, mpMap->mfMapGridSize);
+			auto pMG = mpMap->GetGrid(pt3D);
+			if (!pMG) {
+				pMG = mpMap->InsertGrid(pt3D);
+			}
+			mpMap->InsertMapPoint(pNewMP, pMG);
 			//mpInitFrame2->mpMatchInfo->mvnMatchingMPIDXs.push_back(vTempMappedIDXs[i]);
 		}
 

@@ -31,6 +31,8 @@ namespace UVR_SLAM {
 	public:
 		bool isStopBA();
 		void StopBA(bool b);
+	public:
+		std::vector<UVR_SLAM::MapPoint*> mvDeletingMPs;
 	private:
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
 		int mnWidth, mnHeight;
