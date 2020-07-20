@@ -78,18 +78,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame1->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
 		mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo(mpInitFrame1, nullptr, mnWidth, mnHeight);
 		mpInitFrame1->mpMatchInfo->SetKeyFrame();
-		/*mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo();
-		mpInitFrame1->mpMatchInfo->mpRefFrame = mpInitFrame1;
-		mpInitFrame1->mpMatchInfo->mpTargetFrame = nullptr;
-		mpInitFrame1->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame1->GetOriginalImage().size(), CV_16SC1);
-		mpInitFrame1->mpMatchInfo->edgeMap = cv::Mat::zeros(mpInitFrame1->GetOriginalImage().size(), CV_8UC1);
-		mpInitFrame1->mpMatchInfo->mvMatchingPts = mpInitFrame1->mvPts;
-		mpTempFrame->mpMatchInfo->mvnOctaves = mpInitFrame1->mvnOctaves;
-		for (int i = 0; i < mpInitFrame1->mvPts.size(); i++) {
-			mpTempFrame->mpMatchInfo->mvnMatchingPtIDXs.push_back(i);
-		}
-		mpInitFrame1->mpMatchInfo->mvObjectLabels = std::vector<int>(mpInitFrame1->mpMatchInfo->mvMatchingPts.size(), 0);
-		mpInitFrame1->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(mpInitFrame1->mpMatchInfo->mvMatchingPts.size(), nullptr);*/
 		mpSegmentator->InsertKeyFrame(mpInitFrame1);
 		return mbInit;
 	}

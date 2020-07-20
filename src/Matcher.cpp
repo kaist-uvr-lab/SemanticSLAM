@@ -879,17 +879,18 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* pKF, Frame* pF, std::ve
 	std::vector<cv::Point2f> prevPts, currPts;
 	int nMP = pKF->mpMatchInfo->mvLocalMapMPs.size();
 	prevPts = pKF->mpMatchInfo->mvLocalMapKPs;
-	for (int i = 0; i < pKF->mpMatchInfo->mvNewKPs.size() && prevPts.size() < 1500; i++) {
+	std::cout << "1::" << std::endl;
+	for (int i = 0; i < pKF->mpMatchInfo->mvNewKPs.size(); i++) {
 		prevPts.push_back(pKF->mpMatchInfo->mvNewKPs[i]);
 	}
-	
+	std::cout << "2::" << std::endl;
 	int maxLvl = 3;
 	int searchSize = 21;
 	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
 	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
 	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
 	//바운더리 에러도 고려해야 함.
-
+	std::cout << "3::" << std::endl;
 	int nCurrFrameID = pF->GetFrameID();
 	int res = 0;
 	int nBad = 0;
@@ -902,12 +903,12 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* pKF, Frame* pF, std::ve
 		if (!pF->isInImage(currPts[i].x, currPts[i].y, 10)) {
 			continue;
 		}
-		if (!CheckOpticalPointOverlap(overlap, 2, currPts[i])) {
+		if (!CheckOpticalPointOverlap(overlap, 1, currPts[i])) {
 			nBad++;
 			continue;
 		}
-		/*if (pF->mEdgeImg.at<uchar>(currPts[i]) == 0)
-			continue;*/
+		if (pF->mEdgeImg.at<uchar>(currPts[i]) == 0)
+			continue;
 
 		//매칭 결과
 		/*float diffX = abs(prevPts[i].x - currPts[i].x);
@@ -941,7 +942,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* pKF, Frame* pF, std::ve
 		//cv::line(debugging2, curr->mpMatchInfo->mpTargetFrame->mpMatchInfo->mvMatchingPts[prev->mpMatchInfo->mvnMatchingPtIDXs[i]], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
 		res++;
 	}
-
+	std::cout << "4::" << std::endl;
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 	double tttt = duration / 1000.0;

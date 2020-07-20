@@ -228,6 +228,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat debugImg;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->GetOriginalImage().size(), CV_8UC1);
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vTempLocalMPs, vTempLocalKPs, vTempLocalInliers, vTempLocalIDXs, vTempNewKPs, vTempNewIDXs, overlap, debugImg);
+		std::cout << "tracker::matching::end" << std::endl;
 		/*std::stringstream ssdira;
 		ssdira << mpSystem->GetDirPath(0) << "/kfmatching/" <<mpRefKF->GetFrameID()<<"_"<< pCurr->GetFrameID() << "_tracking.jpg";
 		imwrite(ssdira.str(), debugImg);*/
@@ -269,8 +270,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		//pCurr->SetInliers(mnMatching); //이용X
 		//vTempLocalMPs, vTempLocalKPs, vTempLocalInliers, vTempLocalIDXs, vTempNewKPs, vTempNewIDXs
 		std::cout << "tracker::optimization::end" << std::endl;
-		std::stringstream ss;
-		ss << "Traking = " << mpRefKF->mpMatchInfo->mvLocalMapMPs.size() << ", " << vTempLocalMPs.size() << ", " << mnMapPointMatching << "||" << mpRefKF->mpMatchInfo->mvNewKPs.size() <<", "<< vTempNewKPs.size();
+		
 		std::stringstream ssdira;
 		ssdira << mpSystem->GetDirPath(0) << "/kfmatching/" << mpRefKF->GetFrameID() << "_" << pCurr->GetFrameID() << "_tracking.jpg";
 
@@ -388,6 +388,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			//cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
 		}
 		////////시각화2
+		std::stringstream ss;
+		ss << "Traking = " << mpRefKF->mpMatchInfo->mvLocalMapMPs.size() << ", " << vTempLocalMPs.size() << ", " << mnMapPointMatching << "||" << mpRefKF->mpMatchInfo->mvNewKPs.size() << ", " << vTempNewKPs.size()<<"::"<<t1<<", "<<t2;
 		cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
 		cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 		cv::imshow("Output::Tracking", vis);

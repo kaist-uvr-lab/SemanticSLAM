@@ -152,17 +152,18 @@ void UVR_SLAM::MapOptimizer::Run() {
 					}
 				}
 			}
-			
+			std::cout << "181" << std::endl;
 			//mpMap->SetNumDeleteMP();
-			auto vpPlaneInfos = mpMap->GetPlaneInfos();
+			/*auto vpPlaneInfos = mpMap->GetPlaneInfos();
 			int n = vpPlaneInfos.size() - 1;
 			if(n < 0)
 				Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);
 			else
 			{
 				Optimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpMPs, vpKFs, vpFixedKFs);
-			}
-			
+			}*/
+			Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);
+			std::cout << "182" << std::endl;
 			/*std::cout << "BA::Delete::Start" << std::endl;
 			mpMap->DeleteMPs();
 			std::cout << "BA::Delete::End" << std::endl;*/

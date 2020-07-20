@@ -1023,7 +1023,15 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 	
 	//키포인트 추가
 	if (mvLocalMapMPs.size() < 5000) {
-		for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += 5) {
+		int nMax = 1500;
+		int nEdgeInc = mpRefFrame->mvEdgePts.size()/ nMax;
+		if (nEdgeInc == 0)
+			nEdgeInc++;
+		int nOrbInc  = mpRefFrame->mvPts.size() / nMax;
+		if (nOrbInc == 0)
+			nOrbInc++;
+
+		for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i+=nEdgeInc) {
 			if (!CheckOpticalPointOverlap(used, 1, 10, mpRefFrame->mvEdgePts[i])) {
 				continue;
 			}
@@ -1033,7 +1041,8 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 			mvNewKeyPointLabels.push_back(0);
 			mvNewKPInliers.push_back(false);
 		}
-		for (int i = 0; i < mpRefFrame->mvPts.size(); i+= 2) {
+		
+		/*for (int i = 0; i < mpRefFrame->mvPts.size(); i+= nOrbInc) {
 			auto pt = mpRefFrame->mvPts[i];
 			if (!CheckOpticalPointOverlap(used, 1, 10, pt)) {
 				continue;
@@ -1044,7 +1053,7 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 			mvNewIndexes.push_back(-1);
 			mvNewKeyPointLabels.push_back(0);
 			mvNewKPInliers.push_back(false);
-		}
+		}*/
 	}
 	mvnNewVisibles = std::vector<int>(mvNewKPs.size(), 0);
 	std::cout << "SetKeyFrame::" << mvNewKPs.size() << ", " << mvNewKeyPointLabels.size() << ", " << mvNewIndexes.size() << ", " << mvNewKPInliers.size() <<", "<< mvnOctaves .size()<< std::endl;
