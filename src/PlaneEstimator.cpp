@@ -209,9 +209,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				auto matchInfo = pKFi->mpMatchInfo;
 				int tempFrameID = pKFi->GetRecentTrackedFrameID();
 				
-				for (int k = 0; k < matchInfo->mvpMatchingMPs.size(); k++) {
-					auto pMP = matchInfo->mvpMatchingMPs[k];
-					int label = matchInfo->mvObjectLabels[k];
+				for (int k = 0; k < matchInfo->mvLocalMapMPs.size(); k++) {
+					auto pMP = matchInfo->mvLocalMapMPs[k];
+					int label = matchInfo->mvLocalMapLabels[k]; //200720. 수정 안함. 에러 가능
 
 					//if (!pMP || pMP->isDeleted() || pMP->GetRecentTrackingFrameID() < tempFrameID)
 					if (!pMP || pMP->isDeleted())
@@ -272,9 +272,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 			////////////////////현재 프레임에서만 후보 포인트 추가
 			std::vector<UVR_SLAM::MapPoint*> vpCurrFloorMPs, vpCurrCeilMPs, vpCurrWallMPs;
-			for (int k = 0; k < prevPrevMatchInfo->mvpMatchingMPs.size(); k++) {
-				auto pMP = prevPrevMatchInfo->mvpMatchingMPs[k];
-				int label = prevPrevMatchInfo->mvObjectLabels[k];
+			for (int k = 0; k < prevPrevMatchInfo->mvLocalMapMPs.size(); k++) {
+				auto pMP = prevPrevMatchInfo->mvLocalMapMPs[k];
+				int label = matchInfo->mvLocalMapLabels[k]; //200720. 수정 안함. 에러 가능. SetLabel 수정 필요
 
 				if (!pMP || pMP->isDeleted())
 					continue;

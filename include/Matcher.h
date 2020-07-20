@@ -26,6 +26,7 @@ namespace UVR_SLAM {
 		int OpticalMatchingForInitialization(Frame* init, Frame* curr, std::vector<std::pair<cv::Point2f, cv::Point2f>>& resMatches);
 		int OpticalMatchingForInitialization(Frame* prev, Frame* curr, std::vector<cv::Point2f>& vpPts2, std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, cv::Mat& debug);
 		int OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<cv::Point2f>& vpPts1, std::vector<cv::Point3f>& vpPts2, std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, std::vector<int>& vnMPIDXs, cv::Mat& overlap, cv::Mat& debug);
+		int OpticalMatchingForTracking(Frame* pKF, Frame* pF, std::vector<UVR_SLAM::MapPoint*>& vLocalMPs, std::vector<cv::Point2f>& vLocalKPs, std::vector<bool>& vLocalInliers, std::vector<int>& vLocalIndexes, std::vector<cv::Point2f>& vNewKPs, std::vector<int>& vNewIndexes, cv::Mat& overlap, cv::Mat& debug);
 		int OpticalMatchingForTracking2(Frame* prev, Frame* curr, cv::Mat& debug);
 		int OpticalKeyframeAndFrameMatchingForTracking(Frame* prev, Frame* curr, cv::Mat& debug);
 		int OpticalMatchingForMapping(Frame* init, Frame* curr, std::vector<std::pair<cv::Point2f, cv::Point2f>>& resMatches, cv::Mat& debugging);

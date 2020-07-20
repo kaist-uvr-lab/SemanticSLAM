@@ -124,8 +124,8 @@ void UVR_SLAM::MapOptimizer::Run() {
 			for (int k = 0; k < vpKFs.size(); k++){
 				auto pKFi = vpKFs[k];
 				auto matchInfo = pKFi->mpMatchInfo;
-				for (int i = 0; i < matchInfo->mvpMatchingMPs.size(); i++) {
-					auto pMPi = matchInfo->mvpMatchingMPs[i];
+				for (int i = 0; i < matchInfo->mvLocalMapMPs.size(); i++) {
+					auto pMPi = matchInfo->mvLocalMapMPs[i];
 					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
 						continue;
 					}

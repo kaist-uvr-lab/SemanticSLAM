@@ -1032,7 +1032,8 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 			//pFrame->mvbMPInliers[i] = true;
 
 			Eigen::Matrix<double, 2, 1> obs;
-			const cv::Point2f pt = vpPts[vnIDXs[i]];
+			//const cv::Point2f pt = vpPts[vnIDXs[i]];
+			const cv::Point2f pt = vpPts[i];
 			obs << pt.x, pt.y;
 			//std::cout << pt << std::endl;
 			g2o::EdgeSE3ProjectXYZOnlyPose* e = new g2o::EdgeSE3ProjectXYZOnlyPose();
@@ -1086,8 +1087,8 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 			g2o::EdgeSE3ProjectXYZOnlyPose* e = vpEdgesMono[i];
 
 			const size_t idx = vnIndexEdgeMono[i];
-			int idx2 = vnIDXs[idx];
-			if (!vbInliers[idx2])
+			//int idx2 = vnIDXs[idx];
+			if (!vbInliers[idx])
 			{
 				e->computeError();
 			}
@@ -1096,7 +1097,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 
 			if (chi2>chi2Mono[it] || !e->isDepthPositive())
 			{
-				vbInliers[idx2] = false;
+				vbInliers[idx] = false;
 				vpMPs[idx]->SetRecentTrackingFrameID(-1);
 				//pFrame->mvbMPInliers[idx] = false;
 				//pFrame->mvpMPs[idx]->SetRecentTrackingFrameID(-1);
@@ -1105,7 +1106,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 			}
 			else
 			{
-				vbInliers[idx2] = true;
+				vbInliers[idx] = true;
 				vpMPs[idx]->SetRecentTrackingFrameID(nTargetID);
 				//pFrame->mvbMPInliers[idx] = true;
 				//pFrame->mvpMPs[idx]->SetRecentTrackingFrameID(nTargetID);
@@ -1297,7 +1298,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLAM::Map
 			if (pKFi->GetKeyFrameID() > maxKFid)
 				continue;
 			int idx = mit->second;
-			auto pt = pMatch->mvMatchingPts[idx];
+			auto pt = pMatch->mvLocalMapKPs[idx];
 			Eigen::Matrix<double, 2, 1> obs;
 			obs << pt.x, pt.y;
 
@@ -1673,7 +1674,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 			if (pKFi->GetKeyFrameID() > maxKFid)
 				continue;
 			int idx = mit->second;
-			auto pt = pMatch->mvMatchingPts[idx];
+			auto pt = pMatch->mvLocalMapKPs[idx];
 			Eigen::Matrix<double, 2, 1> obs;
 			obs << pt.x, pt.y;
 

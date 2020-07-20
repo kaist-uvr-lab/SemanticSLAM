@@ -427,7 +427,7 @@ void UVR_SLAM::Frame::ComputeSceneMedianDepth()
 	cv::Mat Rcw2 = R.row(2);
 	Rcw2 = Rcw2.t();
 	float zcw = t.at<float>(2);
-	auto vpMPs = mpMatchInfo->mvpMatchingMPs;
+	auto vpMPs = mpMatchInfo->mvLocalMapMPs;
 	for (int i = 0; i < vpMPs.size(); i++)
 	{
 		UVR_SLAM::MapPoint* pMP = vpMPs[i];
@@ -439,6 +439,35 @@ void UVR_SLAM::Frame::ComputeSceneMedianDepth()
 		vDepths.push_back(z);
 	}
 	if (vDepths.size() == 0){
+		mfMedianDepth = -1.0;
+		return;
+	}
+	int nidx = vDepths.size() / 2;
+	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexMedianDepth);
+		mfMedianDepth = vDepths[(nidx) / 2];
+	}
+}
+
+void UVR_SLAM::Frame::ComputeSceneMedianDepth(UVR_SLAM::MatchInfo* pMatchInfo)
+{
+	std::vector<float> vDepths;
+	cv::Mat Rcw2 = R.row(2);
+	Rcw2 = Rcw2.t();
+	float zcw = t.at<float>(2);
+	auto vpMPs = pMatchInfo->mvLocalMapMPs;
+	for (int i = 0; i < vpMPs.size(); i++)
+	{
+		UVR_SLAM::MapPoint* pMP = vpMPs[i];
+		if (!pMP || pMP->isDeleted()) {
+			continue;
+		}
+		cv::Mat x3Dw = pMP->GetWorldPos();
+		float z = (float)Rcw2.dot(x3Dw) + zcw;
+		vDepths.push_back(z);
+	}
+	if (vDepths.size() == 0) {
 		mfMedianDepth = -1.0;
 		return;
 	}
@@ -956,64 +985,68 @@ bool UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(cv::Mat& overlap, int radius,
 	return true;
 }
 
+////tracking에서 포즈 추정 후 매칭 결과를 저장할 때
+//함수 자체의 변화가 필요
 void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label, int octave) {
-	this->mvMatchingPts.push_back(pt);
+	/*this->mvMatchingPts.push_back(pt);
 	this->mvnMatchingPtIDXs.push_back(idx);
 	this->mvpMatchingMPs.push_back(pMP);
 	this->mvObjectLabels.push_back(label);
-	this->mvnOctaves.push_back(octave);
+	this->mvnOctaves.push_back(octave);*/
 	cv::circle(used, pt, 2, cv::Scalar(255), -1);
 }
+
+////semantic labeling할 때 이용
+//일단 MP말고 KP만 하기
 void UVR_SLAM::MatchInfo::SetLabel() {
 	auto labelMat = mpRefFrame->matLabeled.clone();
-	for (int i = 0; i < mvMatchingPts.size(); i++) {
-		auto pt1 = mvMatchingPts[i];
+	for (int i = 0; i < mvNewKPs.size(); i++) {
+		auto pt1 = mvNewKPs[i];
 		int label1 = labelMat.at<uchar>(pt1.y / 2, pt1.x / 2);
-		mvObjectLabels[i] = label1;
+		mvNewKeyPointLabels[i] = label1;
 	}
 }
+
+////새로운 키프레임이 되었을 때 수행함. KP 역할을 해 줄 포인트를 추가하는 과정
 void UVR_SLAM::MatchInfo::SetKeyFrame() {
 	if(mpTargetFrame)
 		mpTargetFrame->mpMatchInfo->mpNextFrame = mpRefFrame;
-	mnTargetMatch = mvMatchingPts.size();
-	mvnTargetMatchingPtIDXs = std::vector<int>(mvnMatchingPtIDXs.begin(), mvnMatchingPtIDXs.end());
-	//현재 프레임의매칭 정보로 갱신
-	mvnMatchingPtIDXs.clear();
-	for (int i = 0; i < mvMatchingPts.size(); i++) {
-		mvnMatchingPtIDXs.push_back(i);
-	}
-
+	mnTargetMatch = mvNewKPs.size();
+	//mvnTargetMatchingPtIDXs = std::vector<int>(mvNewIndexes.begin(), mvNewIndexes.end());
+	////현재 프레임의매칭 정보로 갱신
+	//mvNewIndexes.clear();
+	//for (int i = 0; i < mvNewKPs.size(); i++) {
+	//	mvNewIndexes.push_back(i);
+	//}
+	mvnLocalMatches = std::vector<int>(mvLocalMapMPs.size(), 0);
+	mvnLocalVisibles = std::vector<int>(mvLocalMapMPs.size(), 0);
+	
 	//키포인트 추가
 	int nPts = mnTargetMatch;
-	//if (mvMatchingPts.size() < 2000) {
-	if (mvMatchingPts.size() < 5000) {
+	if (mvLocalMapMPs.size() < 5000) {
 		for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += 5) {
 			if (!CheckOpticalPointOverlap(used, 1, 10, mpRefFrame->mvEdgePts[i])) {
 				continue;
 			}
-			mvMatchingPts.push_back(mpRefFrame->mvEdgePts[i]);
+			mvNewKPs.push_back(mpRefFrame->mvEdgePts[i]);
 			mvnOctaves.push_back(0);
-			mvnMatchingPtIDXs.push_back(nPts++);
-			mvpMatchingMPs.push_back(nullptr);
-			mvObjectLabels.push_back(0);
+			mvNewIndexes.push_back(-1);
+			mvNewKeyPointLabels.push_back(0);
 		}
 		for (int i = 0; i < mpRefFrame->mvPts.size(); i+= 2) {
 			auto pt = mpRefFrame->mvPts[i];
-			/*if (used.at<ushort>(pt)) {
-				continue;
-			}*/
 			if (!CheckOpticalPointOverlap(used, 1, 10, pt)) {
 				continue;
 			}
-			//cv::circle(used, pt, 2, cv::Scalar(255), -1);
 			auto octave = mpRefFrame->mvnOctaves[i];
-			mvMatchingPts.push_back(pt);
+			mvNewKPs.push_back(pt);
 			mvnOctaves.push_back(octave);
-			mvnMatchingPtIDXs.push_back(nPts++);
-			mvpMatchingMPs.push_back(nullptr);
-			mvObjectLabels.push_back(0);
+			mvNewIndexes.push_back(-1);
+			mvNewKeyPointLabels.push_back(0);
 		}
 	}
+	mvnNewVisibles = std::vector<int>(mvNewKPs.size(), 0);
+
 	/////Edge
 	//mvEdgePts = mpRefFrame->mvEdgePts;
 	//추후 엣지도 없는 부분에 대해서 추가하는 형태로 진행
@@ -1042,13 +1075,20 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 	/////Edge
 }
 
-void UVR_SLAM::MatchInfo::AddMP(UVR_SLAM::MapPoint* pMP, int idx) {
-	mvpMatchingMPs[idx] = pMP;
+//수정 : 2020.07.18
+//내용 : 맵포인트 추가시, 대응되는 포인트도 벡터에 추가됨. 위치를 리턴함.
+//또한 인덱스 값도 바로 추가하도록 변경함.
+int UVR_SLAM::MatchInfo::AddMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt) {
+	int res = mvLocalMapMPs.size();
+	mvLocalMapMPs.push_back(pMP);
+	mvLocalMapKPs.push_back(pt);
+	mvLocalMapIndexes.push_back(res);
+	return res;
 	//std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
 	//mnInliers++;
 }
 void UVR_SLAM::MatchInfo::RemoveMP(int idx) {
-	mvpMatchingMPs[idx] = nullptr;
+	mvLocalMapMPs[idx] = nullptr;
 	//std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
 	//mnInliers--;
 }

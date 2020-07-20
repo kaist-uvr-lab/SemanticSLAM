@@ -136,7 +136,7 @@ int UVR_SLAM::MapPoint::GetPointIndexInFrame(MatchInfo* pF) {
 }
 
 
-//결합되어 삭제되는 맵포인트가 실행됨
+//결합되어 삭제되는 맵포인트가 실행됨. 구현 수정 필요
 void UVR_SLAM::MapPoint::Fuse(UVR_SLAM::MapPoint* pMP) {
 	if (this->mnMapPointID == pMP->mnMapPointID)
 		return;
@@ -157,15 +157,15 @@ void UVR_SLAM::MapPoint::Fuse(UVR_SLAM::MapPoint* pMP) {
 		// Replace measurement in keyframe
 		MatchInfo* pKF = mit->first;
 
-		if (!pMP->isInFrame(pKF))
-		{
-			//pKF->mvpMatchingMPs[mit->second]
-			pMP->AddFrame(pKF, mit->second);
-		}
-		else
-		{
-			pKF->mvpMatchingMPs[mit->second] = nullptr;
-		}
+		//if (!pMP->isInFrame(pKF))
+		//{
+		//	//pKF->mvpMatchingMPs[mit->second]
+		//	pMP->AddFrame(pKF, mit->second);
+		//}
+		//else
+		//{
+		//	pKF->mvpMatchingMPs[mit->second] = nullptr;
+		//}
 	}
 	pMP->IncreaseFound(nfound);
 	pMP->IncreaseVisible(nvisible);
@@ -188,13 +188,15 @@ int UVR_SLAM::MapPoint::GetNumConnectedFrames() {
 	return mnConnectedFrames;
 }
 
-void UVR_SLAM::MapPoint::AddFrame(UVR_SLAM::MatchInfo* pF, int idx) {
+// 수정 : 2020.07.18
+// 내용 : 맵포인트에 속한 프레임을 저장함. AddMP가 수정되면서 같이 수정.
+void UVR_SLAM::MapPoint::AddFrame(UVR_SLAM::MatchInfo* pF, cv::Point2f pt) {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	auto res = mmpFrames.find(pF);
 	if (res == mmpFrames.end()) {
+		int idx =  pF->AddMP(this, pt);
 		mmpFrames.insert(std::pair<UVR_SLAM::MatchInfo*, int>(pF, idx));
 		mnConnectedFrames++;
-		pF->AddMP(this, idx);
 	}
 }
 void UVR_SLAM::MapPoint::RemoveFrame(UVR_SLAM::MatchInfo* pF){

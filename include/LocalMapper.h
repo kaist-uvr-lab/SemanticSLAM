@@ -39,7 +39,8 @@ namespace UVR_SLAM {
 		bool isDoingProcess();
 		void CalculateKFConnections();
 	private:
-		void CreateMapPoints(MatchInfo* pCurrMatchInfo, cv::Mat& debug);
+		void CreateMapPoints(MatchInfo* pNewKFMatchInfo, MatchInfo* pCurrFrameMatchInfo, cv::Mat& debug);
+
 		////////////////////////////////////////
 		void FuseMapPoints();
 		void FuseMapPoints(int nn);

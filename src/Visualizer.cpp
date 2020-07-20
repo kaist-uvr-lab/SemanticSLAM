@@ -375,9 +375,9 @@ void UVR_SLAM::Visualizer::Run() {
 				if (pMatchInfo) {
 					auto lastBAFrame = pMatchInfo->mpTargetFrame;
 
-					for (int i = 0; i < pMatchInfo->mvMatchingPts.size(); i++) {
-						auto pMPi = pMatchInfo->mvpMatchingMPs[i];
-						auto label = pMatchInfo->mvObjectLabels[i];
+					for (int i = 0; i < pMatchInfo->mvLocalMapMPs.size(); i++) {
+						auto pMPi = pMatchInfo->mvLocalMapMPs[i];
+						auto label = 0;//pMatchInfo->mvObjectLabels[i];
 						if (!pMPi || pMPi->isDeleted())
 							continue;
 						cv::Mat x3D = pMPi->GetWorldPos();
