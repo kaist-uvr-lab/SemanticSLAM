@@ -32,6 +32,7 @@ namespace UVR_SLAM {
 		void SetMapOptimizer(MapOptimizer* pMapOptimizer);
 		void SetVisualizer(Visualizer* pVis);
 		////////////////
+		void SetInitialKeyFrame(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2);
 		void InsertKeyFrame(UVR_SLAM::Frame *pKF);
 		//void InterruptLocalMapping();
 		bool CheckNewKeyFrames();

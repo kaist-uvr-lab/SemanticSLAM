@@ -91,11 +91,12 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr) {
 
 	//1 : rotation angle
 	bool bRotation = pCurr->CalcDiffAngleAxis(mpRefKF) > 10.0;
-	bool bMaxFrames = pCurr->GetFrameID() >= mpRefKF->mnFrameID + mnMinFrames;
+
+	bool bMaxFrames = pCurr->GetFrameID() >= mpRefKF->mnFrameID + 5;// mnMinFrames;
 	bool bDoingSegment = !mpSegmentator->isDoingProcess();
 	
-	bool bMatchMapPoint = mnMapPointMatching < 600;
-	bool bMatchPoint = mnPointMatching < 1200;
+	bool bMatchMapPoint = mnMapPointMatching < 600; //600
+	bool bMatchPoint = mnPointMatching < 1200; //1200
 
 	if ((bRotation || bMatchMapPoint || bMatchPoint || bMaxFrames) && bDoingSegment)
 	{
@@ -198,6 +199,13 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 	}
 	else {
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+
+		std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
+		while (!mpSystem->mbLocalMapUpdateEnd) {
+			mpSystem->cvUseLocalMap.wait(lock);
+		}
+		mpSystem->mbTrackingEnd = false;
+
 		std::cout << "tracker::start" << std::endl;
 		//std::cout << mpMap->mpFirstKeyFrame->mpPlaneInformation->GetFloorPlane()->GetParam() << std::endl << std::endl << std::endl;
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -220,9 +228,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat debugImg;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->GetOriginalImage().size(), CV_8UC1);
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vTempLocalMPs, vTempLocalKPs, vTempLocalInliers, vTempLocalIDXs, vTempNewKPs, vTempNewIDXs, overlap, debugImg);
-		std::stringstream ssdira;
+		/*std::stringstream ssdira;
 		ssdira << mpSystem->GetDirPath(0) << "/kfmatching/" <<mpRefKF->GetFrameID()<<"_"<< pCurr->GetFrameID() << "_tracking.jpg";
-		imwrite(ssdira.str(), debugImg);
+		imwrite(ssdira.str(), debugImg);*/
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
 		
 		//////////KF-F matching test
@@ -261,8 +269,13 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		//pCurr->SetInliers(mnMatching); //이용X
 		//vTempLocalMPs, vTempLocalKPs, vTempLocalInliers, vTempLocalIDXs, vTempNewKPs, vTempNewIDXs
 		std::cout << "tracker::optimization::end" << std::endl;
+		std::stringstream ss;
+		ss << "Traking = " << mpRefKF->mpMatchInfo->mvLocalMapMPs.size() << ", " << vTempLocalMPs.size() << ", " << mnMapPointMatching << "||" << mpRefKF->mpMatchInfo->mvNewKPs.size() <<", "<< vTempNewKPs.size();
+		std::stringstream ssdira;
+		ssdira << mpSystem->GetDirPath(0) << "/kfmatching/" << mpRefKF->GetFrameID() << "_" << pCurr->GetFrameID() << "_tracking.jpg";
+
 		int nMP = UpdateMatchingInfo(mpRefKF, pCurr, vTempLocalMPs, vTempLocalKPs, vTempLocalInliers, vTempLocalIDXs, vTempNewKPs, vTempNewIDXs);
-		
+		mpSystem->mbTrackingEnd = true;
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크
 		if (CheckNeedKeyFrame(pCurr)) {
@@ -375,11 +388,10 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			//cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
 		}
 		////////시각화2
-		std::stringstream ss;
-		ss << "Traking = " << mnMapPointMatching <<", "<< mnPointMatching <<"::"<< t1<<", "<<t2<<"::";
 		cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
 		cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 		cv::imshow("Output::Tracking", vis);
+		imwrite(ssdira.str(), vis);
 		////////Visualization & 시간 계산
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -430,12 +442,12 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pKF, UVR_SLAM::Frame*
 		int idx = vNewIDXs[i];
 		pMatchInfo->mvnNewVisibles[idx]++;
 		cv::circle(pCurrMatchInfo->used, vNewKPs[i], 2, cv::Scalar(255), -1);
+		pCurrMatchInfo->mvnOctaves.push_back(pMatchInfo->mvnOctaves[idx]);
 		pCurrMatchInfo->mvNewKPs.push_back(vNewKPs[i]);
 		pCurrMatchInfo->mvNewIndexes.push_back(vNewIDXs[i]);
+		pCurrMatchInfo->mvNewKPInliers.push_back(false);
 	}
-
-
-	std::vector<UVR_SLAM::MapPoint*> vpTempMPs = std::vector<UVR_SLAM::MapPoint*>(vLocalMPs.size(), nullptr);
+	//std::vector<UVR_SLAM::MapPoint*> vpTempMPs = std::vector<UVR_SLAM::MapPoint*>(vLocalMPs.size(), nullptr);
 	
 	////////////////////////////평면 관려 기능
 	/////////////즉각적으로 맵포인트를 생성하기 위함

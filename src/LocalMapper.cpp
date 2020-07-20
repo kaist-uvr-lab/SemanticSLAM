@@ -39,6 +39,10 @@ void UVR_SLAM::LocalMapper::InsertKeyFrame(UVR_SLAM::Frame *pKF)
 	//std::cout << "insertkeyframe::queue size = " << mKFQueue.size() << std::endl;
 	mbStopBA = true;
 }
+void UVR_SLAM::LocalMapper::SetInitialKeyFrame(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2) {
+	mpPrevKeyFrame = pKF1;
+	mpTargetFrame = pKF2;
+}
 
 bool UVR_SLAM::LocalMapper::CheckNewKeyFrames()
 {
@@ -107,6 +111,13 @@ void UVR_SLAM::LocalMapper::Run() {
 
 		if (CheckNewKeyFrames()) {
 			SetDoingProcess(true);
+
+			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
+			while (!mpSystem->mbTrackingEnd) {
+				mpSystem->cvUseLocalMap.wait(lock);
+			}
+			mpSystem->mbLocalMapUpdateEnd = false;
+
 			std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
 			////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 			//////200412
@@ -114,12 +125,12 @@ void UVR_SLAM::LocalMapper::Run() {
 
 			ProcessNewKeyFrame();
 			int nTargetID = mpTargetFrame->GetFrameID();
-
-			mpTargetFrame->mpMatchInfo->SetKeyFrame();
+						
 			UVR_SLAM::MatchInfo* pNewKeyFrameMatchInfo = new UVR_SLAM::MatchInfo(mpTargetFrame, mpPrevKeyFrame, mnWidth, mnHeight);
 			auto pPrevKeyFrameMatchInfo = mpPrevKeyFrame->mpMatchInfo;
 			auto pTrackingFrameMatchInfo = mpTargetFrame->mpMatchInfo;
-
+			std::cout << "lm::temp1" << std::endl;
+			std::cout << mpPrevKeyFrame->mpMatchInfo->mvnLocalVisibles.size() << ", " << mpPrevKeyFrame->mpMatchInfo->mvLocalMapMPs.size() << std::endl;
 			//////////////업데이트 맵포인트
 			////20.07.19
 			////이전 키프레임과 현재 타겟프레임의 매칭 정보로부터 일단 MapPoint트 부터 옮김.
@@ -130,17 +141,20 @@ void UVR_SLAM::LocalMapper::Run() {
 				if (!pMPi && pMPi->isDeleted()) {
 					continue;
 				}
-				float ratio = ((float)pTrackingFrameMatchInfo->mvnLocalMatches[i]) / pTrackingFrameMatchInfo->mvnLocalVisibles[i];
+				int idx = pTrackingFrameMatchInfo->mvLocalMapIndexes[i];
+				float ratio = ((float)mpPrevKeyFrame->mpMatchInfo->mvnLocalVisibles[idx]) / mpPrevKeyFrame->mpMatchInfo->mvnLocalMatches[idx];
 				if (ratio < 0.25f)
 					continue;
 				pMPi->AddFrame(pNewKeyFrameMatchInfo, pt);
 			}
+			std::cout << "lm::update mp::" <<pNewKeyFrameMatchInfo->mvLocalMapMPs.size()<<"::"<<mpTargetFrame->mpMatchInfo->mvLocalMapMPs.size()<< std::endl;
 			//////////////업데이트 맵포인트
 
 			/////////////////
 			////맵포인트 생성
 			cv::Mat ddebug;
 			CreateMapPoints(pNewKeyFrameMatchInfo, pTrackingFrameMatchInfo, ddebug);
+			std::cout << "lm::create mp::end" << std::endl;
 			//std::stringstream ssdir;
 			//ssdir << mpSystem->GetDirPath(0) << "/kfmatching";// << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevFrame->GetKeyFrameID() << ".jpg";
 			/*ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" << mpTargetFrame->GetKeyFrameID() << ".jpg";
@@ -150,13 +164,37 @@ void UVR_SLAM::LocalMapper::Run() {
 
 			///////
 			//새로운 New KP 추가
+			//새로운 키프레임에 생성된 포인트 제외하고 추가하기
+			//std::cout << pTrackingFrameMatchInfo->mvNewKPInliers.size() << ", " << pTrackingFrameMatchInfo->mvNewKPs.size() << std::endl;
+			for (int i = 0; i < pTrackingFrameMatchInfo->mvNewKPs.size(); i++) {
+				if (pTrackingFrameMatchInfo->mvNewKPInliers[i])
+					continue;
+				int idx = pTrackingFrameMatchInfo->mvNewIndexes[i];
+				cv::circle(pNewKeyFrameMatchInfo->used, pTrackingFrameMatchInfo->mvNewKPs[i], 1, cv::Scalar(255), -1);
+				pNewKeyFrameMatchInfo->mvNewKPs.push_back(pTrackingFrameMatchInfo->mvNewKPs[i]);
+				pNewKeyFrameMatchInfo->mvNewIndexes.push_back(pTrackingFrameMatchInfo->mvNewIndexes[i]);
+				pNewKeyFrameMatchInfo->mvNewKeyPointLabels.push_back(0);
+				pNewKeyFrameMatchInfo->mvNewKPInliers.push_back(false);
+				pNewKeyFrameMatchInfo->mvnOctaves.push_back(pTrackingFrameMatchInfo->mvnOctaves[i]);
+			}
+			std::cout << "lm::update kp::end" << std::endl;
 			///////
 
 			////Median Depth 계산
 			mpTargetFrame->ComputeSceneMedianDepth(pNewKeyFrameMatchInfo);
-
+			std::cout << "lm::ComputeSceneMedianDepth::end" << std::endl;
+			mpTargetFrame->mpMatchInfo = pNewKeyFrameMatchInfo;
+			std::cout << "lm::aaaa::end" << std::endl;
+			mpTargetFrame->mpMatchInfo->SetKeyFrame();
+			std::cout << "lm::create kp::end" << std::endl;
 			//////////
 			//여기서 락풀고 MatchInfo교체
+			mpSystem->mbLocalMapUpdateEnd = true;
+			mpSystem->cvUseLocalMap.notify_one();
+
+			if(mpPrevKeyFrame->isSegmented())
+				mpPrevKeyFrame->mpMatchInfo->SetLabel();
+			std::chrono::high_resolution_clock::time_point lm_temp1 = std::chrono::high_resolution_clock::now();
 			/////////
 
 			//////////////업데이트 키프레임
@@ -716,11 +754,15 @@ void UVR_SLAM::LocalMapper::Run() {
 				mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
 			}
 			std::chrono::high_resolution_clock::time_point lm_end = std::chrono::high_resolution_clock::now();
+			
+			auto du_temp1 = std::chrono::duration_cast<std::chrono::milliseconds>(lm_temp1 - lm_start).count();
+			float t_temp1 = du_temp1 / 1000.0;
+			
 			auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(lm_end - lm_start).count();
 			float t_test1 = du_test1 / 1000.0;
 
 			std::stringstream ssa;
-			ssa << "LocalMapping : " << mpTargetFrame->GetKeyFrameID() <<"::"<< t_test1 <<"::"<<mpTargetFrame->GetConnectedKFs().size()<< ", " << nMinKF<<", "<<nMaxKF<<"::"<< mpTargetFrame->mpMatchInfo->mvLocalMapKPs.size()<<", "<< mpTargetFrame->mpMatchInfo->mvLocalMapMPs.size();
+			ssa << "LocalMapping : " << mpTargetFrame->GetKeyFrameID() <<"::"<< t_temp1 <<", "<< t_test1 <<"::"<<mpTargetFrame->GetConnectedKFs().size()<< ", " << nMinKF<<", "<<nMaxKF<<"::"<< mpTargetFrame->mpMatchInfo->mvLocalMapKPs.size()<<", "<< mpTargetFrame->mpMatchInfo->mvLocalMapMPs.size();
 			mpSystem->SetLocalMapperString(ssa.str());
 
 			std::cout << "lm::end" << std::endl;
@@ -834,16 +876,18 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pNewKFMatchInfo, MatchInf
 	auto targetInfo = targetFrame->mpMatchInfo;
 	auto targetTargetInfo = targettargetFrame->mpMatchInfo;
 
-	int nTargetMatch = targetInfo->nNewKPIDX;
-	int nTargetTargetMatch = targetTargetInfo->nNewKPIDX;
+	int nTargetMatch = targetInfo->mnTargetMatch;
+	int nTargetTargetMatch = targetTargetInfo->mnTargetMatch;
 
+	//
+	//pCurrFrameMatchInfo->mvNewKPInliers;
 	for (int i = 0; i < pCurrFrameMatchInfo->mvNewKPs.size(); i++) {
 
 		int targetIDX = pCurrFrameMatchInfo->mvNewIndexes[i];
 		if (targetIDX >= nTargetMatch)
 			continue;
 		int targettargetIDX = targetInfo->mvNewIndexes[targetIDX];
-		if (targettargetIDX >= nTargetMatch)
+		if (targettargetIDX >= nTargetTargetMatch) //nTargetMatch
 			continue;
 		
 		//////////추가 확인
@@ -879,7 +923,7 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pNewKFMatchInfo, MatchInf
 	////////삼각화로 맵생성
 	//std::cout << "before triangle::" << vPts3.size() << std::endl;
 	if (vPts3.size() < 10) {
-		//std::cout << "after triangle" << std::endl;
+		std::cout << "after triangle" << std::endl;
 		return;
 	}
 	cv::Mat Map;
@@ -998,10 +1042,13 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pNewKFMatchInfo, MatchInf
 		//////데이터 추가
 		//새로운 키프레임에는 MP를 추가
 		//현재의 트래킹 프레임에는 MP가 생성 된 것을 알리기
-		pMP->AddFrame(currFrame->mpMatchInfo, pt1);
+		pMP->AddFrame(pNewKFMatchInfo, pt1);
 		pMP->AddFrame(targetFrame->mpMatchInfo, pt2);
 		pMP->AddFrame(targettargetFrame->mpMatchInfo, pt3);
 		//////데이터 추가
+
+		//현재 프레임에 추가하기 위해 데이터 처리
+		pCurrFrameMatchInfo->mvNewKPInliers[vIDXs1[i]] = true;
 
 		/////////그리드에 추가
 		auto pt3D = mpMap->ProjectMapPoint(pMP, mpMap->mfMapGridSize);
@@ -1018,7 +1065,7 @@ void UVR_SLAM::LocalMapper::CreateMapPoints(MatchInfo* pNewKFMatchInfo, MatchInf
 		cv::circle(debug, pt1 + ptBottom, 2, cv::Scalar(255, 0, 0), -1);
 		//////visualize
 	}
-	//std::cout << "lm::create new mp ::" <<vPts1.size()<<", "<< nRes <<" "<<Map.type()<< std::endl;
+	std::cout << "lm::create new mp ::" <<vPts1.size()<<", "<< nRes <<" "<<Map.type()<< std::endl;
 }
 
 

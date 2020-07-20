@@ -1022,7 +1022,6 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 	mvnLocalVisibles = std::vector<int>(mvLocalMapMPs.size(), 0);
 	
 	//키포인트 추가
-	int nPts = mnTargetMatch;
 	if (mvLocalMapMPs.size() < 5000) {
 		for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += 5) {
 			if (!CheckOpticalPointOverlap(used, 1, 10, mpRefFrame->mvEdgePts[i])) {
@@ -1032,6 +1031,7 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 			mvnOctaves.push_back(0);
 			mvNewIndexes.push_back(-1);
 			mvNewKeyPointLabels.push_back(0);
+			mvNewKPInliers.push_back(false);
 		}
 		for (int i = 0; i < mpRefFrame->mvPts.size(); i+= 2) {
 			auto pt = mpRefFrame->mvPts[i];
@@ -1043,10 +1043,11 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 			mvnOctaves.push_back(octave);
 			mvNewIndexes.push_back(-1);
 			mvNewKeyPointLabels.push_back(0);
+			mvNewKPInliers.push_back(false);
 		}
 	}
 	mvnNewVisibles = std::vector<int>(mvNewKPs.size(), 0);
-
+	std::cout << "SetKeyFrame::" << mvNewKPs.size() << ", " << mvNewKeyPointLabels.size() << ", " << mvNewIndexes.size() << ", " << mvNewKPInliers.size() <<", "<< mvnOctaves .size()<< std::endl;
 	/////Edge
 	//mvEdgePts = mpRefFrame->mvEdgePts;
 	//추후 엣지도 없는 부분에 대해서 추가하는 형태로 진행
@@ -1080,6 +1081,7 @@ void UVR_SLAM::MatchInfo::SetKeyFrame() {
 //또한 인덱스 값도 바로 추가하도록 변경함.
 int UVR_SLAM::MatchInfo::AddMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt) {
 	int res = mvLocalMapMPs.size();
+	circle(used, pt, 2, cv::Scalar(255), -1);
 	mvLocalMapMPs.push_back(pMP);
 	mvLocalMapKPs.push_back(pt);
 	mvLocalMapIndexes.push_back(res);

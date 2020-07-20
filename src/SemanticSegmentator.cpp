@@ -201,7 +201,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//////////////////////////////////////////////////
 			std::cout << "segmentation::end::"<< std::endl;
 			////여기를 매핑 과정에서 진행을 해야 함. 끝난 것을 감지 할 필요가 있음.
-			mpTargetFrame->mpMatchInfo->SetLabel();
+			//mpTargetFrame->mpMatchInfo->SetLabel();
 			SetBoolDoingProcess(false);
 		}
 	}

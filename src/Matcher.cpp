@@ -906,8 +906,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* pKF, Frame* pF, std::ve
 			nBad++;
 			continue;
 		}
-		if (pF->mEdgeImg.at<uchar>(currPts[i]) == 0)
-			continue;
+		/*if (pF->mEdgeImg.at<uchar>(currPts[i]) == 0)
+			continue;*/
 
 		//¸ÅÄª °á°ú
 		/*float diffX = abs(prevPts[i].x - currPts[i].x);

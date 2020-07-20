@@ -330,7 +330,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//////////카메라 자세 변환 하는 경우
 		mpInitFrame1->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME, 0);
 		mpInitFrame2->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-		
+		mpLocalMapper->SetInitialKeyFrame(mpInitFrame1, mpInitFrame2);
+
 		//맵포인트 정보 설정
 		//idx2가 매칭 결과에 대한 것.
 		std::vector<int> vMappingInlierIDXs(vTempPts1.size(), false);
@@ -378,6 +379,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpInitFrame2->mpMatchInfo->mvNewKPs.push_back(vTempPts2[i]);
 			mpInitFrame2->mpMatchInfo->mvNewIndexes.push_back(vTempIndexs[i]);
 			mpInitFrame2->mpMatchInfo->mvNewKPInliers.push_back(false);
+			mpInitFrame2->mvnOctaves.push_back(mpInitFrame1->mvnOctaves[vTempIndexs[i]]);
 		}
 		//MP와 KP에 대한 매칭과 빈도 추가.
 		
@@ -417,6 +419,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		////////////////////시각화에 카메라 포즈를 출력하기 위해
 		mpMap->mpFirstKeyFrame = mpInitFrame1;
 		mpVisualizer->SetMatchInfo(mpInitFrame2->mpMatchInfo);
+		//mpLocalMapper
 		mbInit = true;
 		std::cout << "Initializer::Success" << std::endl << std::endl << std::endl;
 
