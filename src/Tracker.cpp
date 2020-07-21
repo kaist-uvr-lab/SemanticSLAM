@@ -205,6 +205,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		////MatchInfo 설정
 		mpRefKF->SetRecentTrackedFrameID(pCurr->GetFrameID());
 		pCurr->mpMatchInfo = new UVR_SLAM::MatchInfo(pCurr, mpRefKF, mnWidth, mnHeight);
+		
 		cv::Mat prevR, prevT;
 		pPrev->GetPose(prevR, prevT);
 		pCurr->SetPose(prevR, prevT);
@@ -225,6 +226,17 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		////////KF-F matching test
 		cv::Mat dddddbug;
 		mpMatcher->OpticalMatchingForTracking2(mpRefKF, pCurr, dddddbug);
+
+		if (mpRefKF->mpMatchInfo->mvpMatchInfos.size() > 1) {
+			auto pF1 = mpRefKF->mpMatchInfo->mvpMatchInfos[0]->mpRefFrame;
+			auto pF2 = mpRefKF->mpMatchInfo->mvpMatchInfos[1]->mpRefFrame;
+			cv::Mat adddddbug;
+			mpMatcher->OpticalMatchingForTracking3(pCurr, mpRefKF, pF1, pF2, adddddbug);
+			std::stringstream ssdira;
+			ssdira << mpSystem->GetDirPath(0) << "/kfmatching/a" << mpRefKF->GetFrameID() << "_" << pCurr->GetFrameID() << "_tracking.jpg";
+			imwrite(ssdira.str(), adddddbug);
+		}
+
 		/*
 		cv::Mat imgKFNF;
 		mpMatcher->OpticalKeyframeAndFrameMatchingForTracking(mpRefKF, mpRefKF->mpMatchInfo->mpTargetFrame, imgKFNF);
@@ -257,7 +269,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		////solvepnp
 		//pCurr->SetInliers(mnMatching); //이용X
 		int nMP = UpdateMatchingInfo(pPrev, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
-		
+		mpRefKF->mpMatchInfo->mvpMatchInfos.push_back(pCurr->mpMatchInfo);
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크
 		if (CheckNeedKeyFrame(pCurr)) {

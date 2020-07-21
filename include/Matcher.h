@@ -27,6 +27,7 @@ namespace UVR_SLAM {
 		int OpticalMatchingForInitialization(Frame* prev, Frame* curr, std::vector<cv::Point2f>& vpPts2, std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, cv::Mat& debug);
 		int OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts, std::vector<cv::Point2f>& vpPts1, std::vector<cv::Point3f>& vpPts2, std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, std::vector<int>& vnMPIDXs, cv::Mat& overlap, cv::Mat& debug);
 		int OpticalMatchingForTracking2(Frame* prev, Frame* curr, cv::Mat& debug);
+		int OpticalMatchingForTracking3(Frame* pCurrF, Frame* pKF, Frame* pF1, Frame* pF2, cv::Mat& debug);
 		int OpticalKeyframeAndFrameMatchingForTracking(Frame* prev, Frame* curr, cv::Mat& debug);
 		int OpticalMatchingForMapping(Frame* init, Frame* curr, std::vector<std::pair<cv::Point2f, cv::Point2f>>& resMatches, cv::Mat& debugging);
 		int OpticalMatchingForFuseWithEpipolarGeometry(Frame* prev, Frame* curr, cv::Mat& debug);

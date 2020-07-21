@@ -1010,6 +1010,135 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	return res;
 }
 
+int UVR_SLAM::Matcher::OpticalMatchingForTracking3(Frame* pCurrF, Frame* pKF, Frame* pF1, Frame* pF2, cv::Mat& debug) {
+
+	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+
+	///////debug
+	cv::Mat prevImg = pF1->GetOriginalImage();
+	cv::Mat currImg = pCurrF->GetOriginalImage();
+	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+	debug = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+	prevImg.copyTo(debug(mergeRect1));
+	currImg.copyTo(debug(mergeRect2));
+	///////debug
+
+	//시간 체크 & 포인트 선택 & 라인 출력
+
+	cv::Mat Rcurr, Tcurr, R1, T1, R2, T2;
+	pCurrF->GetPose(Rcurr, Tcurr);
+	pF1->GetPose(R1, T1);
+	pF2->GetPose(R2, T2);
+	cv::Mat mK = pCurrF->mK.clone();
+	cv::Mat F1tocurr = CalcFundamentalMatrix(R1, T1, Rcurr, Tcurr, mK);
+	cv::Mat F2tocurr = CalcFundamentalMatrix(R2, T2, Rcurr, Tcurr, mK);
+
+	//공통된 포인트 찾기
+	std::vector<cv::Point3f> lines[2];
+	cv::Mat matLines;
+	std::vector<cv::Point2f> pts1, pts2, ptsInFuse1;
+	std::vector<UVR_SLAM::MapPoint*> vpMPs;
+	std::vector<bool> vb1(pKF->mpMatchInfo->mvpMatchingMPs.size(), false);
+	std::vector<bool> vb2(pKF->mpMatchInfo->mvpMatchingMPs.size(), false);
+	std::vector<int> vn1(pKF->mpMatchInfo->mvpMatchingMPs.size());
+	std::vector<int> vn2(pKF->mpMatchInfo->mvpMatchingMPs.size());
+	
+	for (int i = 0; i < pF1->mpMatchInfo->mvnMatchingPtIDXs.size(); i++) {
+		int idx = pF1->mpMatchInfo->mvnMatchingPtIDXs[i];
+		vb1[idx] = true;
+		vn1[idx] = i;
+	}
+
+	for (int i = 0; i < pF2->mpMatchInfo->mvnMatchingPtIDXs.size(); i++) {
+		int idx = pF2->mpMatchInfo->mvnMatchingPtIDXs[i];
+		vb2[idx] = true;
+		vn2[idx] = i;
+	}
+
+	for (int i = 0; i < vb1.size(); i++) {
+		if (!vb1[i] || !vb2[i])
+			continue;
+		auto pt1 = pF1->mpMatchInfo->mvMatchingPts[vn1[i]];
+		auto pt2 = pF2->mpMatchInfo->mvMatchingPts[vn2[i]];
+
+		pts1.push_back(pt1);
+		pts2.push_back(pt2);
+
+	}
+	std::cout << "tracking3::" << pF1->mpMatchInfo->mvnMatchingMPIDXs.size() <<", "<< pF2->mpMatchInfo->mvnMatchingMPIDXs.size()<< std::endl;
+	std::cout << pF1->GetFrameID() << std::endl;
+	if (pts1.size() < 10)
+		return 0;
+	/*for (int i = 0; i < pFuseKF1->mpMatchInfo->mnTargetMatch; i++) {
+		auto pMPi = pFuseKF1->mpMatchInfo->mvpMatchingMPs[i];
+		if (!pMPi || pMPi->isDeleted())
+			continue;
+		auto X3D = pMPi->GetWorldPos();
+		auto currPt = mpTargetFrame->Projection(X3D);
+		if (!mpTargetFrame->isInImage(currPt.x, currPt.y, 10.0)) {
+			continue;
+		}
+		vpMPs.push_back(pMPi);
+		pts1.push_back(pFuseKF1->mpMatchInfo->mvMatchingPts[i]);
+	}*/
+
+	////포인트를 선택해야 함
+
+	cv::computeCorrespondEpilines(pts1, 2, F1tocurr, lines[0]);
+	cv::computeCorrespondEpilines(pts2, 2, F2tocurr, lines[1]);
+
+	//조건들
+	//abs(b1) > 0.00001
+
+	for (int i = 0; i < pts1.size(); i++) {
+		float a1 = lines[0][i].x;
+		float b1 = lines[0][i].y;
+		float c1 = lines[0][i].z;
+
+		float a2 = lines[1][i].x;
+		float b2 = lines[1][i].y;
+		float c2 = lines[1][i].z;
+
+		float a = a1*b2 - a2*b1;
+		if (abs(a) < 0.00001)
+			continue;
+		float b = b1*c2 - b2*c1;
+		float x = b / a;
+		float y = -a1 / b1*x - c1 / b1;
+
+		cv::Point2f pt(x, y);
+		if (!pCurrF->isInImage(x, y, 10.0)) {
+			continue;
+		}
+		if(i % 50 == 0){
+			cv::Point2f spt1, ept1;
+			spt1 = CalcLinePoint(0.0, lines[0][i], true);
+			ept1 = CalcLinePoint(prevImg.rows, lines[0][i], true);
+			cv::Point2f spt2, ept2;
+			spt2 = CalcLinePoint(0.0, lines[1][i], true);
+			ept2 = CalcLinePoint(prevImg.rows, lines[1][i], true);
+			/*cv::line(debug, spt1+ptBottom, ept1+ ptBottom, cv::Scalar(255,0,0) , 1);
+			cv::line(debug, spt2+ ptBottom, ept2+ ptBottom, cv::Scalar(0,255,0), 1);*/
+			cv::circle(debug, pt+ ptBottom, 3, cv::Scalar(255, 0, 255), -1);
+			cv::circle(debug, pts1[i], 3, cv::Scalar(255, 0, 255), -1);
+		}
+	}
+
+	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	double tttt = duration / 1000.0;
+
+	//fuse time text 
+	std::stringstream ss;
+	ss << "Optical flow init= " << tttt<<"::"<<pts1.size();
+	cv::rectangle(debug, cv::Point2f(0, 0), cv::Point2f(debug.cols, 30), cv::Scalar::all(0), -1);
+	cv::putText(debug, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+	imshow("matching::3", debug);
+
+}
+
 int UVR_SLAM::Matcher::OpticalMatchingForTracking2(Frame* pKF, Frame* pF, cv::Mat& debug) {
 
 	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
