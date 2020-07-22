@@ -32,6 +32,10 @@ void UVR_SLAM::LocalMapper::SetVisualizer(Visualizer* pVis)
 {
 	mpVisualizer = pVis;
 }
+void UVR_SLAM::LocalMapper::SetInitialKeyFrame(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2) {
+	mpPrevKeyFrame = pKF1;
+	mpTargetFrame = pKF2;
+}
 void UVR_SLAM::LocalMapper::InsertKeyFrame(UVR_SLAM::Frame *pKF)
 {
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
@@ -127,6 +131,14 @@ void UVR_SLAM::LocalMapper::Run() {
 			//mpMap->AddFrame(mpTargetFrame);
 			mpTargetFrame->ComputeSceneMedianDepth();
 			//////////////업데이트 맵포인트
+
+			//매핑 테스트
+			/*if(mpPPrevKeyFrame && mpPrevKeyFrame){
+				
+			}*/
+			cv::Mat ddddbug;
+			mpMatcher->OpticalMatchingForMapping(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, ddddbug);
+			//매핑 테스트
 
 			//////////////업데이트 키프레임
 			//이건 단순히 해당 키프레임에서 추적되는 맵포인트가 연결되어 있는 프레임들의 리스트에 불과함.

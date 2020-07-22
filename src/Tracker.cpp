@@ -91,7 +91,7 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr) {
 
 	//1 : rotation angle
 	bool bRotation = pCurr->CalcDiffAngleAxis(mpRefKF) > 10.0;
-	bool bMaxFrames = pCurr->GetFrameID() >= mpRefKF->mnFrameID + mnMinFrames;
+	bool bMaxFrames = pCurr->GetFrameID() >= mpRefKF->mnFrameID + 5;//mnMinFrames;
 	bool bDoingSegment = !mpSegmentator->isDoingProcess();
 	
 	bool bMatchMapPoint = mnMapPointMatching < 600;
@@ -223,28 +223,28 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vpTempPts, vpTempPts1, vpTempPts2, vbTempInliers, vnIDXs, vnMPIDXs, overlap, debugImg); //pCurr
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
 		
-		////////KF-F matching test
-		cv::Mat dddddbug;
-		mpMatcher->OpticalMatchingForTracking2(mpRefKF, pCurr, dddddbug);
+		//////////KF-F matching test
+		//cv::Mat dddddbug;
+		//mpMatcher->OpticalMatchingForTracking2(mpRefKF, pCurr, dddddbug);
 
-		if (mpRefKF->mpMatchInfo->mvpMatchInfos.size() > 1) {
-			auto pF1 = mpRefKF->mpMatchInfo->mvpMatchInfos[0]->mpRefFrame;
-			auto pF2 = mpRefKF->mpMatchInfo->mvpMatchInfos[1]->mpRefFrame;
-			cv::Mat adddddbug;
-			mpMatcher->OpticalMatchingForTracking3(pCurr, mpRefKF, pF1, pF2, adddddbug);
-			std::stringstream ssdira;
-			ssdira << mpSystem->GetDirPath(0) << "/kfmatching/a" << mpRefKF->GetFrameID() << "_" << pCurr->GetFrameID() << "_tracking.jpg";
-			imwrite(ssdira.str(), adddddbug);
-		}
+		//if (mpRefKF->mpMatchInfo->mvpMatchInfos.size() > 1) {
+		//	auto pF1 = mpRefKF->mpMatchInfo->mvpMatchInfos[0]->mpRefFrame;
+		//	auto pF2 = mpRefKF->mpMatchInfo->mvpMatchInfos[1]->mpRefFrame;
+		//	cv::Mat adddddbug;
+		//	mpMatcher->OpticalMatchingForTracking3(pCurr, mpRefKF, pF1, pF2, adddddbug);
+		//	std::stringstream ssdira;
+		//	ssdira << mpSystem->GetDirPath(0) << "/kfmatching/a" << mpRefKF->GetFrameID() << "_" << pCurr->GetFrameID() << "_tracking.jpg";
+		//	imwrite(ssdira.str(), adddddbug);
+		//}
 
-		/*
-		cv::Mat imgKFNF;
-		mpMatcher->OpticalKeyframeAndFrameMatchingForTracking(mpRefKF, mpRefKF->mpMatchInfo->mpTargetFrame, imgKFNF);
-		*/
-		std::stringstream ssdira;
-		ssdira << mpSystem->GetDirPath(0) << "/kfmatching/" <<mpRefKF->GetFrameID()<<"_"<< pCurr->GetFrameID() << "_tracking.jpg";
-		imwrite(ssdira.str(), dddddbug);
-		////////KF-F matching test
+		///*
+		//cv::Mat imgKFNF;
+		//mpMatcher->OpticalKeyframeAndFrameMatchingForTracking(mpRefKF, mpRefKF->mpMatchInfo->mpTargetFrame, imgKFNF);
+		//*/
+		//std::stringstream ssdira;
+		//ssdira << mpSystem->GetDirPath(0) << "/kfmatching/" <<mpRefKF->GetFrameID()<<"_"<< pCurr->GetFrameID() << "_tracking.jpg";
+		//imwrite(ssdira.str(), dddddbug);
+		//////////KF-F matching test
 
 		//graph-based0.
 		mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);

@@ -380,6 +380,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		///////////이것도 차후 없애야 함.
 		////여기서 무슨일 하는지 정리 후 삭제
 		///////////10개 중에 한개씩 저장. 그냥 평면 값 비교하기 위해
+		mpLocalMapper->SetInitialKeyFrame(mpInitFrame1, mpInitFrame2);
 		mpMap->AddFrame(mpInitFrame1);
 		mpMap->AddFrame(mpInitFrame2);
 

@@ -1010,6 +1010,154 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	return res;
 }
 
+int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, cv::Mat& debugging) {
+	//////////////////////////
+	////Optical flow
+	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+	std::vector<cv::Mat> currPyr, prevPyr, pprevPyr;
+	std::vector<uchar> status1, status2;
+	std::vector<float> err1, err2;
+	cv::Mat pprevImg = pPPrevKF->GetOriginalImage();
+	cv::Mat prevImg = pPrevKF->GetOriginalImage();
+	cv::Mat currImg = pCurrKF->GetOriginalImage();
+
+	std::cout << "Mapping::0::Start" << std::endl;
+
+	///////debug
+	cv::Point2f ptBottom = cv::Point2f(0, pprevImg.rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, pprevImg.cols, pprevImg.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, pprevImg.rows, pprevImg.cols, pprevImg.rows);
+	debugging = cv::Mat::zeros(pprevImg.rows * 2, pprevImg.cols, pprevImg.type());
+	pprevImg.copyTo(debugging(mergeRect1));
+	prevImg.copyTo(debugging(mergeRect2));
+
+	///////////
+	//matKPs, mvKPs
+	//init -> curr로 매칭
+	////////
+	std::vector<cv::Point2f> pprevPts, prevPts, currPts;
+	//prevPts = prev->mpMatchInfo->mvMatchingPts;//prev->mvMatchingPts;
+
+	for (int i = 0; i < pPPrevKF->mpMatchInfo->mvMatchingPts.size(); i++) {
+		if (pPPrevKF->mpMatchInfo->mvpMatchingMPs[i])
+			continue;
+		pprevPts.push_back(pPPrevKF->mpMatchInfo->mvMatchingPts[i]);
+	}
+	std::cout <<"Mapping::1::"<< pprevPts.size() << std::endl;
+	int maxLvl = 3;
+	int searchSize = 21;
+	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
+	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
+	maxLvl = cv::buildOpticalFlowPyramid(pprevImg, pprevPyr, cv::Size(searchSize, searchSize), maxLvl);
+	
+	std::vector<cv::Point2f> vTempMatchPPrevPts, vTempMatchPrevPts, vTempMatchCurrPts;
+	std::vector<cv::Point2f> vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts;
+	std::vector<bool> vInliers(pprevPts.size(), false);
+	std::vector<int> vIDXs, vTempIDXs;
+	cv::calcOpticalFlowPyrLK(pprevPyr, prevPyr, pprevPts, prevPts,  status2, err2, cv::Size(searchSize, searchSize), maxLvl);
+	//cv::calcOpticalFlowPyrLK(pprevPyr, currPyr, pprevPts, currPts, status1, err1, cv::Size(searchSize, searchSize), maxLvl);
+
+	for (int i = 0; i < pprevPts.size(); i++) {
+		if (status2[i] == 0) {
+			continue;
+		}
+		vTempIDXs.push_back(i);
+		vTempMatchPPrevPts.push_back(pprevPts[i]);
+		vTempMatchPrevPts.push_back(prevPts[i]);
+	}
+	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, vTempMatchPrevPts, vTempMatchCurrPts, status1, err1, cv::Size(searchSize, searchSize), maxLvl);
+	for (int i = 0; i < vTempMatchPrevPts.size(); i++) {
+		if (status1[i] == 0) {
+			continue;
+		}
+		/*vTempIDXs.push_back(i);
+		vInliers.push_back(true);
+		vTempMatchPPrevPts.push_back(pprevPts[i]);
+		vTempMatchPrevPts.push_back(prevPts[i]);*/
+		
+		vIDXs.push_back(vTempIDXs[i]);
+		vMatchPPrevPts.push_back(vTempMatchPPrevPts[i]);
+		vMatchPrevPts.push_back(vTempMatchPrevPts[i]);
+		vMatchCurrPts.push_back(vTempMatchCurrPts[i]);
+	}
+	
+	/*for (int i = 0; i < pprevPts.size(); i++) {
+		if (status1[i] == 0 || status2[i] == 0) {
+			continue;
+		}
+		vIDXs.push_back(i);
+		vInliers.push_back(true);
+		vMatchPPrevPts.push_back(pprevPts[i]);
+		vMatchPrevPts.push_back(prevPts[i]);
+		vMatchCurrPts.push_back(currPts[i]);
+	}*/
+	
+	std::cout << "Mapping::1::" << vMatchPPrevPts.size() << std::endl;
+
+	std::vector<cv::Point3f> lines[2];
+	cv::Mat Rpprev, Tpprev, Rprev, Tprev, Rcurr, Tcurr;
+	pCurrKF->GetPose(Rcurr, Tcurr);
+	pPrevKF->GetPose(Rprev, Tprev);
+	pPPrevKF->GetPose(Rpprev, Tpprev);
+	cv::Mat mK = pCurrKF->mK.clone();
+	cv::Mat Fpptop = CalcFundamentalMatrix(Rpprev, Tpprev, Rprev, Tprev, mK);
+	cv::Mat Fctop = CalcFundamentalMatrix(Rcurr, Tcurr, Rprev, Tprev, mK);
+
+	cv::computeCorrespondEpilines(vMatchPPrevPts, 2, Fpptop, lines[0]);
+	cv::computeCorrespondEpilines(vMatchCurrPts, 2, Fctop, lines[1]);
+
+	//조건들
+	//abs(b1) > 0.00001
+
+	for (int i = 0; i < vMatchPPrevPts.size(); i++) {
+		float a1 = lines[0][i].x;
+		float b1 = lines[0][i].y;
+		float c1 = lines[0][i].z;
+
+		float a2 = lines[1][i].x;
+		float b2 = lines[1][i].y;
+		float c2 = lines[1][i].z;
+
+		float a = a1*b2 - a2*b1;
+		if (abs(a) < 0.00001)
+			continue;
+		float b = b1*c2 - b2*c1;
+		float x = b / a;
+		float y = -a1 / b1*x - c1 / b1;
+
+		cv::Point2f pt(x, y);
+		if (!pPrevKF->isInImage(x, y, 10.0)) {
+			continue;
+		}
+		if (i % 50 == 0) {
+			cv::Point2f spt1, ept1;
+			spt1 = CalcLinePoint(0.0, lines[0][i], true);
+			ept1 = CalcLinePoint(prevImg.rows, lines[0][i], true);
+			cv::Point2f spt2, ept2;
+			spt2 = CalcLinePoint(0.0, lines[1][i], true);
+			ept2 = CalcLinePoint(prevImg.rows, lines[1][i], true);
+			/*cv::line(debug, spt1+ptBottom, ept1+ ptBottom, cv::Scalar(255,0,0) , 1);
+			cv::line(debug, spt2+ ptBottom, ept2+ ptBottom, cv::Scalar(0,255,0), 1);*/
+			cv::circle(debugging, pt + ptBottom, 3, cv::Scalar(255, 0, 255), -1);
+			cv::circle(currImg, vMatchCurrPts[i], 2, cv::Scalar(255, 255, 0), -1);
+			cv::circle(debugging, vMatchPrevPts[i]+ ptBottom, 2, cv::Scalar(255, 255, 0), -1);
+			cv::circle(debugging, vMatchPPrevPts[i], 3, cv::Scalar(255, 0, 255), -1);
+		}
+	}
+
+	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	double tttt = duration / 1000.0;
+
+	//fuse time text 
+	std::stringstream ss;
+	ss << "Optical flow Mapping2= " << tttt << "::" << vMatchPPrevPts.size();
+	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
+	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+	imshow("Mapping::2::curr", currImg);
+	imshow("Mapping::2", debugging); waitKey(1);
+}
+
 int UVR_SLAM::Matcher::OpticalMatchingForTracking3(Frame* pCurrF, Frame* pKF, Frame* pF1, Frame* pF2, cv::Mat& debug) {
 
 	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
