@@ -374,9 +374,10 @@ void UVR_SLAM::Visualizer::Run() {
 				/////트래킹 결과 출력
 				if (pMatchInfo) {
 					auto lastBAFrame = pMatchInfo->mpTargetFrame;
-
-					for (int i = 0; i < pMatchInfo->mvMatchingPts.size(); i++) {
-						auto pMPi = pMatchInfo->mvpMatchingMPs[i];
+					auto mvpMatchingPts = pMatchInfo->GetMatchingPts();
+					auto mvpMatchingMPs = pMatchInfo->GetMatchingMPs();
+					for (int i = 0; i < mvpMatchingPts.size(); i++) {
+						auto pMPi = mvpMatchingMPs[i];
 						auto label = pMatchInfo->mvObjectLabels[i];
 						if (!pMPi || pMPi->isDeleted())
 							continue;
@@ -390,6 +391,7 @@ void UVR_SLAM::Visualizer::Run() {
 							color = cv::Scalar(0, 0, 255);
 						cv::circle(tempVis, tpt, 2, color, -1);
 					}
+					
 					////tracking results
 				}
 				/////트래킹 결과 출력

@@ -427,7 +427,7 @@ void UVR_SLAM::Frame::ComputeSceneMedianDepth()
 	cv::Mat Rcw2 = R.row(2);
 	Rcw2 = Rcw2.t();
 	float zcw = t.at<float>(2);
-	auto vpMPs = mpMatchInfo->mvpMatchingMPs;
+	auto vpMPs = mpMatchInfo->GetMatchingMPs();
 	for (int i = 0; i < vpMPs.size(); i++)
 	{
 		UVR_SLAM::MapPoint* pMP = vpMPs[i];
@@ -928,10 +928,10 @@ float UVR_SLAM::Frame::CalcDiffAngleAxis(UVR_SLAM::Frame* pF) {
 
 //////////////matchinfo
 UVR_SLAM::MatchInfo::MatchInfo(){}
-UVR_SLAM::MatchInfo::MatchInfo(Frame* pRef, Frame* pTarget, int w, int h){
+UVR_SLAM::MatchInfo::MatchInfo(Frame* pRef, Frame* pTarget, int w, int h):mfAvgNumMatch(0.0f), mnTotalMatch(0){
 	mpTargetFrame = pTarget;
 	mpRefFrame = pRef;
-	used = cv::Mat::zeros(h, w, CV_16UC1);
+	used = cv::Mat::zeros(h, w, CV_8UC1);
 	edgeMap = cv::Mat::zeros(h, w, CV_8UC1);
 }
 UVR_SLAM::MatchInfo::~MatchInfo(){}
@@ -952,105 +952,138 @@ bool UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(cv::Mat& overlap, int radius,
 		return false;
 	}
 	//overlap.at<uchar>(pt) = 255;
-	circle(overlap, pt, radius, cv::Scalar(255), -1);
+	//circle(overlap, pt, radius, cv::Scalar(255), -1);
 	return true;
 }
 
-void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label, int octave) {
-	this->mvMatchingPts.push_back(pt);
-	this->mvnMatchingPtIDXs.push_back(idx);
-	this->mvpMatchingMPs.push_back(pMP);
-	this->mvObjectLabels.push_back(label);
-	this->mvnOctaves.push_back(octave);
-	cv::circle(used, pt, 2, cv::Scalar(255), -1);
-}
 void UVR_SLAM::MatchInfo::SetLabel() {
 	auto labelMat = mpRefFrame->matLabeled.clone();
+	mvObjectLabels.clear();
+	mvObjectLabels.resize(mvMatchingPts.size());
+	//mvObjectLabels = std::vector<int>(mvMatchingPts.size());
 	for (int i = 0; i < mvMatchingPts.size(); i++) {
 		auto pt1 = mvMatchingPts[i];
 		int label1 = labelMat.at<uchar>(pt1.y / 2, pt1.x / 2);
 		mvObjectLabels[i] = label1;
 	}
 }
-void UVR_SLAM::MatchInfo::SetKeyFrame() {
-	if(mpTargetFrame)
-		mpTargetFrame->mpMatchInfo->mpNextFrame = mpRefFrame;
-	mnTargetMatch = mvMatchingPts.size();
-	mvnTargetMatchingPtIDXs = std::vector<int>(mvnMatchingPtIDXs.begin(), mvnMatchingPtIDXs.end());
-	//현재 프레임의매칭 정보로 갱신
-	mvnMatchingPtIDXs.clear();
-	for (int i = 0; i < mvMatchingPts.size(); i++) {
-		mvnMatchingPtIDXs.push_back(i);
-	}
 
-	//키포인트 추가
-	int nPts = mnTargetMatch;
-	//if (mvMatchingPts.size() < 2000) {
-	if (mvMatchingPts.size() < 5000) {
-		for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += 5) {
-			if (!CheckOpticalPointOverlap(used, 1, 10, mpRefFrame->mvEdgePts[i])) {
-				continue;
-			}
-			mvMatchingPts.push_back(mpRefFrame->mvEdgePts[i]);
-			mvnOctaves.push_back(0);
-			mvnMatchingPtIDXs.push_back(nPts++);
-			mvpMatchingMPs.push_back(nullptr);
-			mvObjectLabels.push_back(0);
-		}
-		for (int i = 0; i < mpRefFrame->mvPts.size(); i+= 2) {
-			auto pt = mpRefFrame->mvPts[i];
-			/*if (used.at<ushort>(pt)) {
-				continue;
-			}*/
-			if (!CheckOpticalPointOverlap(used, 1, 10, pt)) {
-				continue;
-			}
-			//cv::circle(used, pt, 2, cv::Scalar(255), -1);
-			auto octave = mpRefFrame->mvnOctaves[i];
-			mvMatchingPts.push_back(pt);
-			mvnOctaves.push_back(octave);
-			mvnMatchingPtIDXs.push_back(nPts++);
-			mvpMatchingMPs.push_back(nullptr);
-			mvObjectLabels.push_back(0);
-		}
-	}
-	/////Edge
-	//mvEdgePts = mpRefFrame->mvEdgePts;
-	//추후 엣지도 없는 부분에 대해서 추가하는 형태로 진행
-	//일부분만 추가하는 경우
-	//mvEdgePts.clear();
-	//mvnEdgePtIDXs.clear();
-	
+void UVR_SLAM::MatchInfo::SetMatchingPoints() {
+	cv::Mat tempused = cv::Mat::zeros(used.size(), CV_8UC1);
+	int radius = 5;
+	int nMax = 500; //둘다 하면 500
+	int nIncEdge = mpRefFrame->mvEdgePts.size() / nMax;
+	int nIncORB = mpRefFrame->mvPts.size() / nMax;
 
-	/*if (mvEdgePts.size() < 1500) {
-		for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += 5) {
-			if (!CheckOpticalPointOverlap(edgeMap, 1, 10, mpRefFrame->mvEdgePts[i])) {
-				continue;
-			}
-			mvEdgePts.push_back(mpRefFrame->mvEdgePts[i]);
-			mvnEdgePtIDXs.push_back(i);
-		}
-	}*/
-	
-	//위에 처럼 edgemap이 존재해야 함.
-	/*for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i++) {
-		if (!CheckOpticalPointOverlap(edgeMap, 1, 10, mpRefFrame->mvEdgePts[i])){
+	if (nIncEdge == 0)
+		nIncEdge = 1;
+	if (nIncORB == 0)
+		nIncORB = 1;
+
+	for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += nIncEdge) {
+		auto pt = mpRefFrame->mvEdgePts[i];
+		if (!CheckOpticalPointOverlap(used, 1, 10, pt) || !CheckOpticalPointOverlap(tempused, 1, 10, pt)) {
 			continue;
 		}
-		mvEdgePts.push_back(mpRefFrame->mvEdgePts[i]);
-	}*/
-	/////Edge
+		circle(tempused, pt, radius, cv::Scalar(255), -1);
+		mvTempPts.push_back(pt);
+		mvTempOctaves.push_back(0);
+	}
+	for (int i = 0; i < mpRefFrame->mvPts.size(); i+= nIncORB) {
+		auto pt = mpRefFrame->mvPts[i];
+		if (!CheckOpticalPointOverlap(used, 1, 10, pt) || !CheckOpticalPointOverlap(tempused, 1, 10, pt)) {
+			continue;
+		}
+		circle(tempused, pt, radius, cv::Scalar(255), -1);
+		mvTempPts.push_back(pt);
+		mvTempOctaves.push_back(mpRefFrame->mvnOctaves[i]);
+	}
 }
 
-void UVR_SLAM::MatchInfo::AddMP(UVR_SLAM::MapPoint* pMP, int idx) {
-	mvpMatchingMPs[idx] = pMP;
-	//std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
-	//mnInliers++;
+void UVR_SLAM::MatchInfo::SetKeyFrame() {
+	//if(mpTargetFrame)
+	//	mpTargetFrame->mpMatchInfo->mpNextFrame = mpRefFrame;
+	//mnTargetMatch = mvMatchingPts.size();
+	//mvnTargetMatchingPtIDXs = std::vector<int>(mvnMatchingPtIDXs.begin(), mvnMatchingPtIDXs.end());
+	////현재 프레임의매칭 정보로 갱신
+	//mvnMatchingPtIDXs.clear();
+	//for (int i = 0; i < mvMatchingPts.size(); i++) {
+	//	mvnMatchingPtIDXs.push_back(i);
+	//}
+
+	////키포인트 추가
+	//int nPts = mnTargetMatch;
+	////if (mvMatchingPts.size() < 2000) {
+	//if (mvMatchingPts.size() < 5000) {
+	//	for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += 5) {
+	//		if (!CheckOpticalPointOverlap(used, 1, 10, mpRefFrame->mvEdgePts[i])) {
+	//			continue;
+	//		}
+	//		mvMatchingPts.push_back(mpRefFrame->mvEdgePts[i]);
+	//		mvnOctaves.push_back(0);
+	//		mvnMatchingPtIDXs.push_back(nPts++);
+	//		mvpMatchingMPs.push_back(nullptr);
+	//		mvObjectLabels.push_back(0);
+	//	}
+	//	for (int i = 0; i < mpRefFrame->mvPts.size(); i+= 2) {
+	//		auto pt = mpRefFrame->mvPts[i];
+	//		/*if (used.at<ushort>(pt)) {
+	//			continue;
+	//		}*/
+	//		if (!CheckOpticalPointOverlap(used, 1, 10, pt)) {
+	//			continue;
+	//		}
+	//		//cv::circle(used, pt, 2, cv::Scalar(255), -1);
+	//		auto octave = mpRefFrame->mvnOctaves[i];
+	//		mvMatchingPts.push_back(pt);
+	//		mvnOctaves.push_back(octave);
+	//		mvnMatchingPtIDXs.push_back(nPts++);
+	//		mvpMatchingMPs.push_back(nullptr);
+	//		mvObjectLabels.push_back(0);
+	//	}
+	//}
 }
+
+int UVR_SLAM::MatchInfo::AddMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt) {
+	std::unique_lock<std::mutex>(mMutexData);
+	int res = mvpMatchingMPs.size();
+	mvpMatchingMPs.push_back(pMP);
+	mvMatchingPts.push_back(pt);
+	mvObjectLabels.push_back(0);
+	cv::circle(used, pt, 5, cv::Scalar(255), -1);
+	return res;
+}
+
+void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label, int octave) {
+	std::unique_lock<std::mutex>(mMutexData);
+	this->mvMatchingPts.push_back(pt);
+	this->mvnMatchingIDXs.push_back(idx);
+	this->mvpMatchingMPs.push_back(pMP);
+	this->mvObjectLabels.push_back(label);
+	this->mvnOctaves.push_back(octave);
+	cv::circle(used, pt, 5, cv::Scalar(255), -1);
+}
+
 void UVR_SLAM::MatchInfo::RemoveMP(int idx) {
+	std::unique_lock<std::mutex>(mMutexData);
 	mvpMatchingMPs[idx] = nullptr;
 	//std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
 	//mnInliers--;
 }
-
+cv::Point2f UVR_SLAM::MatchInfo::GetMatchingPt(int idx) {
+	std::unique_lock<std::mutex>(mMutexData);
+	return mvMatchingPts[idx];
+}
+std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts() {
+	std::unique_lock<std::mutex>(mMutexData);
+	return std::vector<cv::Point2f>(mvMatchingPts.begin(), mvMatchingPts.end());
+}
+std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::MatchInfo::GetMatchingMPs(){
+	std::unique_lock<std::mutex>(mMutexData);
+	return std::vector<UVR_SLAM::MapPoint*>(mvpMatchingMPs.begin(), mvpMatchingMPs.end());
+}
+int UVR_SLAM::MatchInfo::GetMatchingSize() {
+	std::unique_lock<std::mutex>(mMutexData);
+	return mvpMatchingMPs.size();
+}
 //////////////matchinfo

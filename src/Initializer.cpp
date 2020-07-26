@@ -73,24 +73,15 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 	//std::cout << "Initializer::Initialize::Start" << std::endl;
 	
 	if (!mpInitFrame1) {
+		
 		mpInitFrame1 = pFrame;
 		mpTempFrame = mpInitFrame1;
 		mpInitFrame1->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
 		mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo(mpInitFrame1, nullptr, mnWidth, mnHeight);
-		mpInitFrame1->mpMatchInfo->SetKeyFrame();
-		/*mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo();
-		mpInitFrame1->mpMatchInfo->mpRefFrame = mpInitFrame1;
-		mpInitFrame1->mpMatchInfo->mpTargetFrame = nullptr;
-		mpInitFrame1->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame1->GetOriginalImage().size(), CV_16SC1);
-		mpInitFrame1->mpMatchInfo->edgeMap = cv::Mat::zeros(mpInitFrame1->GetOriginalImage().size(), CV_8UC1);
-		mpInitFrame1->mpMatchInfo->mvMatchingPts = mpInitFrame1->mvPts;
-		mpTempFrame->mpMatchInfo->mvnOctaves = mpInitFrame1->mvnOctaves;
-		for (int i = 0; i < mpInitFrame1->mvPts.size(); i++) {
-			mpTempFrame->mpMatchInfo->mvnMatchingPtIDXs.push_back(i);
-		}
-		mpInitFrame1->mpMatchInfo->mvObjectLabels = std::vector<int>(mpInitFrame1->mpMatchInfo->mvMatchingPts.size(), 0);
-		mpInitFrame1->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(mpInitFrame1->mpMatchInfo->mvMatchingPts.size(), nullptr);*/
+		std::cout << "1" << std::endl;
+		mpInitFrame1->mpMatchInfo->SetMatchingPoints();
 		mpSegmentator->InsertKeyFrame(mpInitFrame1);
+		std::cout << "2" << std::endl;
 		return mbInit;
 	}
 	else {
@@ -100,22 +91,20 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame2 = pFrame;
 		//////매칭 정보 생성
 		mpInitFrame2->mpMatchInfo = new UVR_SLAM::MatchInfo(mpInitFrame2, mpInitFrame1, mnWidth, mnHeight);
-		/*mpInitFrame2->mpMatchInfo->mpTargetFrame = mpInitFrame1;
-		mpInitFrame2->mpMatchInfo->mpRefFrame = mpInitFrame2;
-		mpInitFrame2->mpMatchInfo->used = cv::Mat::zeros(mpInitFrame2->GetOriginalImage().size(), CV_16SC1);
-		mpInitFrame2->mpMatchInfo->edgeMap = cv::Mat::zeros(mpInitFrame2->GetOriginalImage().size(), CV_8UC1);*/
 		
 		//////매칭 정보 생성
 		bool bSegment = false;
 		int nSegID = mpInitFrame1->GetFrameID();
-		int nMatchingThresh = mpTempFrame->mpMatchInfo->mvMatchingPts.size()*0.6;
+		int nMatchingThresh = mpInitFrame1->mpMatchInfo->mvTempPts.size()*0.6;
 		std::vector<cv::Point2f> vTempPts1, vTempPts2;
 		std::vector<bool> vTempInliers;
 		std::vector<int> vTempIndexs;
 		std::vector<std::pair<cv::Point2f, cv::Point2f>> tempMatches2, resMatches;
 		cv::Mat debugging;
+		
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
-		int count = mpMatcher->OpticalMatchingForInitialization(mpTempFrame, mpInitFrame2, vTempPts2, vTempInliers, vTempIndexs, debugging);
+		int count = mpMatcher->OpticalMatchingForInitialization(mpInitFrame1, mpInitFrame2, vTempPts1, vTempPts2, vTempInliers, vTempIndexs, debugging);
+		
 		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 		double tttt = duration / 1000.0;
@@ -130,8 +119,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 		
 		////////현재 프레임의 매칭 정보 복사 및 초기 프레임의 포인트 저장
-		mpInitFrame2->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(vTempPts2.size(), nullptr);
-		for (int i = 0; i < vTempPts2.size(); i++) {
+		//mpInitFrame2->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(vTempPts2.size(), nullptr);
+		/*for (int i = 0; i < vTempPts2.size(); i++) {
 			int idx = vTempIndexs[i];
 			mpInitFrame2->mpMatchInfo->mvMatchingPts.push_back(vTempPts2[i]);
 			mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.push_back(idx);
@@ -139,13 +128,13 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpInitFrame2->mpMatchInfo->mvnOctaves.push_back(mpInitFrame1->mpMatchInfo->mvnOctaves[idx]);
 			vTempPts1.push_back(mpInitFrame1->mpMatchInfo->mvMatchingPts[idx]);
 			cv::circle(mpInitFrame2->mpMatchInfo->used, vTempPts2[i], 2, cv::Scalar(255), -1);
-		}
+		}*/
 		////////현재 프레임의 매칭 정보 복사
 
 		/////////////////////Fundamental Matrix Decomposition & Triangulation
 		std::vector<uchar> vFInliers;
 		std::vector<cv::Point2f> vTempMatchPts1, vTempMatchPts2;
-		std::vector<int> vTempMatchIDXs; //vTempMatchPts2와 대응되는 매칭 인덱스를 저장.
+		std::vector<int> vTempMatchOctaves,vTempMatchIDXs; //vTempMatchPts2와 대응되는 매칭 인덱스를 저장.
 		////F 찾기 : 기존 방법
 		std::vector<bool> vbFtest;
 		cv::Mat F12;
@@ -161,6 +150,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 				resMatches.push_back(std::make_pair(vTempPts1[i], vTempPts2[i]));
 				vTempMatchPts1.push_back(vTempPts1[i]);
 				vTempMatchPts2.push_back(vTempPts2[i]);
+				vTempMatchOctaves.push_back(mpInitFrame1->mpMatchInfo->mvTempOctaves[vTempIndexs[i]]);
 				vTempMatchIDXs.push_back(i);//vTempIndexs[i]
 			}
 		}
@@ -187,7 +177,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//////////////////////////////////////
 		std::vector<UVR_SLAM::MapPoint*> tempMPs;
 		std::vector<cv::Point2f> vTempMappedPts1, vTempMappedPts2; //맵포인트로 생성된 포인트 정보를 저장
-		std::vector<int> vTempMappedIDXs; //vTempMatch에서 다시 일부분을 저장. 초기 포인트와 대응되는 위치를 저장.
+		std::vector<int> vTempMappedOctaves,vTempMappedIDXs; //vTempMatch에서 다시 일부분을 저장. 초기 포인트와 대응되는 위치를 저장.
 		int res3 = 0;
 		for (int i = 0; i < matTriangulateInliers.rows; i++) {
 			int val = matTriangulateInliers.at<uchar>(i);
@@ -224,7 +214,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			tempMPs.push_back(pMP);
 			vTempMappedPts1.push_back(vTempMatchPts1[i]);
 			vTempMappedPts2.push_back(vTempMatchPts2[i]);
-			vTempMappedIDXs.push_back(vTempMatchIDXs[i]);
+			vTempMappedOctaves.push_back(vTempMatchOctaves[i]);
+			vTempMappedIDXs.push_back(i);//vTempMatchIDXs[i]
 		}
 		//////////////////////////////////////
 		/////median depth 
@@ -332,17 +323,14 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			auto pt2 = vTempMappedPts2[i];
 			
 			int idx2 = vTempMappedIDXs[i];
-			int idx1 = vTempIndexs[idx2];
+			
+			mpInitFrame2->mpMatchInfo->mvnMatchingIDXs.push_back(mpInitFrame1->mpMatchInfo->mvnMatchingIDXs.size());
+			mpInitFrame1->mpMatchInfo->mvnMatchingIDXs.push_back(-1);
 
-			auto pt3 = mpInitFrame1->mpMatchInfo->mvMatchingPts[idx1];
-			auto pt4 = mpInitFrame2->mpMatchInfo->mvMatchingPts[idx2];
-
-			pNewMP->AddFrame(mpInitFrame1->mpMatchInfo, idx1);
-			pNewMP->AddFrame(mpInitFrame2->mpMatchInfo, idx2);
-			pNewMP->mnOctave = mpInitFrame1->mpMatchInfo->mvnOctaves[idx1];
-			//mpInitFrame2->mpMatchInfo->mvpMatchingMPs[vTempMappedIDXs[i]] = pNewMP;
-			//pNewMP->AddDenseFrame(mpInitFrame1, pt1);
-			//pNewMP->AddDenseFrame(mpInitFrame2, pt2);
+			pNewMP->AddFrame(mpInitFrame1->mpMatchInfo, pt1);
+			pNewMP->AddFrame(mpInitFrame2->mpMatchInfo, pt2);
+			pNewMP->mnOctave = vTempMappedOctaves[i];//mpInitFrame1->mpMatchInfo->mvnOctaves[idx1];
+			
 			pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
 			pNewMP->IncreaseVisible(2);
 			pNewMP->IncreaseFound(2);
@@ -354,21 +342,21 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 				pMG = mpMap->InsertGrid(pt3D);
 			}
 			mpMap->InsertMapPoint(pNewMP, pMG);
-			//mpInitFrame2->mpMatchInfo->mvnMatchingMPIDXs.push_back(vTempMappedIDXs[i]);
 		}
-
+		
 		/////////////////////Object labeling
 		mpInitFrame1->mpMatchInfo->SetLabel();
-		for (int i = 0; i < mpInitFrame2->mpMatchInfo->mvMatchingPts.size(); i++) {
+		
+		/*for (int i = 0; i < mpInitFrame2->mpMatchInfo->mvMatchingPts.size(); i++) {
 			int idx = mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs[i];
 			mpInitFrame2->mpMatchInfo->mvObjectLabels[i] = mpInitFrame1->mpMatchInfo->mvObjectLabels[idx];
-		}
+		}*/
 		/////////////////////Object labeling
 
 		//////키프레임으로 업데이트 과정
 		//타겟 프레임과의 매칭 정보 저장
-		mpInitFrame1->mpMatchInfo->mnTargetMatch = mpInitFrame1->mpMatchInfo->mvMatchingPts.size();
-		mpInitFrame2->mpMatchInfo->SetKeyFrame();
+		//mpInitFrame1->mpMatchInfo->mnTargetMatch = mpInitFrame1->mpMatchInfo->mvMatchingPts.size();
+		//mpInitFrame2->mpMatchInfo->SetKeyFrame();
 		//////키프레임으로 업데이트 과정
 
 		/////////////레이아웃 추정
@@ -390,7 +378,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpMap->mpFirstKeyFrame = mpInitFrame1;
 		mpVisualizer->SetMatchInfo(mpInitFrame2->mpMatchInfo);
 		mbInit = true;
-		std::cout << "Initializer::Success" << std::endl << std::endl << std::endl;
+		std::cout << "Initializer::Success::" << tempMPs .size()<< std::endl << std::endl << std::endl;
 		//////////////////////////키프레임 생성
 		
 		///////////////호모그래피 테스트
@@ -439,78 +427,78 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 		//////////////////////////////시각화 설정
 
-		///////////debug
-		cv::Mat prevImg = mpInitFrame1->GetOriginalImage();
-		cv::Mat currImg = mpInitFrame2->GetOriginalImage();
-		cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
-		cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
-		cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
-		debugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
-		prevImg.copyTo(debugging(mergeRect1));
-		currImg.copyTo(debugging(mergeRect2));
+		/////////////debug
+		//cv::Mat prevImg = mpInitFrame1->GetOriginalImage();
+		//cv::Mat currImg = mpInitFrame2->GetOriginalImage();
+		//cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
+		//cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+		//cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+		//debugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+		//prevImg.copyTo(debugging(mergeRect1));
+		//currImg.copyTo(debugging(mergeRect2));
 
-		int nTest = 0;
-		for (int i = 0; i < mpInitFrame2->mpMatchInfo->mvnTargetMatchingPtIDXs.size(); i++) {
-			int idx = mpInitFrame2->mpMatchInfo->mvnTargetMatchingPtIDXs[i];
-			
-			cv::Point2f pt1 = mpInitFrame1->mpMatchInfo->mvMatchingPts[idx];
-			cv::Point2f pt2 = mpInitFrame2->mpMatchInfo->mvMatchingPts[i] + ptBottom;
-			if(mpInitFrame2->mpMatchInfo->mvpMatchingMPs[i]){
-				cv::Mat X3D = mpInitFrame2->mpMatchInfo->mvpMatchingMPs[i]->GetWorldPos();
+		//int nTest = 0;
+		//for (int i = 0; i < mpInitFrame2->mpMatchInfo->mvnMatchingIDXs.size(); i++) {
+		//	int idx = mpInitFrame2->mpMatchInfo->mvnMatchingIDXs[i];
+		//	
+		//	cv::Point2f pt1 = mpInitFrame1->mpMatchInfo->mvMatchingPts[idx];
+		//	cv::Point2f pt2 = mpInitFrame2->mpMatchInfo->mvMatchingPts[i] + ptBottom;
+		//	if(mpInitFrame2->mpMatchInfo->mvpMatchingMPs[i]){
+		//		cv::Mat X3D = mpInitFrame2->mpMatchInfo->mvpMatchingMPs[i]->GetWorldPos();
 
-				cv::Mat proj1 = X3D.clone();
-				cv::Mat proj2 = R1*X3D + t1;
-				proj1 = mK*proj1;
-				proj2 = mK*proj2;
-				cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
-				cv::Point2f projected2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
-				projected2 += ptBottom;
-				cv::line(debugging, pt1, projected1, cv::Scalar(255, 0, 255), 1);
-				cv::line(debugging, pt2, projected2, cv::Scalar(255, 0, 255), 1);
-			}
-			/*cv::Point2f pt1 = vTempPts1[i];
-			cv::Point2f pt2 = vTempPts2[i] + ptBottom;*/
-
-			/*if(vFInliers[i]){
-				cv::line(debugging, pt1, pt2, cv::Scalar(255, 0, 255), 1);
-				nTest++;
-			}
-			else
-				cv::line(debugging, pt1, pt2, cv::Scalar(0, 0, 255), 1);*/
-
-			cv::circle(debugging, pt1, 1, cv::Scalar(255, 255, 0), -1);
-
-			cv::circle(debugging, pt2, 1, cv::Scalar(255, 255, 0), -1);
-		}
-
-		////호모그래피 시각화
-		//for (int i = 0; i < vFloorPts1.size(); i++) {
-		//	if (inlierH1.at<uchar>(i)) {
-		//		cv::circle(debugging, vFloorPts1[i], 3, cv::Scalar(255, 0, 0), -1);
-		//		cv::circle(debugging, vFloorPts2[i] + ptBottom, 3, cv::Scalar(255, 0, 0), -1);
+		//		cv::Mat proj1 = X3D.clone();
+		//		cv::Mat proj2 = R1*X3D + t1;
+		//		proj1 = mK*proj1;
+		//		proj2 = mK*proj2;
+		//		cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
+		//		cv::Point2f projected2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
+		//		projected2 += ptBottom;
+		//		cv::line(debugging, pt1, projected1, cv::Scalar(255, 0, 255), 1);
+		//		cv::line(debugging, pt2, projected2, cv::Scalar(255, 0, 255), 1);
 		//	}
-		//	/*else {
-		//		cv::line(debugging, vFloorPts1[i], vFloorPts2[i] + ptBottom, cv::Scalar(255, 255, 0), 1);
-		//	}*/
+		//	/*cv::Point2f pt1 = vTempPts1[i];
+		//	cv::Point2f pt2 = vTempPts2[i] + ptBottom;*/
+
+		//	/*if(vFInliers[i]){
+		//		cv::line(debugging, pt1, pt2, cv::Scalar(255, 0, 255), 1);
+		//		nTest++;
+		//	}
+		//	else
+		//		cv::line(debugging, pt1, pt2, cv::Scalar(0, 0, 255), 1);*/
+
+		//	cv::circle(debugging, pt1, 1, cv::Scalar(255, 255, 0), -1);
+
+		//	cv::circle(debugging, pt2, 1, cv::Scalar(255, 255, 0), -1);
 		//}
-		//for (int i = 0; i < vWallPts1.size(); i++) {
-		//	if (inlierH2.at<uchar>(i)) {
-		//		//cv::line(debugging, vWallPts1[i], vWallPts2[i]+ptBottom, cv::Scalar(0, 255, 0), 1);
-		//		cv::circle(debugging, vWallPts1[i], 3, cv::Scalar(0, 255, 0), -1);
-		//		cv::circle(debugging, vWallPts2[i] + ptBottom, 3, cv::Scalar(0, 255, 0), -1);
-		//	}
-		//	else {
-		//		//cv::line(debugging, vWallPts1[i], vWallPts2[i] + ptBottom, cv::Scalar(0, 255, 255), 1);
-		//	}
-		//}
-		////호모그래피 시각화
-		
-		std::stringstream ss;
-		ss << "Optical flow init= " << nTest <<", "<<"||"<< nSegID <<", "<<mpInitFrame2->GetFrameID()<<"::"<<mpInitFrame2->mpMatchInfo->mvMatchingPts.size() << ", "<<tttt;
-		cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
-		cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-		imshow("Init::OpticalFlow ", debugging);
-		///////////debug
+
+		//////호모그래피 시각화
+		////for (int i = 0; i < vFloorPts1.size(); i++) {
+		////	if (inlierH1.at<uchar>(i)) {
+		////		cv::circle(debugging, vFloorPts1[i], 3, cv::Scalar(255, 0, 0), -1);
+		////		cv::circle(debugging, vFloorPts2[i] + ptBottom, 3, cv::Scalar(255, 0, 0), -1);
+		////	}
+		////	/*else {
+		////		cv::line(debugging, vFloorPts1[i], vFloorPts2[i] + ptBottom, cv::Scalar(255, 255, 0), 1);
+		////	}*/
+		////}
+		////for (int i = 0; i < vWallPts1.size(); i++) {
+		////	if (inlierH2.at<uchar>(i)) {
+		////		//cv::line(debugging, vWallPts1[i], vWallPts2[i]+ptBottom, cv::Scalar(0, 255, 0), 1);
+		////		cv::circle(debugging, vWallPts1[i], 3, cv::Scalar(0, 255, 0), -1);
+		////		cv::circle(debugging, vWallPts2[i] + ptBottom, 3, cv::Scalar(0, 255, 0), -1);
+		////	}
+		////	else {
+		////		//cv::line(debugging, vWallPts1[i], vWallPts2[i] + ptBottom, cv::Scalar(0, 255, 255), 1);
+		////	}
+		////}
+		//////호모그래피 시각화
+		//
+		//std::stringstream ss;
+		//ss << "Optical flow init= " << nTest <<", "<<"||"<< nSegID <<", "<<mpInitFrame2->GetFrameID()<<"::"<<mpInitFrame2->mpMatchInfo->mvMatchingPts.size() << ", "<<tttt;
+		//cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
+		//cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+		//imshow("Init::OpticalFlow ", debugging);
+		/////////////debug
 
 		//init초기화가 안되면 이렇게 해야 함
 		mpTempFrame = mpInitFrame2;

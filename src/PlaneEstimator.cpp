@@ -209,8 +209,9 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				auto matchInfo = pKFi->mpMatchInfo;
 				int tempFrameID = pKFi->GetRecentTrackedFrameID();
 				
-				for (int k = 0; k < matchInfo->mvpMatchingMPs.size(); k++) {
-					auto pMP = matchInfo->mvpMatchingMPs[k];
+				auto mvpMatchingMPs = matchInfo->GetMatchingMPs();
+				for (int k = 0; k < mvpMatchingMPs.size(); k++) {
+					auto pMP = mvpMatchingMPs[k];
 					int label = matchInfo->mvObjectLabels[k];
 
 					//if (!pMP || pMP->isDeleted() || pMP->GetRecentTrackingFrameID() < tempFrameID)
@@ -271,9 +272,10 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			/////////////////////////랜덤하게 고르기
 
 			////////////////////현재 프레임에서만 후보 포인트 추가
+			auto pprevMatchingMPs = prevPrevMatchInfo->GetMatchingMPs();
 			std::vector<UVR_SLAM::MapPoint*> vpCurrFloorMPs, vpCurrCeilMPs, vpCurrWallMPs;
-			for (int k = 0; k < prevPrevMatchInfo->mvpMatchingMPs.size(); k++) {
-				auto pMP = prevPrevMatchInfo->mvpMatchingMPs[k];
+			for (int k = 0; k < pprevMatchingMPs.size(); k++) {
+				auto pMP = pprevMatchingMPs[k];
 				int label = prevPrevMatchInfo->mvObjectLabels[k];
 
 				if (!pMP || pMP->isDeleted())

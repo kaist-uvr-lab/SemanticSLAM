@@ -40,20 +40,30 @@ namespace UVR_SLAM {
 		MatchInfo();
 		MatchInfo(Frame* pRef, Frame* pTarget, int w, int h);
 		virtual ~MatchInfo();
+		void SetMatchingPoints(); //초기화나 매핑시 포인트 매칭을 위한 포인트 추가 과정.
 		void SetKeyFrame();
 		void SetLabel();
 		bool CheckPt(cv::Point2f pt); //나중에 삭제
 		bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt);
 		void AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label = 0, int octave = 0);
 		
+		int GetMatchingSize();
+		cv::Point2f GetMatchingPt(int idx);
+		std::vector<cv::Point2f> GetMatchingPts();
+		std::vector<UVR_SLAM::MapPoint*> GetMatchingMPs();
 //////////////////
-		void AddMP(MapPoint* pMP, int idx);
+		int AddMP(MapPoint* pMP, cv::Point2f pt);
 		void RemoveMP(int idx);
 		//MapPoint* GetMP(int idx);
 	private:
-		std::mutex mMutexMP;
+		std::mutex mMutexData;
+		std::vector<cv::Point2f> mvMatchingPts; //이전 프레임과의 매칭 결과(KP+MP)
+		std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs; //사이즈는 위의 벡터와 같음. nullptr이 존재하며, MP가 있는 경우에만 들어가있음.
 //////////////////
 	public:
+		float mfAvgNumMatch;
+		int mnTotalMatch;
+		int mnNumMatch;
 		UVR_SLAM::Frame* mpTargetFrame, *mpRefFrame, *mpNextFrame;
 		int mnTargetMatch; //이전 타겟 프레임과의 매칭 결과를 기록함. 타겟매칭벡터의 사이즈를 의미. 당연히 현재 매칭 벡터 결과가 이전 타겟 프레임과 연결하기 위한 것인데 현재 매칭벡터 크기가 이전 프레임과 매칭이 없으면 접근하면 안되는 것.
 		cv::Mat used; //자기 자신의 KP를 추가할 때 이미 매칭이 되었던 건지 확인하기 위해서
@@ -62,17 +72,28 @@ namespace UVR_SLAM {
 		std::vector<int> mvObjectLabels;
 		std::vector<int> mvnOctaves;
 		std::vector<bool> mvbCreated; //맵포인트로 생성된 경우 표시.
-		std::vector<cv::Point2f> mvMatchingPts; //이전 프레임과의 매칭 결과(KP+MP)
-		std::vector<cv::Point2f> mvEdgePts; //엣지에서 뽑은 피티 저장.
-		std::vector<int> mvnEdgePtIDXs;
-		std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs; //사이즈는 위의 벡터와 같음. nullptr이 존재하며, MP가 있는 경우에만 들어가있음.
-		std::vector<int> mvnTargetMatchingPtIDXs, mvnNextMatchingPtIDXs, mvnMatchingPtIDXs, mvnMatchingMPIDXs; //키프레임과 연결되는 인덱스 값, MP의 경우 현재 프레임 매칭 결과 중 MP와 바로 연결되기 위한 인덱스 값이 됨.
+		
+		std::vector<int> mvnMatchingIDXs; //키프레임과 연결되는 인덱스 값, MP의 경우 현재 프레임 매칭 결과 중 MP와 바로 연결되기 위한 인덱스 값이 됨.
 		std::vector<MatchInfo*> mvpMatchInfos; //매칭 상태를 저장
 																											   //mvnTargetMatchingPtIDXs : 새롭게 키프레임 될 때 타겟 프레임의 매칭 정보를 저장.
+
+
+
+
+
+		////////////////////
+		//초기화, 매핑 과정에서 키프레임 매칭을 위해 이용
+		std::vector<cv::Point2f> mvTempPts;
+		std::vector<int> mvTempOctaves;
+		////////////////////
+
 		//mvnMatchingPtIDXs 얘를 타겟으로 삼는 애들과의 매칭을 위해
 		//mvnMatchingMPIDXs
 
 	
+
+		std::vector<cv::Point2f> mvEdgePts; //엣지에서 뽑은 피티 저장.
+		std::vector<int> mvnEdgePtIDXs;
 
 ///////////////////////////
 //Add, Remove와 관련된 것들이 추가 예정

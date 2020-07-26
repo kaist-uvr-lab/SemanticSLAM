@@ -39,7 +39,7 @@ namespace UVR_SLAM {
 		void SetMapOptimizer(MapOptimizer* pMapOptimizer);
 		void SetVisualizer(Visualizer* pVis);
 	private:
-		bool CheckNeedKeyFrame(Frame* pCurr);
+		UVR_SLAM::Frame* CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev);
 		int UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs);
 	private:
 		int mnMaxFrames, mnMinFrames;
