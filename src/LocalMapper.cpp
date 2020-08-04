@@ -155,35 +155,39 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::vector<bool> vbMappingInliers;
 			std::vector<CandidatePoint*> vpDelayedCPs;
 			if (vMatchPrevPts.size() >= 10) {
-				int nTarget = mpPrevKeyFrame->mpMatchInfo->nPrevNumCPs;
-				for (int i = 0; i < vMatchPPrevPts.size(); i++) {
-					int idx = vnIDXs[i];
-					if (idx >= nTarget) {
-						vnMappingIDXs.push_back(idx);
-						vMappingPPrevPts.push_back(vMatchPPrevPts[idx]);
-						vMappingPrevPts.push_back(vMatchPrevPts[idx]);
-						vMappingCurrPts.push_back(vMatchCurrPts[idx]);
-						vbMappingInliers.push_back(true);
-					}
-					else {
-						vpDelayedCPs.push_back(mpPrevKeyFrame->mpMatchInfo->GetCP(idx));
-					}
+				
+			}
+			else {
+				std::cout << "????????????????::" << vMatchPrevPts.size() << std::endl;
+			}
+			int nTarget = mpPrevKeyFrame->mpMatchInfo->nPrevNumCPs;
+			for (int i = 0; i < vMatchPPrevPts.size(); i++) {
+				int idx = vnIDXs[i];
+				if (idx >= nTarget) {
+					vnMappingIDXs.push_back(idx);
+					vMappingPPrevPts.push_back(vMatchPPrevPts[idx]);
+					vMappingPrevPts.push_back(vMatchPrevPts[idx]);
+					vMappingCurrPts.push_back(vMatchCurrPts[idx]);
+					vbMappingInliers.push_back(true);
+				}
+				else {
+					vpDelayedCPs.push_back(mpPrevKeyFrame->mpMatchInfo->GetCP(idx));
 				}
 			}
 			std::vector<bool> vbCPs(vbMappingInliers.size(), false);
-			std::cout << "Mapping::" << vMatchPrevPts.size() << ", " << vnMappingIDXs.size() << std::endl;
+			
 
 			int nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts, vbCPs, debugMatch, ddddbug);
 			////parallax 체크 못한 포인트들 생성
 			for (int i = 0; i < vbCPs.size(); i++) {
-				if (vbCPs[i]) {
+				/*if (vbCPs[i]) {
 					auto pCP = new CandidatePoint();
 					pCP->AddFrame(mpTargetFrame->mpMatchInfo, vMappingCurrPts[i]);
 					pCP->AddFrame(mpPrevKeyFrame->mpMatchInfo, vMappingPrevPts[i]);
 					pCP->AddFrame(mpPPrevKeyFrame->mpMatchInfo, vMappingPPrevPts[i]);
-				}
+				}*/
 			}
-
+			std::cout << "Mapping::" << nCreated <<"::"<< vMatchPrevPts.size() << ", " << vnMappingIDXs.size() << ", " << vpDelayedCPs.size() << std::endl;
 			////지연된 삼각화 실행
 
 			////삼각화 통과 못한 애들 다시 추가
