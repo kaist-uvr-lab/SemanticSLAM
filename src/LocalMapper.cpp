@@ -1,4 +1,5 @@
 #include <LocalMapper.h>
+#include <CandidatePoint.h>
 #include <Frame.h>
 #include <System.h>
 #include <Map.h>
@@ -944,6 +945,10 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, Frame
 			cv::circle(usedCurr, pt1, 2, cv::Scalar(0, 0, 255), -1);
 			cv::circle(usedPrev, pt2, 2, cv::Scalar(0, 0, 255), -1);
 			cv::circle(usedPPrev, pt3, 2, cv::Scalar(0, 0, 255), -1);
+			
+			//cpµé Ãß°¡.
+			//UVR_SLAM::CandidatePoint* pCP =  new UVR_SLAM::CandidatePoint()
+			//
 			continue;
 		}
 		//////parallax check

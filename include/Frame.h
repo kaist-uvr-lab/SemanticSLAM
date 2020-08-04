@@ -30,6 +30,7 @@ namespace UVR_SLAM {
 	const unsigned char FLAG_INIT_FRAME = 0x8;
 
 	//class MapPoint;
+	class CandidatePoint;
 	class ORBextractor;
 	class PlaneInformation;
 	class PlaneProcessInformation;
@@ -59,6 +60,16 @@ namespace UVR_SLAM {
 		std::mutex mMutexData;
 		std::vector<cv::Point2f> mvMatchingPts; //이전 프레임과의 매칭 결과(KP+MP)
 		std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs; //사이즈는 위의 벡터와 같음. nullptr이 존재하며, MP가 있는 경우에만 들어가있음.
+		
+//////////////////
+	public:
+		int AddCP(CandidatePoint* pMP, cv::Point2f pt);
+		void RemoveCP(int idx);
+		std::vector<cv::Point2f> GetMatchingPts(std::vector<int>& vOctaves);
+		std::vector<UVR_SLAM::CandidatePoint*> GetMatchingCPs();
+	private:
+		std::mutex mMutexCPs;
+		std::vector<UVR_SLAM::CandidatePoint*> mvpMatchingCPs; //KF-KF 매칭에서 삼각화시 베이스라인을 충분히 확보하기 위함.
 //////////////////
 	public:
 		float mfAvgNumMatch;
@@ -66,7 +77,7 @@ namespace UVR_SLAM {
 		int mnNumMatch;
 		UVR_SLAM::Frame* mpTargetFrame, *mpRefFrame, *mpNextFrame;
 		int mnTargetMatch; //이전 타겟 프레임과의 매칭 결과를 기록함. 타겟매칭벡터의 사이즈를 의미. 당연히 현재 매칭 벡터 결과가 이전 타겟 프레임과 연결하기 위한 것인데 현재 매칭벡터 크기가 이전 프레임과 매칭이 없으면 접근하면 안되는 것.
-		cv::Mat used; //자기 자신의 KP를 추가할 때 이미 매칭이 되었던 건지 확인하기 위해서
+		cv::Mat used, usedCPMap; //자기 자신의 KP를 추가할 때 이미 매칭이 되었던 건지 확인하기 위해서
 		cv::Mat edgeMap; //8UC1 -> 16SC1로 변경 예정. 연속성이라던가 실제 포인트 위치를 접근하기 위해
 		std::vector<int> mvnVisibles, mvnMatches;
 		std::vector<int> mvObjectLabels;

@@ -1037,6 +1037,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 	std::vector<cv::Point2f> pprevPts, prevPts, currPts;
 	prevPts = pPrevKF->mpMatchInfo->mvTempPts;
 	auto pPPrevMatchInfo = pPPrevKF->mpMatchInfo;
+	auto pPrevMatchInfo = pPrevKF->mpMatchInfo;
 
 	int maxLvl = 3;
 	int searchSize = 21;
@@ -1053,9 +1054,9 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 		if (status2[i] == 0 || status1[i] == 0) {
 			continue;
 		}
-		bool b1 = pPPrevMatchInfo->CheckOpticalPointOverlap(pPPrevMatchInfo->used, radius, 10, pprevPts[i]);
-		bool b2 = pPPrevMatchInfo->CheckOpticalPointOverlap(pCurrKF->mpMatchInfo->used, radius, 10, currPts[i]);
-		bool b3 = pPPrevMatchInfo->CheckOpticalPointOverlap(used, radius, 10, prevPts[i]);
+		bool b1 = pPPrevMatchInfo->CheckOpticalPointOverlap(pPPrevMatchInfo->usedCPMap, radius, 10, pprevPts[i]);
+		bool b2 = pPPrevMatchInfo->CheckOpticalPointOverlap(pCurrKF->mpMatchInfo->usedCPMap, radius, 10, currPts[i]);
+		bool b3 = pPPrevMatchInfo->CheckOpticalPointOverlap(pPrevMatchInfo->usedCPMap, radius, 10, prevPts[i]); //used //¾ê´Â ¿Ö used µû·Î ¸¸µë???
 
 		//bool b4 = pPPrevKF->mEdgeImg.at<uchar>(pprevPts[i]) == 0;
 		//bool b5 = pCurrKF->mEdgeImg.at<uchar>(currPts[i]) == 0;

@@ -3,6 +3,7 @@
 //
 
 #include <Frame.h>
+#include <CandidatePoint.h>
 #include <MapGrid.h>
 #include <MatrixOperator.h>
 #include <System.h>
@@ -932,6 +933,7 @@ UVR_SLAM::MatchInfo::MatchInfo(Frame* pRef, Frame* pTarget, int w, int h):mfAvgN
 	mpTargetFrame = pTarget;
 	mpRefFrame = pRef;
 	used = cv::Mat::zeros(h, w, CV_8UC1);
+	usedCPMap = cv::Mat::zeros(h, w, CV_8UC1);
 	edgeMap = cv::Mat::zeros(h, w, CV_8UC1);
 }
 UVR_SLAM::MatchInfo::~MatchInfo(){}
@@ -968,6 +970,7 @@ void UVR_SLAM::MatchInfo::SetLabel() {
 	}
 }
 
+//새로운 맵포인트를 생성하기 위한 키포인트를 생성.
 void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 	cv::Mat tempused = cv::Mat::zeros(used.size(), CV_8UC1);
 	int radius = 5;
@@ -980,9 +983,12 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 	if (nIncORB == 0)
 		nIncORB = 1;
 
+	mvTempPts = GetMatchingPts(mvTempOctaves);
+
+
 	for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += nIncEdge) {
 		auto pt = mpRefFrame->mvEdgePts[i];
-		if (!CheckOpticalPointOverlap(used, 1, 10, pt) || !CheckOpticalPointOverlap(tempused, 1, 10, pt)) {
+		if (!CheckOpticalPointOverlap(usedCPMap, 1, 10, pt) || !CheckOpticalPointOverlap(tempused, 1, 10, pt)) {
 			continue;
 		}
 		circle(tempused, pt, radius, cv::Scalar(255), -1);
@@ -991,7 +997,7 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 	}
 	for (int i = 0; i < mpRefFrame->mvPts.size(); i+= nIncORB) {
 		auto pt = mpRefFrame->mvPts[i];
-		if (!CheckOpticalPointOverlap(used, 1, 10, pt) || !CheckOpticalPointOverlap(tempused, 1, 10, pt)) {
+		if (!CheckOpticalPointOverlap(usedCPMap, 1, 10, pt) || !CheckOpticalPointOverlap(tempused, 1, 10, pt)) {
 			continue;
 		}
 		circle(tempused, pt, radius, cv::Scalar(255), -1);
@@ -1051,6 +1057,7 @@ int UVR_SLAM::MatchInfo::AddMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt) {
 	mvMatchingPts.push_back(pt);
 	mvObjectLabels.push_back(0);
 	cv::circle(used, pt, 5, cv::Scalar(255), -1);
+	cv::circle(usedCPMap, pt, 5, cv::Scalar(0), -1);
 	return res;
 }
 
@@ -1062,10 +1069,13 @@ void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP,
 	this->mvObjectLabels.push_back(label);
 	this->mvnOctaves.push_back(octave);
 	cv::circle(used, pt, 5, cv::Scalar(255), -1);
+	cv::circle(usedCPMap, pt, 5, cv::Scalar(0), -1);
 }
 
 void UVR_SLAM::MatchInfo::RemoveMP(int idx) {
 	std::unique_lock<std::mutex>(mMutexData);
+	cv::circle(used, mvMatchingPts[idx], 5, cv::Scalar(0), -1);
+	cv::circle(usedCPMap, mvMatchingPts[idx], 5, cv::Scalar(0), -1);
 	mvpMatchingMPs[idx] = nullptr;
 	//std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
 	//mnInliers--;
@@ -1086,4 +1096,32 @@ int UVR_SLAM::MatchInfo::GetMatchingSize() {
 	std::unique_lock<std::mutex>(mMutexData);
 	return mvpMatchingMPs.size();
 }
+
+int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
+	std::unique_lock<std::mutex>(mMutexCPs);
+	int res = mvpMatchingCPs.size();
+	mvpMatchingCPs.push_back(pCP);
+	/*mvMatchingPts.push_back(pt);
+	mvObjectLabels.push_back(0);*/
+	cv::circle(usedCPMap, pt, 5, cv::Scalar(255), -1);
+}
+void UVR_SLAM::MatchInfo::RemoveCP(int idx){
+	std::unique_lock<std::mutex>(mMutexCPs);
+	cv::circle(usedCPMap, mvpMatchingCPs[idx]->pt, 5, cv::Scalar(0), -1);
+	mvpMatchingCPs[idx] = nullptr;	
+}
+std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<int>& vOctaves){
+	std::unique_lock<std::mutex>(mMutexCPs);
+	std::vector<cv::Point2f> res;
+	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
+		res.push_back(mvpMatchingCPs[i]->pt);
+		vOctaves.push_back(mvpMatchingCPs[i]->octave);
+	}
+	return res;
+}
+std::vector<UVR_SLAM::CandidatePoint*> UVR_SLAM::MatchInfo::GetMatchingCPs(){
+	std::unique_lock<std::mutex>(mMutexCPs);
+	return std::vector<UVR_SLAM::CandidatePoint*>(mvpMatchingCPs.begin(), mvpMatchingCPs.end());
+}
+
 //////////////matchinfo
