@@ -983,8 +983,9 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 	if (nIncORB == 0)
 		nIncORB = 1;
 
-	mvTempPts = GetMatchingPts(mvTempOctaves);
-
+	//이게 변경이 되어야 함. 이미 추가가 되어 있다고 가정.
+	//mvTempPts = GetMatchingPts(mvTempOctaves);
+	nPrevNumCPs = GetNumCPs();
 
 	for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += nIncEdge) {
 		auto pt = mpRefFrame->mvEdgePts[i];
@@ -1096,6 +1097,10 @@ int UVR_SLAM::MatchInfo::GetMatchingSize() {
 	std::unique_lock<std::mutex>(mMutexData);
 	return mvpMatchingMPs.size();
 }
+int UVR_SLAM::MatchInfo::GetNumCPs() {
+	std::unique_lock<std::mutex>(mMutexCPs);
+	return mvpMatchingCPs.size();
+}
 
 int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
 	std::unique_lock<std::mutex>(mMutexCPs);
@@ -1104,6 +1109,7 @@ int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
 	/*mvMatchingPts.push_back(pt);
 	mvObjectLabels.push_back(0);*/
 	cv::circle(usedCPMap, pt, 5, cv::Scalar(255), -1);
+	return res;
 }
 void UVR_SLAM::MatchInfo::RemoveCP(int idx){
 	std::unique_lock<std::mutex>(mMutexCPs);
@@ -1122,6 +1128,10 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<int>& v
 std::vector<UVR_SLAM::CandidatePoint*> UVR_SLAM::MatchInfo::GetMatchingCPs(){
 	std::unique_lock<std::mutex>(mMutexCPs);
 	return std::vector<UVR_SLAM::CandidatePoint*>(mvpMatchingCPs.begin(), mvpMatchingCPs.end());
+}
+UVR_SLAM::CandidatePoint* UVR_SLAM::MatchInfo::GetCP(int idx) {
+	std::unique_lock<std::mutex>(mMutexCPs);
+	return mvpMatchingCPs[idx];
 }
 
 //////////////matchinfo

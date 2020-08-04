@@ -139,13 +139,61 @@ void UVR_SLAM::LocalMapper::Run() {
 			/*if(mpPPrevKeyFrame && mpPrevKeyFrame){
 				
 			}*/
+			///////////////////////////////////////////////////////
+			/////Delayed Triangulation
 			cv::Mat ddddbug;
 			mpPrevKeyFrame->mpMatchInfo->SetMatchingPoints();
-			int nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, ddddbug);
+			std::cout << "mapping::1::" << mpPrevKeyFrame->mpMatchInfo->nPrevNumCPs << ", " << mpPrevKeyFrame->mpMatchInfo->mvTempPts.size() << std::endl;
+			cv::Mat debugMatch;
+			std::vector<cv::Point2f> vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts;
+			std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
+			std::vector<bool> vbInliers;
+			std::vector<int> vnIDXs;
+			mpMatcher->OpticalMatchingForMapping(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts, vnIDXs, vbInliers, debugMatch);
+			//CP와 새로운 포인트 나누기
+			std::vector<int> vnMappingIDXs;
+			std::vector<bool> vbMappingInliers;
+			std::vector<CandidatePoint*> vpDelayedCPs;
+			if (vMatchPrevPts.size() >= 10) {
+				int nTarget = mpPrevKeyFrame->mpMatchInfo->nPrevNumCPs;
+				for (int i = 0; i < vMatchPPrevPts.size(); i++) {
+					int idx = vnIDXs[i];
+					if (idx >= nTarget) {
+						vnMappingIDXs.push_back(idx);
+						vMappingPPrevPts.push_back(vMatchPPrevPts[idx]);
+						vMappingPrevPts.push_back(vMatchPrevPts[idx]);
+						vMappingCurrPts.push_back(vMatchCurrPts[idx]);
+						vbMappingInliers.push_back(true);
+					}
+					else {
+						vpDelayedCPs.push_back(mpPrevKeyFrame->mpMatchInfo->GetCP(idx));
+					}
+				}
+			}
+			std::vector<bool> vbCPs(vbMappingInliers.size(), false);
+			std::cout << "Mapping::" << vMatchPrevPts.size() << ", " << vnMappingIDXs.size() << std::endl;
+
+			int nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts, vbCPs, debugMatch, ddddbug);
+			////parallax 체크 못한 포인트들 생성
+			for (int i = 0; i < vbCPs.size(); i++) {
+				if (vbCPs[i]) {
+					auto pCP = new CandidatePoint();
+					pCP->AddFrame(mpTargetFrame->mpMatchInfo, vMappingCurrPts[i]);
+					pCP->AddFrame(mpPrevKeyFrame->mpMatchInfo, vMappingPrevPts[i]);
+					pCP->AddFrame(mpPPrevKeyFrame->mpMatchInfo, vMappingPPrevPts[i]);
+				}
+			}
+
+			////지연된 삼각화 실행
+
+			////삼각화 통과 못한 애들 다시 추가
 			targetMatchingMPs = matchInfo->GetMatchingMPs();
 			std::stringstream ssdir;
 			ssdir << mpSystem->GetDirPath(0) << "/kfmatching/mapping_test_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPPrevKeyFrame->GetKeyFrameID() << ".jpg";
 			imwrite(ssdir.str(), ddddbug);
+			/////Delayed Triangulation
+			///////////////////////////////////////////////////////
+			
 			/*if (mpTargetFrame->GetKeyFrameID() > 6) {
 				auto pKF1 = mpTargetFrame->mpMatchInfo->mpTargetFrame->mpMatchInfo->mpTargetFrame;
 				auto pKF2 = pKF1->mpMatchInfo->mpTargetFrame->mpMatchInfo->mpTargetFrame;
@@ -808,17 +856,9 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 
 
 ////////////200722 수정 필요
-int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, cv::Mat& debug) {
-
-	cv::Mat debugMatch;
-	std::vector<cv::Point2f> vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts;
-	std::vector<bool> vbInliers;
-	std::vector<int> vnIDXs;
-	mpMatcher->OpticalMatchingForMapping(pCurrKF, pPrevKF, pPPrevKF, vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts, vnIDXs, vbInliers, debugMatch);
-
-	if (vMatchPrevPts.size() < 10)
-		return 0;
-	
+//매칭 포인트 결과와 실제 결과도 반영하도록
+int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, std::vector<cv::Point2f> vMatchPPrevPts, std::vector<cv::Point2f> vMatchPrevPts, std::vector<cv::Point2f> vMatchCurrPts, std::vector < bool>& vbCPs, cv::Mat& debugMatch, cv::Mat& debug) {
+		
 	cv::Point2f ptLeft1 = cv::Point2f(mnWidth, 0);
 	cv::Point2f ptLeft2 = cv::Point2f(mnWidth * 2, 0);
 	cv::Mat Rpprev, Tpprev, Rprev, Tprev, Rcurr, Tcurr;
@@ -949,6 +989,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, Frame
 			//cp들 추가.
 			//UVR_SLAM::CandidatePoint* pCP =  new UVR_SLAM::CandidatePoint()
 			//
+			vbCPs[i] = true;
 			continue;
 		}
 		//////parallax check
@@ -1036,7 +1077,6 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, Frame
 
 
 	debug = cv::Mat::zeros(debugUsed.rows * 2, debugUsed.cols, debugMatch.type());
-	
 	debugMatch.copyTo(debug(cv::Rect(0, 0, debugMatch.cols, debugMatch.rows)));
 	debugUsed.copyTo(debug(cv::Rect(0, debugMatch.rows, debugMatch.cols, debugMatch.rows)));
 	//////LOCK

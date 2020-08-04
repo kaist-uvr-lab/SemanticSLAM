@@ -2,7 +2,7 @@
 #include "Frame.h"
 
 namespace  UVR_SLAM{
-	CandidatePoint::CandidatePoint(){}
+	CandidatePoint::CandidatePoint():octave(0), bCreated(false) {}
 	CandidatePoint::CandidatePoint(cv::Point2f apt, int aoct):pt(apt), octave(aoct), bCreated(false){
 
 	}

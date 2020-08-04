@@ -40,7 +40,7 @@ namespace UVR_SLAM {
 		bool isDoingProcess();
 		void CalculateKFConnections();
 	private:
-		int CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, cv::Mat& debug);
+		int CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, std::vector<cv::Point2f> vMatchPPrevPts, std::vector<cv::Point2f> vMatchPrevPts, std::vector<cv::Point2f> vMatchCurrPts, std::vector < bool>& vbCPs , cv::Mat& debugMatch, cv::Mat& debug);
 		////////////////////////////////////////
 		void FuseMapPoints();
 		void FuseMapPoints(int nn);
