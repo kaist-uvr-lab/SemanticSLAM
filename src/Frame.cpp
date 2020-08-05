@@ -974,7 +974,7 @@ void UVR_SLAM::MatchInfo::SetLabel() {
 void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 	cv::Mat tempused = cv::Mat::zeros(used.size(), CV_8UC1);
 	int radius = 5;
-	int nMax = 500; //둘다 하면 500
+	int nMax = 300; //둘다 하면 500
 	int nIncEdge = mpRefFrame->mvEdgePts.size() / nMax;
 	int nIncORB = mpRefFrame->mvPts.size() / nMax;
 
@@ -1106,6 +1106,7 @@ int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
 	std::unique_lock<std::mutex>(mMutexCPs);
 	int res = mvpMatchingCPs.size();
 	mvpMatchingCPs.push_back(pCP);
+	mvMatchingCPPts.push_back(pt);
 	/*mvMatchingPts.push_back(pt);
 	mvObjectLabels.push_back(0);*/
 	cv::circle(usedCPMap, pt, 5, cv::Scalar(255), -1);
@@ -1113,14 +1114,14 @@ int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
 }
 void UVR_SLAM::MatchInfo::RemoveCP(int idx){
 	std::unique_lock<std::mutex>(mMutexCPs);
-	cv::circle(usedCPMap, mvpMatchingCPs[idx]->pt, 5, cv::Scalar(0), -1);
+	cv::circle(usedCPMap, mvMatchingCPPts[idx], 5, cv::Scalar(0), -1);
 	mvpMatchingCPs[idx] = nullptr;	
 }
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<int>& vOctaves){
 	std::unique_lock<std::mutex>(mMutexCPs);
 	std::vector<cv::Point2f> res;
 	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
-		res.push_back(mvpMatchingCPs[i]->pt);
+		res.push_back(mvMatchingCPPts[i]);
 		vOctaves.push_back(mvpMatchingCPs[i]->octave);
 	}
 	return res;
@@ -1132,6 +1133,10 @@ std::vector<UVR_SLAM::CandidatePoint*> UVR_SLAM::MatchInfo::GetMatchingCPs(){
 UVR_SLAM::CandidatePoint* UVR_SLAM::MatchInfo::GetCP(int idx) {
 	std::unique_lock<std::mutex>(mMutexCPs);
 	return mvpMatchingCPs[idx];
+}
+cv::Point2f UVR_SLAM::MatchInfo::GetCPPt(int idx) {
+	std::unique_lock<std::mutex>(mMutexCPs);
+	return mvMatchingCPPts[idx];
 }
 
 //////////////matchinfo

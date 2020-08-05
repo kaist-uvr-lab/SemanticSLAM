@@ -143,7 +143,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			/////Delayed Triangulation
 			cv::Mat ddddbug;
 			mpPrevKeyFrame->mpMatchInfo->SetMatchingPoints();
-			std::cout << "mapping::1::" << mpPrevKeyFrame->mpMatchInfo->nPrevNumCPs << ", " << mpPrevKeyFrame->mpMatchInfo->mvTempPts.size() << std::endl;
+			//std::cout << "mapping::1::" << mpPrevKeyFrame->mpMatchInfo->nPrevNumCPs << ", " << mpPrevKeyFrame->mpMatchInfo->mvTempPts.size() << std::endl;
 			cv::Mat debugMatch;
 			std::vector<cv::Point2f> vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts;
 			std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
@@ -154,6 +154,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::vector<int> vnMappingIDXs;
 			std::vector<bool> vbMappingInliers;
 			std::vector<CandidatePoint*> vpDelayedCPs;
+			std::vector<cv::Point2f> vDelayedPts;
 			if (vMatchPrevPts.size() >= 10) {
 				
 			}
@@ -165,30 +166,92 @@ void UVR_SLAM::LocalMapper::Run() {
 				int idx = vnIDXs[i];
 				if (idx >= nTarget) {
 					vnMappingIDXs.push_back(idx);
-					vMappingPPrevPts.push_back(vMatchPPrevPts[idx]);
-					vMappingPrevPts.push_back(vMatchPrevPts[idx]);
-					vMappingCurrPts.push_back(vMatchCurrPts[idx]);
+					vMappingPPrevPts.push_back(vMatchPPrevPts[i]);
+					vMappingPrevPts.push_back(vMatchPrevPts[i]);
+					vMappingCurrPts.push_back(vMatchCurrPts[i]);
 					vbMappingInliers.push_back(true);
 				}
 				else {
 					vpDelayedCPs.push_back(mpPrevKeyFrame->mpMatchInfo->GetCP(idx));
+					vDelayedPts.push_back(vMatchCurrPts[i]);
 				}
 			}
 			std::vector<bool> vbCPs(vbMappingInliers.size(), false);
 			
+			///////////////중간 시각화
+			auto mvpTargetMPs = mpTargetFrame->mpMatchInfo->GetMatchingMPs();
+			cv::Point2f ptLeft1 = cv::Point2f(mnWidth, 0);
+			cv::Point2f ptLeft2 = cv::Point2f(mnWidth * 2, 0);
+			cv::Mat K = mpTargetFrame->mK.clone();
+			cv::Mat Rpprev, Tpprev, Rprev, Tprev, Rcurr, Tcurr;
+			mpTargetFrame->GetPose(Rcurr, Tcurr);
+			mpPrevKeyFrame->GetPose(Rprev, Tprev);
+			mpPPrevKeyFrame->GetPose(Rpprev, Tpprev);
+			for (int i = 0; i < mvpTargetMPs.size(); i++) {
+				auto pMPi = mvpTargetMPs[i];
+				if (!pMPi || pMPi->isDeleted())
+					continue;
+				cv::Mat X3D = pMPi->GetWorldPos();
+				cv::Scalar color(255,0,0);
+				cv::Mat proj1 = Rcurr*X3D + Tcurr;
+				cv::Mat proj2 = Rprev*X3D + Tprev;
+				cv::Mat proj3 = Rpprev*X3D + Tpprev;
+				proj1 = K*proj1;
+				proj2 = K*proj2;
+				proj3 = K*proj3;
+				cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
+				cv::Point2f projected2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
+				cv::Point2f projected3(proj3.at<float>(0) / proj3.at<float>(2), proj3.at<float>(1) / proj3.at<float>(2));
+				projected1 += ptLeft2;
+				projected2 += ptLeft1;
+				circle(debugMatch, projected1, 5, color);
+				circle(debugMatch, projected2, 5, color);
+				circle(debugMatch, projected3, 5, color);
 
+				cv::Point2f pppt = cv::Point2f(0, 0);
+				cv::Point2f ppt = cv::Point2f(0, 0);
+				cv::Point2f cpt = cv::Point2f(0, 0);
+
+				int pppidx = pMPi->GetPointIndexInFrame(mpPPrevKeyFrame->mpMatchInfo);
+				if (pppidx >= 0) {
+					pppt = mpPPrevKeyFrame->mpMatchInfo->GetMatchingPt(pppidx);
+					cv::line(debugMatch, projected3, pppt, color);
+				}
+				int ppidx = pMPi->GetPointIndexInFrame(mpPrevKeyFrame->mpMatchInfo);
+				if (ppidx >= 0) {
+					ppt = mpPrevKeyFrame->mpMatchInfo->GetMatchingPt(ppidx) + ptLeft1;
+					cv::line(debugMatch, projected2, ppt, color);
+				}
+				int cpidx = pMPi->GetPointIndexInFrame(mpTargetFrame->mpMatchInfo);
+				if (cpidx >= 0) {
+					cpt = mpTargetFrame->mpMatchInfo->GetMatchingPt(cpidx) + ptLeft2;
+					cv::line(debugMatch, projected1, cpt, color);
+				}
+
+			}
+			//////////////중간 시각화
+			
 			int nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts, vbCPs, debugMatch, ddddbug);
+
 			////parallax 체크 못한 포인트들 생성
 			for (int i = 0; i < vbCPs.size(); i++) {
-				/*if (vbCPs[i]) {
+				if (vbCPs[i]) {
 					auto pCP = new CandidatePoint();
 					pCP->AddFrame(mpTargetFrame->mpMatchInfo, vMappingCurrPts[i]);
 					pCP->AddFrame(mpPrevKeyFrame->mpMatchInfo, vMappingPrevPts[i]);
 					pCP->AddFrame(mpPPrevKeyFrame->mpMatchInfo, vMappingPPrevPts[i]);
-				}*/
+					mpTargetFrame->mpMatchInfo->mvTempPts.push_back(vMappingCurrPts[i]);
+				}
 			}
-			std::cout << "Mapping::" << nCreated <<"::"<< vMatchPrevPts.size() << ", " << vnMappingIDXs.size() << ", " << vpDelayedCPs.size() << std::endl;
+			
 			////지연된 삼각화 실행
+			for (int i = 0; i < vpDelayedCPs.size(); i++) {
+				if (!vpDelayedCPs[i]->DelayedTriangulate(mpMap, mpTargetFrame->mpMatchInfo, vDelayedPts[i], mpPPrevKeyFrame->mpMatchInfo, mpPrevKeyFrame->mpMatchInfo, ddddbug)) {
+					vpDelayedCPs[i]->AddFrame(mpTargetFrame->mpMatchInfo, vDelayedPts[i]);
+					mpTargetFrame->mpMatchInfo->mvTempPts.push_back(vDelayedPts[i]);
+				}
+			}
+			//std::cout << "Mapping::" << nCreated << "::" << vMatchPrevPts.size() << ", " << vnMappingIDXs.size() << ", " << vpDelayedCPs.size() << "::" << mpTargetFrame->mpMatchInfo->mvTempPts.size() << std::endl;
 
 			////삼각화 통과 못한 애들 다시 추가
 			targetMatchingMPs = matchInfo->GetMatchingMPs();
@@ -253,218 +316,218 @@ void UVR_SLAM::LocalMapper::Run() {
 			}
 			//////////////업데이트 키프레임
 
-			//////////////그리드 테스트
-			for (int i = 0; i < targetMatchingMPs.size(); i++) {
-				auto pMPi = targetMatchingMPs[i];
-				if (!pMPi || pMPi->isDeleted())
-					continue;
-				auto pt1 = mpMap->ProjectMapPoint(pMPi, mpMap->mfMapGridSize);
-				auto pMG1 = mpMap->GetGrid(pMPi); //원래 포함된 곳
-				auto pMG2 = mpMap->GetGrid(pt1);  //바뀐 곳
-				if (!pMG1) {
-					std::cout << "LocalMap::MapGrid::Check::error case111" << std::endl << std::endl << std::endl << std::endl;
-				}
-				if (pMG2) {
-					if (pMG1 != pMG2) {
-						mpMap->UpdateMapPoint(pMPi, pMG2);
-					}
-				}
-				else {
-					//pMG2가 존재하지 않는 경우.
-					mpMap->DeleteMapPoint(pMPi);
-					pMG2 = mpMap->InsertGrid(pt1);
-					/*if (mpMap->CheckGrid(pt1, pMG1->mInitPt))
-					{
-						std::cout << "LocalMap::MapGrid::Check::error case" << std::endl << std::endl << std::endl << std::endl;
-					}*/
-					mpMap->InsertMapPoint(pMPi, pMG2);
-				}
-				
-				//if (mpMap->CheckGrid(pt1)) {
-				//	mpMap->InsertGrid(pt1);
-				//	//std::cout << "map grid : " << pt << std::endl;
-				//}
-				//else {
-
-				//}
-			}
-
-			//그리드 테스트
-			//auto mvGrids = mpMap->GetMapGrids();
-			//cv::Mat gridImg = mpTargetFrame->GetOriginalImage();
-			//std::set<UVR_SLAM::MapPoint*> mspMPs, mspTargetMPs;
-
-			//auto mvpConnectedKFs = mpTargetFrame->GetConnectedKFs(7);
-			//mvpConnectedKFs.push_back(mpTargetFrame);
-			//for (int i = 0; i < mvpConnectedKFs.size(); i++) {
-			//	auto pKF = mvpConnectedKFs[i];
-			//	for (int j = 0; j < pKF->mpMatchInfo->mvpMatchingMPs.size(); j++) {
-			//		auto pMPj = pKF->mpMatchInfo->mvpMatchingMPs[j];
-			//		if (!pMPj || pMPj->isDeleted())
-			//			continue;
-			//		auto findres = mspTargetMPs.find(pMPj);
-			//		if (findres == mspTargetMPs.end())
-			//			mspTargetMPs.insert(pMPj);
-			//	}
-			//}
-
-			//for (int i = 0; i < mvGrids.size(); i++) {
-			//	auto pMGi = mvGrids[i];
-			//	int nCount = pMGi->Count();
-			//	if (nCount < 10)
+			////////////////그리드 테스트
+			//for (int i = 0; i < targetMatchingMPs.size(); i++) {
+			//	auto pMPi = targetMatchingMPs[i];
+			//	if (!pMPi || pMPi->isDeleted())
 			//		continue;
-			//	cv::Mat x3D = pMGi->Xw.clone();
-			//		
-			//	auto pt = mpTargetFrame->Projection(x3D);
-			//	if (!mpTargetFrame->isInImage(pt.x, pt.y, 10.0f))
-			//		continue;
-			//	auto mvpMPs = pMGi->GetMPs();
-			//	for (int j = 0; j < mvpMPs.size(); j++) {
-			//		auto pMPj = mvpMPs[j];
-			//		if (!pMPj || pMPj->isDeleted())
-			//			continue;
-			//		auto findres2 = mspTargetMPs.find(pMPj);
-			//		if (findres2 != mspTargetMPs.end())
-			//			continue;
-			//		auto findres = mspMPs.find(mvpMPs[j]);
-			//		if (findres == mspMPs.end())
-			//			mspMPs.insert(mvpMPs[j]);
+			//	auto pt1 = mpMap->ProjectMapPoint(pMPi, mpMap->mfMapGridSize);
+			//	auto pMG1 = mpMap->GetGrid(pMPi); //원래 포함된 곳
+			//	auto pMG2 = mpMap->GetGrid(pt1);  //바뀐 곳
+			//	if (!pMG1) {
+			//		std::cout << "LocalMap::MapGrid::Check::error case111" << std::endl << std::endl << std::endl << std::endl;
 			//	}
+			//	if (pMG2) {
+			//		if (pMG1 != pMG2) {
+			//			mpMap->UpdateMapPoint(pMPi, pMG2);
+			//		}
+			//	}
+			//	else {
+			//		//pMG2가 존재하지 않는 경우.
+			//		mpMap->DeleteMapPoint(pMPi);
+			//		pMG2 = mpMap->InsertGrid(pt1);
+			//		/*if (mpMap->CheckGrid(pt1, pMG1->mInitPt))
+			//		{
+			//			std::cout << "LocalMap::MapGrid::Check::error case" << std::endl << std::endl << std::endl << std::endl;
+			//		}*/
+			//		mpMap->InsertMapPoint(pMPi, pMG2);
+			//	}
+			//	
+			//	//if (mpMap->CheckGrid(pt1)) {
+			//	//	mpMap->InsertGrid(pt1);
+			//	//	//std::cout << "map grid : " << pt << std::endl;
+			//	//}
+			//	//else {
+
+			//	//}
 			//}
-			//for (auto iter = mspMPs.begin(); iter != mspMPs.end(); iter++) {
-			//	auto pMP = *iter;
-			//	cv::Mat x3D = pMP->GetWorldPos();
-			//	auto pt = mpTargetFrame->Projection(x3D);
-			//	cv::circle(gridImg, pt, 3, cv::Scalar(255, 0, 255), -1);
-			//}
-			//for (auto iter = mspTargetMPs.begin(); iter != mspTargetMPs.end(); iter++) {
-			//	auto pMP = *iter;
-			//	cv::Mat x3D = pMP->GetWorldPos();
-			//	auto pt = mpTargetFrame->Projection(x3D);
-			//	cv::circle(gridImg, pt, 2, cv::Scalar(255, 0, 0), -1);
-			//}
-			//
-			//////////////////
+
+			////그리드 테스트
+			////auto mvGrids = mpMap->GetMapGrids();
+			////cv::Mat gridImg = mpTargetFrame->GetOriginalImage();
+			////std::set<UVR_SLAM::MapPoint*> mspMPs, mspTargetMPs;
+
+			////auto mvpConnectedKFs = mpTargetFrame->GetConnectedKFs(7);
+			////mvpConnectedKFs.push_back(mpTargetFrame);
+			////for (int i = 0; i < mvpConnectedKFs.size(); i++) {
+			////	auto pKF = mvpConnectedKFs[i];
+			////	for (int j = 0; j < pKF->mpMatchInfo->mvpMatchingMPs.size(); j++) {
+			////		auto pMPj = pKF->mpMatchInfo->mvpMatchingMPs[j];
+			////		if (!pMPj || pMPj->isDeleted())
+			////			continue;
+			////		auto findres = mspTargetMPs.find(pMPj);
+			////		if (findres == mspTargetMPs.end())
+			////			mspTargetMPs.insert(pMPj);
+			////	}
+			////}
+
+			////for (int i = 0; i < mvGrids.size(); i++) {
+			////	auto pMGi = mvGrids[i];
+			////	int nCount = pMGi->Count();
+			////	if (nCount < 10)
+			////		continue;
+			////	cv::Mat x3D = pMGi->Xw.clone();
+			////		
+			////	auto pt = mpTargetFrame->Projection(x3D);
+			////	if (!mpTargetFrame->isInImage(pt.x, pt.y, 10.0f))
+			////		continue;
+			////	auto mvpMPs = pMGi->GetMPs();
+			////	for (int j = 0; j < mvpMPs.size(); j++) {
+			////		auto pMPj = mvpMPs[j];
+			////		if (!pMPj || pMPj->isDeleted())
+			////			continue;
+			////		auto findres2 = mspTargetMPs.find(pMPj);
+			////		if (findres2 != mspTargetMPs.end())
+			////			continue;
+			////		auto findres = mspMPs.find(mvpMPs[j]);
+			////		if (findres == mspMPs.end())
+			////			mspMPs.insert(mvpMPs[j]);
+			////	}
+			////}
+			////for (auto iter = mspMPs.begin(); iter != mspMPs.end(); iter++) {
+			////	auto pMP = *iter;
+			////	cv::Mat x3D = pMP->GetWorldPos();
+			////	auto pt = mpTargetFrame->Projection(x3D);
+			////	cv::circle(gridImg, pt, 3, cv::Scalar(255, 0, 255), -1);
+			////}
+			////for (auto iter = mspTargetMPs.begin(); iter != mspTargetMPs.end(); iter++) {
+			////	auto pMP = *iter;
+			////	cv::Mat x3D = pMP->GetWorldPos();
+			////	auto pt = mpTargetFrame->Projection(x3D);
+			////	cv::circle(gridImg, pt, 2, cv::Scalar(255, 0, 0), -1);
+			////}
+			////
+			////////////////////
+			/////////KF 누적////
+			////std::set<UVR_SLAM::Frame*> mspKeyFrameWindows(mvpConnectedKFs.begin(), mvpConnectedKFs.end());
+			////std::map<UVR_SLAM::Frame*, int> mmpGridKFs;
+			////std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> mmpCountGridKFs;
+			////for (int i = 0; i < mvGrids.size(); i++) {
+			////	auto pMGi = mvGrids[i];
+			////	int nCount = pMGi->Count();
+			////	if (nCount < 10)
+			////		continue;
+
+			////	auto tmmpGridKFs = pMGi->GetKFs();
+			////	for (auto iter = tmmpGridKFs.begin(); iter != tmmpGridKFs.end(); iter++) {
+			////		auto pKF = iter->first;
+			////		auto count = iter->second;
+			////		auto findres1 = mmpGridKFs.find(pKF);
+			////		if (findres1 != mmpGridKFs.end() && count > 0) {
+			////			mmpGridKFs[pKF] += count;
+			////		}
+			////		else {
+			////			auto findres = mspKeyFrameWindows.find(pKF);
+			////			if (findres == mspKeyFrameWindows.end() && count > 0) {
+			////				mmpGridKFs.insert(std::make_pair(pKF, count));
+			////			}
+			////		}
+			////	}
+			////}
+			////std::cout << "grid kf ::" << mmpGridKFs.size() <<", "<<mpTargetFrame->GetKeyFrameID()<< std::endl;
+
+			////for (auto iter = mmpGridKFs.begin(); iter != mmpGridKFs.end(); iter++) {
+			////	auto pKF = iter->first;
+			////	auto count = iter->second;
+			////	mmpCountGridKFs.insert(std::make_pair(count, pKF));
+			////	//std::cout << "grid kf ::" << pKF->GetKeyFrameID() << "::" << count << std::endl;
+			////}
+			////int nKFSearch = 3;
+			////int nKFSearchIDX = 0;
+			////UVR_SLAM::Frame* mMaxGridKF = nullptr;
+			////for (auto iter = mmpCountGridKFs.begin(); iter != mmpCountGridKFs.end() && nKFSearchIDX < nKFSearch; iter++, nKFSearchIDX++) {
+			////	auto pKF = iter->second;
+			////	auto count = iter->first;
+			////	if (nKFSearchIDX == 0)
+			////		mMaxGridKF = pKF;
+			////}
+			////if (mMaxGridKF)
+			////{
+			////	std::stringstream ss;
+			////	cv::Mat gImg = mMaxGridKF->GetOriginalImage();
+			////	ss << "Grid = " << mpTargetFrame->GetKeyFrameID() << ", " << mMaxGridKF->GetKeyFrameID() << std::endl;
+			////	cv::rectangle(gImg, cv::Point2f(0, 0), cv::Point2f(gImg.cols, 30), cv::Scalar::all(0), -1);
+			////	cv::putText(gImg, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+			////	cv::imshow("Grid Image", gImg); waitKey(1);
+			////}
 			///////KF 누적////
-			//std::set<UVR_SLAM::Frame*> mspKeyFrameWindows(mvpConnectedKFs.begin(), mvpConnectedKFs.end());
-			//std::map<UVR_SLAM::Frame*, int> mmpGridKFs;
-			//std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> mmpCountGridKFs;
-			//for (int i = 0; i < mvGrids.size(); i++) {
-			//	auto pMGi = mvGrids[i];
-			//	int nCount = pMGi->Count();
-			//	if (nCount < 10)
-			//		continue;
+			//////////////////
 
-			//	auto tmmpGridKFs = pMGi->GetKFs();
-			//	for (auto iter = tmmpGridKFs.begin(); iter != tmmpGridKFs.end(); iter++) {
-			//		auto pKF = iter->first;
-			//		auto count = iter->second;
-			//		auto findres1 = mmpGridKFs.find(pKF);
-			//		if (findres1 != mmpGridKFs.end() && count > 0) {
-			//			mmpGridKFs[pKF] += count;
-			//		}
-			//		else {
-			//			auto findres = mspKeyFrameWindows.find(pKF);
-			//			if (findres == mspKeyFrameWindows.end() && count > 0) {
-			//				mmpGridKFs.insert(std::make_pair(pKF, count));
-			//			}
-			//		}
-			//	}
-			//}
-			//std::cout << "grid kf ::" << mmpGridKFs.size() <<", "<<mpTargetFrame->GetKeyFrameID()<< std::endl;
+			////for (int i = 0; i < mvGrids.size(); i++) {
+			////	auto pMGi = mvGrids[i];
+			////	int nCount = pMGi->Count();
+			////	if (nCount < 10)
+			////		continue;
+			////	cv::Mat x3D = pMGi->Xw.clone();
+			////	
+			////	auto pt = mpTargetFrame->Projection(x3D);
+			////	if (!mpTargetFrame->isInImage(pt.x, pt.y, 10.0f))
+			////		continue;
 
-			//for (auto iter = mmpGridKFs.begin(); iter != mmpGridKFs.end(); iter++) {
-			//	auto pKF = iter->first;
-			//	auto count = iter->second;
-			//	mmpCountGridKFs.insert(std::make_pair(count, pKF));
-			//	//std::cout << "grid kf ::" << pKF->GetKeyFrameID() << "::" << count << std::endl;
-			//}
-			//int nKFSearch = 3;
-			//int nKFSearchIDX = 0;
-			//UVR_SLAM::Frame* mMaxGridKF = nullptr;
-			//for (auto iter = mmpCountGridKFs.begin(); iter != mmpCountGridKFs.end() && nKFSearchIDX < nKFSearch; iter++, nKFSearchIDX++) {
-			//	auto pKF = iter->second;
-			//	auto count = iter->first;
-			//	if (nKFSearchIDX == 0)
-			//		mMaxGridKF = pKF;
-			//}
-			//if (mMaxGridKF)
-			//{
-			//	std::stringstream ss;
-			//	cv::Mat gImg = mMaxGridKF->GetOriginalImage();
-			//	ss << "Grid = " << mpTargetFrame->GetKeyFrameID() << ", " << mMaxGridKF->GetKeyFrameID() << std::endl;
-			//	cv::rectangle(gImg, cv::Point2f(0, 0), cv::Point2f(gImg.cols, 30), cv::Scalar::all(0), -1);
-			//	cv::putText(gImg, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-			//	cv::imshow("Grid Image", gImg); waitKey(1);
-			//}
-			/////KF 누적////
-			////////////////
+			////	cv::Mat a = cv::Mat::zeros(3, 1, CV_32FC1); 
+			////	a.at<float>(1) = mpMap->mfMapGridSize;
+			////	a.at<float>(2) = mpMap->mfMapGridSize;
+			////	auto pt1 = mpTargetFrame->Projection(x3D + a);
 
-			//for (int i = 0; i < mvGrids.size(); i++) {
-			//	auto pMGi = mvGrids[i];
-			//	int nCount = pMGi->Count();
-			//	if (nCount < 10)
-			//		continue;
-			//	cv::Mat x3D = pMGi->Xw.clone();
-			//	
-			//	auto pt = mpTargetFrame->Projection(x3D);
-			//	if (!mpTargetFrame->isInImage(pt.x, pt.y, 10.0f))
-			//		continue;
+			////	cv::Mat b = cv::Mat::zeros(3, 1, CV_32FC1);
+			////	b.at<float>(0) = mpMap->mfMapGridSize;
+			////	b.at<float>(1) = mpMap->mfMapGridSize;
+			////	b.at<float>(2) = mpMap->mfMapGridSize;
+			////	auto pt2 = mpTargetFrame->Projection(x3D + b);
 
-			//	cv::Mat a = cv::Mat::zeros(3, 1, CV_32FC1); 
-			//	a.at<float>(1) = mpMap->mfMapGridSize;
-			//	a.at<float>(2) = mpMap->mfMapGridSize;
-			//	auto pt1 = mpTargetFrame->Projection(x3D + a);
+			////	cv::Mat c = cv::Mat::zeros(3, 1, CV_32FC1);
+			////	c.at<float>(0) = mpMap->mfMapGridSize;
+			////	c.at<float>(1) = mpMap->mfMapGridSize;
+			////	auto pt3 = mpTargetFrame->Projection(x3D + c);
 
-			//	cv::Mat b = cv::Mat::zeros(3, 1, CV_32FC1);
-			//	b.at<float>(0) = mpMap->mfMapGridSize;
-			//	b.at<float>(1) = mpMap->mfMapGridSize;
-			//	b.at<float>(2) = mpMap->mfMapGridSize;
-			//	auto pt2 = mpTargetFrame->Projection(x3D + b);
+			////	cv::Mat d = cv::Mat::zeros(3, 1, CV_32FC1);
+			////	d.at<float>(1) = mpMap->mfMapGridSize;
+			////	auto pt4 = mpTargetFrame->Projection(x3D + d);
 
-			//	cv::Mat c = cv::Mat::zeros(3, 1, CV_32FC1);
-			//	c.at<float>(0) = mpMap->mfMapGridSize;
-			//	c.at<float>(1) = mpMap->mfMapGridSize;
-			//	auto pt3 = mpTargetFrame->Projection(x3D + c);
+			////	cv::Mat e = cv::Mat::zeros(3, 1, CV_32FC1);
+			////	e.at<float>(2) = mpMap->mfMapGridSize;
+			////	auto pt5 = mpTargetFrame->Projection(x3D + e);
 
-			//	cv::Mat d = cv::Mat::zeros(3, 1, CV_32FC1);
-			//	d.at<float>(1) = mpMap->mfMapGridSize;
-			//	auto pt4 = mpTargetFrame->Projection(x3D + d);
+			////	cv::Mat f = cv::Mat::zeros(3, 1, CV_32FC1);
+			////	f.at<float>(0) = mpMap->mfMapGridSize;
+			////	f.at<float>(2) = mpMap->mfMapGridSize;
+			////	auto pt6= mpTargetFrame->Projection(x3D + f);
 
-			//	cv::Mat e = cv::Mat::zeros(3, 1, CV_32FC1);
-			//	e.at<float>(2) = mpMap->mfMapGridSize;
-			//	auto pt5 = mpTargetFrame->Projection(x3D + e);
+			////	cv::Mat g = cv::Mat::zeros(3, 1, CV_32FC1);
+			////	g.at<float>(0) = mpMap->mfMapGridSize;
+			////	auto pt7 = mpTargetFrame->Projection(x3D + g);
 
-			//	cv::Mat f = cv::Mat::zeros(3, 1, CV_32FC1);
-			//	f.at<float>(0) = mpMap->mfMapGridSize;
-			//	f.at<float>(2) = mpMap->mfMapGridSize;
-			//	auto pt6= mpTargetFrame->Projection(x3D + f);
+			////	auto pt8 = mpTargetFrame->Projection(x3D);
 
-			//	cv::Mat g = cv::Mat::zeros(3, 1, CV_32FC1);
-			//	g.at<float>(0) = mpMap->mfMapGridSize;
-			//	auto pt7 = mpTargetFrame->Projection(x3D + g);
+			////	line(gridImg, pt1, pt2, cv::Scalar(255, 0, 0));
+			////	line(gridImg, pt2, pt3, cv::Scalar(255, 0, 0));
+			////	line(gridImg, pt3, pt4, cv::Scalar(255, 0, 0));
+			////	line(gridImg, pt4, pt1, cv::Scalar(255, 0, 0));
 
-			//	auto pt8 = mpTargetFrame->Projection(x3D);
+			////	line(gridImg, pt5, pt6, cv::Scalar(255, 0, 0));
+			////	line(gridImg, pt6, pt7, cv::Scalar(255, 0, 0));
+			////	line(gridImg, pt7, pt8, cv::Scalar(255, 0, 0));
+			////	line(gridImg, pt8, pt5, cv::Scalar(255, 0, 0));
 
-			//	line(gridImg, pt1, pt2, cv::Scalar(255, 0, 0));
-			//	line(gridImg, pt2, pt3, cv::Scalar(255, 0, 0));
-			//	line(gridImg, pt3, pt4, cv::Scalar(255, 0, 0));
-			//	line(gridImg, pt4, pt1, cv::Scalar(255, 0, 0));
-
-			//	line(gridImg, pt5, pt6, cv::Scalar(255, 0, 0));
-			//	line(gridImg, pt6, pt7, cv::Scalar(255, 0, 0));
-			//	line(gridImg, pt7, pt8, cv::Scalar(255, 0, 0));
-			//	line(gridImg, pt8, pt5, cv::Scalar(255, 0, 0));
-
-			//	line(gridImg, pt1, pt5, cv::Scalar(255, 0, 0));
-			//	line(gridImg, pt2, pt6, cv::Scalar(255, 0, 0));
-			//	line(gridImg, pt3, pt7, cv::Scalar(255, 0, 0));
-			//	line(gridImg, pt4, pt8, cv::Scalar(255, 0, 0));
-			//	
-			//	//circle(gridImg, pt1, 2, cv::Scalar(255, 0, 0), -1);
-			//}
-			//imshow("grid grid : ", gridImg); waitKey(1);
-			//////////////그리드 테스트
+			////	line(gridImg, pt1, pt5, cv::Scalar(255, 0, 0));
+			////	line(gridImg, pt2, pt6, cv::Scalar(255, 0, 0));
+			////	line(gridImg, pt3, pt7, cv::Scalar(255, 0, 0));
+			////	line(gridImg, pt4, pt8, cv::Scalar(255, 0, 0));
+			////	
+			////	//circle(gridImg, pt1, 2, cv::Scalar(255, 0, 0), -1);
+			////}
+			////imshow("grid grid : ", gridImg); waitKey(1);
+			////////////////그리드 테스트
 
 			
 

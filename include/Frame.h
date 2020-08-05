@@ -70,9 +70,11 @@ namespace UVR_SLAM {
 		std::vector<cv::Point2f> GetMatchingPts(std::vector<int>& vOctaves);
 		std::vector<UVR_SLAM::CandidatePoint*> GetMatchingCPs();
 		UVR_SLAM::CandidatePoint* GetCP(int idx);
+		cv::Point2f GetCPPt(int idx);
 	private:
 		std::mutex mMutexCPs;
 		std::vector<UVR_SLAM::CandidatePoint*> mvpMatchingCPs; //KF-KF 매칭에서 삼각화시 베이스라인을 충분히 확보하기 위함.
+		std::vector<cv::Point2f> mvMatchingCPPts;
 //////////////////
 	public:
 		float mfAvgNumMatch;

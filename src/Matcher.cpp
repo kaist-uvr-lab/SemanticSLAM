@@ -926,9 +926,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 
 		//트래킹 결과 출력
 		//cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
-		//cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 0, 255),-1);
-		//cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);
-
+		cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 0, 255),-1);
+		cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);
 		//cv::line(debugging2, curr->mpMatchInfo->mpTargetFrame->mpMatchInfo->mvMatchingPts[prev->mpMatchInfo->mvnMatchingPtIDXs[i]], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
 		res++;
 	}
@@ -1054,9 +1053,10 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 		if (status2[i] == 0 || status1[i] == 0) {
 			continue;
 		}
-		bool b1 = pPPrevMatchInfo->CheckOpticalPointOverlap(pPPrevMatchInfo->usedCPMap, radius, 10, pprevPts[i]);
-		bool b2 = pPPrevMatchInfo->CheckOpticalPointOverlap(pCurrKF->mpMatchInfo->usedCPMap, radius, 10, currPts[i]);
-		bool b3 = pPPrevMatchInfo->CheckOpticalPointOverlap(pPrevMatchInfo->usedCPMap, radius, 10, prevPts[i]); //used //얘는 왜 used 따로 만듬???
+		////MP 영역과 매칭이 안되도록 함. 그리고 자기가 매칭 된 곳 근처가 안되도록 함. 자기 자신은 이미 포인트 생성할 때 걸러짐.
+		bool b1 = pPPrevMatchInfo->CheckOpticalPointOverlap(pPPrevMatchInfo->used, radius, 10, pprevPts[i]);//pPPrevMatchInfo->usedCPMap
+		bool b2 = pPPrevMatchInfo->CheckOpticalPointOverlap(pCurrKF->mpMatchInfo->used, radius, 10, currPts[i]);
+		bool b3 = pPPrevMatchInfo->CheckOpticalPointOverlap(used, radius, 10, prevPts[i]); //used //얘는 왜 used 따로 만듬???
 
 		//bool b4 = pPPrevKF->mEdgeImg.at<uchar>(pprevPts[i]) == 0;
 		//bool b5 = pCurrKF->mEdgeImg.at<uchar>(currPts[i]) == 0;
@@ -1139,8 +1139,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 	ss << "Optical flow Mapping2= " <<pCurrKF->GetFrameID()<<", "<<pPrevKF->GetFrameID()<<", "<<pPPrevKF->GetFrameID()<<"::"<< tttt << "::" << vMatchedPPrevPts.size();
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-	imshow("Mapping::2::curr", currImg);
-	imshow("Mapping::2", debugging); waitKey(1);
+	/*imshow("Mapping::2::curr", currImg);
+	imshow("Mapping::2", debugging); waitKey(1);*/
 }
 
 //int UVR_SLAM::Matcher::OpticalMatchingForTracking3(Frame* pCurrF, Frame* pKF, Frame* pF1, Frame* pF2, cv::Mat& debug) {

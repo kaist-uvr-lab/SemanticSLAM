@@ -44,7 +44,7 @@ UVR_SLAM::Tracker::Tracker(Map* pMap, std::string strPath) : mbInitializing(fals
 
 	float fps = fs["Camera.fps"];
 	mnMaxFrames = 5;// 10;//fps;
-	mnMinFrames = 2; //fps / 3;//3
+	mnMinFrames = 3; //fps / 3;//3
 
 	mnWidth = fs["Image.width"];
 	mnHeight = fs["Image.height"];
@@ -99,9 +99,10 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 	mpRefKF->mpMatchInfo->mnTotalMatch += Ncurr;
 	mpRefKF->mpMatchInfo->mvpMatchInfos.push_back(pCurr->mpMatchInfo);
 
-
-	bool bKF = (((float)Ncurr) / Nref) < 0.7f;
-	bool bAVG = Ncurr < avg*0.7;
+	int nDiff = mnPointMatching - mnMapPointMatching;
+	bool bDiff = nDiff > 50;
+	//bool bKF = (((float)Ncurr) / Nref) < 0.7f;
+	//bool bAVG = Ncurr < avg*0.7;
 
 	//1 : rotation angle
 	bool bDoingMapping = !mpLocalMapper->isDoingProcess();
@@ -127,7 +128,7 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 		if (bRotation || bMaxFrames) {
 			pRes = pCurr;
 		}
-		else if (bMatchMapPoint || bAVG) {//bKF
+		else if (bMatchMapPoint || bDiff) {//bKF
 			pRes = pPrev;
 		}
 		else
@@ -264,29 +265,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 		//mpSystem->mbTrackingEnd = true;
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
-		
-		//////////KF-F matching test
-		//cv::Mat dddddbug;
-		//mpMatcher->OpticalMatchingForTracking2(mpRefKF, pCurr, dddddbug);
-
-		//if (mpRefKF->mpMatchInfo->mvpMatchInfos.size() > 1) {
-		//	auto pF1 = mpRefKF->mpMatchInfo->mvpMatchInfos[0]->mpRefFrame;
-		//	auto pF2 = mpRefKF->mpMatchInfo->mvpMatchInfos[1]->mpRefFrame;
-		//	cv::Mat adddddbug;
-		//	mpMatcher->OpticalMatchingForTracking3(pCurr, mpRefKF, pF1, pF2, adddddbug);
-		//	std::stringstream ssdira;
-		//	ssdira << mpSystem->GetDirPath(0) << "/kfmatching/a" << mpRefKF->GetFrameID() << "_" << pCurr->GetFrameID() << "_tracking.jpg";
-		//	imwrite(ssdira.str(), adddddbug);
-		//}
-
-		///*
-		//cv::Mat imgKFNF;
-		//mpMatcher->OpticalKeyframeAndFrameMatchingForTracking(mpRefKF, mpRefKF->mpMatchInfo->mpTargetFrame, imgKFNF);
-		//*/
-		//std::stringstream ssdira;
-		//ssdira << mpSystem->GetDirPath(0) << "/kfmatching/" <<mpRefKF->GetFrameID()<<"_"<< pCurr->GetFrameID() << "_tracking.jpg";
-		//imwrite(ssdira.str(), dddddbug);
-		//////////KF-F matching test
 
 		//graph-based0.
 		mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);
@@ -433,6 +411,15 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		////////Visualization & 시간 계산
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+		/////////트래킹 결과 이미지 저장
+		std::stringstream suc;
+		suc << "Tracking::" << mnPointMatching << ", " << mnMapPointMatching << "::" << mpRefKF->mpMatchInfo->GetMatchingSize();
+		cv::rectangle(debugImg, cv::Point2f(0, 0), cv::Point2f(debugImg.cols, 30), cv::Scalar::all(0), -1);
+		cv::putText(debugImg, suc.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+		std::stringstream ssdira;
+		ssdira << mpSystem->GetDirPath(0) << "/kfmatching/tracking_" << mpRefKF->GetKeyFrameID() << "_" << pCurr->GetFrameID() <<".jpg";
+		imwrite(ssdira.str(), debugImg);
+		/////////트래킹 결과 이미지 저장
 		//visualizer thread
 		mpVisualizer->SetMatchInfo(pCurr->mpMatchInfo);
 		//mpVisualizer->SetMPs(vpTempMPs);
