@@ -103,22 +103,20 @@ namespace  UVR_SLAM{
 			return false;
 		return true;
 	}
-	bool CandidatePoint::DelayedTriangulate(Map* pMap, MatchInfo* pMatch, cv::Point2f pt, MatchInfo* pPPrevMatch, MatchInfo* pPrevMatch, cv::Mat& debug) {
+	bool CandidatePoint::DelayedTriangulate(Map* pMap, MatchInfo* pMatch, cv::Point2f pt, MatchInfo* pPPrevMatch, MatchInfo* pPrevMatch, cv::Mat K, cv::Mat invK, cv::Mat& debug) {
 		
 		int mnWidth = debug.cols / 3;
 		cv::Point2f ptLeft1 = cv::Point2f(mnWidth, 0);
 		cv::Point2f ptLeft2 = cv::Point2f(mnWidth * 2, 0);
 		
 		/////////
-		float minParallax = FLT_MAX;
+		float minParallax = 2.0;
 		cv::Point2f minPt;
 		cv::Mat minP;
 		std::vector<cv::Mat> vPs, vRs, vTs;
 		std::vector<cv::Point2f> vPts;
 		std::vector<MatchInfo*> vpMatches;
 		auto targetKF = pMatch->mpRefFrame;
-		cv::Mat K = targetKF->mK.clone();
-		cv::Mat invK = K.inv();;
 		cv::Mat Rt, Tt, Pt;
 		targetKF->GetPose(Rt, Tt);
 		cv::hconcat(Rt, Tt, Pt);
@@ -156,7 +154,11 @@ namespace  UVR_SLAM{
 		vPts.push_back(pt);
 		vpMatches.push_back(pMatch);
 		//std::cout << "MIN::" << minParallax <<"::"<<mmpFrames.size()<< std::endl;
-		if (minParallax < 0.9995f) {
+
+		if(mnConnectedFrames > 10)
+			circle(debug, pt + ptLeft2, 5, cv::Scalar(255, 255, 0));
+
+		if (minParallax <= 0.9998f){
 			//cv::Mat P;
 			//cv::Mat K;
 			cv::Mat x3D = Triangulate(minPt, pt, K*minP, K*Pt);
@@ -222,6 +224,10 @@ namespace  UVR_SLAM{
 			else {
 
 			}
+		}
+		else {
+			//std::cout << minParallax << std::endl;
+			//circle(debug, pt + ptLeft2, 5, cv::Scalar(255,255,0));
 		}
 		return false;
 	}

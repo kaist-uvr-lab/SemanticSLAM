@@ -929,7 +929,7 @@ float UVR_SLAM::Frame::CalcDiffAngleAxis(UVR_SLAM::Frame* pF) {
 
 //////////////matchinfo
 UVR_SLAM::MatchInfo::MatchInfo(){}
-UVR_SLAM::MatchInfo::MatchInfo(Frame* pRef, Frame* pTarget, int w, int h):mfAvgNumMatch(0.0f), mnTotalMatch(0){
+UVR_SLAM::MatchInfo::MatchInfo(Frame* pRef, Frame* pTarget, int w, int h):mfAvgNumMatch(0.0f), mnTotalMatch(0), mnMaxMatch(0){
 	mpTargetFrame = pTarget;
 	mpRefFrame = pRef;
 	used = cv::Mat::zeros(h, w, CV_8UC1);

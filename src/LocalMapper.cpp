@@ -18,8 +18,26 @@
 #include <direct.h>
 
 UVR_SLAM::LocalMapper::LocalMapper(){}
-UVR_SLAM::LocalMapper::LocalMapper(Map* pMap, int w, int h):mnWidth(w), mnHeight(h), mbStopBA(false), mbDoingProcess(false), mbStopLocalMapping(false), mpTargetFrame(nullptr), mpPrevKeyFrame(nullptr), mpPPrevKeyFrame(nullptr){
+UVR_SLAM::LocalMapper::LocalMapper(Map* pMap, std::string strPath, int w, int h):mnWidth(w), mnHeight(h), mbStopBA(false), mbDoingProcess(false), mbStopLocalMapping(false), mpTargetFrame(nullptr), mpPrevKeyFrame(nullptr), mpPPrevKeyFrame(nullptr){
 	mpMap = pMap;
+
+	FileStorage fs(strPath, FileStorage::READ);
+
+	float fx = fs["Camera.fx"];
+	float fy = fs["Camera.fy"];
+	float cx = fs["Camera.cx"];
+	float cy = fs["Camera.cy"];
+
+	fs.release();
+
+	mK = cv::Mat::eye(3, 3, CV_32F);
+	mK.at<float>(0, 0) = fx;
+	mK.at<float>(1, 1) = fy;
+	mK.at<float>(0, 2) = cx;
+	mK.at<float>(1, 2) = cy;
+
+	mInvK = mK.inv();
+
 }
 UVR_SLAM::LocalMapper::~LocalMapper() {}
 
@@ -144,12 +162,30 @@ void UVR_SLAM::LocalMapper::Run() {
 			cv::Mat ddddbug;
 			mpPrevKeyFrame->mpMatchInfo->SetMatchingPoints();
 			//std::cout << "mapping::1::" << mpPrevKeyFrame->mpMatchInfo->nPrevNumCPs << ", " << mpPrevKeyFrame->mpMatchInfo->mvTempPts.size() << std::endl;
-			cv::Mat debugMatch;
+			cv::Mat debugMatch, testDebugMatch;
 			std::vector<cv::Point2f> vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts;
 			std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
 			std::vector<bool> vbInliers;
 			std::vector<int> vnIDXs;
 			mpMatcher->OpticalMatchingForMapping(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts, vnIDXs, vbInliers, debugMatch);
+			
+			cv::Mat testMatchingImg;
+			mpMatcher->TestOpticalMatchingForMapping2(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, testMatchingImg);
+			cv::Mat ttttddddebug = cv::Mat::zeros(testMatchingImg.rows, testMatchingImg.cols * 2, testMatchingImg.type());
+			mpTargetFrame->mpMatchInfo->mMatchedImage.copyTo(ttttddddebug(cv::Rect(0, 0, testMatchingImg.cols, testMatchingImg.rows)));
+			testMatchingImg.copyTo(ttttddddebug(cv::Rect(testMatchingImg.cols, 0, testMatchingImg.cols, testMatchingImg.rows)));
+			std::stringstream sstdir;
+			sstdir << mpSystem->GetDirPath(0) << "/kfmatching/mapping_test2_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
+			imwrite(sstdir.str(), ttttddddebug);
+
+			/*
+			vMatchPPrevPts.clear();
+			vMatchPrevPts.clear();
+			vMatchCurrPts.clear();
+			vnIDXs.clear();
+			vbInliers.clear();
+			mpMatcher->OpticalMatchingForMapping(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts, vnIDXs, vbInliers, debugMatch);
+			*/
 			//CP와 새로운 포인트 나누기
 			std::vector<int> vnMappingIDXs;
 			std::vector<bool> vbMappingInliers;
@@ -246,9 +282,11 @@ void UVR_SLAM::LocalMapper::Run() {
 			
 			////지연된 삼각화 실행
 			for (int i = 0; i < vpDelayedCPs.size(); i++) {
-				if (!vpDelayedCPs[i]->DelayedTriangulate(mpMap, mpTargetFrame->mpMatchInfo, vDelayedPts[i], mpPPrevKeyFrame->mpMatchInfo, mpPrevKeyFrame->mpMatchInfo, ddddbug)) {
+				circle(ddddbug, vDelayedPts[i] + ptLeft2, 2, cv::Scalar(0, 0, 0), -1);
+				if (!vpDelayedCPs[i]->DelayedTriangulate(mpMap, mpTargetFrame->mpMatchInfo, vDelayedPts[i], mpPPrevKeyFrame->mpMatchInfo, mpPrevKeyFrame->mpMatchInfo, mK, mInvK, ddddbug)) {
 					vpDelayedCPs[i]->AddFrame(mpTargetFrame->mpMatchInfo, vDelayedPts[i]);
 					mpTargetFrame->mpMatchInfo->mvTempPts.push_back(vDelayedPts[i]);
+					//circle(ddddbug, vDelayedPts[i]+ ptLeft2, 2, cv::Scalar(0, 0, 0),-1);
 				}
 			}
 			//std::cout << "Mapping::" << nCreated << "::" << vMatchPrevPts.size() << ", " << vnMappingIDXs.size() << ", " << vpDelayedCPs.size() << "::" << mpTargetFrame->mpMatchInfo->mvTempPts.size() << std::endl;
@@ -258,6 +296,12 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::stringstream ssdir;
 			ssdir << mpSystem->GetDirPath(0) << "/kfmatching/mapping_test_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPPrevKeyFrame->GetKeyFrameID() << ".jpg";
 			imwrite(ssdir.str(), ddddbug);
+			/*ssdir.str("");
+			ssdir << mpSystem->GetDirPath(0) << "/kfmatching/matching_test1_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPPrevKeyFrame->GetKeyFrameID() << ".jpg";
+			imwrite(ssdir.str(), debugMatch);
+			ssdir.str("");
+			ssdir << mpSystem->GetDirPath(0) << "/kfmatching/matching_test2_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPPrevKeyFrame->GetKeyFrameID() << ".jpg";
+			imwrite(ssdir.str(), testDebugMatch);*/
 			/////Delayed Triangulation
 			///////////////////////////////////////////////////////
 			
@@ -983,16 +1027,21 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, Frame
 	for (int i = 0; i < Map.cols; i++) {
 
 		cv::Mat X3D = Map.col(i);
-		if (abs(X3D.at<float>(3)) < 0.0001)
-			std::cout << "test::" << X3D.at<float>(3) << std::endl;
-		if (abs(X3D.at<float>(3)) < 0.0001)
-			continue;
-		X3D /= X3D.at<float>(3);
-		X3D = X3D.rowRange(0, 3);
-
 		auto pt1 = vMatchCurrPts[i];
 		auto pt2 = vMatchPrevPts[i];
 		auto pt3 = vMatchPPrevPts[i];
+
+		if (abs(X3D.at<float>(3)) < 0.0001){
+			std::cout << "test::" << X3D.at<float>(3) << std::endl;
+			cv::circle(debugMatch, pt1 + ptLeft2, 2, cv::Scalar(0, 0, 0), -1);
+			cv::circle(debugMatch, pt2 + ptLeft1, 2, cv::Scalar(0, 0, 0), -1);
+			cv::circle(debugMatch, pt3, 2, cv::Scalar(0, 0, 0), -1);
+			continue;
+		}
+		X3D /= X3D.at<float>(3);
+		X3D = X3D.rowRange(0, 3);
+
+		
 
 		cv::Mat proj1 = Rcurr*X3D + Tcurr;
 		cv::Mat proj2 = Rprev*X3D + Tprev;

@@ -102,9 +102,9 @@ bool UVR_SLAM::System::LoadVocabulary() {
 void UVR_SLAM::System::SaveTrajectory() {
 	//auto vpKFs = mpMap->GetAllTrajectoryFrames();
 	auto vpKFs = mpMap->GetFrames();
-	std::string base = GetDirPath(0);
+	std::string base = GetDirPath(0)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ;
 	std::stringstream ssdir, ssfile;
-	/*std::stringstream ssDirPath;
+	/*std::s  tringstream ssDirPath;
 	ssDirPath << "../../bin/SLAM/KeyframeDebugging/"*/
 	ssdir << "../../bin/SLAM/KeyframeDebugging/trajectory";
 	_mkdir(ssdir.str().c_str());
@@ -177,7 +177,7 @@ void UVR_SLAM::System::Init() {
 	mptLayoutEstimator = new std::thread(&UVR_SLAM::SemanticSegmentator::Run, mpSegmentator);
 
 	//local mapping thread
-	mpLocalMapper = new UVR_SLAM::LocalMapper(mpMap, mnWidth, mnHeight);
+	mpLocalMapper = new UVR_SLAM::LocalMapper(mpMap, mstrFilePath, mnWidth, mnHeight);
 	mpLocalMapper->SetMatcher(mpMatcher);
 	mpLocalMapper->SetPlaneEstimator(mpPlaneEstimator);
 	mpLocalMapper->SetLayoutEstimator(mpSegmentator);

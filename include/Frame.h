@@ -79,6 +79,8 @@ namespace UVR_SLAM {
 	public:
 		float mfAvgNumMatch;
 		int mnTotalMatch;
+		int mnMaxMatch;
+
 		int mnNumMatch;
 		UVR_SLAM::Frame* mpTargetFrame, *mpRefFrame, *mpNextFrame;
 		int mnTargetMatch; //이전 타겟 프레임과의 매칭 결과를 기록함. 타겟매칭벡터의 사이즈를 의미. 당연히 현재 매칭 벡터 결과가 이전 타겟 프레임과 연결하기 위한 것인데 현재 매칭벡터 크기가 이전 프레임과 매칭이 없으면 접근하면 안되는 것.
@@ -93,9 +95,7 @@ namespace UVR_SLAM {
 		std::vector<MatchInfo*> mvpMatchInfos; //매칭 상태를 저장
 																											   //mvnTargetMatchingPtIDXs : 새롭게 키프레임 될 때 타겟 프레임의 매칭 정보를 저장.
 
-
-
-
+		cv::Mat mMatchedImage;
 
 		////////////////////
 		//초기화, 매핑 과정에서 키프레임 매칭을 위해 이용

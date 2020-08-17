@@ -1111,7 +1111,6 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 				//pFrame->mvpMPs[idx]->SetRecentTrackingFrameID(nTargetID);
 				e->setLevel(0);
 			}
-
 			if (it == 2)
 				e->setRobustKernel(0);
 		}

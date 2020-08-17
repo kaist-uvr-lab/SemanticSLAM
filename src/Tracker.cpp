@@ -93,9 +93,9 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 	//keyframe process
 	int Nref = mpRefKF->mpMatchInfo->GetMatchingSize();
 	int Ncurr = pCurr->mpMatchInfo->GetMatchingSize();
-	
+
 	float avg = ((float)mpRefKF->mpMatchInfo->mnTotalMatch) / mpRefKF->mpMatchInfo->mvpMatchInfos.size();
-	
+
 	mpRefKF->mpMatchInfo->mnTotalMatch += Ncurr;
 	mpRefKF->mpMatchInfo->mvpMatchInfos.push_back(pCurr->mpMatchInfo);
 
@@ -110,19 +110,19 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 	bool bMaxFrames = pCurr->GetFrameID() >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
 	bool bMinFrames = pCurr->GetFrameID() < mpRefKF->mnFrameID + mnMinFrames;
 	bool bDoingSegment = !mpSegmentator->isDoingProcess();
-	
+
 	bool bMatchMapPoint = mnMapPointMatching < 200;
 	//bool bMatchPoint = mnPointMatching < 1200;
 
 	//if ((bRotation || bMatchMapPoint || bMatchPoint || bMaxFrames) && bDoingSegment)
 	/*if ((bRotation || bMatchMapPoint || bKF || bAVG || bMaxFrames) && !bMinFrames && bDoingMapping)
 	{
-		if(pCurr->CheckBaseLine(mpRefKF))
-			return true;
-		return false;
+	if(pCurr->CheckBaseLine(mpRefKF))
+	return true;
+	return false;
 	}
 	else
-		return false;*/
+	return false;*/
 	UVR_SLAM::Frame* pRes = nullptr;
 	if (!bMinFrames && bDoingMapping) {
 		if (bRotation || bMaxFrames) {
@@ -133,6 +133,7 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 		}
 		else
 			pRes = pCurr;
+		//return pRes;
 		if (pRes->CheckBaseLine(mpRefKF))
 			return pRes;
 		else
@@ -141,6 +142,64 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 	else
 		return nullptr;
 	///////////////////////////
+
+	/////////////////
+	////keyframe process
+	///*int Nref = mpRefKF->mpMatchInfo->GetMatchingSize();
+	//int Ncurr = pCurr->mpMatchInfo->GetMatchingSize();
+	//float avg = ((float)mpRefKF->mpMatchInfo->mnTotalMatch) / mpRefKF->mpMatchInfo->mvpMatchInfos.size();
+	//mpRefKF->mpMatchInfo->mnTotalMatch += Ncurr;
+	//mpRefKF->mpMatchInfo->mvpMatchInfos.push_back(pCurr->mpMatchInfo);*/
+
+	//if (mpRefKF->mpMatchInfo->mnMaxMatch < mnMapPointMatching) {
+	//	mpRefKF->mpMatchInfo->mnMaxMatch = mnMapPointMatching;
+	//	mpRefKF->mpMatchInfo->mpNextFrame = pCurr;
+	//}
+
+	//int nDiff = mnPointMatching - mnMapPointMatching;
+	//bool bDiff = nDiff > 50;
+	////bool bKF = (((float)Ncurr) / Nref) < 0.7f;
+	////bool bAVG = Ncurr < avg*0.7;
+
+	////1 : rotation angle
+	//bool bDoingMapping = !mpLocalMapper->isDoingProcess();
+	//bool bRotation = pCurr->CalcDiffAngleAxis(mpRefKF) > 10.0;
+	//bool bMaxFrames = pCurr->GetFrameID() >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
+	//bool bMinFrames = pCurr->GetFrameID() < mpRefKF->mnFrameID + mnMinFrames;
+	//bool bDoingSegment = !mpSegmentator->isDoingProcess();
+	//
+	//bool bMatchMapPoint = mnMapPointMatching < 200;
+	////bool bMatchPoint = mnPointMatching < 1200;
+
+	////if ((bRotation || bMatchMapPoint || bMatchPoint || bMaxFrames) && bDoingSegment)
+	///*if ((bRotation || bMatchMapPoint || bKF || bAVG || bMaxFrames) && !bMinFrames && bDoingMapping)
+	//{
+	//	if(pCurr->CheckBaseLine(mpRefKF))
+	//		return true;
+	//	return false;
+	//}
+	//else
+	//	return false;*/
+	//UVR_SLAM::Frame* pRes = nullptr;
+	//if (!bMinFrames && bDoingMapping) {
+	//	/*if (bMaxFrames) {
+	//		pRes = pCurr;
+	//	}
+	//	else */
+	//	if (bMatchMapPoint || bDiff || bRotation) {//bKF
+	//		pRes = mpRefKF->mpMatchInfo->mpNextFrame;
+	//	}
+	//	else
+	//		pRes = pCurr;
+	//	return pRes;
+	//	/*if (pRes->CheckBaseLine(mpRefKF))
+	//		return pRes;
+	//	else
+	//		return nullptr;*/
+	//}
+	//else
+	//	return nullptr;
+	/////////////////////////////
 
 
 
@@ -290,6 +349,15 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		//pCurr->SetInliers(mnMatching); //이용X
 		int nMP = UpdateMatchingInfo(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
 		
+		////파일 이미지 저장시 이름 설정
+		std::stringstream ssdira;
+		ssdira << mpSystem->GetDirPath(0) << "/kfmatching/tracking_" << mpRefKF->GetKeyFrameID()<<"_"<<mpRefKF->GetFrameID() << "_" << pCurr->GetFrameID() <<"_"<<mpRefKF->mpMatchInfo->mnMaxMatch<< ".jpg";
+		std::stringstream suc;
+		suc << "Tracking::" << mnPointMatching << ", " << mnMapPointMatching << "::" << mpRefKF->mpMatchInfo->GetMatchingSize();
+		cv::rectangle(debugImg, cv::Point2f(0, 0), cv::Point2f(debugImg.cols, 30), cv::Scalar::all(0), -1);
+		cv::putText(debugImg, suc.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+		////파일 이미지 저장시 이름 설정
+
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크
 		auto pNewKF = CheckNeedKeyFrame(pCurr, pPrev);
@@ -301,6 +369,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			//mpSegmentator->InsertKeyFrame(pNewKF);
 			//mpPlaneEstimator->InsertKeyFrame(pNewKF);
 		}
+
 		////////////////////이전 버전
 		//float angle = (mpRefKF->CalcDiffAngleAxis(pCurr));
 		//if (CheckNeedKeyFrame(pCurr)) {
@@ -364,6 +433,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		}*/
 
 		//////시각화2
+		cv::Point2f ptBottom(0, mnHeight);
 		for (int i = 0; i < vpTempMPs.size(); i++) {
 			UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
 			if (!pMPi || pMPi->isDeleted())
@@ -400,6 +470,10 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
 			}*/
 			cv::line(vis, p2D, vpTempPts[i], color, 1);
+			if(!vbTempInliers[i]){
+				cv::line(debugImg, p2D+ptBottom, vpTempPts[i]+ ptBottom, cv::Scalar(0,0,255), 1);
+				cv::circle(debugImg, p2D+ ptBottom, 2, cv::Scalar(0, 0, 255), -1);
+			}
 			//cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
 		}
 		////////시각화2
@@ -412,13 +486,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		/////////트래킹 결과 이미지 저장
-		std::stringstream suc;
-		suc << "Tracking::" << mnPointMatching << ", " << mnMapPointMatching << "::" << mpRefKF->mpMatchInfo->GetMatchingSize();
-		cv::rectangle(debugImg, cv::Point2f(0, 0), cv::Point2f(debugImg.cols, 30), cv::Scalar::all(0), -1);
-		cv::putText(debugImg, suc.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-		std::stringstream ssdira;
-		ssdira << mpSystem->GetDirPath(0) << "/kfmatching/tracking_" << mpRefKF->GetKeyFrameID() << "_" << pCurr->GetFrameID() <<".jpg";
-		imwrite(ssdira.str(), debugImg);
+		pCurr->mpMatchInfo->mMatchedImage = debugImg.clone();
+		
 		/////////트래킹 결과 이미지 저장
 		//visualizer thread
 		mpVisualizer->SetMatchInfo(pCurr->mpMatchInfo);

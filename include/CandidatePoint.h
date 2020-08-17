@@ -21,7 +21,7 @@ namespace UVR_SLAM {
 		void RemoveFrame(UVR_SLAM::MatchInfo* pKF);
 		void Delete();
 		int GetPointIndexInFrame(MatchInfo* pF);
-		bool DelayedTriangulate(Map* pMap, MatchInfo* pMatch, cv::Point2f pt, MatchInfo* pPPrevMatch, MatchInfo* pPrevMatch, cv::Mat& debug);
+		bool DelayedTriangulate(Map* pMap, MatchInfo* pMatch, cv::Point2f pt, MatchInfo* pPPrevMatch, MatchInfo* pPrevMatch, cv::Mat K, cv::Mat invK, cv::Mat& debug);
 		float CalcParallax(cv::Mat Rkf1c, cv::Mat Rkf2c, cv::Point2f pt1, cv::Point2f pt2, cv::Mat invK);
 		cv::Mat Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2);
 		bool CheckDepth(float depth);

@@ -20,7 +20,7 @@ namespace UVR_SLAM {
 	class LocalMapper {
 	public:
 		LocalMapper();
-		LocalMapper(Map* pMap, int w, int h);
+		LocalMapper(Map* pMap, std::string strPath, int w, int h);
 		virtual ~LocalMapper();
 	public:
 		void Reset();
@@ -83,6 +83,7 @@ namespace UVR_SLAM {
 		Frame* mpTargetFrame, *mpPrevKeyFrame, *mpPPrevKeyFrame;
 		Matcher* mpMatcher;
 		int mnWidth, mnHeight;
+		cv::Mat mK, mInvK;
 	};
 }
 
