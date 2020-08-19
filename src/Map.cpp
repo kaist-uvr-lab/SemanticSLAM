@@ -68,6 +68,34 @@ void UVR_SLAM::Map::SetNumDeleteMP() {
 ////甘器牢飘 包府
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////
+/////敲肺快 包府
+void UVR_SLAM::Map::AddFlow(int nFrameID, cv::Mat flow) {
+	std::unique_lock<std::mutex> lock(mMutexFlows);
+	mmFlows.insert(std::make_pair(nFrameID, flow));
+}
+cv::Mat UVR_SLAM::Map::GetFlow(int nFrameID){
+	std::unique_lock<std::mutex> lock(mMutexFlows);
+	return mmFlows[nFrameID];
+}
+std::vector<cv::Mat> UVR_SLAM::Map::GetFlows(int nStartID, int nEndID) {
+	
+	std::map<int, cv::Mat>::iterator sIter, eIter;
+	std::vector<cv::Mat> res;
+	{
+		std::unique_lock<std::mutex> lock(mMutexFlows);
+		sIter = mmFlows.find(nStartID);
+		eIter = mmFlows.find(nEndID);
+	}
+	for (auto iter = sIter; iter != eIter; iter++) {
+		res.push_back(iter->second);
+	}
+	return res;
+}
+/////敲肺快 包府
+////////////////////////////////////////////
+
+
 void UVR_SLAM::Map::SetCurrFrame(Frame* pF) {
 	std::unique_lock<std::mutex> lock(mMutexCurrFrame);
 	mpCurrFrame = pF;

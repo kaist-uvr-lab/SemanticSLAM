@@ -33,6 +33,16 @@ namespace UVR_SLAM {
 		std::mutex mMutexGlobalFrames;
 		std::vector<Frame*> mvpGlobalFrames;
 ////////////////////////////////
+////Dense Flow 包府
+	public:
+		void AddFlow(int nFrameID, cv::Mat flow);
+		cv::Mat GetFlow(int nFrameID);
+		std::vector<cv::Mat> GetFlows(int nStartID, int nEndID);
+	private:
+		std::mutex mMutexFlows;
+		std::map<int, cv::Mat> mmFlows;
+////Dense Flow 包府
+
 ////甘器牢飘 包府
 	public:
 		void AddMap(MapPoint* pMP, int label);
