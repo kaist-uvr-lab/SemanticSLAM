@@ -125,8 +125,10 @@ void UVR_SLAM::LocalMapper::Reset() {
 }
 void UVR_SLAM::LocalMapper::Run() {
 
-	while (1) {
+	UVR_SLAM::Frame* pTestKF = nullptr;
 
+	while (1) {
+		
 		if (CheckNewKeyFrames()) {
 			SetDoingProcess(true);
 			std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
@@ -136,6 +138,19 @@ void UVR_SLAM::LocalMapper::Run() {
 			ProcessNewKeyFrame();
 			int nTargetID = mpTargetFrame->GetFrameID();
 			std::cout << "lm::start::" << mpTargetFrame->GetFrameID() << std::endl;
+
+
+			std::vector<cv::Point2f> mvTempMatchingPTs;
+			std::vector<UVR_SLAM::MapPoint*> mvTempMatchingMPTs;
+			if (!pTestKF) {
+				pTestKF = mpPPrevKeyFrame;
+				
+			}
+			if(mpPPrevKeyFrame->GetKeyFrameID() % 10 == 0){
+				pTestKF = mpPPrevKeyFrame;
+			}
+			mvTempMatchingPTs = pTestKF->mpMatchInfo->GetMatchingPts();
+			mvTempMatchingMPTs = pTestKF->mpMatchInfo->GetMatchingMPs();
 
 			//////////////업데이트 맵포인트
 			auto matchInfo = mpTargetFrame->mpMatchInfo;
@@ -163,19 +178,44 @@ void UVR_SLAM::LocalMapper::Run() {
 			mpPrevKeyFrame->mpMatchInfo->SetMatchingPoints();
 
 			////Local Dense Keyframe Matching Test
-			auto mvFlows = mpMap->GetFlows(mpPPrevKeyFrame->GetFrameID(), mpTargetFrame->GetFrameID());
+			auto mvFlows = mpMap->GetFlows(pTestKF->GetFrameID(), mpTargetFrame->GetFrameID());
 			std::vector<bool> vbInliers;
 			std::vector<cv::Point2f> tempPts;
-			mpMatcher->DenseOpticalMatching(mpTargetFrame, mpPPrevKeyFrame->mpMatchInfo->mvTempDenseMatchPts, tempPts, vbInliers, mvFlows);
+			mpMatcher->DenseOpticalMatching(mpTargetFrame, mpPrevKeyFrame->mpMatchInfo->mvTempDenseMatchPts, tempPts, vbInliers, mvFlows);
 			////맵포인트 테스트
-			auto mvTempMatchingPTs = mpPPrevKeyFrame->mpMatchInfo->GetMatchingPts();
-			auto mvTempMatchingMPTs = mpPPrevKeyFrame->mpMatchInfo->GetMatchingMPs();
+			
 			std::vector<bool> vbInliers2;
 			std::vector<cv::Point2f> tempPts2;
-			mpMatcher->DenseOpticalMatching(mpTargetFrame, mvTempMatchingPTs, tempPts2, vbInliers2, mvFlows);
+			mpMatcher->DenseOpticalMatching(mpTargetFrame, pTestKF->mvEdgePts, tempPts2, vbInliers2, mvFlows);
+
+			////MP 복사
+			std::vector<cv::Point2f> vPrevPts, vCurrPts;
+			for (int i = 0; i < vbInliers2.size(); i++) {
+				if (!vbInliers2[i])
+					continue;
+				/*auto pMPi = mvTempMatchingMPTs[i];
+				if (!pMPi || pMPi->isDeleted())
+					continue;*/
+				if (mpTargetFrame->mEdgeImg.at<uchar>(tempPts2[i]) == 0)
+					continue;
+				vPrevPts.push_back(pTestKF->mvEdgePts[i]);
+				vCurrPts.push_back(tempPts2[i]);
+				/*
+				cv::Scalar color;
+				if (pMPi->isInFrame(mpTargetFrame->mpMatchInfo)) {
+					color = cv::Scalar(255, 255, 0);
+				}
+				else {
+					color = cv::Scalar(0, 255, 255);
+				}
+				cv::circle(denseMatchingImg, mvTempMatchingPTs[i], 2, color, -1);
+				cv::circle(denseMatchingImg, tempPts2[i] + ptBottom1, 2, color, -1);
+				*/
+			}
+			////MP 복사
 
 			///////debug
-			cv::Mat prevImg = mpPPrevKeyFrame->GetOriginalImage();
+			cv::Mat prevImg = pTestKF->GetOriginalImage();
 			cv::Mat currImg = mpTargetFrame->GetOriginalImage();
 			cv::Mat denseMatchingImg;
 			cv::Point2f ptBottom1 = cv::Point2f(prevImg.cols, 0);
