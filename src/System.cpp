@@ -6,6 +6,7 @@
 #include <LocalMapper.h>
 #include <PlaneEstimator.h>
 #include <Visualizer.h>
+#include <FrameVisualizer.h>
 #include <MapOptimizer.h>
 #include <direct.h>
 #include <Converter.h>
@@ -158,6 +159,11 @@ void UVR_SLAM::System::Init() {
 	mpVisualizer->SetSystem(this);
 	mptVisualizer = new std::thread(&UVR_SLAM::Visualizer::Run, mpVisualizer);
 
+	//FrameVisualizer
+	mpFrameVisualizer = new FrameVisualizer(mnWidth, mnHeight, mK, mpMap);
+	mpFrameVisualizer->SetSystem(this);
+	mptFrameVisualizer = new std::thread(&UVR_SLAM::FrameVisualizer::Run, mpFrameVisualizer);
+
 	//initializer
 	mpInitializer = new UVR_SLAM::Initializer(this, mpMap, mK, mnWidth, mnHeight);
 	mpInitializer->SetMatcher(mpMatcher);
@@ -211,6 +217,7 @@ void UVR_SLAM::System::Init() {
 	//set visualizer
 	mpTracker->SetSegmentator(mpSegmentator);
 	mpTracker->SetVisualizer(mpVisualizer);
+	mpTracker->SetFrameVisualizer(mpFrameVisualizer);
 	mpMapOptimizer->SetVisualizer(mpVisualizer);
 	mpLocalMapper->SetVisualizer(mpVisualizer);
 	mpPlaneEstimator->SetInitializer(mpInitializer);
@@ -227,7 +234,7 @@ void UVR_SLAM::System::Init() {
 void UVR_SLAM::System::SetCurrFrame(cv::Mat img, double t) {
 	mpPrevFrame = mpCurrFrame;
 	mpCurrFrame = new UVR_SLAM::Frame(img, mnWidth, mnHeight, mK, t);
-	mpCurrFrame->DetectEdge();
+	//mpCurrFrame->DetectEdge();
 	//std::cout << mpCurrFrame->mnFrameID << std::endl;
 	//mpCurrFrame->Init(mpORBExtractor, mK, mD);
 	//mpCurrFrame->SetBowVec(fvoc);

@@ -14,6 +14,7 @@ namespace UVR_SLAM {
 	class PlaneEstimator;
 	class LocalMapper;
 	class Visualizer;
+	class FrameVisualizer;
 	class System;
 	class Map;
 	class MapOptimizer;
@@ -38,6 +39,7 @@ namespace UVR_SLAM {
 		void SetPlaneEstimator(PlaneEstimator* pEstimator);
 		void SetMapOptimizer(MapOptimizer* pMapOptimizer);
 		void SetVisualizer(Visualizer* pVis);
+		void SetFrameVisualizer(FrameVisualizer* pVis);
 	private:
 		UVR_SLAM::Frame* CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev);
 		int UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs);
@@ -60,6 +62,7 @@ namespace UVR_SLAM {
 		FrameWindow* mpFrameWindow;
 		LocalMapper* mpLocalMapper;
 		Visualizer* mpVisualizer;
+		FrameVisualizer* mpFrameVisualizer;
 	};
 }
 

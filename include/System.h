@@ -61,6 +61,7 @@ namespace UVR_SLAM {
 	class LocalMapper;
 	class PlaneEstimator;
 	class Visualizer;
+	class FrameVisualizer;
 	class MapOptimizer;
 	class Map;
 	class System {
@@ -112,6 +113,9 @@ namespace UVR_SLAM {
 
 		Visualizer* mpVisualizer;
 		std::thread* mptVisualizer;
+
+		FrameVisualizer* mpFrameVisualizer;
+		std::thread* mptFrameVisualizer;
 
 		MapOptimizer* mpMapOptimizer;
 		std::thread* mptMapOptimizer;

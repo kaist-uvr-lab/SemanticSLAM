@@ -9,6 +9,7 @@
 #include <SemanticSegmentator.h>
 #include <SegmentationData.h>
 #include <PlaneEstimator.h>
+#include <FrameVisualizer.h>
 #include <Visualizer.h>
 
 //std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
@@ -67,6 +68,9 @@ void UVR_SLAM::Tracker::SetMapOptimizer(MapOptimizer* pMapOptimizer) {
 }
 void UVR_SLAM::Tracker::SetVisualizer(Visualizer* pVis) {
 	mpVisualizer = pVis;
+}
+void UVR_SLAM::Tracker::SetFrameVisualizer(FrameVisualizer* pVis) {
+	mpFrameVisualizer = pVis;
 }
 void UVR_SLAM::Tracker::SetSegmentator(SemanticSegmentator* pSegmentator) {
 	mpSegmentator = pSegmentator;
