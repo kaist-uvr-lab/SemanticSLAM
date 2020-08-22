@@ -161,22 +161,77 @@ void UVR_SLAM::LocalMapper::Run() {
 			/////Delayed Triangulation
 			cv::Mat ddddbug;
 			mpPrevKeyFrame->mpMatchInfo->SetMatchingPoints();
+
+			////Local Dense Keyframe Matching Test
+			auto mvFlows = mpMap->GetFlows(mpPPrevKeyFrame->GetFrameID(), mpTargetFrame->GetFrameID());
+			std::vector<bool> vbInliers;
+			std::vector<cv::Point2f> tempPts;
+			mpMatcher->DenseOpticalMatching(mpTargetFrame, mpPPrevKeyFrame->mpMatchInfo->mvTempDenseMatchPts, tempPts, vbInliers, mvFlows);
+			////맵포인트 테스트
+			auto mvTempMatchingPTs = mpPPrevKeyFrame->mpMatchInfo->GetMatchingPts();
+			auto mvTempMatchingMPTs = mpPPrevKeyFrame->mpMatchInfo->GetMatchingMPs();
+			std::vector<bool> vbInliers2;
+			std::vector<cv::Point2f> tempPts2;
+			mpMatcher->DenseOpticalMatching(mpTargetFrame, mvTempMatchingPTs, tempPts2, vbInliers2, mvFlows);
+
+			///////debug
+			cv::Mat prevImg = mpPPrevKeyFrame->GetOriginalImage();
+			cv::Mat currImg = mpTargetFrame->GetOriginalImage();
+			cv::Mat denseMatchingImg;
+			cv::Point2f ptBottom1 = cv::Point2f(prevImg.cols, 0);
+			cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+			cv::Rect mergeRect2 = cv::Rect(prevImg.cols, 0, prevImg.cols, prevImg.rows);
+			denseMatchingImg = cv::Mat::zeros(prevImg.rows, prevImg.cols * 2, prevImg.type());
+			prevImg.copyTo(denseMatchingImg(mergeRect1));
+			currImg.copyTo(denseMatchingImg(mergeRect2));
+			/*for (int i = 0; i < vbInliers.size(); i++) {
+				if (!vbInliers[i])
+					continue;
+				cv::circle(denseMatchingImg, mpPrevKeyFrame->mpMatchInfo->mvTempDenseMatchPts[i], 2, cv::Scalar(255, 0, 0));
+				cv::circle(denseMatchingImg, tempPts[i]+ ptBottom1, 2, cv::Scalar(255, 0, 0));
+				mpTargetFrame->mpMatchInfo->mvTempDenseMatchPts.push_back(tempPts[i]);
+			}*/
+			for (int i = 0; i < vbInliers2.size(); i++) {
+				if (!vbInliers2[i])
+					continue;
+				auto pMPi = mvTempMatchingMPTs[i];
+				if (!pMPi || pMPi->isDeleted())
+					continue;
+				cv::Scalar color;
+				if (pMPi->isInFrame(mpTargetFrame->mpMatchInfo)) {
+					color = cv::Scalar(255, 255, 0);
+				}
+				else {
+					color = cv::Scalar(0, 255, 255);
+				}
+				cv::circle(denseMatchingImg, mvTempMatchingPTs[i], 2, color,-1);
+				cv::circle(denseMatchingImg, tempPts2[i] + ptBottom1, 2, color,-1);
+			}
+			std::stringstream sstdir;
+			sstdir << mpSystem->GetDirPath(0) << "/kfmatching/dense_matching_test_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
+			imwrite(sstdir.str(), denseMatchingImg);
+			////Local Dense Keyframe Matching Test
+			
 			//std::cout << "mapping::1::" << mpPrevKeyFrame->mpMatchInfo->nPrevNumCPs << ", " << mpPrevKeyFrame->mpMatchInfo->mvTempPts.size() << std::endl;
 			cv::Mat debugMatch, testDebugMatch;
 			std::vector<cv::Point2f> vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts;
 			std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
-			std::vector<bool> vbInliers;
+			std::vector<bool> vbDensenliers;
 			std::vector<int> vnIDXs;
-			mpMatcher->OpticalMatchingForMapping(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts, vnIDXs, vbInliers, debugMatch);
+			mpMatcher->OpticalMatchingForMapping(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts, vnIDXs, vbDensenliers, debugMatch);
 			
-			cv::Mat testMatchingImg;
-			mpMatcher->TestOpticalMatchingForMapping2(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, testMatchingImg);
-			cv::Mat ttttddddebug = cv::Mat::zeros(testMatchingImg.rows, testMatchingImg.cols * 2, testMatchingImg.type());
-			mpTargetFrame->mpMatchInfo->mMatchedImage.copyTo(ttttddddebug(cv::Rect(0, 0, testMatchingImg.cols, testMatchingImg.rows)));
-			testMatchingImg.copyTo(ttttddddebug(cv::Rect(testMatchingImg.cols, 0, testMatchingImg.cols, testMatchingImg.rows)));
-			std::stringstream sstdir;
-			sstdir << mpSystem->GetDirPath(0) << "/kfmatching/mapping_test2_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
-			imwrite(sstdir.str(), ttttddddebug);
+			/////////////////////////////////////
+			///////////////dense test
+			//cv::Mat testMatchingImg;
+			//mpMatcher->TestOpticalMatchingForMapping2(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, testMatchingImg);
+			//cv::Mat ttttddddebug = cv::Mat::zeros(testMatchingImg.rows, testMatchingImg.cols * 2, testMatchingImg.type());
+			//mpTargetFrame->mpMatchInfo->mMatchedImage.copyTo(ttttddddebug(cv::Rect(0, 0, testMatchingImg.cols, testMatchingImg.rows)));
+			//testMatchingImg.copyTo(ttttddddebug(cv::Rect(testMatchingImg.cols, 0, testMatchingImg.cols, testMatchingImg.rows)));
+			//std::stringstream sstdir;
+			//sstdir << mpSystem->GetDirPath(0) << "/kfmatching/mapping_test2_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
+			//imwrite(sstdir.str(), ttttddddebug);
+			///////////////dense test
+			/////////////////////////////////////
 
 			/*
 			vMatchPPrevPts.clear();
@@ -215,7 +270,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::vector<bool> vbCPs(vbMappingInliers.size(), false);
 			
 			///////////////중간 시각화
-			auto mvpTargetMPs = mpTargetFrame->mpMatchInfo->GetMatchingMPs();
+			/*auto mvpTargetMPs = mpTargetFrame->mpMatchInfo->GetMatchingMPs();
 			cv::Point2f ptLeft1 = cv::Point2f(mnWidth, 0);
 			cv::Point2f ptLeft2 = cv::Point2f(mnWidth * 2, 0);
 			cv::Mat K = mpTargetFrame->mK.clone();
@@ -264,12 +319,12 @@ void UVR_SLAM::LocalMapper::Run() {
 					cv::line(debugMatch, projected1, cpt, color);
 				}
 
-			}
+			}*/
 			//////////////중간 시각화
 			
 			int nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts, vbCPs, debugMatch, ddddbug);
 
-			////parallax 체크 못한 포인트들 생성
+			//////parallax 체크 못한 포인트들 생성
 			for (int i = 0; i < vbCPs.size(); i++) {
 				if (vbCPs[i]) {
 					auto pCP = new CandidatePoint();
@@ -282,7 +337,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			
 			////지연된 삼각화 실행
 			for (int i = 0; i < vpDelayedCPs.size(); i++) {
-				circle(ddddbug, vDelayedPts[i] + ptLeft2, 2, cv::Scalar(0, 0, 0), -1);
+				//circle(ddddbug, vDelayedPts[i] + ptLeft2, 2, cv::Scalar(0, 0, 0), -1);
 				if (!vpDelayedCPs[i]->DelayedTriangulate(mpMap, mpTargetFrame->mpMatchInfo, vDelayedPts[i], mpPPrevKeyFrame->mpMatchInfo, mpPrevKeyFrame->mpMatchInfo, mK, mInvK, ddddbug)) {
 					vpDelayedCPs[i]->AddFrame(mpTargetFrame->mpMatchInfo, vDelayedPts[i]);
 					mpTargetFrame->mpMatchInfo->mvTempPts.push_back(vDelayedPts[i]);
@@ -293,9 +348,10 @@ void UVR_SLAM::LocalMapper::Run() {
 
 			////삼각화 통과 못한 애들 다시 추가
 			targetMatchingMPs = matchInfo->GetMatchingMPs();
-			std::stringstream ssdir;
+			/*std::stringstream ssdir;
 			ssdir << mpSystem->GetDirPath(0) << "/kfmatching/mapping_test_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPPrevKeyFrame->GetKeyFrameID() << ".jpg";
-			imwrite(ssdir.str(), ddddbug);
+			imwrite(ssdir.str(), ddddbug);*/
+
 			/*ssdir.str("");
 			ssdir << mpSystem->GetDirPath(0) << "/kfmatching/matching_test1_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPPrevKeyFrame->GetKeyFrameID() << ".jpg";
 			imwrite(ssdir.str(), debugMatch);
@@ -322,10 +378,13 @@ void UVR_SLAM::LocalMapper::Run() {
 
 			//////////////업데이트 키프레임
 			//이건 단순히 해당 키프레임에서 추적되는 맵포인트가 연결되어 있는 프레임들의 리스트에 불과함.
-			std::map<UVR_SLAM::Frame*, int> mmpCandidateKFs;
-			//int nTargetID = mpTargetFrame->GetFrameID();
+			//mpTargetFrame->AddKF(mpPrevKeyFrame, 0);
+			//mpTargetFrame->AddKF(mpPPrevKeyFrame, 0);
 			int nMaxKF = 0;
 			int nMinKF = INT_MAX;
+
+			std::map<UVR_SLAM::Frame*, int> mmpCandidateKFs;
+			//int nTargetID = mpTargetFrame->GetFrameID();
 			for (int i = 0; i <  targetMatchingMPs.size(); i++) {
 				UVR_SLAM::MapPoint* pMP = targetMatchingMPs[i];
 				if (!pMP || pMP->isDeleted())
@@ -359,6 +418,8 @@ void UVR_SLAM::LocalMapper::Run() {
 				}
 			}
 			//////////////업데이트 키프레임
+
+
 
 			////////////////그리드 테스트
 			//for (int i = 0; i < targetMatchingMPs.size(); i++) {
@@ -572,8 +633,6 @@ void UVR_SLAM::LocalMapper::Run() {
 			////}
 			////imshow("grid grid : ", gridImg); waitKey(1);
 			////////////////그리드 테스트
-
-			
 
 			/////////////VoW 매칭
 			/*auto vpNeighKFs = mpTargetFrame->GetConnectedKFs();

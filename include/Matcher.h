@@ -30,6 +30,7 @@ namespace UVR_SLAM {
 		int OpticalMatchingForTracking3(Frame* pCurrF, Frame* pKF, Frame* pF1, Frame* pF2, cv::Mat& debug);
 		int OpticalKeyframeAndFrameMatchingForTracking(Frame* prev, Frame* curr, cv::Mat& debug);
 		int DenseOpticalMatchingForTracking(Frame* pCurrKF, Frame* pPrevKF, cv::Mat& flow, double& ttime, cv::Mat& debugging);
+		int DenseOpticalMatching(Frame* pF, std::vector<cv::Point2f> vPts1,std::vector<cv::Point2f>& vPts2, std::vector<bool>& vbInliers, std::vector<cv::Mat> vFlows);
 		int TestOpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, cv::Mat& debugging);
 		int TestOpticalMatchingForMapping2(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, cv::Mat& debugging);
 		int OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, std::vector<cv::Point2f>& vMatchedPPrevPts, std::vector<cv::Point2f>& vMatchedPrevPts, std::vector<cv::Point2f>& vMatchedCurrPts, std::vector<int>& vnIDXs, std::vector<bool>& vbInliers, cv::Mat& debugging);
@@ -64,8 +65,16 @@ namespace UVR_SLAM {
 		float CheckFundamental(Frame* pInit, Frame* pCurr, const cv::Mat &F21, std::vector<cv::DMatch> vMatches, std::vector<bool> &vbMatchesInliers, float sigma);
 
 	private:
+		//dense optical flow
+		int mHalfWidth, mHalfHeight;
+		cv::Mat testImg;
+		cv::Size size;
+		//dense optical flow
+		
 		cv::Mat K, D;
 		int mWidth, mHeight;
+		
+
 		cv::Ptr<cv::DescriptorMatcher> matcher;
 		bool mbCheckOrientation;
 		float mfNNratio; //projection maching에서 이용

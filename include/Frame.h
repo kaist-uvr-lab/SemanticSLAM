@@ -93,20 +93,19 @@ namespace UVR_SLAM {
 		
 		std::vector<int> mvnMatchingIDXs; //키프레임과 연결되는 인덱스 값, MP의 경우 현재 프레임 매칭 결과 중 MP와 바로 연결되기 위한 인덱스 값이 됨.
 		std::vector<MatchInfo*> mvpMatchInfos; //매칭 상태를 저장
-																											   //mvnTargetMatchingPtIDXs : 새롭게 키프레임 될 때 타겟 프레임의 매칭 정보를 저장.
+		std::vector<cv::Mat> mvFlows;																									   //mvnTargetMatchingPtIDXs : 새롭게 키프레임 될 때 타겟 프레임의 매칭 정보를 저장.
 
 		cv::Mat mMatchedImage;
 
 		////////////////////
 		//초기화, 매핑 과정에서 키프레임 매칭을 위해 이용
-		std::vector<cv::Point2f> mvTempPts;
+		std::vector<cv::Point2f> mvTempPts, mvTempDenseMatchPts;
+		//std::vector<bool> mvbTempDense;
 		std::vector<int> mvTempOctaves;
 		////////////////////
 
 		//mvnMatchingPtIDXs 얘를 타겟으로 삼는 애들과의 매칭을 위해
 		//mvnMatchingMPIDXs
-
-	
 
 		std::vector<cv::Point2f> mvEdgePts; //엣지에서 뽑은 피티 저장.
 		std::vector<int> mvnEdgePtIDXs;

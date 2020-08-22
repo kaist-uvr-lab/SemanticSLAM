@@ -14,6 +14,20 @@ UVR_SLAM::Matcher::Matcher(){}
 UVR_SLAM::Matcher::Matcher(cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h)
 	:mWidth(w), mHeight(h), TH_HIGH(100), TH_LOW(50), HISTO_LENGTH(30), mfNNratio(0.7), mbCheckOrientation(true), matcher(_matcher)
 {
+	mHalfHeight = mHeight / 2;
+	mHalfWidth = mWidth / 2;
+
+	size = cv::Size(mWidth / 2, mHeight / 2);
+
+	testImg = cv::Mat::zeros(size, CV_32FC2);
+	for (int x = 0; x < size.width; x++) {
+		for (int y = 0; y < size.height; y++) {
+			cv::Vec2f pt(x, y);
+			testImg.at<Vec2f>(y, x) = pt;
+		}
+	}
+
+
 	//cv::Ptr<cv::flann::IndexParams> indexParams = cv::makePtr<cv::flann::LshIndexParams>(6, 12, 1);
 	//cv::Ptr<cv::flann::SearchParams> searchParams = cv::makePtr<cv::flann::SearchParams>(50);
 	//matcher = cv::makePtr<cv::FlannBasedMatcher>(indexParams, searchParams);
@@ -1012,15 +1026,19 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	return res;
 }
 
+
+
 int UVR_SLAM::Matcher::DenseOpticalMatchingForTracking(Frame* pCurrKF, Frame* pPrevKF, cv::Mat& flow, double& ttime, cv::Mat& debugging){
 	
 	std::chrono::high_resolution_clock::time_point matching_start = std::chrono::high_resolution_clock::now();
 	cv::Mat prevGra = pPrevKF->GetFrame();//pPrevKF->mEdgeImg.clone();
 	cv::Mat currGra = pCurrKF->GetFrame();//pCurrKF->mEdgeImg.clone();
-	cv::Size size(prevGra.cols / 2, prevGra.rows / 2);
+	
 	cv::resize(prevGra, prevGra, size);
 	cv::resize(currGra, currGra, size);
 	cv::calcOpticalFlowFarneback(prevGra, currGra, flow, 0.5, 3, 11, 3, 5, 1.1, cv::OPTFLOW_FARNEBACK_GAUSSIAN);//OPTFLOW_FARNEBACK_GAUSSIAN
+	
+	flow += testImg;
 	std::chrono::high_resolution_clock::time_point matching_end = std::chrono::high_resolution_clock::now();
 	auto duration1 = std::chrono::duration_cast<std::chrono::milliseconds>(matching_end - matching_start).count();
 	ttime = duration1 / 1000.0;
@@ -1085,6 +1103,32 @@ int UVR_SLAM::Matcher::DenseOpticalMatchingForTracking(Frame* pCurrKF, Frame* pP
 	//ss << "Dense Tracking= " << pCurrKF->GetFrameID() << ", " << pPrevKF->GetFrameID() << ", " << "::" << tttt1;
 	//cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	//cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+}
+
+int UVR_SLAM::Matcher::DenseOpticalMatching(Frame* pF, std::vector<cv::Point2f> vPts1, std::vector<cv::Point2f>& vPts2, std::vector<bool>& vbInliers, std::vector<cv::Mat> vFlows) {
+	vPts2.resize(vPts1.size());
+	std::copy(vPts1.begin(), vPts1.end(), vPts2.begin());
+	vbInliers = std::vector<bool>(vPts2.size(), true);
+	for (int f = 0; f < vFlows.size(); f++) {
+		for (int i = 0; i < vPts2.size(); i++) {
+			if (!vbInliers[i])
+				continue;
+			auto prevPt = vPts2[i];
+			cv::Point2f idxPt(prevPt.x / 2, prevPt.y / 2);
+			cv::Vec2f fval = vFlows[f].at<Vec2f>(idxPt);
+			cv::Point2f currPt = cv::Point2f(fval * 2);// cv::Point2f(fval.val[0] * 2, fval.val[1] * 2);
+			if (Point2i(prevPt) == Point2i(currPt)) {
+				vbInliers[i] = false;
+				continue;
+			}
+			if (!pF->isInImage(currPt.x, currPt.y, 10)) {
+				vbInliers[i] = false;
+				continue;
+			}
+			vPts2[i] = currPt;
+		}
+	}
+	return 0;
 }
 
 int UVR_SLAM::Matcher::TestOpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, cv::Mat& debugging) {

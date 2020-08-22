@@ -59,7 +59,6 @@ UVR_SLAM::Tracker::~Tracker() {}
 bool UVR_SLAM::Tracker::isInitialized() {
 	return mbInitilized;
 }
-
 void UVR_SLAM::Tracker::SetSystem(System* pSystem) {
 	mpSystem = pSystem;
 }
@@ -92,7 +91,7 @@ void UVR_SLAM::Tracker::SetPlaneEstimator(UVR_SLAM::PlaneEstimator* pEstimator) 
 }
 
 UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev) {
-
+	
 	///////////////
 	//keyframe process
 	int Nref = mpRefKF->mpMatchInfo->GetMatchingSize();
@@ -128,6 +127,8 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 	else
 	return false;*/
 	UVR_SLAM::Frame* pRes = nullptr;
+	if (!bMinFrames && bDoingMapping)
+		return pCurr;
 	if (!bMinFrames && bDoingMapping) {
 		if (bRotation || bMaxFrames) {
 			pRes = pCurr;
@@ -272,8 +273,21 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 	//return false;
 }
 
+UVR_SLAM::Frame* pMatchInfoTemp1 = nullptr;
+UVR_SLAM::Frame* pMatchInfoTemp2 = nullptr;
 //bool bRefKF = false;
 void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
+
+	////////////Dense Matching Test
+	cv::Mat testMatchingImg;
+	double dtime = 0.0;
+	cv::Mat mFlow;
+	if(pPrev){
+		mpMatcher->DenseOpticalMatchingForTracking(pCurr, pPrev, mFlow, dtime, testMatchingImg);
+		mpMap->AddFlow(pPrev->GetFrameID(), mFlow);
+	}
+	////////////Dense Matching Test
+
 	if(!mbInitializing){
 		bool bReset = false;
 		mbInitializing = mpInitializer->Initialize(pCurr, bReset, mnWidth, mnHeight);
@@ -291,9 +305,25 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			mpMap->AddTraFrame(mpInitializer->mpInitFrame1);
 			mpMap->AddTraFrame(pCurr);
 			mnMapPointMatching = pCurr->mpMatchInfo->GetMatchingSize();
+
+			//mpRefKF->mpMatchInfo->mvTempDenseMatchPts = mpRefKF->mpMatchInfo->GetMatchingPts();
+			//mpRefKF->mpMatchInfo->mvbTempDense = std::vector<bool>(mpRefKF->mpMatchInfo->mvTempDenseMatchPts.size(), true);
 		}
 	}
 	else {
+
+		/*if (pPrev->GetFrameID() % 3 == 0) {
+			pMatchInfoTemp1 = pMatchInfoTemp2;
+			pMatchInfoTemp2 = pPrev;
+			if (pMatchInfoTemp1) {
+				cv::Mat testMatchingImg;
+				mpMatcher->TestOpticalMatchingForMapping2(pMatchInfoTemp2, pMatchInfoTemp1, pPrev, testMatchingImg);
+				std::stringstream sstdir;
+				sstdir << mpSystem->GetDirPath(0) << "/kfmatching/tracking_test_" << pMatchInfoTemp2->GetFrameID() << "_" << pMatchInfoTemp1->GetFrameID() << ".jpg";
+				imwrite(sstdir.str(), testMatchingImg);
+			}
+		}*/
+
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 
 		/*std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
@@ -324,42 +354,114 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::vector<int> vnIDXs, vnMPIDXs;
 		cv::Mat debugImg;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->GetOriginalImage().size(), CV_8UC1);
-		mnPointMatching = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, overlap, debugImg); //pCurr
+		//mnPointMatching = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, overlap, debugImg); //pCurr
 
+		////////////Dense Matching Test
+		mpRefKF->mpMatchInfo->mvFlows.push_back(mFlow.clone());
+		////////////Dense Matching Test
+		
+		//////Optical flow
+		std::chrono::high_resolution_clock::time_point matching_start = std::chrono::high_resolution_clock::now();
+		std::vector<cv::Mat> currPyr, prevPyr;
+		std::vector<uchar> status1, status2;
+		std::vector<float> err1, err2;
+		//cv::Mat pprevImg = pPPrevKF->GetOriginalImage();
+		cv::Mat prevImg = mpRefKF->GetOriginalImage();
+		cv::Mat currImg = pCurr->GetOriginalImage();
+											  ///////debug
+		cv::Point2f ptBottom1 = cv::Point2f(0, prevImg.rows);
+		cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+		cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+		testMatchingImg = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+		//pprevImg.copyTo(debugging(mergeRect1));
+		prevImg.copyTo(testMatchingImg(mergeRect1));
+		currImg.copyTo(testMatchingImg(mergeRect2));
+		/////////////
+		
+		auto mpTempMPs = mpRefKF->mpMatchInfo->GetMatchingMPs();
+		auto mpTempPts = mpRefKF->mpMatchInfo->GetMatchingPts();
+		int nDense = 0;
+		int nCurrFrameID = pCurr->GetFrameID();
+		int nLastFlow = mpRefKF->mpMatchInfo->mvFlows.size()-1;
+
+		std::chrono::high_resolution_clock::time_point dense_matching_start = std::chrono::high_resolution_clock::now();
+		auto mvFlows = mpMap->GetFlows(mpRefKF->GetFrameID(), pCurr->GetFrameID());
+		std::vector<cv::Point2f> mvTempPts2;
+		std::vector<bool> vbTempIinliers2;
+		mpMatcher->DenseOpticalMatching(pCurr, mpTempPts, mvTempPts2, vbTempIinliers2, mvFlows);
+		for (int i = 0; i < mpTempPts.size(); i++) {
+			if (!vbTempIinliers2[i])
+				continue;
+			auto pMPi = mpTempMPs[i];
+			if (pMPi && !pMPi->isDeleted() && pMPi->GetRecentTrackingFrameID() != nCurrFrameID && pCurr->isInFrustum(pMPi, 0.6f)) {
+				pMPi->SetRecentTrackingFrameID(nCurrFrameID);
+				vpTempMPs.push_back(pMPi);
+				vnIDXs.push_back(i);
+				vpTempPts.push_back(mvTempPts2[i]);
+				vbTempInliers.push_back(true);
+				circle(testMatchingImg, mpTempPts[i], 2, cv::Scalar(255, 255, 0), -1);
+				circle(testMatchingImg, mvTempPts2[i]+ptBottom1, 2, cv::Scalar(255, 255, 0), -1);
+			}
+		}
+		//for (int f = 0; f < mvFlows.size(); f++) {
+		//	for (int i = 0; i < mpTempMPs.size(); i++) {
+		//		auto prevPt = mpTempPts[i];
+		//		cv::Point2f idxPt(prevPt.x / 2, prevPt.y / 2);
+		//		cv::Vec2f fval = mvFlows[f].at<Vec2f>(idxPt);
+		//		cv::Point2f currPt = cv::Point2f(fval.val[0] * 2, fval.val[1] * 2);
+		//		if (!pCurr->isInImage(currPt.x, currPt.y, 10)) {
+		//			//cv::circle(testMatchingImg, mpTempPts[i], 2, cv::Scalar(0, 255, 0), -1);
+		//			//mpRefKF->mpMatchInfo->mvbTempDense[i] = false;
+		//			continue;
+		//		}
+		//		mpTempPts[i] = currPt;
+		//		if (f == nLastFlow) {
+		//			auto pMPi = mpTempMPs[i];
+		//			if (pMPi && !pMPi->isDeleted() && pMPi->GetRecentTrackingFrameID() != nCurrFrameID && pCurr->isInFrustum(pMPi, 0.6f)) {
+		//				pMPi->SetRecentTrackingFrameID(nCurrFrameID);
+		//				vpTempMPs.push_back(pMPi);
+		//				vnIDXs.push_back(i);
+		//				vpTempPts.push_back(currPt);
+		//				vbTempInliers.push_back(true);
+		//			}
+		//		}
+		//	}
+		//}
+		/*cv::Mat testImg = cv::Mat::zeros(mnHeight/2, mnWidth/2, CV_32FC2);
+		for (int x = 0; x < mnWidth/2; x++) {
+			for (int y = 0; y < mnHeight/2; y++) {
+				cv::Vec2f pt(x, y);
+				testImg.at<Vec2f>(y, x) = pt;
+			}
+		}
+		testImg += mFlow;*/
+
+		std::chrono::high_resolution_clock::time_point dense_matching_end = std::chrono::high_resolution_clock::now();
+		double t_dense = std::chrono::duration_cast<std::chrono::milliseconds>(dense_matching_end - dense_matching_start).count() / 1000.0;
+
+		std::stringstream ssaas;
+		ssaas << "Dense Tracking= " << pCurr->GetFrameID() << ", " << mpRefKF->GetFrameID() << "::" << nDense << "::" << dtime<<"::"<< t_dense;
+		cv::rectangle(testMatchingImg, cv::Point2f(0, 0), cv::Point2f(testMatchingImg.cols, 30), cv::Scalar::all(0), -1);
+		cv::putText(testMatchingImg, ssaas.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+		
+		////////////Dense Matching Test
 		//mpSystem->mbTrackingEnd = true;
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
 
 		//graph-based0.
 		mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);
-		////solvepnp
-		/*mnMatching = 0;
-		cv::Mat rvec, tvec;
-		cv::Rodrigues(prevR, rvec);
-		cv::solvePnPRansac(vpTempPts2, vpTempPts1, mK, mD, rvec, tvec, true, 100, 4.0, 0.99, vcInliers);
-		cv::Rodrigues(rvec, prevR);
-		prevR.convertTo(prevR, CV_32FC1);
-		tvec.convertTo(tvec, CV_32FC1);
-		pCurr->SetPose(prevR, tvec);
-		for (int i = 0; i < vcInliers.size(); i++)
-		{
-			if (vcInliers[i]) {
-				mnMatching++;
-			}
-			else {
-				vbTempInliers[vnMPIDXs[i]] = false;
-			}
-		}*/
-		////solvepnp
-		//pCurr->SetInliers(mnMatching); //이용X
-		int nMP = UpdateMatchingInfo(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
 		
+		//pCurr->SetInliers(mnMatching); //이용X
+		int nMP = 0;
+		
+
 		////파일 이미지 저장시 이름 설정
 		std::stringstream ssdira;
 		ssdira << mpSystem->GetDirPath(0) << "/kfmatching/tracking_" << mpRefKF->GetKeyFrameID()<<"_"<<mpRefKF->GetFrameID() << "_" << pCurr->GetFrameID() <<"_"<<mpRefKF->mpMatchInfo->mnMaxMatch<< ".jpg";
 		std::stringstream suc;
-		suc << "Tracking::" << mnPointMatching << ", " << mnMapPointMatching << "::" << mpRefKF->mpMatchInfo->GetMatchingSize();
+		/*suc << "Tracking::" << mnPointMatching << ", " << mnMapPointMatching << "::" << mpRefKF->mpMatchInfo->GetMatchingSize();
 		cv::rectangle(debugImg, cv::Point2f(0, 0), cv::Point2f(debugImg.cols, 30), cv::Scalar::all(0), -1);
-		cv::putText(debugImg, suc.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+		cv::putText(debugImg, suc.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));*/
 		////파일 이미지 저장시 이름 설정
 
 		///////////////////////////////////////////////////////////////////////////////
@@ -367,44 +469,17 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		auto pNewKF = CheckNeedKeyFrame(pCurr, pPrev);
 		if (pNewKF) {
 			//auto pNewKF = pCurr;
+			UpdateMatchingInfo(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
 			pNewKF->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 			mpRefKF = pNewKF;
+			//mpRefKF->mpMatchInfo->mvTempDenseMatchPts = mpRefKF->mpMatchInfo->GetMatchingPts();
+			//mpRefKF->mpMatchInfo->mvbTempDense = std::vector<bool>(mpRefKF->mpMatchInfo->mvTempDenseMatchPts.size(), true);
 			mpLocalMapper->InsertKeyFrame(pNewKF);
 			//mpSegmentator->InsertKeyFrame(pNewKF);
 			//mpPlaneEstimator->InsertKeyFrame(pNewKF);
 		}
 
-		////////////////////이전 버전
-		//float angle = (mpRefKF->CalcDiffAngleAxis(pCurr));
-		//if (CheckNeedKeyFrame(pCurr)) {
-		//	if (!mpSegmentator->isDoingProcess() && pCurr->CheckBaseLine(mpRefKF)) {
-		//		pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-		//		mpRefKF = pCurr;
-		//		//mpRefKF->Init(mpSystem->mpORBExtractor, mpSystem->mK, mpSystem->mD);
-		//		//mpRefKF->mpMatchInfo->SetKeyFrame();
-		//		mpLocalMapper->InsertKeyFrame(pCurr);
-		//		mpSegmentator->InsertKeyFrame(pCurr);
-		//		mpPlaneEstimator->InsertKeyFrame(pCurr);
-		//		//mpFrameWindow->AddFrame(pCurr);
-		//	}
-		//	/*if (!mpSegmentator->isDoingProcess() && !mpPlaneEstimator->isDoingProcess() && !mpRefKF->GetBoolMapping()) {
-		//		std::cout << "insert key frame" << std::endl;
-		//		pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-		//		mpSegmentator->InsertKeyFrame(pCurr);
-		//		mpLocalMapper->InsertKeyFrame(pCurr);
-		//		mpPlaneEstimator->InsertKeyFrame(pCurr);
-		//		mpRefKF = pCurr;
-		//	}*/
-		//}
-		/////////////////////////////////////////////키프레임 체크
-		///////////////////////////////////////////////////////////////////////////////
-		////////Optical Flow Matching
-
-		///////////////////SAVE TRACKING RESULTS
-		/*std::stringstream ssdir;
-		ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" <<mpRefKF->GetFrameID()<<"_"<< pCurr->GetFrameID() << "_tracking.jpg";
-		imwrite(ssdir.str(), imgKFNF);*/
-		///////////////////SAVE TRACKING RESULTS
+		//ref, curr, matching mp, matching pt, bool
 
 		std::cout << "tracker::end::"<<pCurr->GetFrameID()<<"::"<<mnMapPointMatching << std::endl;
 
@@ -413,84 +488,90 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		
 		auto duration1 = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_a - tracking_start).count();
 		double t1 = duration1 / 1000.0;
-		auto duration2 = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_a).count();
+		auto duration2 = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 		double t2 = duration2 / 1000.0;
 
-		//////시각화1
-		cv::Mat vis = pCurr->GetOriginalImage();
-		//vis.convertTo(vis, CV_8UC3);
-		cv::Mat R = pCurr->GetRotation();
-		cv::Mat t = pCurr->GetTranslation();
-		//for (int i = 0; i < vpTempPts.size(); i++) {
-		//	int label = pPrev->mpMatchInfo->mvObjectLabels[vnIDXs[i]];
-		//	if (label == 150) {
-		//		cv::circle(debugImg, vpTempPts[i], 3, cv::Scalar(255, 0, 255), 1);
-		//	}
-		//	else if (label == 255) {
-		//		cv::circle(debugImg, vpTempPts[i], 3, cv::Scalar(0, 255, 255), 1);
-		//	}
-		//}
-		//////시각화1
-		//imshow("Output::Matching", debugImg);
-		/*for (int i = 0; i < vpTempPts.size(); i++) {
-			cv::circle(vis, vpTempPts[i], 2, cv::Scalar(255, 0, 0), 1);
-		}*/
-
-		//////시각화2
-		cv::Point2f ptBottom(0, mnHeight);
-		for (int i = 0; i < vpTempMPs.size(); i++) {
-			UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
-			if (!pMPi || pMPi->isDeleted())
-				continue;
-			/*if (!vbTempInliers[vnMPIDXs[i]])
-				continue;*/
-			cv::Point2f p2D;
-			cv::Mat pCam;
-			bool b = pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
-
-			int label = 0;// mpRefKF->mpMatchInfo->mvObjectLabels[vnIDXs[i]];
-			int pid = pMPi->GetPlaneID();
-			int type = pMPi->GetRecentLayoutFrameID();
-			cv::Scalar color(150, 150, 0);
-			if (pid > 0 && label == 150) {
-				color = cv::Scalar(0, 0, 255);
-			}
-			else if (pid > 0 && label == 100) {
-				color = cv::Scalar(0, 255, 0);
-			}
-			//else if (pid > 0 && label == 255) {
-			else if (label == 255) {
-				color = cv::Scalar(255, 0, 0);
-				//color = UVR_SLAM::ObjectColors::mvObjectLabelColors[pid];
-			}
-			if (pid <= 0)
-				color /= 2;
-			if(vbTempInliers[i])
-				cv::circle(vis, p2D, 2, color, -1);
-			/*if (!b || !vbTempInliers[vnMPIDXs[i]]) {
-				cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(0, 0, 255), 1);
-			}
-			else {
-				cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
-			}*/
-			cv::line(vis, p2D, vpTempPts[i], color, 1);
-			if(!vbTempInliers[i]){
-				cv::line(debugImg, p2D+ptBottom, vpTempPts[i]+ ptBottom, cv::Scalar(0,0,255), 1);
-				cv::circle(debugImg, p2D+ ptBottom, 2, cv::Scalar(0, 0, 255), -1);
-			}
-			//cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
+		///////시각화
+		if (!mpFrameVisualizer->isVisualize()) {
+			mpFrameVisualizer->SetFrameMatchingInformation(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, t2);
 		}
+
+		////////시각화1
+		//cv::Mat vis = pCurr->GetOriginalImage();
+		////vis.convertTo(vis, CV_8UC3);
+		//cv::Mat R = pCurr->GetRotation();
+		//cv::Mat t = pCurr->GetTranslation();
+		//
 		////////시각화2
-		std::stringstream ss;
-		ss << "Traking = " << mnMapPointMatching << ", " << nMP << "::" << t1 << ", " << t2 << "::";
-		cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
-		cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-		cv::imshow("Output::Tracking", vis);
-		////////Visualization & 시간 계산
-		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		//cv::Point2f ptBottom(0, mnHeight);
+		//for (int i = 0; i < vpTempMPs.size(); i++) {
+		//	UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
+		//	if (!pMPi || pMPi->isDeleted())
+		//		continue;
+		//	/*if (!vbTempInliers[vnMPIDXs[i]])
+		//		continue;*/
+		//	cv::Point2f p2D;
+		//	cv::Mat pCam;
+		//	bool b = pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
+
+		//	int label = 0;// mpRefKF->mpMatchInfo->mvObjectLabels[vnIDXs[i]];
+		//	int pid = pMPi->GetPlaneID();
+		//	int type = pMPi->GetRecentLayoutFrameID();
+		//	cv::Scalar color(150, 150, 0);
+		//	if (pid > 0 && label == 150) {
+		//		color = cv::Scalar(0, 0, 255);
+		//	}
+		//	else if (pid > 0 && label == 100) {
+		//		color = cv::Scalar(0, 255, 0);
+		//	}
+		//	//else if (pid > 0 && label == 255) {
+		//	else if (label == 255) {
+		//		color = cv::Scalar(255, 0, 0);
+		//		//color = UVR_SLAM::ObjectColors::mvObjectLabelColors[pid];
+		//	}
+		//	if (pid <= 0)
+		//		color /= 2;
+		//	if(vbTempInliers[i])
+		//		cv::circle(vis, p2D, 2, color, -1);
+		//	/*if (!b || !vbTempInliers[vnMPIDXs[i]]) {
+		//		cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(0, 0, 255), 1);
+		//	}
+		//	else {
+		//		cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
+		//	}*/
+		//	cv::line(vis, p2D, vpTempPts[i], color, 1);
+		//	if(!vbTempInliers[i]){
+		//		cv::line(testMatchingImg, p2D+ptBottom, vpTempPts[i]+ ptBottom, cv::Scalar(0,0,255), 1);
+		//		cv::circle(testMatchingImg, p2D+ ptBottom, 2, cv::Scalar(0, 0, 255), -1);
+		//	}
+		//	else {
+		//		cv::line(testMatchingImg, p2D + ptBottom, vpTempPts[i] + ptBottom, cv::Scalar(0, 255, 255), 1);
+		//		cv::circle(testMatchingImg, p2D + ptBottom, 2, cv::Scalar(0, 255, 255), -1);
+		//	}
+		//	//cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
+		//}
+		//////////시각화2
+		//std::stringstream ss;
+		//ss << "Traking = " << mnMapPointMatching << ", " << mnMapPointMatching << "::" << t1 << ", " << t2 << "::";
+		//cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
+		//cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+		///*cv::rectangle(debugImg, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
+		//cv::putText(debugImg, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));*/
+		//cv::imshow("Output::Tracking", vis);
+		//////////Visualization & 시간 계산
+		///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+		///////테스트 이미지 저장
+		//std::stringstream sstdir;
+		//sstdir << mpSystem->GetDirPath(0) << "/tracking/tracking_test_" << pCurr->GetFrameID() << "_" << pPrev->GetFrameID() << ".jpg";
+		///*cv::Mat ttttddddebug = cv::Mat::zeros(testMatchingImg.rows, testMatchingImg.cols * 2, testMatchingImg.type());
+		//debugImg.copyTo(ttttddddebug(cv::Rect(0, 0, testMatchingImg.cols, testMatchingImg.rows)));
+		//testMatchingImg.copyTo(ttttddddebug(cv::Rect(testMatchingImg.cols, 0, testMatchingImg.cols, testMatchingImg.rows)));
+		//*/
+		//cv::imwrite(sstdir.str(), testMatchingImg);
 
 		/////////트래킹 결과 이미지 저장
-		pCurr->mpMatchInfo->mMatchedImage = debugImg.clone();
+		pCurr->mpMatchInfo->mMatchedImage = testMatchingImg.clone();
 		
 		/////////트래킹 결과 이미지 저장
 		//visualizer thread
@@ -542,10 +623,11 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 	
 	int nres = 0;
 	for (int i = 0; i < vpPts.size(); i++) {
+		int prevIdx = vnIDXs[i];
+		//mpRefKF->mpMatchInfo->mvbTempDense[prevIdx] = vbInliers[i];
 		if (!vbInliers[i]){
 			continue;
 		}
-		int prevIdx = vnIDXs[i];
 		auto pt = vpPts[i];
 		auto pMP = vpMPs[i];
 		if (!pMatchInfo->CheckPt(pt)) {
@@ -557,6 +639,8 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 				nres++;
 			}
 		}
+		//dense matching에서 추가
+		
 	}
 	pMatchInfo->mnNumMatch = mnMapPointMatching;
 	return nInstantMP;

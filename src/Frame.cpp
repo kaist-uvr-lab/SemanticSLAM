@@ -610,12 +610,13 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	//cv::Mat filtered;
 	//GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
 	//cv::Canny(filtered, mEdgeImg, 50, 200);//150
-	for (int y = 0; y < matFrame.rows; y++) {
+	/*for (int y = 0; y < matFrame.rows; y++) {
 		for (int x = 0; x < matFrame.cols; x++) {
 			if (mEdgeImg.at<uchar>(y, x) > 0)
 				mvEdgePts.push_back(cv::Point2f(x, y));
 		}
-	}
+	}*/
+	DetectEdge();
 	//////////canny
 
 	/*mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
@@ -632,8 +633,16 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 
 void UVR_SLAM::Frame::DetectEdge() {
 	cv::Mat filtered;
-	GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
+	GaussianBlur(matFrame, filtered, cv::Size(3, 3), 0.0);
 	cv::Canny(filtered, mEdgeImg, 50, 200);//150
+
+	for (int y = 0; y < matFrame.rows; y++) {
+		for (int x = 0; x < matFrame.cols; x++) {
+			if (mEdgeImg.at<uchar>(y, x) > 0)
+				mvEdgePts.push_back(cv::Point2f(x, y));
+		}
+	}
+
 }
 
 void UVR_SLAM::Frame::ExtractORB(const cv::Mat &im, std::vector<cv::KeyPoint>& vKPs, cv::Mat& desc)
@@ -974,7 +983,7 @@ void UVR_SLAM::MatchInfo::SetLabel() {
 void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 	cv::Mat tempused = cv::Mat::zeros(used.size(), CV_8UC1);
 	int radius = 5;
-	int nMax = 300; //둘다 하면 500
+	int nMax = 2000; //둘다 하면 500
 	int nIncEdge = mpRefFrame->mvEdgePts.size() / nMax;
 	int nIncORB = mpRefFrame->mvPts.size() / nMax;
 
@@ -995,8 +1004,10 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		circle(tempused, pt, radius, cv::Scalar(255), -1);
 		mvTempPts.push_back(pt);
 		mvTempOctaves.push_back(0);
+
+		mvTempDenseMatchPts.push_back(pt);
 	}
-	for (int i = 0; i < mpRefFrame->mvPts.size(); i+= nIncORB) {
+	/*for (int i = 0; i < mpRefFrame->mvPts.size(); i+= nIncORB) {
 		auto pt = mpRefFrame->mvPts[i];
 		if (!CheckOpticalPointOverlap(usedCPMap, 1, 10, pt) || !CheckOpticalPointOverlap(tempused, 1, 10, pt)) {
 			continue;
@@ -1004,7 +1015,9 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		circle(tempused, pt, radius, cv::Scalar(255), -1);
 		mvTempPts.push_back(pt);
 		mvTempOctaves.push_back(mpRefFrame->mvnOctaves[i]);
-	}
+
+		mvTempDenseMatchPts.push_back(pt);
+	}*/
 }
 
 void UVR_SLAM::MatchInfo::SetKeyFrame() {

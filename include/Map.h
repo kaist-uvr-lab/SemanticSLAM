@@ -81,7 +81,6 @@ namespace UVR_SLAM {
 		void DeleteMapPoint(UVR_SLAM::MapPoint* pMP);
 		void UpdateMapPoint(UVR_SLAM::MapPoint* pMP, UVR_SLAM::MapGrid* pMG);
 
-
 		bool CheckGrid(cv::Point3f pt);
 		bool CheckGrid(cv::Point3f pt1, cv::Point3f pt2);
 		UVR_SLAM::MapGrid* GetGrid(UVR_SLAM::MapPoint* pMP);

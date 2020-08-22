@@ -29,6 +29,8 @@ namespace UVR_SLAM {
 		//삼각화
 		//아웃라이어 체크(리프로젝션 에러)
 		//뎁스테스트
+		//패럴랙스 에러
+		//맵포인트
 	private:
 		MatchInfo* mpRefKF;
 		bool mbDelete;
