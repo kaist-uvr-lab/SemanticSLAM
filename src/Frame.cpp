@@ -610,12 +610,7 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	//cv::Mat filtered;
 	//GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
 	//cv::Canny(filtered, mEdgeImg, 50, 200);//150
-	for (int y = 0; y < matFrame.rows; y++) {
-		for (int x = 0; x < matFrame.cols; x++) {
-			if (mEdgeImg.at<uchar>(y, x) > 0)
-				mvEdgePts.push_back(cv::Point2f(x, y));
-		}
-	}
+	DetectEdge();
 	//////////canny
 
 	/*mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
@@ -634,6 +629,13 @@ void UVR_SLAM::Frame::DetectEdge() {
 	cv::Mat filtered;
 	GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
 	cv::Canny(filtered, mEdgeImg, 50, 200);//150
+	
+	for (int y = 0; y < matFrame.rows; y++) {
+		for (int x = 0; x < matFrame.cols; x++) {
+			if (mEdgeImg.at<uchar>(y, x) > 0)
+				mvEdgePts.push_back(cv::Point2f(x, y));
+		}
+	}
 }
 
 void UVR_SLAM::Frame::ExtractORB(const cv::Mat &im, std::vector<cv::KeyPoint>& vKPs, cv::Mat& desc)
