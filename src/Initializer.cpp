@@ -5,6 +5,7 @@
 #include <Map.h>
 #include <MatrixOperator.h>
 #include <SemanticSegmentator.h>
+#include <CandidatePoint.h>
 #include <PlaneEstimator.h>
 #include <Visualizer.h>
 #include <Plane.h>
@@ -104,7 +105,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 		int count = mpMatcher->OpticalMatchingForInitialization(mpInitFrame1, mpInitFrame2, vTempPts1, vTempPts2, vTempInliers, vTempIndexs, debugging);
-		
 		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 		double tttt = duration / 1000.0;
@@ -139,7 +139,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		std::vector<bool> vbFtest;
 		cv::Mat F12;
 		float score;
-		
 		////E  찾기 : OpenCV
 		cv::Mat E12 = cv::findEssentialMat(vTempPts1, vTempPts2, mK, cv::FM_RANSAC, 0.999, 1.0, vFInliers);
 		////E  찾기 : OpenCV
@@ -150,11 +149,12 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 				resMatches.push_back(std::make_pair(vTempPts1[i], vTempPts2[i]));
 				vTempMatchPts1.push_back(vTempPts1[i]);
 				vTempMatchPts2.push_back(vTempPts2[i]);
-				vTempMatchOctaves.push_back(mpInitFrame1->mpMatchInfo->mvTempOctaves[vTempIndexs[i]]);
+				//vTempMatchOctaves.push_back(mpInitFrame1->mpMatchInfo->mvTempOctaves[vTempIndexs[i]]);
 				vTempMatchIDXs.push_back(i);//vTempIndexs[i]
 			}
 		}
 		count = resMatches.size();
+
 		//////F, E를 통한 매칭 결과 반영
 		///////삼각화 : OpenCV
 		cv::Mat R1, t1;
@@ -208,14 +208,22 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			if (err1 > 4.0 || err2 > 4.0)
 				continue;
 			///////////////reprojection error
+			int idx = vTempMatchIDXs[i];
+			int idx2 = vTempIndexs[idx];
+			//std::cout << vTempPts1[idx] << ", " << mpInitFrame1->mpMatchInfo->GetCPPt(idx2) <<"::"<< vTempMatchPts1[i] << std::endl;
+
 			res3++;
 			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
 			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpInitFrame2, X3D, cv::Mat(), label1);
 			tempMPs.push_back(pMP);
 			vTempMappedPts1.push_back(vTempMatchPts1[i]);
 			vTempMappedPts2.push_back(vTempMatchPts2[i]);
-			vTempMappedOctaves.push_back(vTempMatchOctaves[i]);
+			//vTempMappedOctaves.push_back(vTempMatchOctaves[i]);
 			vTempMappedIDXs.push_back(i);//vTempMatchIDXs[i]
+
+			auto pCP = mpInitFrame1->mpMatchInfo->GetCP(idx2);
+			pCP->AddFrame(mpInitFrame2->mpMatchInfo, vTempMatchPts2[i]);
+			pCP->bCreated = true;
 		}
 		//////////////////////////////////////
 		/////median depth 
@@ -329,7 +337,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 			pNewMP->AddFrame(mpInitFrame1->mpMatchInfo, pt1);
 			pNewMP->AddFrame(mpInitFrame2->mpMatchInfo, pt2);
-			pNewMP->mnOctave = vTempMappedOctaves[i];//mpInitFrame1->mpMatchInfo->mvnOctaves[idx1];
+			//pNewMP->mnOctave = vTempMappedOctaves[i];//mpInitFrame1->mpMatchInfo->mvnOctaves[idx1];
 			
 			pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
 			pNewMP->IncreaseVisible(2);
@@ -378,6 +386,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpMap->mpFirstKeyFrame = mpInitFrame1;
 		mpVisualizer->SetMatchInfo(mpInitFrame2->mpMatchInfo);
 		mbInit = true;
+		mpInitFrame1->mpMatchInfo->mMatchedImage = debugging.clone();
 		std::cout << "Initializer::Success::" << tempMPs .size()<< std::endl << std::endl << std::endl;
 		//////////////////////////키프레임 생성
 		
@@ -510,6 +519,9 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		_mkdir(sababs.str().c_str());
 		sababs.str("");
 		sababs << base << "/map";
+		_mkdir(sababs.str().c_str());
+		sababs.str("");
+		sababs << base << "/testmatching";
 		_mkdir(sababs.str().c_str());
 		return mbInit;
 		//200419

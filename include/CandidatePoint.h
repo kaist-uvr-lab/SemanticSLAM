@@ -26,6 +26,7 @@ namespace UVR_SLAM {
 		cv::Mat Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2);
 		bool CheckDepth(float depth);
 		bool CheckReprojectionError(cv::Mat x3D, cv::Mat K, cv::Point2f pt, float thresh);
+		int GetNumSize();
 		//삼각화
 		//아웃라이어 체크(리프로젝션 에러)
 		//뎁스테스트

@@ -316,6 +316,7 @@ void RemoveMP(int idx);*/
 		static float mnMinY;
 		static float mnMaxY;
 		static bool mbInitialComputations;
+		static int mnRadius;
 		
 		int mnScaleLevels;
 		float mfScaleFactor;

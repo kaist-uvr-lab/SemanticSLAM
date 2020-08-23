@@ -14,6 +14,12 @@ namespace  UVR_SLAM{
 		std::unique_lock<std::mutex> lockMP(mMutexCP);
 		return std::map<UVR_SLAM::MatchInfo*, int>(mmpFrames.begin(), mmpFrames.end());
 	}
+	
+	int CandidatePoint::GetNumSize() {
+		std::unique_lock<std::mutex> lockMP(mMutexCP);
+		return mnConnectedFrames;
+	}
+
 	void CandidatePoint::AddFrame(MatchInfo* pF, cv::Point2f pt) {
 		std::unique_lock<std::mutex> lockMP(mMutexCP);
 		auto res = mmpFrames.find(pF);
@@ -23,6 +29,7 @@ namespace  UVR_SLAM{
 			mnConnectedFrames++;
 		}
 	}
+	
 	void CandidatePoint::RemoveFrame(UVR_SLAM::MatchInfo* pKF){
 		{
 			std::unique_lock<std::mutex> lockMP(mMutexCP);

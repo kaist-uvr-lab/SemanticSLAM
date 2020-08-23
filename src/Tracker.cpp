@@ -354,12 +354,12 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		int nMP = UpdateMatchingInfo(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
 		
 		////파일 이미지 저장시 이름 설정
-		std::stringstream ssdira;
+		/*std::stringstream ssdira;
 		ssdira << mpSystem->GetDirPath(0) << "/kfmatching/tracking_" << mpRefKF->GetKeyFrameID()<<"_"<<mpRefKF->GetFrameID() << "_" << pCurr->GetFrameID() <<"_"<<mpRefKF->mpMatchInfo->mnMaxMatch<< ".jpg";
 		std::stringstream suc;
 		suc << "Tracking::" << mnPointMatching << ", " << mnMapPointMatching << "::" << mpRefKF->mpMatchInfo->GetMatchingSize();
 		cv::rectangle(debugImg, cv::Point2f(0, 0), cv::Point2f(debugImg.cols, 30), cv::Scalar::all(0), -1);
-		cv::putText(debugImg, suc.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+		cv::putText(debugImg, suc.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));*/
 		////파일 이미지 저장시 이름 설정
 
 		///////////////////////////////////////////////////////////////////////////////
@@ -497,7 +497,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		/////////트래킹 결과 이미지 저장
-		pCurr->mpMatchInfo->mMatchedImage = debugImg.clone();
+		//pCurr->mpMatchInfo->mMatchedImage = debugImg.clone();
 		
 		/////////트래킹 결과 이미지 저장
 		//visualizer thread

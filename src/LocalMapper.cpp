@@ -137,6 +137,19 @@ void UVR_SLAM::LocalMapper::Run() {
 			int nTargetID = mpTargetFrame->GetFrameID();
 			std::cout << "lm::start::" << mpTargetFrame->GetFrameID() << std::endl;
 
+			///////debug
+			/*cv::Mat prevImg = mpPrevKeyFrame->GetOriginalImage();
+			cv::Mat currImg = mpTargetFrame->GetOriginalImage();
+			cv::Point2f ptBottom = cv::Point2f(prevImg.cols,0);
+			cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+			cv::Rect mergeRect2 = cv::Rect(prevImg.cols, 0, prevImg.cols, prevImg.rows);
+			cv::Mat debugImg = cv::Mat::zeros(prevImg.rows, prevImg.cols*2, prevImg.type());
+			prevImg.copyTo(debugImg(mergeRect1));
+			currImg.copyTo(debugImg(mergeRect2));
+			std::vector<cv::Point2f> vTempPts1, vTempPts2, vTempPts3, vTempPts4;
+			std::vector<uchar> vbTempInliers;*/
+			///////debug
+
 			//////////////업데이트 맵포인트
 			auto matchInfo = mpTargetFrame->mpMatchInfo;
 			auto targetMatchingPTs = matchInfo->GetMatchingPts();
@@ -146,9 +159,29 @@ void UVR_SLAM::LocalMapper::Run() {
 				auto pt = targetMatchingPTs[i];
 				if (pMPi && !pMPi->isDeleted()) {
 					pMPi->AddFrame(matchInfo, i);
-					//pMPi->AddDenseFrame(mpTargetFrame, pt);
+					
+					//int idx = matchInfo->mvnMatchingIDXs[i];
+					//auto prevPt = mpPrevKeyFrame->mpMatchInfo->GetMatchingPt(idx);
+					//circle(debugImg, prevPt, 2, cv::Scalar(255, 255, 0), -1);
+					//circle(debugImg, pt+ ptBottom, 2, cv::Scalar(255, 255, 0), -1);
+					//vTempPts1.push_back(prevPt);
+					//vTempPts2.push_back(pt);
 				}
 			}
+
+			//cv::Mat E12 = cv::findEssentialMat(vTempPts1, vTempPts2, mK, cv::FM_RANSAC, 0.999, 1.0, vbTempInliers);
+			//for (unsigned long i = 0; i < vbTempInliers.size(); i++) {
+			//	if (vbTempInliers[i]) {
+			//		vTempPts3.push_back(vTempPts1[i]);
+			//		vTempPts4.push_back(vTempPts2[i]);
+			//		//cv::circle(debugImg, vTempPts1[i], 2, cv::Scalar(255, 0, 255), -1);
+			//		//cv::circle(debugImg, vTempPts2[i] + ptBottom, 2, cv::Scalar(255, 0, 255), -1);
+			//	}
+			//}
+			//std::stringstream ssatdir;
+			//ssatdir << mpSystem->GetDirPath(0) << "/testmatching/mapping_test2_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
+			////imwrite(ssatdir.str(), debugImg);
+
 			//mpMap->AddFrame(mpTargetFrame);
 			mpTargetFrame->ComputeSceneMedianDepth();
 			//////////////업데이트 맵포인트
@@ -161,22 +194,54 @@ void UVR_SLAM::LocalMapper::Run() {
 			/////Delayed Triangulation
 			cv::Mat ddddbug;
 			mpPrevKeyFrame->mpMatchInfo->SetMatchingPoints();
+			//이전 MP, CP, 새로운 CP가 같이 포함되어야 함.
+
+			int nCreated = 0;
+			{
+				////////New Matching & Create & Delayed CP test
+				cv::Mat debugMatch;
+				std::vector<cv::Point2f> vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts;
+				std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
+				std::vector<bool> vbInliers;
+				std::vector<int> vnIDXs;
+				std::vector<int> vnPrevOctaves;
+				auto vPrevCPs = mpPrevKeyFrame->mpMatchInfo->GetMatchingCPs();
+				auto vPrevCandidatePoints = mpPrevKeyFrame->mpMatchInfo->GetMatchingPts(vnPrevOctaves);
+				mpMatcher->OpticalMatchingForMapping(mpTargetFrame, mpPrevKeyFrame, vPrevCandidatePoints, vMatchPrevPts, vMatchCurrPts, vnIDXs, vbInliers, debugMatch);
+				std::cout << "LM::" << vMatchPrevPts.size() << std::endl;
+				nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vPrevCPs, vnIDXs, debugMatch);
+				mpPrevKeyFrame->mpMatchInfo->mMatchedImage = debugMatch.clone();
+
+				cv::Mat ttttddddebug = cv::Mat::zeros(debugMatch.rows, debugMatch.cols * 2, debugMatch.type());
+				mpPPrevKeyFrame->mpMatchInfo->mMatchedImage.copyTo(ttttddddebug(cv::Rect(0, 0, debugMatch.cols, debugMatch.rows)));
+				mpPrevKeyFrame->mpMatchInfo->mMatchedImage.copyTo(ttttddddebug(cv::Rect(debugMatch.cols, 0, debugMatch.cols, debugMatch.rows)));
+				std::stringstream sstdir;
+				sstdir << mpSystem->GetDirPath(0) << "/testmatching/mapping_test2_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
+				imwrite(sstdir.str(), ttttddddebug);
+
+				std::cout << "LM?????????????????????????????????" << std::endl;
+			}
+
 			//std::cout << "mapping::1::" << mpPrevKeyFrame->mpMatchInfo->nPrevNumCPs << ", " << mpPrevKeyFrame->mpMatchInfo->mvTempPts.size() << std::endl;
 			cv::Mat debugMatch, testDebugMatch;
 			std::vector<cv::Point2f> vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts;
 			std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
 			std::vector<bool> vbInliers;
 			std::vector<int> vnIDXs;
-			mpMatcher->OpticalMatchingForMapping(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts, vnIDXs, vbInliers, debugMatch);
+			std::vector<int> vnPrevOctaves;
+			auto vPrevCPs = mpPrevKeyFrame->mpMatchInfo->GetMatchingCPs();
+			auto vPrevCandidatePoints = mpPrevKeyFrame->mpMatchInfo->GetMatchingPts(vnPrevOctaves);
+
+			//mpMatcher->OpticalMatchingForMapping(mpTargetFrame, mpPrevKeyFrame, vPrevCandidatePoints, vMatchPrevPts, vMatchCurrPts, vnIDXs, vbInliers, debugMatch);
 			
-			cv::Mat testMatchingImg;
+			/*cv::Mat testMatchingImg;
 			mpMatcher->TestOpticalMatchingForMapping2(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, testMatchingImg);
 			cv::Mat ttttddddebug = cv::Mat::zeros(testMatchingImg.rows, testMatchingImg.cols * 2, testMatchingImg.type());
 			mpTargetFrame->mpMatchInfo->mMatchedImage.copyTo(ttttddddebug(cv::Rect(0, 0, testMatchingImg.cols, testMatchingImg.rows)));
 			testMatchingImg.copyTo(ttttddddebug(cv::Rect(testMatchingImg.cols, 0, testMatchingImg.cols, testMatchingImg.rows)));
 			std::stringstream sstdir;
 			sstdir << mpSystem->GetDirPath(0) << "/kfmatching/mapping_test2_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
-			imwrite(sstdir.str(), ttttddddebug);
+			imwrite(sstdir.str(), ttttddddebug);*/
 
 			/*
 			vMatchPPrevPts.clear();
@@ -267,10 +332,10 @@ void UVR_SLAM::LocalMapper::Run() {
 			}
 			//////////////중간 시각화
 			
-			int nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts, vbCPs, debugMatch, ddddbug);
+			//int nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts, vbCPs, debugMatch, ddddbug);
 
 			////parallax 체크 못한 포인트들 생성
-			for (int i = 0; i < vbCPs.size(); i++) {
+			/*for (int i = 0; i < vbCPs.size(); i++) {
 				if (vbCPs[i]) {
 					auto pCP = new CandidatePoint();
 					pCP->AddFrame(mpTargetFrame->mpMatchInfo, vMappingCurrPts[i]);
@@ -278,17 +343,17 @@ void UVR_SLAM::LocalMapper::Run() {
 					pCP->AddFrame(mpPPrevKeyFrame->mpMatchInfo, vMappingPPrevPts[i]);
 					mpTargetFrame->mpMatchInfo->mvTempPts.push_back(vMappingCurrPts[i]);
 				}
-			}
+			}*/
 			
 			////지연된 삼각화 실행
-			for (int i = 0; i < vpDelayedCPs.size(); i++) {
-				circle(ddddbug, vDelayedPts[i] + ptLeft2, 2, cv::Scalar(0, 0, 0), -1);
-				if (!vpDelayedCPs[i]->DelayedTriangulate(mpMap, mpTargetFrame->mpMatchInfo, vDelayedPts[i], mpPPrevKeyFrame->mpMatchInfo, mpPrevKeyFrame->mpMatchInfo, mK, mInvK, ddddbug)) {
-					vpDelayedCPs[i]->AddFrame(mpTargetFrame->mpMatchInfo, vDelayedPts[i]);
-					mpTargetFrame->mpMatchInfo->mvTempPts.push_back(vDelayedPts[i]);
-					//circle(ddddbug, vDelayedPts[i]+ ptLeft2, 2, cv::Scalar(0, 0, 0),-1);
-				}
-			}
+			//for (int i = 0; i < vpDelayedCPs.size(); i++) {
+			//	circle(ddddbug, vDelayedPts[i] + ptLeft2, 2, cv::Scalar(0, 0, 0), -1);
+			//	if (!vpDelayedCPs[i]->DelayedTriangulate(mpMap, mpTargetFrame->mpMatchInfo, vDelayedPts[i], mpPPrevKeyFrame->mpMatchInfo, mpPrevKeyFrame->mpMatchInfo, mK, mInvK, ddddbug)) {
+			//		vpDelayedCPs[i]->AddFrame(mpTargetFrame->mpMatchInfo, vDelayedPts[i]);
+			//		mpTargetFrame->mpMatchInfo->mvTempPts.push_back(vDelayedPts[i]);
+			//		//circle(ddddbug, vDelayedPts[i]+ ptLeft2, 2, cv::Scalar(0, 0, 0),-1);
+			//	}
+			//}
 			//std::cout << "Mapping::" << nCreated << "::" << vMatchPrevPts.size() << ", " << vnMappingIDXs.size() << ", " << vpDelayedCPs.size() << "::" << mpTargetFrame->mpMatchInfo->mvTempPts.size() << std::endl;
 
 			////삼각화 통과 못한 애들 다시 추가
@@ -967,6 +1032,173 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 
 
 ////////////200722 수정 필요
+int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Point2f> vMatchPrevPts, std::vector<cv::Point2f> vMatchCurrPts, std::vector<CandidatePoint*> vPrevCPs, std::vector<int> vnIDXs, cv::Mat& debugMatch){
+	
+	cv::Point2f ptBottom = cv::Point2f(0, mnHeight);
+	cv::Mat Rprev, Tprev, Rcurr, Tcurr;
+	pCurrKF->GetPose(Rcurr, Tcurr);
+	pPrevKF->GetPose(Rprev, Tprev);
+
+	cv::Mat Pcurr, Pprev;
+	cv::hconcat(Rcurr, Tcurr, Pcurr);
+	cv::hconcat(Rprev, Tprev, Pprev);
+
+	cv::Mat Map;
+	cv::triangulatePoints(mK*Pprev, mK*Pcurr, vMatchPrevPts, vMatchCurrPts, Map);
+
+	///////데이터 전처리
+	cv::Mat Rcfromc = Rcurr.t();
+	cv::Mat Rpfromc = Rprev.t();
+	cv::Mat invT, invK, invP;
+	invK = mK.inv();
+
+	int nRes = 0;
+	for (int i = 0; i < Map.cols; i++) {
+
+		cv::Mat X3D = Map.col(i);
+		auto pt1 = vMatchCurrPts[i];
+		auto pt2 = vMatchPrevPts[i];
+
+		if (abs(X3D.at<float>(3)) < 0.0001) {
+			std::cout << "test::" << X3D.at<float>(3) << std::endl;
+			cv::circle(debugMatch, pt1+ ptBottom, 2, cv::Scalar(0, 0, 0), -1);
+			cv::circle(debugMatch, pt2, 2, cv::Scalar(0, 0, 0), -1);
+			continue;
+		}
+		X3D /= X3D.at<float>(3);
+		X3D = X3D.rowRange(0, 3);
+
+		cv::Mat proj1 = Rcurr*X3D + Tcurr;
+		cv::Mat proj2 = Rprev*X3D + Tprev;
+
+		////depth test
+		if (proj1.at<float>(2) < 0.0 || proj2.at<float>(2) < 0.0) {
+			cv::circle(debugMatch, pt1+ ptBottom, 2, cv::Scalar(0, 255, 0), -1);
+			cv::circle(debugMatch, pt2, 2, cv::Scalar(0, 255, 0), -1);
+			continue;
+		}
+		////depth test
+
+		////reprojection error
+		proj1 = mK*proj1;
+		proj2 = mK*proj2;
+		cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
+		cv::Point2f projected2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
+
+		auto diffPt1 = projected1 - pt1;
+		auto diffPt2 = projected2 - pt2;
+		float err1 = (diffPt1.dot(diffPt1));
+		float err2 = (diffPt2.dot(diffPt2));
+		if (err1 > 4.0 || err2 > 4.0) {
+			cv::circle(debugMatch, pt1+ ptBottom, 2, cv::Scalar(255, 0, 0), -1);
+			cv::circle(debugMatch, pt2, 2, cv::Scalar(255, 0, 0), -1);
+			continue;
+		}
+		////reprojection error
+		////CP 연결하기
+		int nCPidx = vnIDXs[i];
+		auto pCPi = vPrevCPs[nCPidx];
+		pCPi->AddFrame(pCurrKF->mpMatchInfo, pt1);
+		int nConnCP = pCPi->GetNumSize();
+
+		////연결 확인
+		if (nConnCP > 2 && pCPi->bCreated) {
+			cv::circle(debugMatch, pt1 + ptBottom, 3, cv::Scalar(0, 255, 255));
+			cv::circle(debugMatch, pt2, 3, cv::Scalar(0, 255, 255));
+		}
+		else if (nConnCP > 2 && !pCPi->bCreated) {
+			cv::circle(debugMatch, pt1 + ptBottom, 3, cv::Scalar(255, 255, 0));
+			cv::circle(debugMatch, pt2, 3, cv::Scalar(255, 255, 0));
+		}
+		else {
+			cv::circle(debugMatch, pt1 + ptBottom, 3, cv::Scalar(0, 255, 0));
+			cv::circle(debugMatch, pt2, 3, cv::Scalar(0, 255, 0));
+		}
+
+		//////parallax check
+		//targettarget과 current만
+		cv::Mat xn1 = (cv::Mat_<float>(3, 1) << pt1.x, pt1.y, 1.0);
+		cv::Mat xn2 = (cv::Mat_<float>(3, 1) << pt2.x, pt2.y, 1.0);
+		//std::cout << xn1.t() << xn3.t();
+		cv::Mat ray1 = Rcfromc*invK*xn1;
+		cv::Mat ray2 = Rpfromc*invK*xn2;
+		//std::cout <<"\t"<< ray1.t() << ray3.t();
+		float cosParallaxRays = ray1.dot(ray2) / (cv::norm(ray1)*cv::norm(ray2));
+		//std::cout << cosParallaxRays << std::endl;
+		if (cosParallaxRays >= 0.9998) { //9999 : 위안홀까지 가능, 99999 : 비전홀, N5
+			cv::circle(debugMatch, pt1+ptBottom, 2, cv::Scalar(0, 0, 255), -1);
+			cv::circle(debugMatch, pt2, 2, cv::Scalar(0, 0, 255), -1);
+			continue;
+		}
+		//////parallax check
+		//패럴랙스 체크도 CP에서 가장 처음과 현재 것만??
+
+		if (nConnCP > 2 && !pCPi->bCreated) {
+			int label = 0;
+			pCPi->bCreated = true;
+			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, X3D, cv::Mat(), label, pCPi->octave);
+			//여기서 모든 CP 다 연결하기?
+			pMP->AddFrame(pCurrKF->mpMatchInfo, pt1);
+			pMP->AddFrame(pPrevKF->mpMatchInfo, pt2);
+		}
+
+
+		///////////평면 정보로 맵생성
+		//if (bPlaneMap && vLabels3[i] == 150) {
+		//	cv::Mat a;
+		//	if (UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(pt3, invP, invT, invK, a)) {
+		//		X3D = a;
+		//		//b = true;
+		//	}
+		//}
+		//////평면과의 거리를 확인하였음. 이들 대부분 평면에 포함이 안됨. 포함하게 하면 오히려 에러가 남...
+		//if (bPlaneMap && vLabels3[i] == 150)
+		//{
+		//	cv::Mat n;
+		//	float d;
+		//	targettargetFrame->mpPlaneInformation->GetPlane(1)->GetParam(n, d);
+		//	//std::cout << "new mp ::" << abs(X3D.dot(n) + d) << std::endl;;
+		//}
+		///////////평면 정보로 맵생성
+
+		/////CP 콜레스폰던스가 2이상이고, 패럴랙스 통과하면 MP로
+
+		nRes++;
+		//int label = pPrevKF->mpMatchInfo->mvObjectLabels[vnIDXs[i]];
+		//int octave = pPrevKF->mpMatchInfo->mvnOctaves[vnIDXs[i]];
+		{
+			//////pMP
+			//int label = 0;
+			//int octave = 0;
+			//auto pMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, X3D, cv::Mat(), label, octave);
+			//if (label == 150) {
+			//	pMP->SetPlaneID(1);
+			//}
+			//else if (label == 100) {
+			//	pMP->SetPlaneID(2);
+			//}
+			///*if (vLabels3[i] > 0)
+			//pMP->SetPlaneID(1);*/
+		
+			//pMP->AddFrame(pCurrKF->mpMatchInfo, pt1);
+			//pMP->AddFrame(pPrevKF->mpMatchInfo, pt2);
+
+			//auto pt3D = mpMap->ProjectMapPoint(pMP, mpMap->mfMapGridSize);
+			//auto pMG = mpMap->GetGrid(pt3D);
+			//if (!pMG) {
+			//	pMG = mpMap->InsertGrid(pt3D);
+			//}
+			//mpMap->InsertMapPoint(pMP, pMG);
+
+			////pMP->UpdateNormalAndDepth();
+			////////visualize
+			//cv::circle(debugMatch, pt1 + ptBottom, 2, cv::Scalar(255, 0, 255), -1);
+			//cv::circle(debugMatch, pt2, 2, cv::Scalar(255, 0, 255), -1);
+			////////visualize
+		}
+	}
+	return nRes;
+}
 //매칭 포인트 결과와 실제 결과도 반영하도록
 int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, std::vector<cv::Point2f> vMatchPPrevPts, std::vector<cv::Point2f> vMatchPrevPts, std::vector<cv::Point2f> vMatchCurrPts, std::vector < bool>& vbCPs, cv::Mat& debugMatch, cv::Mat& debug) {
 		

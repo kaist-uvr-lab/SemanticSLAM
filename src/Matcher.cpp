@@ -785,7 +785,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	//init -> curr로 매칭
 	////////
 	std::vector<cv::Point2f> prevPts, currPts;
-	prevPts = init->mpMatchInfo->mvTempPts;
+	std::vector<int> vOctaves;
+	prevPts = init->mpMatchInfo->GetMatchingPts(vOctaves);//init->mpMatchInfo->mvTempPts;
 
 	int maxLvl = 3;
 	int searchSize = 21;
@@ -859,11 +860,10 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	std::vector<cv::Mat> currPyr, prevPyr;
 	std::vector<uchar> status;
 	std::vector<float> err;
-	cv::Mat prevImg = prev->GetOriginalImage();
-	//cv::Mat prevImg = curr->mpMatchInfo->mpTargetFrame->GetOriginalImage();
-	cv::Mat currImg = curr->GetOriginalImage();
 	
 	///////debug
+	cv::Mat prevImg = prev->GetOriginalImage();
+	cv::Mat currImg = curr->GetOriginalImage();
 	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
 	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
 	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
@@ -1306,6 +1306,75 @@ int UVR_SLAM::Matcher::TestOpticalMatchingForMapping2(Frame* pCurrKF, Frame* pPr
 	//fuse time text 
 	std::stringstream ss;
 	ss << "Optical flow Mapping2= " << pCurrKF->GetFrameID() << ", " << pPrevKF->GetFrameID() << ", " << pPPrevKF->GetFrameID() << "::" << tttt1<<", "<<tttt2;
+	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
+	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+}
+
+int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Point2f> vMatchPts, std::vector<cv::Point2f>& vMatchedPrevPts, std::vector<cv::Point2f>& vMatchedCurrPts, std::vector<int>& vnIDXs, std::vector<bool>& vbInliers, cv::Mat& debugging) {
+	//////////////////////////
+	////Optical flow
+	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+	std::vector<cv::Mat> currPyr, prevPyr;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	////Optical flow
+	////debug
+	cv::Mat prevImg = pPrevKF->GetOriginalImage();
+	cv::Mat currImg = pCurrKF->GetOriginalImage();
+	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+	debugging = cv::Mat::zeros(prevImg.rows*2, prevImg.cols, prevImg.type());
+	prevImg.copyTo(debugging(mergeRect1));
+	currImg.copyTo(debugging(mergeRect2));
+	///////////
+
+	std::vector<cv::Point2f> currPts;
+	std::vector<int> vnOctaves;
+	//prevPts = pPrevKF->mpMatchInfo->mvTempPts;
+	auto pPrevMatchInfo = pPrevKF->mpMatchInfo;
+
+	int maxLvl = 3;
+	int searchSize = 21;
+	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
+	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
+	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, vMatchPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+
+	cv::Mat used = cv::Mat::zeros(prevImg.size(), CV_8UC1);
+	for (int i = 0; i < vMatchPts.size(); i++) {
+		if (status[i] == 0) {
+			continue;
+		}
+		////MP 영역과 매칭이 안되도록 함. 그리고 자기가 매칭 된 곳 근처가 안되도록 함. 자기 자신은 이미 포인트 생성할 때 걸러짐.
+		//bool b2 = pPrevMatchInfo->CheckOpticalPointOverlap(pCurrKF->mpMatchInfo->used, Frame::mnRadius, 10, currPts[i]);
+		//bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(used, Frame::mnRadius, 10, prevPts[i]); //used //얘는 왜 used 따로 만듬???
+
+		//if (!b1 || !b2 || !b3) {//|| b4 || b5
+		//						//std::cout << "OpticalMatchingForMapping::???????????" << std::endl;
+		//	continue;
+		//}
+		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(used, Frame::mnRadius, 10, vMatchPts[i]); //used //얘는 왜 used 따로 만듬???
+		if (!b3) {//|| b4 || b5
+			continue;
+		}
+		cv::circle(used, vMatchPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
+		
+		vMatchedPrevPts.push_back(vMatchPts[i]);
+		vMatchedCurrPts.push_back(currPts[i]);
+		vnIDXs.push_back(i);
+		vbInliers.push_back(true);
+
+		cv::circle(debugging, vMatchPts[i], 2, cv::Scalar(255, 255, 0), -1);
+		cv::circle(debugging, currPts[i] + ptBottom, 2, cv::Scalar(255, 255, 0), -1);
+	}
+
+	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	double tttt = duration / 1000.0;
+
+	//fuse time text 
+	std::stringstream ss;
+	ss << "Optical flow Mapping2= " << pCurrKF->GetFrameID() << ", " << pPrevKF->GetFrameID() << ", " << "::" << tttt << "::" << vMatchedPrevPts.size();
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 }

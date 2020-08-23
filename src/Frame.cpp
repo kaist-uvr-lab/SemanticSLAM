@@ -10,6 +10,7 @@
 #include <ORBextractor.h>
 #include <Plane.h>
 
+int UVR_SLAM::Frame::mnRadius = 3;
 bool UVR_SLAM::Frame::mbInitialComputations = true;
 float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
 float UVR_SLAM::Frame::mnMinX, UVR_SLAM::Frame::mnMinY, UVR_SLAM::Frame::mnMaxX, UVR_SLAM::Frame::mnMaxY;
@@ -994,18 +995,18 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		if (!CheckOpticalPointOverlap(usedCPMap, 1, 10, pt) || !CheckOpticalPointOverlap(tempused, 1, 10, pt)) {
 			continue;
 		}
-		circle(tempused, pt, radius, cv::Scalar(255), -1);
-		mvTempPts.push_back(pt);
-		mvTempOctaves.push_back(0);
+		circle(tempused, pt, Frame::mnRadius, cv::Scalar(255), -1);
+		auto pCP = new UVR_SLAM::CandidatePoint(this);
+		pCP->AddFrame(this, pt);
 	}
 	for (int i = 0; i < mpRefFrame->mvPts.size(); i+= nIncORB) {
 		auto pt = mpRefFrame->mvPts[i];
 		if (!CheckOpticalPointOverlap(usedCPMap, 1, 10, pt) || !CheckOpticalPointOverlap(tempused, 1, 10, pt)) {
 			continue;
 		}
-		circle(tempused, pt, radius, cv::Scalar(255), -1);
-		mvTempPts.push_back(pt);
-		mvTempOctaves.push_back(mpRefFrame->mvnOctaves[i]);
+		circle(tempused, pt, Frame::mnRadius, cv::Scalar(255), -1);
+		auto pCP = new UVR_SLAM::CandidatePoint(this, mpRefFrame->mvnOctaves[i]);
+		pCP->AddFrame(this, pt);
 	}
 }
 
@@ -1059,8 +1060,8 @@ int UVR_SLAM::MatchInfo::AddMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt) {
 	mvpMatchingMPs.push_back(pMP);
 	mvMatchingPts.push_back(pt);
 	mvObjectLabels.push_back(0);
-	cv::circle(used, pt, 5, cv::Scalar(255), -1);
-	cv::circle(usedCPMap, pt, 5, cv::Scalar(0), -1);
+	cv::circle(used, pt, Frame::mnRadius, cv::Scalar(255), -1);
+	//cv::circle(usedCPMap, pt, 5, cv::Scalar(0), -1);
 	return res;
 }
 
@@ -1071,14 +1072,14 @@ void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP,
 	this->mvpMatchingMPs.push_back(pMP);
 	this->mvObjectLabels.push_back(label);
 	this->mvnOctaves.push_back(octave);
-	cv::circle(used, pt, 5, cv::Scalar(255), -1);
-	cv::circle(usedCPMap, pt, 5, cv::Scalar(0), -1);
+	cv::circle(used, pt, Frame::mnRadius, cv::Scalar(255), -1);
+	//cv::circle(usedCPMap, pt, 5, cv::Scalar(0), -1);
 }
 
 void UVR_SLAM::MatchInfo::RemoveMP(int idx) {
 	std::unique_lock<std::mutex>(mMutexData);
-	cv::circle(used, mvMatchingPts[idx], 5, cv::Scalar(0), -1);
-	cv::circle(usedCPMap, mvMatchingPts[idx], 5, cv::Scalar(0), -1);
+	cv::circle(used, mvMatchingPts[idx], Frame::mnRadius, cv::Scalar(0), -1);
+	cv::circle(usedCPMap, mvMatchingPts[idx], Frame::mnRadius, cv::Scalar(0), -1);
 	mvpMatchingMPs[idx] = nullptr;
 	//std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
 	//mnInliers--;
@@ -1111,12 +1112,12 @@ int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
 	mvMatchingCPPts.push_back(pt);
 	/*mvMatchingPts.push_back(pt);
 	mvObjectLabels.push_back(0);*/
-	cv::circle(usedCPMap, pt, 5, cv::Scalar(255), -1);
+	cv::circle(usedCPMap, pt, Frame::mnRadius, cv::Scalar(255), -1);
 	return res;
 }
 void UVR_SLAM::MatchInfo::RemoveCP(int idx){
 	std::unique_lock<std::mutex>(mMutexCPs);
-	cv::circle(usedCPMap, mvMatchingCPPts[idx], 5, cv::Scalar(0), -1);
+	cv::circle(usedCPMap, mvMatchingCPPts[idx], Frame::mnRadius, cv::Scalar(0), -1);
 	mvpMatchingCPs[idx] = nullptr;	
 }
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<int>& vOctaves){
