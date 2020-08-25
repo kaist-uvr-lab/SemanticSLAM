@@ -4,9 +4,11 @@
 #include "MapPoint.h"
 
 namespace  UVR_SLAM{
-	CandidatePoint::CandidatePoint():octave(0), bCreated(false) {}
+	CandidatePoint::CandidatePoint():octave(0), bCreated(false), mbDelete(false){
+		mpMapPoint = nullptr;
+	}
 	CandidatePoint::CandidatePoint(MatchInfo* pRefKF, int aoct):mpRefKF(pRefKF), octave(aoct), bCreated(false), mbDelete(false){
-
+		mpMapPoint = nullptr;
 	}
 	CandidatePoint::~CandidatePoint(){}
 
@@ -33,18 +35,18 @@ namespace  UVR_SLAM{
 	void CandidatePoint::RemoveFrame(UVR_SLAM::MatchInfo* pKF){
 		{
 			std::unique_lock<std::mutex> lockMP(mMutexCP);
-			auto res = mmpFrames.find(pKF);
-			if (res != mmpFrames.end()) {
-				int idx = res->second;
-				res = mmpFrames.erase(res);
-				mnConnectedFrames--;
-				pKF->RemoveCP(idx);
-				if (this->mpRefKF == mpRefKF) {
-					mpRefKF = mmpFrames.begin()->first;
-				}
-				if (mnConnectedFrames < 3)
-					mbDelete = true;
-			}
+auto res = mmpFrames.find(pKF);
+if (res != mmpFrames.end()) {
+	int idx = res->second;
+	res = mmpFrames.erase(res);
+	mnConnectedFrames--;
+	pKF->RemoveCP(idx);
+	if (this->mpRefKF == mpRefKF) {
+		mpRefKF = mmpFrames.begin()->first;
+	}
+	if (mnConnectedFrames < 3)
+		mbDelete = true;
+}
 		}
 		if (mbDelete) {
 			Delete();
@@ -81,7 +83,7 @@ namespace  UVR_SLAM{
 		float cosParallaxRays = ray1.dot(ray2) / (cv::norm(ray1)*cv::norm(ray2));
 		return cosParallaxRays;
 	}
-	cv::Mat CandidatePoint::Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2) {
+	cv::Mat CandidatePoint::Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2, bool& bRank) {
 
 		cv::Mat A(4, 4, CV_32F);
 		A.row(0) = pt1.x*P1.row(2) - P1.row(0);
@@ -91,17 +93,67 @@ namespace  UVR_SLAM{
 
 		cv::Mat u, w, vt;
 		cv::SVD::compute(A, w, u, vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+
+		//rank 확인
+		cv::Mat nonZeroSingularValues = w > 0.0001;
+		int rank = countNonZero(nonZeroSingularValues);
+		if (rank < 4) {
+			std::cout << "non singular matrix in triangulate in CP" << std::endl;
+			bRank = false;
+		}
+		//rank 확인
+
 		cv::Mat x3D = vt.row(3).t();
 		x3D = x3D.rowRange(0, 3) / x3D.at<float>(3);
 		return x3D;
 	}
+	void CandidatePoint::Test(cv::Mat& X3D, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax) {
 
+		MatchInfo* pFirst;
+		int idx;
+		{
+			std::unique_lock<std::mutex> lockMP(mMutexCP);
+			pFirst = mmpFrames.begin()->first;
+			idx = mmpFrames.begin()->second;
+		}
+		cv::Mat P, R, t, Rt;
+		auto pTargetKF = pFirst->mpRefFrame;
+		pTargetKF->GetPose(R, t);
+		cv::hconcat(R, t, P);
+		Rt = R.t();
+		auto ptFirst = pFirst->GetCPPt(idx);
+		float val = CalcParallax(Rt, Rcurr.t(), ptFirst, ptCurr, invK);
+
+		if (val >= 0.9998) {
+			bParallax = false;
+			bProjec = false;
+			return;
+		}
+		bool bRank = true;
+		X3D = Triangulate(ptFirst, ptCurr, K*P, K*Pcurr, bRank);
+
+		bool bd1, bd2;
+		auto pt1 = Projection(X3D, R, t, K, bd1); //first
+		auto pt2 = Projection(X3D, Rcurr, Tcurr, K, bd2); //curr
+
+		if (bRank && bd1 && bd2 && CheckReprojectionError(pt1, ptFirst, 9.0) && CheckReprojectionError(pt2, ptCurr, 9.0)){
+			bProjec = true;
+		}
+		else {
+			bProjec = false;
+		}
+		return;
+	}
 	bool CandidatePoint::CheckDepth(float depth) {
 		if (depth < 0)
 			return false;
 		return true;
 	}
-
+	bool CandidatePoint::CheckReprojectionError(cv::Point2f pt1, cv::Point2f pt2, float thresh) {
+		auto diffPt = pt1 - pt2;
+		float dist = diffPt.dot(diffPt);
+		return dist < thresh;
+	}
 	bool CandidatePoint::CheckReprojectionError(cv::Mat x3D, cv::Mat K, cv::Point2f pt, float thresh) {
 		cv::Mat reproj1 = K*x3D;
 		reproj1 /= x3D.at<float>(2);
@@ -109,6 +161,13 @@ namespace  UVR_SLAM{
 		if (squareError1>thresh)
 			return false;
 		return true;
+	}
+	cv::Point2f CandidatePoint::Projection(cv::Mat Xw, cv::Mat R, cv::Mat T, cv::Mat K, bool& bDepth) {
+		cv::Mat Xcam = R * Xw + T;
+		cv::Mat Ximg = K*Xcam;
+		float depth = Ximg.at < float>(2);
+		bDepth = depth > 0.0;
+		return cv::Point2f(Ximg.at<float>(0) / Ximg.at < float>(2), Ximg.at<float>(1) / Ximg.at < float>(2));
 	}
 	bool CandidatePoint::DelayedTriangulate(Map* pMap, MatchInfo* pMatch, cv::Point2f pt, MatchInfo* pPPrevMatch, MatchInfo* pPrevMatch, cv::Mat K, cv::Mat invK, cv::Mat& debug) {
 		
@@ -168,7 +227,8 @@ namespace  UVR_SLAM{
 		if (minParallax <= 0.9998f){
 			//cv::Mat P;
 			//cv::Mat K;
-			cv::Mat x3D = Triangulate(minPt, pt, K*minP, K*Pt);
+			bool bRank = true;
+			cv::Mat x3D = Triangulate(minPt, pt, K*minP, K*Pt, bRank);
 		
 			std::vector<bool> vbInliers(mmpFrames.size(), false);
 			bool bSuccess = true;

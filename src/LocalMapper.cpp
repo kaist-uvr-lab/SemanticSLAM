@@ -208,7 +208,6 @@ void UVR_SLAM::LocalMapper::Run() {
 				auto vPrevCPs = mpPrevKeyFrame->mpMatchInfo->GetMatchingCPs();
 				auto vPrevCandidatePoints = mpPrevKeyFrame->mpMatchInfo->GetMatchingPts(vnPrevOctaves);
 				mpMatcher->OpticalMatchingForMapping(mpTargetFrame, mpPrevKeyFrame, vPrevCandidatePoints, vMatchPrevPts, vMatchCurrPts, vnIDXs, vbInliers, debugMatch);
-				std::cout << "LM::" << vMatchPrevPts.size() << std::endl;
 				nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vPrevCPs, vnIDXs, debugMatch);
 				mpPrevKeyFrame->mpMatchInfo->mMatchedImage = debugMatch.clone();
 
@@ -219,118 +218,41 @@ void UVR_SLAM::LocalMapper::Run() {
 				sstdir << mpSystem->GetDirPath(0) << "/testmatching/mapping_test2_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
 				imwrite(sstdir.str(), ttttddddebug);
 
-				std::cout << "LM?????????????????????????????????" << std::endl;
 			}
 
-			//std::cout << "mapping::1::" << mpPrevKeyFrame->mpMatchInfo->nPrevNumCPs << ", " << mpPrevKeyFrame->mpMatchInfo->mvTempPts.size() << std::endl;
-			cv::Mat debugMatch, testDebugMatch;
-			std::vector<cv::Point2f> vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts;
-			std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
-			std::vector<bool> vbInliers;
-			std::vector<int> vnIDXs;
-			std::vector<int> vnPrevOctaves;
-			auto vPrevCPs = mpPrevKeyFrame->mpMatchInfo->GetMatchingCPs();
-			auto vPrevCandidatePoints = mpPrevKeyFrame->mpMatchInfo->GetMatchingPts(vnPrevOctaves);
-
-			//mpMatcher->OpticalMatchingForMapping(mpTargetFrame, mpPrevKeyFrame, vPrevCandidatePoints, vMatchPrevPts, vMatchCurrPts, vnIDXs, vbInliers, debugMatch);
-			
-			/*cv::Mat testMatchingImg;
-			mpMatcher->TestOpticalMatchingForMapping2(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, testMatchingImg);
-			cv::Mat ttttddddebug = cv::Mat::zeros(testMatchingImg.rows, testMatchingImg.cols * 2, testMatchingImg.type());
-			mpTargetFrame->mpMatchInfo->mMatchedImage.copyTo(ttttddddebug(cv::Rect(0, 0, testMatchingImg.cols, testMatchingImg.rows)));
-			testMatchingImg.copyTo(ttttddddebug(cv::Rect(testMatchingImg.cols, 0, testMatchingImg.cols, testMatchingImg.rows)));
-			std::stringstream sstdir;
-			sstdir << mpSystem->GetDirPath(0) << "/kfmatching/mapping_test2_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
-			imwrite(sstdir.str(), ttttddddebug);*/
-
-			/*
-			vMatchPPrevPts.clear();
-			vMatchPrevPts.clear();
-			vMatchCurrPts.clear();
-			vnIDXs.clear();
-			vbInliers.clear();
-			mpMatcher->OpticalMatchingForMapping(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts, vnIDXs, vbInliers, debugMatch);
-			*/
-			//CP와 새로운 포인트 나누기
-			std::vector<int> vnMappingIDXs;
-			std::vector<bool> vbMappingInliers;
-			std::vector<CandidatePoint*> vpDelayedCPs;
-			std::vector<cv::Point2f> vDelayedPts;
-			if (vMatchPrevPts.size() >= 10) {
-				
+			////////////////////////이미지 건너 띄어서 체크하기
+			if (mpTargetFrame->GetKeyFrameID() > 10) {
+				int nInc = 9;
+				Frame* pTarget = mpTargetFrame;
+				for (int i = 0; i < nInc; i++) {
+					pTarget = pTarget->mpMatchInfo->mpTargetFrame;
+				}
+				cv::Mat prevImg = pTarget->GetOriginalImage();
+				cv::Mat currImg = mpTargetFrame->GetOriginalImage();
+				cv::Point2f ptBottom = cv::Point2f(prevImg.cols, 0);
+				cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+				cv::Rect mergeRect2 = cv::Rect(prevImg.cols, 0, prevImg.cols, prevImg.rows);
+				cv::Mat debugImg = cv::Mat::zeros(prevImg.rows, prevImg.cols * 2, prevImg.type());
+				prevImg.copyTo(debugImg(mergeRect1));
+				currImg.copyTo(debugImg(mergeRect2));
+				std::vector<int> vnOctaves;
+				auto tempCPs = mpTargetFrame->mpMatchInfo->GetMatchingCPs();
+				auto tempPts = mpTargetFrame->mpMatchInfo->GetMatchingPts(vnOctaves);
+				auto pTargetMatch = pTarget->mpMatchInfo;
+				for (int i = 0; i < tempPts.size(); i++) {
+					auto pCPi = tempCPs[i];
+					int idx = pCPi->GetPointIndexInFrame(pTargetMatch);
+					if (idx >= 0) {
+						auto pt = pTargetMatch->GetCPPt(idx);
+						cv::circle(debugImg, tempPts[i] + ptBottom, 2, cv::Scalar(255, 0, 255), -1);
+						cv::circle(debugImg, pt, 2, cv::Scalar(255, 0, 255), -1);
+					}
+				}
+				std::stringstream sstdir;
+				sstdir << mpSystem->GetDirPath(0) << "/testmatching/mapping_test1_" << mpTargetFrame->GetKeyFrameID() << "_" << pTarget->GetKeyFrameID() << ".jpg";
+				imwrite(sstdir.str(), debugImg);
 			}
-			else {
-				std::cout << "????????????????::" << vMatchPrevPts.size() << std::endl;
-			}
-			int nTarget = mpPrevKeyFrame->mpMatchInfo->nPrevNumCPs;
-			for (int i = 0; i < vMatchPPrevPts.size(); i++) {
-				int idx = vnIDXs[i];
-				if (idx >= nTarget) {
-					vnMappingIDXs.push_back(idx);
-					vMappingPPrevPts.push_back(vMatchPPrevPts[i]);
-					vMappingPrevPts.push_back(vMatchPrevPts[i]);
-					vMappingCurrPts.push_back(vMatchCurrPts[i]);
-					vbMappingInliers.push_back(true);
-				}
-				else {
-					vpDelayedCPs.push_back(mpPrevKeyFrame->mpMatchInfo->GetCP(idx));
-					vDelayedPts.push_back(vMatchCurrPts[i]);
-				}
-			}
-			std::vector<bool> vbCPs(vbMappingInliers.size(), false);
-			
-			///////////////중간 시각화
-			auto mvpTargetMPs = mpTargetFrame->mpMatchInfo->GetMatchingMPs();
-			cv::Point2f ptLeft1 = cv::Point2f(mnWidth, 0);
-			cv::Point2f ptLeft2 = cv::Point2f(mnWidth * 2, 0);
-			cv::Mat K = mpTargetFrame->mK.clone();
-			cv::Mat Rpprev, Tpprev, Rprev, Tprev, Rcurr, Tcurr;
-			mpTargetFrame->GetPose(Rcurr, Tcurr);
-			mpPrevKeyFrame->GetPose(Rprev, Tprev);
-			mpPPrevKeyFrame->GetPose(Rpprev, Tpprev);
-			for (int i = 0; i < mvpTargetMPs.size(); i++) {
-				auto pMPi = mvpTargetMPs[i];
-				if (!pMPi || pMPi->isDeleted())
-					continue;
-				cv::Mat X3D = pMPi->GetWorldPos();
-				cv::Scalar color(255,0,0);
-				cv::Mat proj1 = Rcurr*X3D + Tcurr;
-				cv::Mat proj2 = Rprev*X3D + Tprev;
-				cv::Mat proj3 = Rpprev*X3D + Tpprev;
-				proj1 = K*proj1;
-				proj2 = K*proj2;
-				proj3 = K*proj3;
-				cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
-				cv::Point2f projected2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
-				cv::Point2f projected3(proj3.at<float>(0) / proj3.at<float>(2), proj3.at<float>(1) / proj3.at<float>(2));
-				projected1 += ptLeft2;
-				projected2 += ptLeft1;
-				circle(debugMatch, projected1, 5, color);
-				circle(debugMatch, projected2, 5, color);
-				circle(debugMatch, projected3, 5, color);
-
-				cv::Point2f pppt = cv::Point2f(0, 0);
-				cv::Point2f ppt = cv::Point2f(0, 0);
-				cv::Point2f cpt = cv::Point2f(0, 0);
-
-				int pppidx = pMPi->GetPointIndexInFrame(mpPPrevKeyFrame->mpMatchInfo);
-				if (pppidx >= 0) {
-					pppt = mpPPrevKeyFrame->mpMatchInfo->GetMatchingPt(pppidx);
-					cv::line(debugMatch, projected3, pppt, color);
-				}
-				int ppidx = pMPi->GetPointIndexInFrame(mpPrevKeyFrame->mpMatchInfo);
-				if (ppidx >= 0) {
-					ppt = mpPrevKeyFrame->mpMatchInfo->GetMatchingPt(ppidx) + ptLeft1;
-					cv::line(debugMatch, projected2, ppt, color);
-				}
-				int cpidx = pMPi->GetPointIndexInFrame(mpTargetFrame->mpMatchInfo);
-				if (cpidx >= 0) {
-					cpt = mpTargetFrame->mpMatchInfo->GetMatchingPt(cpidx) + ptLeft2;
-					cv::line(debugMatch, projected1, cpt, color);
-				}
-
-			}
-			//////////////중간 시각화
+			////////////////////////이미지 건너 띄어서 체크하기
 			
 			//int nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts, vbCPs, debugMatch, ddddbug);
 
@@ -1073,8 +995,8 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, std::
 
 		////depth test
 		if (proj1.at<float>(2) < 0.0 || proj2.at<float>(2) < 0.0) {
-			cv::circle(debugMatch, pt1+ ptBottom, 2, cv::Scalar(0, 255, 0), -1);
-			cv::circle(debugMatch, pt2, 2, cv::Scalar(0, 255, 0), -1);
+			//cv::circle(debugMatch, pt1+ ptBottom, 2, cv::Scalar(0, 255, 0), -1);
+			//cv::circle(debugMatch, pt2, 2, cv::Scalar(0, 255, 0), -1);
 			continue;
 		}
 		////depth test
@@ -1090,58 +1012,104 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, std::
 		float err1 = (diffPt1.dot(diffPt1));
 		float err2 = (diffPt2.dot(diffPt2));
 		if (err1 > 4.0 || err2 > 4.0) {
-			cv::circle(debugMatch, pt1+ ptBottom, 2, cv::Scalar(255, 0, 0), -1);
-			cv::circle(debugMatch, pt2, 2, cv::Scalar(255, 0, 0), -1);
+			//cv::circle(debugMatch, pt1+ ptBottom, 2, cv::Scalar(255, 0, 0), -1);
+			//cv::circle(debugMatch, pt2, 2, cv::Scalar(255, 0, 0), -1);
 			continue;
 		}
 		////reprojection error
 		////CP 연결하기
 		int nCPidx = vnIDXs[i];
 		auto pCPi = vPrevCPs[nCPidx];
+
 		pCPi->AddFrame(pCurrKF->mpMatchInfo, pt1);
 		int nConnCP = pCPi->GetNumSize();
+		bool bMP = pCPi->bCreated; 
 
-		////연결 확인
-		if (nConnCP > 2 && pCPi->bCreated) {
-			cv::circle(debugMatch, pt1 + ptBottom, 3, cv::Scalar(0, 255, 255));
-			cv::circle(debugMatch, pt2, 3, cv::Scalar(0, 255, 255));
-		}
-		else if (nConnCP > 2 && !pCPi->bCreated) {
-			cv::circle(debugMatch, pt1 + ptBottom, 3, cv::Scalar(255, 255, 0));
-			cv::circle(debugMatch, pt2, 3, cv::Scalar(255, 255, 0));
-		}
-		else {
-			cv::circle(debugMatch, pt1 + ptBottom, 3, cv::Scalar(0, 255, 0));
-			cv::circle(debugMatch, pt2, 3, cv::Scalar(0, 255, 0));
-		}
+		//pt1 : curr, pt2 : prev
+		/*bool bRank = true;
+		pCPi->Triangulate(pt1, pt2, Pcurr, Pprev, bRank);
+		if (!bRank) {
+			cv::circle(debugMatch, pt2, 4, cv::Scalar(0, 255, 0));
+			cv::circle(debugMatch, pt1 + ptBottom, 4, cv::Scalar(0, 255, 0));
+		}*/
 
-		//////parallax check
-		//targettarget과 current만
-		cv::Mat xn1 = (cv::Mat_<float>(3, 1) << pt1.x, pt1.y, 1.0);
-		cv::Mat xn2 = (cv::Mat_<float>(3, 1) << pt2.x, pt2.y, 1.0);
-		//std::cout << xn1.t() << xn3.t();
-		cv::Mat ray1 = Rcfromc*invK*xn1;
-		cv::Mat ray2 = Rpfromc*invK*xn2;
-		//std::cout <<"\t"<< ray1.t() << ray3.t();
-		float cosParallaxRays = ray1.dot(ray2) / (cv::norm(ray1)*cv::norm(ray2));
-		//std::cout << cosParallaxRays << std::endl;
-		if (cosParallaxRays >= 0.9998) { //9999 : 위안홀까지 가능, 99999 : 비전홀, N5
-			cv::circle(debugMatch, pt1+ptBottom, 2, cv::Scalar(0, 0, 255), -1);
-			cv::circle(debugMatch, pt2, 2, cv::Scalar(0, 0, 255), -1);
-			continue;
+		cv::circle(debugMatch, pt2, 2, cv::Scalar(0, 255, 255), -1);
+		cv::circle(debugMatch, pt1 + ptBottom, 2, cv::Scalar(0, 255, 255), -1);
+
+		MapPoint* pMPinCP = pCPi->mpMapPoint;
+		if (bMP) {
+
+			bool bCurr = pMPinCP->isInFrame(pCurrKF->mpMatchInfo);
+			bool bPrev = pMPinCP->isInFrame(pPrevKF->mpMatchInfo);
+
+			if (!bPrev)
+				pMPinCP->AddFrame(pPrevKF->mpMatchInfo, pt2);
+			if (!bCurr)
+				pMPinCP->AddFrame(pCurrKF->mpMatchInfo, pt1);
+			/*if (bCurr && bPrev) {
+				cv::circle(debugMatch, pt2, 2, cv::Scalar(0, 255, 255),-1);
+				cv::circle(debugMatch, pt1 + ptBottom, 2, cv::Scalar(0, 255, 255), -1);
+			}
+			else if (bCurr) {
+				cv::circle(debugMatch, pt2, 2, cv::Scalar(255, 0, 255), -1);
+				cv::circle(debugMatch, pt1 + ptBottom, 2, cv::Scalar(255, 0, 255), -1);
+			}
+			else if (bPrev) {
+				cv::circle(debugMatch, pt2, 2, cv::Scalar(255,255,0), -1);
+				cv::circle(debugMatch, pt1 + ptBottom, 2, cv::Scalar(255, 255, 0), -1);
+			}
+			else {
+				cv::circle(debugMatch, pt2, 2, cv::Scalar(0, 0, 255), -1);
+				cv::circle(debugMatch, pt1 + ptBottom, 2, cv::Scalar(0, 0, 255), -1);
+			}*/
+
+			cv::circle(debugMatch, pt2, 3, cv::Scalar(255, 0, 0));
+			cv::circle(debugMatch, pt1 + ptBottom, 3, cv::Scalar(255, 0, 0));
 		}
-		//////parallax check
-		//패럴랙스 체크도 CP에서 가장 처음과 현재 것만??
 
 		if (nConnCP > 2 && !pCPi->bCreated) {
-			int label = 0;
-			pCPi->bCreated = true;
-			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, X3D, cv::Mat(), label, pCPi->octave);
-			//여기서 모든 CP 다 연결하기?
-			pMP->AddFrame(pCurrKF->mpMatchInfo, pt1);
-			pMP->AddFrame(pPrevKF->mpMatchInfo, pt2);
+			cv::Mat Xw;
+			bool b1, b2;
+			pCPi->Test(Xw, mK, mInvK, Pcurr, Rcurr, Tcurr, pt1, b1, b2);
+			if (b1) {
+				int label = 0;
+				pCPi->bCreated = true;
+				auto pMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, X3D, cv::Mat(), label, pCPi->octave);
+				//여기서 모든 CP 다 연결하기?
+				pMP->AddFrame(pCurrKF->mpMatchInfo, pt1);
+				pMP->AddFrame(pPrevKF->mpMatchInfo, pt2);
+				pCPi->mpMapPoint = pMP;
+				cv::circle(debugMatch, pt1+ptBottom, 2, cv::Scalar(0, 0, 255), -1);
+				cv::circle(debugMatch, pt2, 2, cv::Scalar(0, 0, 255), -1);
+			}
 		}
+		////////parallax check
+		////targettarget과 current만
+		//cv::Mat xn1 = (cv::Mat_<float>(3, 1) << pt1.x, pt1.y, 1.0);
+		//cv::Mat xn2 = (cv::Mat_<float>(3, 1) << pt2.x, pt2.y, 1.0);
+		////std::cout << xn1.t() << xn3.t();
+		//cv::Mat ray1 = Rcfromc*invK*xn1;
+		//cv::Mat ray2 = Rpfromc*invK*xn2;
+		////std::cout <<"\t"<< ray1.t() << ray3.t();
+		//float cosParallaxRays = ray1.dot(ray2) / (cv::norm(ray1)*cv::norm(ray2));
+		////std::cout << cosParallaxRays << std::endl;
+		//if (cosParallaxRays >= 0.9998) { //9999 : 위안홀까지 가능, 99999 : 비전홀, N5
+		//	//cv::circle(debugMatch, pt1+ptBottom, 2, cv::Scalar(0, 0, 255), -1);
+		//	//cv::circle(debugMatch, pt2, 2, cv::Scalar(0, 0, 255), -1);
+		//	continue;
+		//}
+		////////parallax check
+		////패럴랙스 체크도 CP에서 가장 처음과 현재 것만??
 
+		//if (nConnCP > 2 && !pCPi->bCreated) {
+		//	int label = 0;
+		//	pCPi->bCreated = true;
+		//	auto pMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, X3D, cv::Mat(), label, pCPi->octave);
+		//	//여기서 모든 CP 다 연결하기?
+		//	pMP->AddFrame(pCurrKF->mpMatchInfo, pt1);
+		//	pMP->AddFrame(pPrevKF->mpMatchInfo, pt2);
+		//	pCPi->mpMapPoint = pMP;
+		//}
 
 		///////////평면 정보로 맵생성
 		//if (bPlaneMap && vLabels3[i] == 150) {
@@ -1222,8 +1190,8 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, Frame
 	///////데이터 전처리
 	cv::Mat Rcfromc = Rcurr.t();
 	cv::Mat Rppfromc = Rpprev.t();
-	cv::Mat invT, invK, invP;
-	invK = K.inv();
+	cv::Mat invT, invP;
+	
 	bool bPlaneMap = false;
 	/*auto targetTargetPlaneInfo = targettargetFrame->mpPlaneInformation;
 	if (targetTargetPlaneInfo) {
@@ -1321,8 +1289,8 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, Frame
 		cv::Mat xn1 = (cv::Mat_<float>(3, 1) << pt1.x, pt1.y, 1.0);
 		cv::Mat xn3 = (cv::Mat_<float>(3, 1) << pt3.x, pt3.y, 1.0);
 		//std::cout << xn1.t() << xn3.t();
-		cv::Mat ray1 = Rcfromc*invK*xn1;
-		cv::Mat ray3 = Rppfromc*invK*xn3;
+		cv::Mat ray1 = Rcfromc*mInvK*xn1;
+		cv::Mat ray3 = Rppfromc*mInvK*xn3;
 		//std::cout <<"\t"<< ray1.t() << ray3.t();
 		float cosParallaxRays = ray1.dot(ray3) / (cv::norm(ray1)*cv::norm(ray3));
 		//std::cout << cosParallaxRays << std::endl;

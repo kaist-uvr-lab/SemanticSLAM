@@ -224,6 +224,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			auto pCP = mpInitFrame1->mpMatchInfo->GetCP(idx2);
 			pCP->AddFrame(mpInitFrame2->mpMatchInfo, vTempMatchPts2[i]);
 			pCP->bCreated = true;
+			pCP->mpMapPoint = pMP;
 		}
 		//////////////////////////////////////
 		/////median depth 
