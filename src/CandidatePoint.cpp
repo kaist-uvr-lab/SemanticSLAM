@@ -107,8 +107,8 @@ if (res != mmpFrames.end()) {
 		x3D = x3D.rowRange(0, 3) / x3D.at<float>(3);
 		return x3D;
 	}
-	void CandidatePoint::Test(cv::Mat& X3D, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax) {
-
+	void CandidatePoint::Test(cv::Mat& X3D, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax, cv::Mat& debug) {
+		cv::Point2f ptBottom = cv::Point2f(0, 480);
 		MatchInfo* pFirst;
 		int idx;
 		{
@@ -136,6 +136,9 @@ if (res != mmpFrames.end()) {
 		auto pt1 = Projection(X3D, R, t, K, bd1); //first
 		auto pt2 = Projection(X3D, Rcurr, Tcurr, K, bd2); //curr
 
+		cv::line(debug, pt2, ptFirst, cv::Scalar(255, 0, 255), 1);
+		cv::line(debug, pt1+ ptBottom, ptCurr+ ptBottom, cv::Scalar(255, 0, 255), 1);
+
 		if (bRank && bd1 && bd2 && CheckReprojectionError(pt1, ptFirst, 9.0) && CheckReprojectionError(pt2, ptCurr, 9.0)){
 			bProjec = true;
 		}
@@ -145,9 +148,7 @@ if (res != mmpFrames.end()) {
 		return;
 	}
 	bool CandidatePoint::CheckDepth(float depth) {
-		if (depth < 0)
-			return false;
-		return true;
+		return depth > 0.0;
 	}
 	bool CandidatePoint::CheckReprojectionError(cv::Point2f pt1, cv::Point2f pt2, float thresh) {
 		auto diffPt = pt1 - pt2;
@@ -158,9 +159,7 @@ if (res != mmpFrames.end()) {
 		cv::Mat reproj1 = K*x3D;
 		reproj1 /= x3D.at<float>(2);
 		float squareError1 = (reproj1.at<float>(0) - pt.x)*(reproj1.at<float>(0) - pt.x) + (reproj1.at<float>(1) - pt.y)*(reproj1.at<float>(1) - pt.y);
-		if (squareError1>thresh)
-			return false;
-		return true;
+		return squareError1 < thresh;
 	}
 	cv::Point2f CandidatePoint::Projection(cv::Mat Xw, cv::Mat R, cv::Mat T, cv::Mat K, bool& bDepth) {
 		cv::Mat Xcam = R * Xw + T;
