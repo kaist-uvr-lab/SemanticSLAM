@@ -333,8 +333,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			
 			int idx2 = vTempMappedIDXs[i];
 			
-			mpInitFrame2->mpMatchInfo->mvnMatchingIDXs.push_back(mpInitFrame1->mpMatchInfo->mvnMatchingIDXs.size());
-			mpInitFrame1->mpMatchInfo->mvnMatchingIDXs.push_back(-1);
+			//mpInitFrame2->mpMatchInfo->mvnMatchingIDXs.push_back(mpInitFrame1->mpMatchInfo->mvnMatchingIDXs.size());
+			//mpInitFrame1->mpMatchInfo->mvnMatchingIDXs.push_back(-1);
 
 			pNewMP->AddFrame(mpInitFrame1->mpMatchInfo, pt1);
 			pNewMP->AddFrame(mpInitFrame2->mpMatchInfo, pt2);

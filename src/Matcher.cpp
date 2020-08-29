@@ -3,6 +3,7 @@
 #include <random>
 #include <Frame.h>
 #include <MapPoint.h>
+#include <CandidatePoint.h>
 #include <FrameWindow.h>
 #include <MatrixOperator.h>
 #include <gms_matcher.h>
@@ -1310,7 +1311,7 @@ int UVR_SLAM::Matcher::TestOpticalMatchingForMapping2(Frame* pCurrKF, Frame* pPr
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 }
 
-int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Point2f> vMatchPts, std::vector<cv::Point2f>& vMatchedPrevPts, std::vector<cv::Point2f>& vMatchedCurrPts, std::vector<int>& vnIDXs, std::vector<bool>& vbInliers, cv::Mat& debugging) {
+int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Point2f>& vMatchedPrevPts, std::vector<cv::Point2f>& vMatchedCurrPts, std::vector<CandidatePoint*>& vMatchedCPs, cv::Mat K, cv::Mat InvK, cv::Mat& debugging) {
 	//////////////////////////
 	////Optical flow
 	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
@@ -1329,22 +1330,29 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 	currImg.copyTo(debugging(mergeRect2));
 	///////////
 
-	std::vector<cv::Point2f> currPts;
+	std::vector<cv::Point2f> prevPts,currPts;
 	std::vector<int> vnOctaves;
-	//prevPts = pPrevKF->mpMatchInfo->mvTempPts;
+	auto vPrevCPs = pPrevKF->mpMatchInfo->GetMatchingCPs();
+	prevPts = pPrevKF->mpMatchInfo->GetMatchingPts(vnOctaves);
 	auto pPrevMatchInfo = pPrevKF->mpMatchInfo;
 
 	int maxLvl = 3;
 	int searchSize = 21;
 	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
 	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
-	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, vMatchPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+
+	////옵티컬 플로우 매칭 저장
+	std::vector<cv::Point2f> vTempPrevPts, vTempCurrPts;
+	std::vector<int> vTempIDXs;
 
 	cv::Mat used = cv::Mat::zeros(prevImg.size(), CV_8UC1);
-	for (int i = 0; i < vMatchPts.size(); i++) {
+	for (int i = 0; i < prevPts.size(); i++) {
 		if (status[i] == 0) {
 			continue;
 		}
+
+		//현재 MP에 MP는 매칭이 되는지도 확인이 필요함.
 		////MP 영역과 매칭이 안되도록 함. 그리고 자기가 매칭 된 곳 근처가 안되도록 함. 자기 자신은 이미 포인트 생성할 때 걸러짐.
 		//bool b2 = pPrevMatchInfo->CheckOpticalPointOverlap(pCurrKF->mpMatchInfo->used, Frame::mnRadius, 10, currPts[i]);
 		//bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(used, Frame::mnRadius, 10, prevPts[i]); //used //얘는 왜 used 따로 만듬???
@@ -1353,20 +1361,94 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 		//						//std::cout << "OpticalMatchingForMapping::???????????" << std::endl;
 		//	continue;
 		//}
-		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(used, Frame::mnRadius, 10, vMatchPts[i]); //used //얘는 왜 used 따로 만듬???
+		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(used, Frame::mnRadius, 10, prevPts[i]); //used //얘는 왜 used 따로 만듬???
 		if (!b3) {//|| b4 || b5
 			continue;
 		}
-		cv::circle(used, vMatchPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
+		cv::circle(used, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
 		
-		vMatchedPrevPts.push_back(vMatchPts[i]);
-		vMatchedCurrPts.push_back(currPts[i]);
-		vnIDXs.push_back(i);
-		vbInliers.push_back(true);
+		vTempPrevPts.push_back(prevPts[i]);
+		vTempCurrPts.push_back(currPts[i]);
+		vTempIDXs.push_back(i);
 
-		cv::circle(debugging, vMatchPts[i], 2, cv::Scalar(255, 255, 0), -1);
-		cv::circle(debugging, currPts[i] + ptBottom, 2, cv::Scalar(255, 255, 0), -1);
 	}
+
+	///////////////////projection based matching
+	cv::Mat Rprev, Tprev, Rcurr, Tcurr;
+	pCurrKF->GetPose(Rcurr, Tcurr);
+	pPrevKF->GetPose(Rprev, Tprev);
+
+	cv::Mat Pcurr, Pprev;
+	cv::hconcat(Rcurr, Tcurr, Pcurr);
+	cv::hconcat(Rprev, Tprev, Pprev);
+	cv::Mat Map;
+	cv::triangulatePoints(K*Pprev, K*Pcurr, vTempPrevPts, vTempCurrPts, Map);
+
+	///////데이터 전처리
+	cv::Mat Rcfromc = Rcurr.t();
+	cv::Mat Rpfromc = Rprev.t();
+	
+	int nRes = 0;
+	for (int i = 0; i < Map.cols; i++) {
+
+		cv::Mat X3D = Map.col(i);
+		auto currPt = vTempCurrPts[i];
+		auto prevPt = vTempPrevPts[i];
+
+		if (abs(X3D.at<float>(3)) < 0.0001) {
+			std::cout << "test::" << X3D.at<float>(3) << std::endl;
+			cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(0, 0, 0), -1);
+			cv::circle(debugging, prevPt, 2, cv::Scalar(0, 0, 0), -1);
+			continue;
+		}
+		X3D /= X3D.at<float>(3);
+		X3D = X3D.rowRange(0, 3);
+
+		cv::Mat proj1 = Rcurr*X3D + Tcurr;
+		cv::Mat proj2 = Rprev*X3D + Tprev;
+
+		////depth test
+		if (proj1.at<float>(2) < 0.0 || proj2.at<float>(2) < 0.0) {
+			cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(0, 255, 0), -1);
+			cv::circle(debugging, prevPt, 2, cv::Scalar(0, 255, 0), -1);
+			/*if (proj1.at<float>(0) < 0 && proj1.at<float>(1) < 0 && proj1.at<float>(2) < 0) {
+			cv::circle(debugMatch, pt1 + ptBottom, 2, cv::Scalar(255, 0, 0), -1);
+			cv::circle(debugMatch, pt2, 2, cv::Scalar(255, 0, 0), -1);
+			}*/
+			continue;
+		}
+		////depth test
+
+		////reprojection error
+		proj1 = K*proj1;
+		proj2 = K*proj2;
+		cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
+		cv::Point2f projected2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
+
+		auto diffPt1 = projected1 - currPt;
+		auto diffPt2 = projected2 - prevPt;
+		float err1 = (diffPt1.dot(diffPt1));
+		float err2 = (diffPt2.dot(diffPt2));
+		if (err1 > 9.0 || err2 > 9.0) {
+			cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(255, 0, 0), -1);
+			cv::circle(debugging, prevPt, 2, cv::Scalar(255, 0, 0), -1);
+			continue;
+		}
+		cv::circle(debugging, prevPts[i], 2, cv::Scalar(255, 255, 0), -1);
+		cv::circle(debugging, currPts[i] + ptBottom, 2, cv::Scalar(255, 255, 0), -1);
+		////reprojection error
+		////CP 연결하기
+		vMatchedCurrPts.push_back(vTempCurrPts[i]);
+		vMatchedPrevPts.push_back(vTempPrevPts[i]);
+		int nCPidx = vTempIDXs[i];
+		auto pCPi = vPrevCPs[nCPidx];
+		pCPi->AddFrame(pCurrKF->mpMatchInfo, currPt);
+		vMatchedCPs.push_back(pCPi);
+
+		nRes++;
+	}
+
+	///////////////////projection based matching
 
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
@@ -1374,7 +1456,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 
 	//fuse time text 
 	std::stringstream ss;
-	ss << "Optical flow Mapping2= " << pCurrKF->GetFrameID() << ", " << pPrevKF->GetFrameID() << ", " << "::" << tttt << "::" << vMatchedPrevPts.size();
+	ss << "Optical flow Mapping2= " << pCurrKF->GetFrameID() << ", " << pPrevKF->GetFrameID() << ", " << "::" << tttt << "::" << nRes;
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 }

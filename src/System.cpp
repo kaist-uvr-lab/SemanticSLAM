@@ -115,7 +115,9 @@ void UVR_SLAM::System::SaveTrajectory() {
 	f << std::fixed;
 	for (int i = 0; i < vpKFs.size(); i++) {
 		auto pKF = vpKFs[i];
-		cv::Mat R, t;
+		if (pKF->GetKeyFrameID() % 3 != 0)
+			continue;
+		cv::Mat R, t;     
 		pKF->GetPose(R, t);
 		R = R.t(); //inverse
 		t = -R*t;  //camera center

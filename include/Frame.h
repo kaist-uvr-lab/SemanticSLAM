@@ -91,7 +91,7 @@ namespace UVR_SLAM {
 		std::vector<int> mvnOctaves;
 		std::vector<bool> mvbCreated; //맵포인트로 생성된 경우 표시.
 		
-		std::vector<int> mvnMatchingIDXs; //키프레임과 연결되는 인덱스 값, MP의 경우 현재 프레임 매칭 결과 중 MP와 바로 연결되기 위한 인덱스 값이 됨.
+		//std::vector<int> mvnMatchingIDXs; //키프레임과 연결되는 인덱스 값, MP의 경우 현재 프레임 매칭 결과 중 MP와 바로 연결되기 위한 인덱스 값이 됨.
 		std::vector<MatchInfo*> mvpMatchInfos; //매칭 상태를 저장
 																											   //mvnTargetMatchingPtIDXs : 새롭게 키프레임 될 때 타겟 프레임의 매칭 정보를 저장.
 

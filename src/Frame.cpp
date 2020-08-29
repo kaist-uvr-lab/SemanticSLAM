@@ -1060,6 +1060,7 @@ int UVR_SLAM::MatchInfo::AddMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt) {
 	mvpMatchingMPs.push_back(pMP);
 	mvMatchingPts.push_back(pt);
 	mvObjectLabels.push_back(0);
+	mvnOctaves.push_back(pMP->mnOctave);
 	cv::circle(used, pt, Frame::mnRadius, cv::Scalar(255), -1);
 	//cv::circle(usedCPMap, pt, 5, cv::Scalar(0), -1);
 	return res;
@@ -1068,7 +1069,7 @@ int UVR_SLAM::MatchInfo::AddMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt) {
 void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label, int octave) {
 	std::unique_lock<std::mutex>(mMutexData);
 	this->mvMatchingPts.push_back(pt);
-	this->mvnMatchingIDXs.push_back(idx);
+	//this->mvnMatchingIDXs.push_back(idx);
 	this->mvpMatchingMPs.push_back(pMP);
 	this->mvObjectLabels.push_back(label);
 	this->mvnOctaves.push_back(octave);
