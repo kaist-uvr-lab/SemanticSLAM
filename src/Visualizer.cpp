@@ -339,9 +339,10 @@ void UVR_SLAM::Visualizer::Run() {
 				auto mmpMap = mpMap->GetMap();
 				for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
 					auto pMPi = iter->first;
-					int label = iter->second;
 					if (!pMPi || pMPi->isDeleted())
 						continue;
+					//int label = iter->second;
+					int label = pMPi->GetLabel();
 					cv::Mat x3D = pMPi->GetWorldPos();
 					bool bPlane = pMPi->GetPlaneID() > 0;
 					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
@@ -419,7 +420,7 @@ void UVR_SLAM::Visualizer::Run() {
 					cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
 				}
 				else {
-					cv::circle(tempVis, pt1, 2, cv::Scalar(0, 0, 0), -1);
+					cv::circle(tempVis, pt1, 2, cv::Scalar(0, 155, 248), -1);
 				}
 			}
 			////trajectory	

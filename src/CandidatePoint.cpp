@@ -7,7 +7,7 @@ namespace  UVR_SLAM{
 	CandidatePoint::CandidatePoint():octave(0), bCreated(false), mbDelete(false){
 		mpMapPoint = nullptr;
 	}
-	CandidatePoint::CandidatePoint(MatchInfo* pRefKF, int aoct):mpRefKF(pRefKF), octave(aoct), bCreated(false), mbDelete(false){
+	CandidatePoint::CandidatePoint(MatchInfo* pRefKF, int alabel, int aoct):mpRefKF(pRefKF), label(alabel), octave(aoct), bCreated(false), mbDelete(false){
 		mpMapPoint = nullptr;
 	}
 	CandidatePoint::~CandidatePoint(){}
@@ -17,6 +17,15 @@ namespace  UVR_SLAM{
 		return std::map<UVR_SLAM::MatchInfo*, int>(mmpFrames.begin(), mmpFrames.end());
 	}
 	
+	int CandidatePoint::GetLabel(){
+		std::unique_lock<std::mutex> lockMP(mMutexLabel);
+		return label;
+	}
+	void CandidatePoint::SetLabel(int a){
+		std::unique_lock<std::mutex> lockMP(mMutexLabel);
+		label = a;
+	}
+
 	int CandidatePoint::GetNumSize() {
 		std::unique_lock<std::mutex> lockMP(mMutexCP);
 		return mnConnectedFrames;
@@ -35,18 +44,18 @@ namespace  UVR_SLAM{
 	void CandidatePoint::RemoveFrame(UVR_SLAM::MatchInfo* pKF){
 		{
 			std::unique_lock<std::mutex> lockMP(mMutexCP);
-auto res = mmpFrames.find(pKF);
-if (res != mmpFrames.end()) {
-	int idx = res->second;
-	res = mmpFrames.erase(res);
-	mnConnectedFrames--;
-	pKF->RemoveCP(idx);
-	if (this->mpRefKF == mpRefKF) {
-		mpRefKF = mmpFrames.begin()->first;
-	}
-	if (mnConnectedFrames < 3)
-		mbDelete = true;
-}
+			auto res = mmpFrames.find(pKF);
+			if (res != mmpFrames.end()) {
+				int idx = res->second;
+				res = mmpFrames.erase(res);
+				mnConnectedFrames--;
+				pKF->RemoveCP(idx);
+				if (this->mpRefKF == mpRefKF) {
+					mpRefKF = mmpFrames.begin()->first;
+				}
+				if (mnConnectedFrames < 3)
+					mbDelete = true;
+			}
 		}
 		if (mbDelete) {
 			Delete();

@@ -5,6 +5,7 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <mutex>
+#include <list>
 
 namespace UVR_SLAM {
 	class Frame;
@@ -38,6 +39,7 @@ namespace UVR_SLAM {
 		void AddFlow(int nFrameID, cv::Mat flow);
 		cv::Mat GetFlow(int nFrameID);
 		std::vector<cv::Mat> GetFlows(int nStartID, int nEndID);
+		std::list<Frame*> mQueueFrameWindows;
 	private:
 		std::mutex mMutexFlows;
 		std::map<int, cv::Mat> mmFlows;

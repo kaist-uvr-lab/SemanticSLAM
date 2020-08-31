@@ -963,13 +963,27 @@ bool UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(cv::Mat& overlap, int radius,
 
 void UVR_SLAM::MatchInfo::SetLabel() {
 	auto labelMat = mpRefFrame->matLabeled.clone();
-	mvObjectLabels.clear();
-	mvObjectLabels.resize(mvMatchingPts.size());
-	//mvObjectLabels = std::vector<int>(mvMatchingPts.size());
+	//mvObjectLabels.clear();
+	//mvObjectLabels.resize(mvMatchingPts.size());
+	////mvObjectLabels = std::vector<int>(mvMatchingPts.size());
+	//for (int i = 0; i < mvMatchingPts.size(); i++) {
+	//	auto pt1 = mvMatchingPts[i];
+	//	int label1 = labelMat.at<uchar>(pt1.y / 2, pt1.x / 2);
+	//	mvObjectLabels[i] = label1;
+	//}
+
+	auto vCPs = mpRefFrame->mpMatchInfo->GetMatchingCPs();
+	std::vector<int> vOctaves;
+	auto vPTs = mpRefFrame->mpMatchInfo->GetMatchingPts(vOctaves);
 	for (int i = 0; i < mvMatchingPts.size(); i++) {
-		auto pt1 = mvMatchingPts[i];
-		int label1 = labelMat.at<uchar>(pt1.y / 2, pt1.x / 2);
-		mvObjectLabels[i] = label1;
+		auto pCPi = vCPs[i];
+		auto pt = vPTs[i];
+		int label = labelMat.at<uchar>(pt.y / 2, pt.x / 2);
+		//mvObjectLabels[i] = label1;
+		pCPi->SetLabel(label);
+		auto pMPi = pCPi->mpMapPoint;
+		if (pMPi)
+			pMPi->SetLabel(label);
 	}
 }
 

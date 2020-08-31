@@ -12,7 +12,7 @@ namespace UVR_SLAM {
 		
 	public:
 		CandidatePoint();
-		CandidatePoint(MatchInfo* pRefKF, int aoct = 0);
+		CandidatePoint(MatchInfo* pRefKF, int alabel = 0, int aoct = 0);
 		virtual ~CandidatePoint();
 		std::map<MatchInfo*, int> GetFrames();
 		void AddFrame(UVR_SLAM::MatchInfo* pF, cv::Point2f pt); //index in frame
@@ -34,6 +34,7 @@ namespace UVR_SLAM {
 		//µª½ºÅ×½ºÆ®
 	public:
 		int octave;
+		
 		bool bCreated;
 		MapPoint* mpMapPoint;
 	private:
@@ -42,6 +43,13 @@ namespace UVR_SLAM {
 		std::mutex mMutexCP;
 		std::map<UVR_SLAM::MatchInfo*, int> mmpFrames;
 		int mnConnectedFrames;
+	//////////////label
+	public:
+		int GetLabel();
+		void SetLabel(int a);
+	private:
+		std::mutex mMutexLabel;
+		int label;
 	};
 }
 #endif

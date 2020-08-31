@@ -46,6 +46,7 @@ namespace UVR_SLAM {
 		void Fuse(MapPoint* pMP);
 
 		bool Projection(cv::Point2f& _P2D, cv::Mat& _Pcam, cv::Mat R, cv::Mat t, cv::Mat K, int w, int h);
+		bool Projection(cv::Point2f& _P2D, Frame* pF, int w, int h);
 		bool isSeen();
 
 		MapPointType GetMapPointType();
@@ -124,7 +125,14 @@ namespace UVR_SLAM {
 		std::map<UVR_SLAM::MatchInfo*, int> mmpFrames;
 		int mnConnectedFrames;
 		//////////////////////프레임과 관련된 것들
-
+	////label
+	public:
+		int GetLabel();
+		void SetLabel(int a);
+	private:
+		std::mutex mMutexLabel;
+		int label;
+	////label
 	};
 }
 

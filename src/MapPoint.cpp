@@ -10,16 +10,18 @@ UVR_SLAM::MapPoint::MapPoint()
 	:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
 	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(0)
 {}
-UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF,cv::Mat _p3D, cv::Mat _desc, int label, int octave)
+UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF,cv::Mat _p3D, cv::Mat _desc, int alabel, int octave)
 : mpMap(pMap), mpRefKF(pRefKF),p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
 , mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(octave)
 {
+	alabel = label;
 	mpMap->AddMap(this, label);
 }
-UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int label, int octave)
+UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int alabel, int octave)
 : mpMap(pMap), mpRefKF(pRefKF), p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
 , mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(octave)
 {
+	alabel = label;
 	mpMap->AddMap(this, label);
 }
 UVR_SLAM::MapPoint::~MapPoint(){}
@@ -82,7 +84,14 @@ void UVR_SLAM::MapPoint::SetWorldPos(cv::Mat X) {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	p3D = X.clone();
 }
-
+int UVR_SLAM::MapPoint::GetLabel() {
+	std::unique_lock<std::mutex> lockMP(mMutexLabel);
+	return label;
+}
+void UVR_SLAM::MapPoint::SetLabel(int a) {
+	std::unique_lock<std::mutex> lockMP(mMutexLabel);
+	label = a;
+}
 void UVR_SLAM::MapPoint::SetObjectType(UVR_SLAM::ObjectType nType){
 	std::unique_lock<std::mutex> lock(mMutexObjectType);
 	mObjectType = nType;
@@ -123,7 +132,7 @@ void UVR_SLAM::MapPoint::IncreaseFound(int n)
 
 bool UVR_SLAM::MapPoint::isInFrame(UVR_SLAM::MatchInfo* pF) {
 	std::unique_lock<std::mutex> lock(mMutexMP);
-	return mmpFrames.count(pF);
+	return mmpFrames.count(pF) > 0;
 }
 
 int UVR_SLAM::MapPoint::GetPointIndexInFrame(MatchInfo* pF) {
@@ -258,6 +267,26 @@ bool UVR_SLAM::MapPoint::isSeen(){
 	return mbSeen;
 }
 
+bool UVR_SLAM::MapPoint::Projection(cv::Point2f& _P2D, Frame* pF, int w, int h) {
+	cv::Mat X3D, _Pcam;
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexMP);
+		X3D = p3D.clone();
+	}
+	cv::Mat R, t;
+	pF->GetPose(R, t);
+	_Pcam = R*X3D + t;
+	cv::Mat temp = pF->mK*_Pcam;
+	float depth = temp.at<float>(2);
+	_P2D = cv::Point2f(temp.at<float>(0) / depth, temp.at<float>(1) / depth);
+	
+	bool bres = false;
+	if (depth > 0.0f && (_P2D.x >= 0 && _P2D.x < w && _P2D.y >= 0 && _P2D.y < h)) {
+		bres = true;
+	}
+	return bres;
+}
+
 bool UVR_SLAM::MapPoint::Projection(cv::Point2f& _P2D, cv::Mat& _Pcam, cv::Mat R, cv::Mat t, cv::Mat K, int w, int h) {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	_Pcam = R*p3D + t;
@@ -265,7 +294,7 @@ bool UVR_SLAM::MapPoint::Projection(cv::Point2f& _P2D, cv::Mat& _Pcam, cv::Mat R
 	_P2D = cv::Point2f(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
 	mfDepth = temp.at<float>(2);
 	bool bres = false;
-	if (mfDepth > -0.001f && (_P2D.x >= 0 && _P2D.x < w && _P2D.y >= 0 && _P2D.y < h)) {
+	if (mfDepth > 0.0f && (_P2D.x >= 0 && _P2D.x < w && _P2D.y >= 0 && _P2D.y < h)) {
 		bres = true;
 	}
 	/*if (mfDepth < 0.0)

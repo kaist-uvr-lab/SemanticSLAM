@@ -105,7 +105,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
 			
 			auto tempKFs1 = mpTargetFrame->GetConnectedKFs(7);
-			auto tempKFs2 = mpTargetFrame->GetConnectedKFs();
+			//auto tempKFs2 = mpTargetFrame->GetConnectedKFs();
 			vpKFs.push_back(mpTargetFrame);
 			
 			for (int i = 0; i < tempKFs1.size(); i++){
@@ -113,13 +113,13 @@ void UVR_SLAM::MapOptimizer::Run() {
 				vpKFs.push_back(tempKFs1[i]);
 			}
 			
-			for (int i = 0; i < tempKFs2.size(); i++) {
+			/*for (int i = 0; i < tempKFs2.size(); i++) {
 				if (tempKFs2[i]->mnLocalBAID != nTargetID && tempKFs2[i]->mnFixedBAID != nTargetID)
 				{
 					tempKFs2[i]->mnFixedBAID = nTargetID;
 					vpFixedKFs.push_back(tempKFs2[i]);
 				}
-			}
+			}*/
 
 			for (int k = 0; k < vpKFs.size(); k++){
 				auto pKFi = vpKFs[k];
@@ -172,7 +172,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float letime = leduration / 1000.0;
 			std::stringstream ss;
-			ss << "Map Optimizer::" << mpTargetFrame->GetKeyFrameID() <<"::"<<letime<<"||"<< vpKFs.size()<<", "<< vpFixedKFs.size()<<", "<<vpMPs.size();
+			ss << "Map Optimizer::" << mpTargetFrame->GetKeyFrameID() <<", "<<vpKFs[0]->GetKeyFrameID()<<"::"<<letime<<"||"<< vpKFs.size()<<", "<< vpFixedKFs.size()<<", "<<vpMPs.size();
 			mpSystem->SetMapOptimizerString(ss.str());
 			std::cout << "ba::end::" << mpTargetFrame->GetFrameID() << std::endl;
 			//Á¾·á
