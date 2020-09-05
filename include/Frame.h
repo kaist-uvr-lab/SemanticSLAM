@@ -77,18 +77,19 @@ namespace UVR_SLAM {
 		std::vector<cv::Point2f> mvMatchingCPPts;
 //////////////////
 	public:
+		int mnMatch;
+		
 		float mfAvgNumMatch;
 		int mnTotalMatch;
 		int mnMaxMatch;
 
 		int mnNumMatch;
 		UVR_SLAM::Frame* mpTargetFrame, *mpRefFrame, *mpNextFrame;
-		int mnTargetMatch; //이전 타겟 프레임과의 매칭 결과를 기록함. 타겟매칭벡터의 사이즈를 의미. 당연히 현재 매칭 벡터 결과가 이전 타겟 프레임과 연결하기 위한 것인데 현재 매칭벡터 크기가 이전 프레임과 매칭이 없으면 접근하면 안되는 것.
+		
 		cv::Mat used, usedCPMap; //자기 자신의 KP를 추가할 때 이미 매칭이 되었던 건지 확인하기 위해서
 		cv::Mat edgeMap; //8UC1 -> 16SC1로 변경 예정. 연속성이라던가 실제 포인트 위치를 접근하기 위해
 		std::vector<int> mvnVisibles, mvnMatches;
 		std::vector<int> mvObjectLabels;
-		std::vector<int> mvnOctaves;
 		std::vector<bool> mvbCreated; //맵포인트로 생성된 경우 표시.
 		
 		//std::vector<int> mvnMatchingIDXs; //키프레임과 연결되는 인덱스 값, MP의 경우 현재 프레임 매칭 결과 중 MP와 바로 연결되기 위한 인덱스 값이 됨.

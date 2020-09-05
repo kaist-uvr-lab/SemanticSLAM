@@ -296,12 +296,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 	else {
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 
-		/*std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
-		while (!mpSystem->mbLocalMapUpdateEnd) {
-			mpSystem->cvUseLocalMap.wait(lock);
-		}
-		mpSystem->mbTrackingEnd = false;*/
-
 		std::cout << "tracker::start::" <<pCurr->GetFrameID()<< std::endl;
 		//std::cout << mpMap->mpFirstKeyFrame->mpPlaneInformation->GetFloorPlane()->GetParam() << std::endl << std::endl << std::endl;
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -331,37 +325,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 		//graph-based0.
 		mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);
-		////solvepnp
-		/*mnMatching = 0;
-		cv::Mat rvec, tvec;
-		cv::Rodrigues(prevR, rvec);
-		cv::solvePnPRansac(vpTempPts2, vpTempPts1, mK, mD, rvec, tvec, true, 100, 4.0, 0.99, vcInliers);
-		cv::Rodrigues(rvec, prevR);
-		prevR.convertTo(prevR, CV_32FC1);
-		tvec.convertTo(tvec, CV_32FC1);
-		pCurr->SetPose(prevR, tvec);
-		for (int i = 0; i < vcInliers.size(); i++)
-		{
-			if (vcInliers[i]) {
-				mnMatching++;
-			}
-			else {
-				vbTempInliers[vnMPIDXs[i]] = false;
-			}
-		}*/
-		////solvepnp
-		//pCurr->SetInliers(mnMatching); //이용X
 		int nMP = UpdateMatchingInfo(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
-		
-		////파일 이미지 저장시 이름 설정
-		/*std::stringstream ssdira;
-		ssdira << mpSystem->GetDirPath(0) << "/kfmatching/tracking_" << mpRefKF->GetKeyFrameID()<<"_"<<mpRefKF->GetFrameID() << "_" << pCurr->GetFrameID() <<"_"<<mpRefKF->mpMatchInfo->mnMaxMatch<< ".jpg";
-		std::stringstream suc;
-		suc << "Tracking::" << mnPointMatching << ", " << mnMapPointMatching << "::" << mpRefKF->mpMatchInfo->GetMatchingSize();
-		cv::rectangle(debugImg, cv::Point2f(0, 0), cv::Point2f(debugImg.cols, 30), cv::Scalar::all(0), -1);
-		cv::putText(debugImg, suc.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));*/
-		////파일 이미지 저장시 이름 설정
-
+	
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크
 		auto pNewKF = CheckNeedKeyFrame(pCurr, pPrev);
@@ -373,39 +338,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			//mpSegmentator->InsertKeyFrame(pNewKF);
 			//mpPlaneEstimator->InsertKeyFrame(pNewKF);
 		}
-
-		////////////////////이전 버전
-		//float angle = (mpRefKF->CalcDiffAngleAxis(pCurr));
-		//if (CheckNeedKeyFrame(pCurr)) {
-		//	if (!mpSegmentator->isDoingProcess() && pCurr->CheckBaseLine(mpRefKF)) {
-		//		pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-		//		mpRefKF = pCurr;
-		//		//mpRefKF->Init(mpSystem->mpORBExtractor, mpSystem->mK, mpSystem->mD);
-		//		//mpRefKF->mpMatchInfo->SetKeyFrame();
-		//		mpLocalMapper->InsertKeyFrame(pCurr);
-		//		mpSegmentator->InsertKeyFrame(pCurr);
-		//		mpPlaneEstimator->InsertKeyFrame(pCurr);
-		//		//mpFrameWindow->AddFrame(pCurr);
-		//	}
-		//	/*if (!mpSegmentator->isDoingProcess() && !mpPlaneEstimator->isDoingProcess() && !mpRefKF->GetBoolMapping()) {
-		//		std::cout << "insert key frame" << std::endl;
-		//		pCurr->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-		//		mpSegmentator->InsertKeyFrame(pCurr);
-		//		mpLocalMapper->InsertKeyFrame(pCurr);
-		//		mpPlaneEstimator->InsertKeyFrame(pCurr);
-		//		mpRefKF = pCurr;
-		//	}*/
-		//}
-		/////////////////////////////////////////////키프레임 체크
-		///////////////////////////////////////////////////////////////////////////////
-		////////Optical Flow Matching
-
-		///////////////////SAVE TRACKING RESULTS
-		/*std::stringstream ssdir;
-		ssdir << mpSystem->GetDirPath(0) << "/kfmatching/" <<mpRefKF->GetFrameID()<<"_"<< pCurr->GetFrameID() << "_tracking.jpg";
-		imwrite(ssdir.str(), imgKFNF);*/
-		///////////////////SAVE TRACKING RESULTS
-
+		pCurr->mpMatchInfo->mnMatch = mnMapPointMatching;
 		std::cout << "tracker::end::"<<pCurr->GetFrameID()<<"::"<<mnMapPointMatching << std::endl;
 
 		////////Visualization & 시간 계산
@@ -421,84 +354,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			mpFrameVisualizer->SetFrameMatchingInformation(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, t2);
 		}
 
-
-
-		////////시각화1
-		//cv::Mat vis = pCurr->GetOriginalImage();
-		////vis.convertTo(vis, CV_8UC3);
-		//cv::Mat R = pCurr->GetRotation();
-		//cv::Mat t = pCurr->GetTranslation();
-		////for (int i = 0; i < vpTempPts.size(); i++) {
-		////	int label = pPrev->mpMatchInfo->mvObjectLabels[vnIDXs[i]];
-		////	if (label == 150) {
-		////		cv::circle(debugImg, vpTempPts[i], 3, cv::Scalar(255, 0, 255), 1);
-		////	}
-		////	else if (label == 255) {
-		////		cv::circle(debugImg, vpTempPts[i], 3, cv::Scalar(0, 255, 255), 1);
-		////	}
-		////}
-		////////시각화1
-		////imshow("Output::Matching", debugImg);
-		///*for (int i = 0; i < vpTempPts.size(); i++) {
-		//	cv::circle(vis, vpTempPts[i], 2, cv::Scalar(255, 0, 0), 1);
-		//}*/
-
-		////////시각화2
-		//cv::Point2f ptBottom(0, mnHeight);
-		//for (int i = 0; i < vpTempMPs.size(); i++) {
-		//	UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
-		//	if (!pMPi || pMPi->isDeleted())
-		//		continue;
-		//	/*if (!vbTempInliers[vnMPIDXs[i]])
-		//		continue;*/
-		//	cv::Point2f p2D;
-		//	cv::Mat pCam;
-		//	bool b = pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
-
-		//	int label = 0;// mpRefKF->mpMatchInfo->mvObjectLabels[vnIDXs[i]];
-		//	int pid = pMPi->GetPlaneID();
-		//	int type = pMPi->GetRecentLayoutFrameID();
-		//	cv::Scalar color(150, 150, 0);
-		//	if (pid > 0 && label == 150) {
-		//		color = cv::Scalar(0, 0, 255);
-		//	}
-		//	else if (pid > 0 && label == 100) {
-		//		color = cv::Scalar(0, 255, 0);
-		//	}
-		//	//else if (pid > 0 && label == 255) {
-		//	else if (label == 255) {
-		//		color = cv::Scalar(255, 0, 0);
-		//		//color = UVR_SLAM::ObjectColors::mvObjectLabelColors[pid];
-		//	}
-		//	if (pid <= 0)
-		//		color /= 2;
-		//	if(vbTempInliers[i])
-		//		cv::circle(vis, p2D, 2, color, -1);
-		//	/*if (!b || !vbTempInliers[vnMPIDXs[i]]) {
-		//		cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(0, 0, 255), 1);
-		//	}
-		//	else {
-		//		cv::line(vis, p2D, vpTempPts[vnMPIDXs[i]], cv::Scalar(255, 255, 0), 1);
-		//	}*/
-		//	cv::line(vis, p2D, vpTempPts[i], color, 1);
-		//	if(!vbTempInliers[i]){
-		//		cv::line(debugImg, p2D+ptBottom, vpTempPts[i]+ ptBottom, cv::Scalar(0,0,255), 1);
-		//		cv::circle(debugImg, p2D+ ptBottom, 2, cv::Scalar(0, 0, 255), -1);
-		//	}
-		//	//cv::circle(vis, p2D, 2, cv::Scalar(255, 0, 0), -1);
-		//}
-		//////////시각화2
-		//std::stringstream ss;
-		//ss << "Traking = " << mnMapPointMatching << ", " << nMP << "::" << t1 << ", " << t2 << "::";
-		//cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
-		//cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-		//cv::imshow("Output::Tracking", vis);
-		//////////Visualization & 시간 계산
-		///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-		/////////트래킹 결과 이미지 저장
-		//pCurr->mpMatchInfo->mMatchedImage = debugImg.clone();
-		
 		/////////트래킹 결과 이미지 저장
 		//visualizer thread
 		mpVisualizer->SetMatchInfo(pCurr->mpMatchInfo);
@@ -507,7 +362,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			mpVisualizer->SetBoolDoingProcess(true);
 		}
 		//visualizer thread
-		cv::waitKey(1);
 	}
 }
 

@@ -114,7 +114,7 @@ namespace  UVR_SLAM{
 
 		cv::Mat x3D = vt.row(3).t();
 		x3D = x3D.rowRange(0, 3) / x3D.at<float>(3);
-		return x3D;
+		return x3D.clone();
 	}
 	void CandidatePoint::Test(cv::Mat& X3D, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax, cv::Mat& debug) {
 		cv::Point2f ptBottom = cv::Point2f(0, 480);
@@ -145,8 +145,8 @@ namespace  UVR_SLAM{
 		auto pt1 = Projection(X3D, R, t, K, bd1); //first
 		auto pt2 = Projection(X3D, Rcurr, Tcurr, K, bd2); //curr
 
-		cv::line(debug, pt2, ptFirst, cv::Scalar(255, 0, 255), 1);
-		cv::line(debug, pt1+ ptBottom, ptCurr+ ptBottom, cv::Scalar(255, 0, 255), 1);
+		cv::line(debug, pt1, ptFirst, cv::Scalar(255, 0, 255), 1);
+		cv::line(debug, pt2+ ptBottom, ptCurr+ ptBottom, cv::Scalar(255, 0, 255), 1);
 
 		if (bRank && bd1 && bd2 && CheckReprojectionError(pt1, ptFirst, 9.0) && CheckReprojectionError(pt2, ptCurr, 9.0)){
 			bProjec = true;

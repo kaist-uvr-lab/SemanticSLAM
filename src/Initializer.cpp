@@ -175,6 +175,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		////////////삼각화 결과에 따른 초기화 판단
 
 		//////////////////////////////////////
+		cv::Point2f ptBottom(0, mnHeight);
 		std::vector<UVR_SLAM::MapPoint*> tempMPs;
 		std::vector<cv::Point2f> vTempMappedPts1, vTempMappedPts2; //맵포인트로 생성된 포인트 정보를 저장
 		std::vector<int> vTempMappedOctaves,vTempMappedIDXs; //vTempMatch에서 다시 일부분을 저장. 초기 포인트와 대응되는 위치를 저장.
@@ -225,7 +226,15 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			pCP->AddFrame(mpInitFrame2->mpMatchInfo, vTempMatchPts2[i]);
 			pCP->bCreated = true;
 			pCP->mpMapPoint = pMP;
+
+			cv::circle(debugging, pt1, 2, cv::Scalar(0, 255, 0), -1);
+			cv::circle(debugging, pt2+ ptBottom, 2, cv::Scalar(0, 255, 0), -1);
+			cv::line(debugging, pt1, projected1, cv::Scalar(255, 0, 0));
+			cv::line(debugging, pt2 + ptBottom, projected2 + ptBottom, cv::Scalar(255, 0, 0));
+
 		}
+		cv::imshow("Init::proj", debugging);
+		cv::waitKey(1);
 		//////////////////////////////////////
 		/////median depth 
 		float medianDepth;
