@@ -96,7 +96,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//////매칭 정보 생성
 		bool bSegment = false;
 		int nSegID = mpInitFrame1->GetFrameID();
-		int nMatchingThresh = mpInitFrame1->mpMatchInfo->mvTempPts.size()*0.6;
+		int nMatchingThresh = 0;//mpInitFrame1->mpMatchInfo->mvTempPts.size()*0.6;
 		std::vector<cv::Point2f> vTempPts1, vTempPts2;
 		std::vector<bool> vTempInliers;
 		std::vector<int> vTempIndexs;
@@ -214,18 +214,19 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			//std::cout << vTempPts1[idx] << ", " << mpInitFrame1->mpMatchInfo->GetCPPt(idx2) <<"::"<< vTempMatchPts1[i] << std::endl;
 
 			res3++;
+			auto pCP = mpInitFrame1->mpMatchInfo->GetCP(idx2);
 			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
-			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpInitFrame2, X3D, cv::Mat(), label1);
+			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpInitFrame2, pCP, X3D, cv::Mat(), label1);
 			tempMPs.push_back(pMP);
 			vTempMappedPts1.push_back(vTempMatchPts1[i]);
 			vTempMappedPts2.push_back(vTempMatchPts2[i]);
 			//vTempMappedOctaves.push_back(vTempMatchOctaves[i]);
 			vTempMappedIDXs.push_back(i);//vTempMatchIDXs[i]
-
-			auto pCP = mpInitFrame1->mpMatchInfo->GetCP(idx2);
-			pCP->AddFrame(mpInitFrame2->mpMatchInfo, vTempMatchPts2[i]);
-			pCP->bCreated = true;
-			pCP->mpMapPoint = pMP;
+			
+			//pCP->AddFrame(mpInitFrame2->mpMatchInfo, vTempMatchPts2[i]);
+			mpInitFrame2->mpMatchInfo->AddCP(pCP, vTempMatchPts2[i]);
+			//pMP->AddFrame(mpInitFrame1->mpMatchInfo, idx2);
+			//pMP->AddFrame(mpInitFrame2->mpMatchInfo, idx2);
 
 			cv::circle(debugging, pt1, 2, cv::Scalar(0, 255, 0), -1);
 			cv::circle(debugging, pt2+ ptBottom, 2, cv::Scalar(0, 255, 0), -1);
@@ -233,6 +234,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			cv::line(debugging, pt2 + ptBottom, projected2 + ptBottom, cv::Scalar(255, 0, 0));
 
 		}
+		mpInitFrame1->mpMatchInfo->UpdateFrame();
+		mpInitFrame2->mpMatchInfo->UpdateFrame();
 		cv::imshow("Init::proj", debugging);
 		cv::waitKey(1);
 		//////////////////////////////////////
@@ -345,8 +348,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			//mpInitFrame2->mpMatchInfo->mvnMatchingIDXs.push_back(mpInitFrame1->mpMatchInfo->mvnMatchingIDXs.size());
 			//mpInitFrame1->mpMatchInfo->mvnMatchingIDXs.push_back(-1);
 
-			pNewMP->AddFrame(mpInitFrame1->mpMatchInfo, pt1);
-			pNewMP->AddFrame(mpInitFrame2->mpMatchInfo, pt2);
 			//pNewMP->mnOctave = vTempMappedOctaves[i];//mpInitFrame1->mpMatchInfo->mvnOctaves[idx1];
 			
 			pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();

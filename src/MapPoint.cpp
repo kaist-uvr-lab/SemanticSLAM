@@ -3,6 +3,7 @@
 #include <Frame.h>
 #include <FrameWindow.h>
 #include <SegmentationData.h>
+#include <CandidatePoint.h>
 
 static int nMapPointID = 0;
 
@@ -10,20 +11,30 @@ UVR_SLAM::MapPoint::MapPoint()
 	:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
 	, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(0)
 {}
-UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF,cv::Mat _p3D, cv::Mat _desc, int alabel, int octave)
+UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP,cv::Mat _p3D, cv::Mat _desc, int alabel, int octave)
 : mpMap(pMap), mpRefKF(pRefKF),p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
 , mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(octave)
 {
 	alabel = label;
 	mnFirstKeyFrameID = mpRefKF->GetKeyFrameID();
+	//CP贸府
+	mpCP = pCP;
+	mpCP->bCreated = true;
+	mpCP->mpMapPoint = this;
+	//甘贸府
 	mpMap->AddMap(this, label);
 }
-UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int alabel, int octave)
+UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int alabel, int octave)
 : mpMap(pMap), mpRefKF(pRefKF), p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
 , mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(octave)
 {
 	alabel = label;
 	mnFirstKeyFrameID = mpRefKF->GetKeyFrameID();
+	//CP贸府
+	mpCP = pCP;
+	mpCP->bCreated = true;
+	mpCP->mpMapPoint = this;
+	//甘贸府
 	mpMap->AddMap(this, label);
 }
 UVR_SLAM::MapPoint::~MapPoint(){}
@@ -174,7 +185,7 @@ void UVR_SLAM::MapPoint::Fuse(UVR_SLAM::MapPoint* pMP) {
 		}
 		else
 		{
-			pKF->RemoveMP(mit->second);
+			pKF->RemoveMP();
 		}
 	}
 	pMP->IncreaseFound(nfound);
@@ -198,20 +209,12 @@ int UVR_SLAM::MapPoint::GetNumConnectedFrames() {
 	return mnConnectedFrames;
 }
 
-void UVR_SLAM::MapPoint::AddFrame(UVR_SLAM::MatchInfo* pF, cv::Point2f pt) {
-	std::unique_lock<std::mutex> lockMP(mMutexMP);
-	auto res = mmpFrames.find(pF);
-	if (res == mmpFrames.end()) {
-		int idx = pF->AddMP(this, pt);
-		mmpFrames.insert(std::pair<UVR_SLAM::MatchInfo*, int>(pF, idx));
-		mnConnectedFrames++;
-	}
-}
 void UVR_SLAM::MapPoint::AddFrame(UVR_SLAM::MatchInfo* pF, int idx) {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	auto res = mmpFrames.find(pF);
 	if (res == mmpFrames.end()) {
 		mmpFrames.insert(std::pair<UVR_SLAM::MatchInfo*, int>(pF, idx));
+		pF->AddMP();
 		mnConnectedFrames++;
 	}
 	else {
@@ -226,7 +229,7 @@ void UVR_SLAM::MapPoint::RemoveFrame(UVR_SLAM::MatchInfo* pF){
 			int idx = res->second;
 			res = mmpFrames.erase(res);
 			mnConnectedFrames--;
-			pF->RemoveMP(idx);
+			pF->RemoveMP();
 			if (pF->mpRefFrame == mpRefKF) {
 				mpRefKF = mmpFrames.begin()->first->mpRefFrame;
 			}
@@ -248,11 +251,15 @@ void UVR_SLAM::MapPoint::Delete() {
 		for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
 			auto* pF = iter->first;
 			auto idx = iter->second;
-			pF->RemoveMP(idx);
+			pF->RemoveMP();
 		}
 		mnConnectedFrames = 0;
 		mmpFrames.clear();
 	}
+	////CP 贸府
+	mpCP->bCreated = false;
+	mpCP->mpMapPoint = nullptr;
+	//甘贸府
 	mpMap->RemoveMap(this);
 	mpMap->DeleteMapPoint(this);
 }

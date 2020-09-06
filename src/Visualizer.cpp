@@ -36,7 +36,7 @@ cv::Point2f sPt = cv::Point2f(0, 0);
 cv::Point2f ePt = cv::Point2f(0, 0);
 cv::Point2f mPt = cv::Point2f(0, 0);
 cv::Mat M = cv::Mat::zeros(0, 0, CV_64FC1);
-int mnMode = 0;
+int mnMode = 2;
 int mnMaxMode = 3;
 int mnAxis1 = 0;
 int mnAxis2 = 2;
@@ -52,6 +52,23 @@ int UVR_SLAM::Visualizer::GetScale(){
 void UVR_SLAM::Visualizer::SetScale(int s){
 	std::unique_lock<std::mutex>lock(mMutexScale);
 	mnVisScale = s;
+}
+
+void SetAxisMode() {
+	switch (mnMode) {
+	case 0:
+		mnAxis1 = 0;
+		mnAxis2 = 2;
+		break;
+	case 1:
+		mnAxis1 = 1;
+		mnAxis2 = 2;
+		break;
+	case 2:
+		mnAxis1 = 0;
+		mnAxis2 = 1;
+		break;
+	}
 }
 
 void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void* userdata)
@@ -83,8 +100,8 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 	else if (event == cv::EVENT_RBUTTONDOWN) {
 		mnMode++;
 		mnMode %= mnMaxMode;
-
-		switch (mnMode) {
+		SetAxisMode();
+		/*switch (mnMode) {
 		case 0:
 			mnAxis1 = 0;
 			mnAxis2 = 2;
@@ -97,7 +114,7 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 			mnAxis1 = 0;
 			mnAxis2 = 1;
 			break;
-		}
+		}*/
 
 	}else if (event == cv::EVENT_MOUSEWHEEL) {
 		//std::cout << "Wheel event detection" << std::endl;
@@ -210,7 +227,7 @@ void UVR_SLAM::Visualizer::Run() {
 	for (int i = 0; i < tempColors.size(); i++) {
 		colors.push_back(cv::Scalar(tempColors[i].val[0], tempColors[i].val[1], tempColors[i].val[2]));
 	}
-
+	SetAxisMode();
 	while (1) {
 		
 		if (bSaveMap) {
@@ -345,7 +362,7 @@ void UVR_SLAM::Visualizer::Run() {
 					int label = pMPi->GetLabel();
 					cv::Mat x3D = pMPi->GetWorldPos();
 					bool bPlane = pMPi->GetPlaneID() > 0;
-					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
 					tpt += mVisMidPt;
 					cv::Scalar color = cv::Scalar(0, 0, 0);
 					if (label == 255) {
@@ -376,15 +393,15 @@ void UVR_SLAM::Visualizer::Run() {
 				/////트래킹 결과 출력
 				if (pMatchInfo) {
 					auto lastBAFrame = pMatchInfo->mpTargetFrame;
-					auto mvpMatchingPts = pMatchInfo->GetMatchingPts();
-					auto mvpMatchingMPs = pMatchInfo->GetMatchingMPs();
+					std::vector<MapPoint*> mvpMatchingMPs;
+					auto mvpMatchingPts = pMatchInfo->GetMatchingPts(mvpMatchingMPs);
 					for (int i = 0; i < mvpMatchingPts.size(); i++) {
 						auto pMPi = mvpMatchingMPs[i];
-						auto label = pMatchInfo->mvObjectLabels[i];
+						auto label = pMPi->GetLabel();
 						if (!pMPi || pMPi->isDeleted())
 							continue;
 						cv::Mat x3D = pMPi->GetWorldPos();
-						cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
+						cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
 						tpt += mVisMidPt;
 						cv::Scalar color = cv::Scalar(125,125,125);
 						if (label == 255)
@@ -405,18 +422,21 @@ void UVR_SLAM::Visualizer::Run() {
 			for (int i = 0; i < nFrame; i++) {
 
 				cv::Mat t1 = frames[i]->GetCameraCenter();
-				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, -t1.at<float>(mnAxis2)* mnVisScale);
+				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
 				pt1 += mVisMidPt;
 
 				if (i == nFrame - 1) {
 					cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
 					cv::Mat directionZ = frames[i]->GetRotation().row(2);
-					cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(mnAxis1)* mnVisScale / 10.0, -directionZ.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
-					cv::line(tempVis, pt1, dirPtZ, cv::Scalar(0, 0, 255), 2);
+					cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(mnAxis1)* mnVisScale / 10.0, directionZ.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
+					cv::line(tempVis, pt1, dirPtZ, cv::Scalar(255, 0, 0), 2);
+					cv::Mat directionY = frames[i]->GetRotation().row(1);
+					cv::Point2f dirPtY = cv::Point2f(directionY.at<float>(mnAxis1)* mnVisScale / 10.0, directionY.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
+					cv::line(tempVis, pt1, dirPtY, cv::Scalar(0, 255, 0), 2);
 
 					cv::Mat directionX = frames[i]->GetRotation().row(0);
-					cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
-					cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, -directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
+					cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
+					cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
 					cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
 				}
 				else {

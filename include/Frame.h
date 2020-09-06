@@ -38,90 +38,70 @@ namespace UVR_SLAM {
 	class MapGrid;
 	class MatchInfo {
 	public:
+		
+		///////////////////이 위에는 확실한 수정 코드
+		//int AddMP(MapPoint* pMP, cv::Point2f pt);
+		
+		
+		void RemoveCP(int idx); //이것은 아예 사용이 안될 수도 있음.
+		///////////////이 위에는 수정 또는 삭제인데 코드를 보고 결정해야 함
+		///////////////이 위에는 삭제할 것들
+		//, usedCPMap; //자기 자신의 KP를 추가할 때 이미 매칭이 되었던 건지 확인하기 위해서
 		MatchInfo();
 		MatchInfo(Frame* pRef, Frame* pTarget, int w, int h);
 		virtual ~MatchInfo();
+		void UpdateFrame();
 		void SetMatchingPoints(); //초기화나 매핑시 포인트 매칭을 위한 포인트 추가 과정.
-		void SetKeyFrame();
 		void SetLabel();
-		bool CheckPt(cv::Point2f pt); //나중에 삭제
-		bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt);
-		void AddMatchingPt(cv::Point2f pt, UVR_SLAM::MapPoint* pMP, int idx, int label = 0, int octave = 0);
-		
-		int GetMatchingSize();
-		cv::Point2f GetMatchingPt(int idx);
-		std::vector<cv::Point2f> GetMatchingPts();
-		std::vector<UVR_SLAM::MapPoint*> GetMatchingMPs();
+
+		void AddMP();
+		void RemoveMP(); //삭제 예정
+		int GetNumMapPoints();
 //////////////////
-		int AddMP(MapPoint* pMP, cv::Point2f pt);
-		void RemoveMP(int idx);
-		//MapPoint* GetMP(int idx);
 	private:
 		std::mutex mMutexData;
-		std::vector<cv::Point2f> mvMatchingPts; //이전 프레임과의 매칭 결과(KP+MP)
-		std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs; //사이즈는 위의 벡터와 같음. nullptr이 존재하며, MP가 있는 경우에만 들어가있음.
-		
+		int mnMatch;
 //////////////////
 	public:
 		int AddCP(CandidatePoint* pMP, cv::Point2f pt);
-		void RemoveCP(int idx);
 		int nPrevNumCPs;
 		int GetNumCPs();
-		std::vector<cv::Point2f> GetMatchingPts(std::vector<int>& vOctaves);
-		std::vector<UVR_SLAM::CandidatePoint*> GetMatchingCPs();
+		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::MapPoint*>& vpMPs);
+		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs);
+		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs);
+		
 		UVR_SLAM::CandidatePoint* GetCP(int idx);
-		cv::Point2f GetCPPt(int idx);
+		cv::Point2f GetPt(int idx);
+		
+		bool CheckOpticalPointOverlap(int radius, int margin, cv::Point2f pt); //확인 후 삭제.
+		bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt); //확인 후 삭제.
+
 	private:
 		std::mutex mMutexCPs;
+		cv::Mat mMapCP; //현재 이미지 내에 CP의 포인트 위치 & 인덱스, ushort, 16US1
 		std::vector<UVR_SLAM::CandidatePoint*> mvpMatchingCPs; //KF-KF 매칭에서 삼각화시 베이스라인을 충분히 확보하기 위함.
-		std::vector<cv::Point2f> mvMatchingCPPts;
+		std::vector<cv::Point2f> mvMatchingPts; //CPPt에서 변경함
+
 //////////////////
 	public:
-		int mnMatch;
+		//현재 매칭된 값을 저장함.
+		static int nMaxMP;
 		
-		float mfAvgNumMatch;
-		int mnTotalMatch;
-		int mnMaxMatch;
-
-		int mnNumMatch;
+		int mnWidth, mnHeight;
 		UVR_SLAM::Frame* mpTargetFrame, *mpRefFrame, *mpNextFrame;
-		
-		cv::Mat used, usedCPMap; //자기 자신의 KP를 추가할 때 이미 매칭이 되었던 건지 확인하기 위해서
-		cv::Mat edgeMap; //8UC1 -> 16SC1로 변경 예정. 연속성이라던가 실제 포인트 위치를 접근하기 위해
+		////매칭 된 정보를 저장하는건데 사용 안할듯함.
 		std::vector<int> mvnVisibles, mvnMatches;
-		std::vector<int> mvObjectLabels;
-		std::vector<bool> mvbCreated; //맵포인트로 생성된 경우 표시.
-		
-		//std::vector<int> mvnMatchingIDXs; //키프레임과 연결되는 인덱스 값, MP의 경우 현재 프레임 매칭 결과 중 MP와 바로 연결되기 위한 인덱스 값이 됨.
-		std::vector<MatchInfo*> mvpMatchInfos; //매칭 상태를 저장
-																											   //mvnTargetMatchingPtIDXs : 새롭게 키프레임 될 때 타겟 프레임의 매칭 정보를 저장.
-
+		////디버깅용 이미지를 저장함.
 		cv::Mat mMatchedImage;
+		//엣지에서 뽑은 피티 저장.
+		std::vector<cv::Point2f> mvEdgePts;
 
-		////////////////////
-		//초기화, 매핑 과정에서 키프레임 매칭을 위해 이용
-		std::vector<cv::Point2f> mvTempPts;
-		std::vector<int> mvTempOctaves;
-		////////////////////
-
-		//mvnMatchingPtIDXs 얘를 타겟으로 삼는 애들과의 매칭을 위해
-		//mvnMatchingMPIDXs
-
-	
-
-		std::vector<cv::Point2f> mvEdgePts; //엣지에서 뽑은 피티 저장.
-		std::vector<int> mvnEdgePtIDXs;
-
-///////////////////////////
-//Add, Remove와 관련된 것들이 추가 예정
-/*void AddMP(UVR_SLAM::MapPoint* pMP, int idx);
-void RemoveMP(int idx);*/
-///////////////////////////
 	public:
 
 	private:
 
 	};
+
 	class Frame {
 	public:
 		Frame(cv::Mat _src, int w, int h, cv::Mat mK, double ts);
@@ -147,7 +127,7 @@ void RemoveMP(int idx);*/
 		cv::Mat GetRotation();
 		cv::Mat GetTranslation();
 		void AddMP(UVR_SLAM::MapPoint* pMP, int idx);
-		void RemoveMP(int idx);
+		void RemoveMP(int idx); 
 		
 		void Reset();
 		float CalcDiffAngleAxis(UVR_SLAM::Frame* pF);

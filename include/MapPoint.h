@@ -15,7 +15,7 @@ namespace UVR_SLAM {
 		PLANE_MP,
 		PLANE_DENSE_MP
 	};
-
+	class CandidatePoint;
 	class Map;
 	class Frame;
 	class MatchInfo;
@@ -24,8 +24,8 @@ namespace UVR_SLAM {
 	public:
 		//초기 포즈 만들 때는 double형으로 형변환
 		MapPoint();
-		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, int label, int nOctave = 0);
-		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int label, int nOctave = 0);
+		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP, cv::Mat _p3D, cv::Mat _desc, int label, int nOctave = 0);
+		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int label, int nOctave = 0);
 		virtual ~MapPoint();
 	public:
 		void SetWorldPos(cv::Mat X);
@@ -72,6 +72,7 @@ namespace UVR_SLAM {
 	private:
 		Map* mpMap;
 		Frame* mpRefKF;
+		CandidatePoint* mpCP; //현재 맵포인트를 만든 CP와 연결함.
 		std::mutex mMutexMP;
 		bool mbDelete;
 		int mnPlaneID;
@@ -115,7 +116,6 @@ namespace UVR_SLAM {
 
 		//////////////////////프레임과 관련된 것들
 	public:
-		void AddFrame(UVR_SLAM::MatchInfo* pF, cv::Point2f pt); //index in frame
 		void AddFrame(UVR_SLAM::MatchInfo* pF, int idx); //index in frame
 		void RemoveFrame(UVR_SLAM::MatchInfo* pKF);
 		std::map<MatchInfo*, int> GetConnedtedFrames();

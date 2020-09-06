@@ -95,18 +95,8 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 
 	///////////////
 	//keyframe process
-	int Nref = mpRefKF->mpMatchInfo->GetMatchingSize();
-	int Ncurr = pCurr->mpMatchInfo->GetMatchingSize();
-
-	float avg = ((float)mpRefKF->mpMatchInfo->mnTotalMatch) / mpRefKF->mpMatchInfo->mvpMatchInfos.size();
-
-	mpRefKF->mpMatchInfo->mnTotalMatch += Ncurr;
-	mpRefKF->mpMatchInfo->mvpMatchInfos.push_back(pCurr->mpMatchInfo);
-
 	int nDiff = mnPointMatching - mnMapPointMatching;
 	bool bDiff = nDiff > 50;
-	//bool bKF = (((float)Ncurr) / Nref) < 0.7f;
-	//bool bAVG = Ncurr < avg*0.7;
 
 	//1 : rotation angle
 	bool bDoingMapping = !mpLocalMapper->isDoingProcess();
@@ -116,7 +106,7 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 	bool bDoingSegment = !mpSegmentator->isDoingProcess();
 
 	bool bMatchMapPoint = mnMapPointMatching < 200;
-	//bool bMatchPoint = mnPointMatching < 1200;
+	bool bMatchPoint = mnPointMatching < 500;
 
 	//if ((bRotation || bMatchMapPoint || bMatchPoint || bMaxFrames) && bDoingSegment)
 	/*if ((bRotation || bMatchMapPoint || bKF || bAVG || bMaxFrames) && !bMinFrames && bDoingMapping)
@@ -137,139 +127,15 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 		}
 		else
 			pRes = pCurr;
-		//return pRes;
-		if (pRes->CheckBaseLine(mpRefKF))
+		return pRes;
+		//baseline이 중요하지 않은듯 여기서는
+		/*if (pRes->CheckBaseLine(mpRefKF))
 			return pRes;
 		else
-			return nullptr;
+			return nullptr;*/
 	}
 	else
 		return nullptr;
-	///////////////////////////
-
-	/////////////////
-	////keyframe process
-	///*int Nref = mpRefKF->mpMatchInfo->GetMatchingSize();
-	//int Ncurr = pCurr->mpMatchInfo->GetMatchingSize();
-	//float avg = ((float)mpRefKF->mpMatchInfo->mnTotalMatch) / mpRefKF->mpMatchInfo->mvpMatchInfos.size();
-	//mpRefKF->mpMatchInfo->mnTotalMatch += Ncurr;
-	//mpRefKF->mpMatchInfo->mvpMatchInfos.push_back(pCurr->mpMatchInfo);*/
-
-	//if (mpRefKF->mpMatchInfo->mnMaxMatch < mnMapPointMatching) {
-	//	mpRefKF->mpMatchInfo->mnMaxMatch = mnMapPointMatching;
-	//	mpRefKF->mpMatchInfo->mpNextFrame = pCurr;
-	//}
-
-	//int nDiff = mnPointMatching - mnMapPointMatching;
-	//bool bDiff = nDiff > 50;
-	////bool bKF = (((float)Ncurr) / Nref) < 0.7f;
-	////bool bAVG = Ncurr < avg*0.7;
-
-	////1 : rotation angle
-	//bool bDoingMapping = !mpLocalMapper->isDoingProcess();
-	//bool bRotation = pCurr->CalcDiffAngleAxis(mpRefKF) > 10.0;
-	//bool bMaxFrames = pCurr->GetFrameID() >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
-	//bool bMinFrames = pCurr->GetFrameID() < mpRefKF->mnFrameID + mnMinFrames;
-	//bool bDoingSegment = !mpSegmentator->isDoingProcess();
-	//
-	//bool bMatchMapPoint = mnMapPointMatching < 200;
-	////bool bMatchPoint = mnPointMatching < 1200;
-
-	////if ((bRotation || bMatchMapPoint || bMatchPoint || bMaxFrames) && bDoingSegment)
-	///*if ((bRotation || bMatchMapPoint || bKF || bAVG || bMaxFrames) && !bMinFrames && bDoingMapping)
-	//{
-	//	if(pCurr->CheckBaseLine(mpRefKF))
-	//		return true;
-	//	return false;
-	//}
-	//else
-	//	return false;*/
-	//UVR_SLAM::Frame* pRes = nullptr;
-	//if (!bMinFrames && bDoingMapping) {
-	//	/*if (bMaxFrames) {
-	//		pRes = pCurr;
-	//	}
-	//	else */
-	//	if (bMatchMapPoint || bDiff || bRotation) {//bKF
-	//		pRes = mpRefKF->mpMatchInfo->mpNextFrame;
-	//	}
-	//	else
-	//		pRes = pCurr;
-	//	return pRes;
-	//	/*if (pRes->CheckBaseLine(mpRefKF))
-	//		return pRes;
-	//	else
-	//		return nullptr;*/
-	//}
-	//else
-	//	return nullptr;
-	/////////////////////////////
-
-
-
-
-
-
-
-
-
-
-
-	//2 : point && map point
-	//mnPointMatching && mnMapPointMatching;
-
-	int nMinObs = 3;
-	if (mpFrameWindow->GetLocalMapFrames().size() <= 2)
-		nMinObs = 2;
-	//int nRefMatches = mpFrameWindow->TrackedMapPoints(nMinObs);
-	int nRefMatches = mpRefKF->TrackedMapPoints(nMinObs);
-	
-
-
-
-	
-
-	//bool bLocalMappingIdle = !mpLocalMapper->isDoingProcess();
-	float thRefRatio = 0.9f;
-	//기존 방식대로 최소 프레임을 만족하면 무조건 추가.
-	//트래킹 수가 줄어들면 바로 추가.
-	int nLastID = mpRefKF->GetFrameID();
-	bool c1 = pCurr->GetFrameID() >= nLastID + mnMinFrames; //일정프레임이 지나면 무조건 추가
-	bool c2 = mnMapPointMatching < 800; //pCurr->mpMatchInfo->mvMatchingPts.size() < 800;//mnMatching < 500;
-	bool c3 = false;//mnMatching < mpFrameWindow->mnLastMatches*0.8;
-	if ( c2 ) { //c1 || c2 || c3
-		/*if (!bLocalMappingIdle)
-		{
-			mpLocalMapper->StopLocalMapping(true);
-			return false;
-		}*/
-		return nullptr;
-	}
-	else
-		return nullptr;
-
-	
-	////초기조건들
-	//bool c1a = pCurr->GetFrameID() >= nLastID + mnMaxFrames; //무조건 추가되는 상황
-	//bool c1b = pCurr->GetFrameID() >= nLastID + mnMinFrames; //최소한의 조건
-	//bool c2 = false; mnMatching < nRefMatches*thRefRatio && mnMatching > 20; //매칭 퀄리티를 유지하기 위한 것. 
-
-	////std::cout << "CheckNeedKeyFrame::Ref = " << nRefMatches << ", " << mnMatching << ", " << mpFrameWindow->mnLastMatches << "::IDLE = " << bLocalMappingIdle <<"::C2 = "<<c2<<", "<<nLastID<< std::endl;
-
-	//if ((c1b || c2)&& !bLocalMappingIdle) {
-	//	//interrupt
-	//	mpLocalMapper->StopLocalMapping(true);
-	//}
-
-	//if ((c1a || c1b || c2) && !mpLocalMapper->isDoingProcess()) {
-	//	//KF 동작 중 멈추는 과정이 필요함.
-	//	//local mapping이 동작하는 와중에도 KF가 추가됨.
-	//	return true;
-	//}
-	//else
-	//	return false;
-
-	//return false;
 }
 
 //bool bRefKF = false;
@@ -290,7 +156,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			mpSystem->SetBoolInit(true);
 			mpMap->AddTraFrame(mpInitializer->mpInitFrame1);
 			mpMap->AddTraFrame(pCurr);
-			mnMapPointMatching = pCurr->mpMatchInfo->GetMatchingSize();
+			mnMapPointMatching = pCurr->mpMatchInfo->GetNumMapPoints();
 		}
 	}
 	else {
@@ -311,6 +177,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		////MatchInfo 설정
 		//초기 매칭 테스트
 		std::vector<UVR_SLAM::MapPoint*> vpTempMPs;
+		std::vector<UVR_SLAM::CandidatePoint*> vpTempCPs;
 		std::vector<cv::Point2f> vpTempPts, vpTempPts1;
 		std::vector<cv::Point3f> vpTempPts2;
 		std::vector<uchar> vcInliers;
@@ -318,14 +185,14 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::vector<int> vnIDXs, vnMPIDXs;
 		cv::Mat debugImg;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->GetOriginalImage().size(), CV_8UC1);
-		mnPointMatching = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, overlap, debugImg); //pCurr
+		mnPointMatching = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempCPs, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, overlap, debugImg); //pCurr
 
 		//mpSystem->mbTrackingEnd = true;
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
 
 		//graph-based0.
 		mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);
-		int nMP = UpdateMatchingInfo(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
+		int nMP = UpdateMatchingInfo(mpRefKF, pCurr, vpTempCPs,vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
 	
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크
@@ -338,8 +205,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			//mpSegmentator->InsertKeyFrame(pNewKF);
 			//mpPlaneEstimator->InsertKeyFrame(pNewKF);
 		}
-		pCurr->mpMatchInfo->mnMatch = mnMapPointMatching;
-		std::cout << "tracker::end::"<<pCurr->GetFrameID()<<"::"<<mnMapPointMatching << std::endl;
 
 		////////Visualization & 시간 계산
 		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
@@ -378,28 +243,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 ////MP와 PT가 대응함.
 ////pPrev가 mpRefKF가 됨
-int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs) {
+int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs) {
 	auto pMatchInfo = pCurr->mpMatchInfo;
 	auto pPrevMatchInfo = pPrev->mpMatchInfo;
-	
-	////////////////////////////평면 관려 기능
-	/////////////즉각적으로 맵포인트를 생성하기 위함
-	//auto pTargetMatchInfo = pCurr->mpMatchInfo->mpTargetFrame->mpMatchInfo;
-	//auto pTargetTargetMatchInfo = pTargetMatchInfo->mpTargetFrame->mpMatchInfo;
-	//auto pPlane = pTargetMatchInfo->mpRefFrame->mpPlaneInformation->GetFloorPlane();
-	////auto pPlaneInfo = pPrevMatchInfo->mpTargetFrame->mpPlaneInformation->
-	//cv::Mat invP, invT, invK;
-	//pTargetMatchInfo->mpRefFrame->mpPlaneInformation->Calculate();
-	//pTargetMatchInfo->mpRefFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
-	//int nTargetMatch = pTargetMatchInfo->nMatch;
-	//int nTargetTargetMatch = pTargetTargetMatchInfo->nMatch;
-	////////현재 카메라 자세 확인용
-	///*cv::Mat R, t;
-	//pCurr->GetPose(R, t);*/
-	/////////////즉각적으로 맵포인트를 생성하기 위함
-	////////////////////////////평면 관려 기능
-
-	int nInstantMP = 0;
 	
 	int nres = 0;
 	for (int i = 0; i < vpPts.size(); i++) {
@@ -408,17 +254,12 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 		}
 		int prevIdx = vnIDXs[i];
 		auto pt = vpPts[i];
-		auto pMP = vpMPs[i];
-		if (!pMatchInfo->CheckPt(pt)) {
-			//circle(pMatchInfo->used, pt, 2, cv::Scalar(255), -1);
-			pMatchInfo->AddMatchingPt(pt, pMP, prevIdx);
-			/*pMatchInfo->AddMatchingPt(pt, pMP, pPrevMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]], mpRefKF->mpMatchInfo->mvObjectLabels[pPrev->mpMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]]]
-				, mpRefKF->mpMatchInfo->mvnOctaves[pPrev->mpMatchInfo->mvnMatchingPtIDXs[vnIDXs[i]]]);*/
-			if (pMP) {
-				nres++;
-			}
+		auto pCP = vpCPs[i];
+		if (pMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, pt)) {
+			pMatchInfo->AddCP(pCP, pt);
+			nres++;
 		}
 	}
-	pMatchInfo->mnNumMatch = mnMapPointMatching;
-	return nInstantMP;
+	std::cout << "Tracking::UpdateMatchingInfo::" << nres << std::endl;
+	return nres;
 }

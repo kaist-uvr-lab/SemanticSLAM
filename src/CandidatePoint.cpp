@@ -40,6 +40,15 @@ namespace  UVR_SLAM{
 			mnConnectedFrames++;
 		}
 	}
+
+	void CandidatePoint::AddFrame(MatchInfo* pF, int idx) {
+		std::unique_lock<std::mutex> lockMP(mMutexCP);
+		auto res = mmpFrames.find(pF);
+		if (res == mmpFrames.end()) {
+			mmpFrames.insert(std::pair<UVR_SLAM::MatchInfo*, int>(pF, idx));
+			mnConnectedFrames++;
+		}
+	}
 	
 	void CandidatePoint::RemoveFrame(UVR_SLAM::MatchInfo* pKF){
 		{
@@ -130,7 +139,7 @@ namespace  UVR_SLAM{
 		pTargetKF->GetPose(R, t);
 		cv::hconcat(R, t, P);
 		Rt = R.t();
-		auto ptFirst = pFirst->GetCPPt(idx);
+		auto ptFirst = pFirst->GetPt(idx);
 		float val = CalcParallax(Rt, Rcurr.t(), ptFirst, ptCurr, invK);
 
 		if (val >= 0.9998) {
@@ -201,7 +210,7 @@ namespace  UVR_SLAM{
 			auto pKF = iter->first->mpRefFrame;
 			auto tempInfo = iter->first;
 			int tempIdx = iter->second;
-			auto tempPt = tempInfo->GetCPPt(tempIdx);;
+			auto tempPt = tempInfo->GetPt(tempIdx);;
 
 			cv::Mat tempR, tempT, tempP;
 			pKF->GetPose(tempR, tempT);
@@ -259,11 +268,11 @@ namespace  UVR_SLAM{
 			cv::Point2f cpt = pt+ ptLeft2;
 			int pppidx = this->GetPointIndexInFrame(pPPrevMatch);
 			if (pppidx >= 0) {
-				pppt = pPPrevMatch->GetCPPt(pppidx);
+				pppt = pPPrevMatch->GetPt(pppidx);
 			}
 			int ppidx = this->GetPointIndexInFrame(pPrevMatch);
 			if (ppidx >= 0) {
-				ppt = pPrevMatch->GetCPPt(ppidx)+ptLeft1;
+				ppt = pPrevMatch->GetPt(ppidx)+ptLeft1;
 			}
 			/*int cidx = this->GetPointIndexInFrame(pMatch);
 			if (cidx >= 0) {
@@ -285,9 +294,9 @@ namespace  UVR_SLAM{
 				int label = 0;
 				int octave = 0;
 				////labeling 결과까지
-				auto pMP = new UVR_SLAM::MapPoint(pMap, targetKF, x3D, cv::Mat(), label, octave);
+				auto pMP = new UVR_SLAM::MapPoint(pMap, targetKF, this, x3D, cv::Mat(), label, octave);
 				for (int i = 0; i < vPs.size(); i++) {
-					pMP->AddFrame(vpMatches[i], vPts[i]);
+					//pMP->AddFrame(vpMatches[i], vPts[i]);
 				}
 				/*
 				pMP->AddFrame(pCurrKF->mpMatchInfo, pt1);
