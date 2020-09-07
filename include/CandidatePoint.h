@@ -34,8 +34,8 @@ namespace UVR_SLAM {
 		//아웃라이어 체크(리프로젝션 에러)
 		//뎁스테스트
 	public:
+		int mnFirstID; //처음 발견한 프레임
 		int octave;
-		
 		bool bCreated;
 		MapPoint* mpMapPoint;
 	private:

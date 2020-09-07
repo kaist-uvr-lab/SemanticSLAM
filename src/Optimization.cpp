@@ -1595,7 +1595,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 		optimizer.setForceStopFlag(&bStopBA);
 
 	unsigned long maxKFid = 0;
-	
+	int nTargetID = vpKFs[0]->mnLocalBAID;
 	for (int i = 0; i < vpKFs.size(); i++) {
 		auto pKFi = vpKFs[i];
 		g2o::VertexSE3Expmap * vSE3 = new g2o::VertexSE3Expmap();
@@ -1669,6 +1669,8 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 		{
 			auto pMatch = mit->first;
 			auto pKFi = pMatch->mpRefFrame;
+			if (pKFi->mnLocalBAID != nTargetID)
+				continue;
 			if (pKFi->GetKeyFrameID() > maxKFid)
 				continue;
 			int idx = mit->second;

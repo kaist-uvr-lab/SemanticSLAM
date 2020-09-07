@@ -9,7 +9,7 @@
 #include <System.h>
 #include <ORBextractor.h>
 #include <Plane.h>
-int UVR_SLAM::MatchInfo::nMaxMP = 400;
+int UVR_SLAM::MatchInfo::nMaxMP = 500;
 int UVR_SLAM::Frame::mnRadius = 3;
 bool UVR_SLAM::Frame::mbInitialComputations = true;
 float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
@@ -1140,6 +1140,15 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLA
 	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
 		res.push_back(mvMatchingPts[i]);
 		vpCPs.push_back(mvpMatchingCPs[i]);
+	}
+	return res;
+}
+
+std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts() {
+	std::unique_lock<std::mutex>(mMutexCPs);
+	std::vector<cv::Point2f> res;
+	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
+		res.push_back(mvMatchingPts[i]);
 	}
 	return res;
 }

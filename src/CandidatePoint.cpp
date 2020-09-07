@@ -9,6 +9,7 @@ namespace  UVR_SLAM{
 	}
 	CandidatePoint::CandidatePoint(MatchInfo* pRefKF, int alabel, int aoct):mpRefKF(pRefKF), label(alabel), octave(aoct), bCreated(false), mbDelete(false){
 		mpMapPoint = nullptr;
+		mnFirstID = pRefKF->mpRefFrame->GetFrameID();
 	}
 	CandidatePoint::~CandidatePoint(){}
 

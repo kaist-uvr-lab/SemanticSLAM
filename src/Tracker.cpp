@@ -119,14 +119,15 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 	return false;*/
 	UVR_SLAM::Frame* pRes = nullptr;
 	if (!bMinFrames && bDoingMapping) {
-		if (bRotation || bMaxFrames) {
-			pRes = pCurr;
-		}
-		else if (bMatchMapPoint || bDiff) {//bKF
-			pRes = pPrev;
-		}
-		else
-			pRes = pCurr;
+		//if (bRotation || bMaxFrames) {
+		//	pRes = pCurr;
+		//}
+		//else if (bMatchMapPoint || bDiff) {//bKF
+		//	pRes = pPrev;
+		//}
+		//else
+		//	pRes = pCurr;
+		pRes = pCurr;
 		return pRes;
 		//baseline이 중요하지 않은듯 여기서는
 		/*if (pRes->CheckBaseLine(mpRefKF))

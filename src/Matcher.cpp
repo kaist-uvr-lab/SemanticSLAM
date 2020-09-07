@@ -1147,6 +1147,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Frame* pCurrKF, Frame* pPrevKF
 	std::vector<int> vnOctaves;
 	std::vector<CandidatePoint*> vPrevCPs;
 	prevPts = pPrevKF->mpMatchInfo->GetMatchingPts(vPrevCPs);
+	if (prevPts.size() < 5)
+		return 0;
 	auto pPrevMatchInfo = pPrevKF->mpMatchInfo;
 	auto pCurrMatchInfo = pCurrKF->mpMatchInfo;
 
@@ -1163,6 +1165,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Frame* pCurrKF, Frame* pPrevKF
 	cv::Mat usedPrev = cv::Mat::zeros(prevImg.size(), CV_8UC1);
 	cv::Mat usedCurr = cv::Mat::zeros(prevImg.size(), CV_8UC1);
 	for (int i = 0; i < prevPts.size(); i++) {
+		cv::circle(debugging, prevPts[i], 2, cv::Scalar(0, 0, 0), -1);
 		if (status[i] == 0) {
 			continue;
 		}
@@ -1175,7 +1178,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Frame* pCurrKF, Frame* pPrevKF
 		}
 		cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
 		cv::circle(usedCurr, currPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
-
+		cv::circle(debugging, prevPts[i], 2, cv::Scalar(255, 0, 0), -1);
+		cv::circle(debugging, currPts[i] + ptBottom, 2, cv::Scalar(255, 0, 0), -1);
 		vTempPrevPts.push_back(prevPts[i]);
 		vTempCurrPts.push_back(currPts[i]);
 		vTempIDXs.push_back(i);
@@ -1189,6 +1193,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Frame* pCurrKF, Frame* pPrevKF
 	cv::Mat E12 = cv::findEssentialMat(vTempPrevPts, vTempCurrPts, K, cv::FM_RANSAC, 0.999, 1.0, vFInliers);
 	
 	int nRes = 0;
+	int nTargetID = pPrevKF->GetFrameID();
 	for (unsigned long i = 0; i < vFInliers.size(); i++) {
 		if (vFInliers[i]) {
 			
@@ -1198,7 +1203,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Frame* pCurrKF, Frame* pPrevKF
 			vMatchedPrevPts.push_back(prevPt);
 			vMatchedCurrPts.push_back(currPt);
 			auto pCPi = vPrevCPs[idx];
-			if (pCPi->GetNumSize() == 1) {
+			if (pCPi->mnFirstID == nTargetID) {
 				cv::circle(debugging, prevPt, 2, cv::Scalar(0, 0, 255), -1);
 				cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(0, 0, 255), -1);
 			}
@@ -1206,6 +1211,11 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Frame* pCurrKF, Frame* pPrevKF
 				cv::circle(debugging, prevPt, 2, cv::Scalar(255, 255, 0), -1);
 				cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(255, 255, 0), -1);
 			}
+			if (pCPi->bCreated) {
+				cv::circle(debugging, prevPt, 3, cv::Scalar(0, 255, 255));
+				cv::circle(debugging, currPt + ptBottom, 3, cv::Scalar(0, 255, 255));
+			}
+
 			pCurrKF->mpMatchInfo->AddCP(pCPi, currPt);
 			//pCPi->AddFrame(pCurrKF->mpMatchInfo, currPt);
 			vMatchedCPs.push_back(pCPi);

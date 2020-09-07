@@ -417,6 +417,42 @@ void UVR_SLAM::Visualizer::Run() {
 				////////////////////////////////////////////////////////////
 				}
 			////trajectory
+			/*auto sGraphKFs = std::set<Frame*>(mpMap->mspGraphFrames.begin(), mpMap->mspGraphFrames.end());
+			auto lKFs = std::list<Frame*>(mpMap->mQueueFrameWindows.begin(), mpMap->mQueueFrameWindows.end());
+			for (auto iter = sGraphKFs.begin(), iend = sGraphKFs.end(); iter != iend; iter) {
+				auto pKFi = *iter;
+				cv::Mat t1 = pKFi->GetCameraCenter();
+				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
+				pt1 += mVisMidPt;
+				cv::circle(tempVis, pt1, 2, cv::Scalar(0, 155, 248), -1);
+			}
+			
+			for (auto iter = lKFs.begin(); iter != lKFs.end(); iter) {
+				auto pKFi = *iter;
+				cv::Mat t1 = pKFi->GetCameraCenter();
+				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
+				pt1 += mVisMidPt;
+				cv::circle(tempVis, pt1, 2, cv::Scalar(51, 0, 51), -1);
+			} 
+			{
+				auto currKF = lKFs.back();
+				cv::Mat t1 = currKF->GetCameraCenter();
+				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
+				pt1 += mVisMidPt;
+				cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
+				cv::Mat directionZ = currKF->GetRotation().row(2);
+				cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(mnAxis1)* mnVisScale / 10.0, directionZ.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
+				cv::line(tempVis, pt1, dirPtZ, cv::Scalar(255, 0, 0), 2);
+				cv::Mat directionY = currKF->GetRotation().row(1);
+				cv::Point2f dirPtY = cv::Point2f(directionY.at<float>(mnAxis1)* mnVisScale / 10.0, directionY.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
+				cv::line(tempVis, pt1, dirPtY, cv::Scalar(0, 255, 0), 2);
+
+				cv::Mat directionX = currKF->GetRotation().row(0);
+				cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
+				cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
+				cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
+			}*/
+			//
 			auto frames = mpMap->GetFrames();
 			int nFrame = frames.size();
 			for (int i = 0; i < nFrame; i++) {

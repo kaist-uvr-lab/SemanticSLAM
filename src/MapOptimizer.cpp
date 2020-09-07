@@ -104,23 +104,22 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::vector<UVR_SLAM::Frame*> vpKFs;
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
 			
-			auto tempKFs1 = mpTargetFrame->GetConnectedKFs(7);
-			//auto tempKFs2 = mpTargetFrame->GetConnectedKFs();
-			vpKFs.push_back(mpTargetFrame);
-			
-			for (int i = 0; i < tempKFs1.size(); i++){
-				tempKFs1[i]->mnLocalBAID = nTargetID;
-				vpKFs.push_back(tempKFs1[i]);
+			auto lpKFs = mpMap->mQueueFrameWindows;
+			for (auto iter = lpKFs.begin(); iter != lpKFs.end(); iter++) {
+				auto pKF = *iter;
+				pKF->mnLocalBAID = nTargetID;
+				vpKFs.push_back(pKF);
 			}
-			
-			/*for (int i = 0; i < tempKFs2.size(); i++) {
-				if (tempKFs2[i]->mnLocalBAID != nTargetID && tempKFs2[i]->mnFixedBAID != nTargetID)
-				{
-					tempKFs2[i]->mnFixedBAID = nTargetID;
-					vpFixedKFs.push_back(tempKFs2[i]);
-				}
-			}*/
 
+			//auto tempKFs1 = mpTargetFrame->GetConnectedKFs();
+			////auto tempKFs2 = mpTargetFrame->GetConnectedKFs();
+			//vpKFs.push_back(mpTargetFrame);
+			//
+			//for (int i = 0; i < tempKFs1.size(); i++){
+			//	tempKFs1[i]->mnLocalBAID = nTargetID;
+			//	vpKFs.push_back(tempKFs1[i]);
+			//}
+			
 			for (int k = 0; k < vpKFs.size(); k++){
 				auto pKFi = vpKFs[k];
 				auto matchInfo = pKFi->mpMatchInfo;
@@ -138,7 +137,16 @@ void UVR_SLAM::MapOptimizer::Run() {
 					vpMPs.push_back(pMPi);
 				}
 			}
-			for (int i = 0; i < vpMPs.size(); i++)
+
+			auto spGraphKFs = mpMap->mspGraphFrames;
+			for (auto iter = spGraphKFs.begin(); iter != spGraphKFs.end(); iter++) {
+				auto pKFi = *iter;
+				pKFi->mnFixedBAID = nTargetID;
+				pKFi->mnLocalBAID = nTargetID;
+				vpFixedKFs.push_back(pKFi);
+			}
+
+			/*for (int i = 0; i < vpMPs.size(); i++)
 			{
 				UVR_SLAM::MapPoint* pMP = vpMPs[i];
 				auto observations = pMP->GetConnedtedFrames();
@@ -147,13 +155,18 @@ void UVR_SLAM::MapOptimizer::Run() {
 					auto pMatch = mit->first;
 					auto pKFi = pMatch->mpRefFrame;
 
+					if (spGraphKFs.find(pKFi) == spGraphKFs.end())
+						continue;
+
 					if (pKFi->mnLocalBAID != nTargetID && pKFi->mnFixedBAID != nTargetID)
 					{
 						pKFi->mnFixedBAID = nTargetID;
+						pKFi->mnLocalBAID = nTargetID;
 						vpFixedKFs.push_back(pKFi);
 					}
 				}
-			}
+			}*/
+
 			std::cout << "BA::Optimization::Start" << std::endl;
 			//mpMap->SetNumDeleteMP();
 			auto vpPlaneInfos = mpMap->GetPlaneInfos();

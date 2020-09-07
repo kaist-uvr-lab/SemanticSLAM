@@ -117,6 +117,10 @@ void UVR_SLAM::LocalMapper::Reset() {
 }
 void UVR_SLAM::LocalMapper::Run() {
 
+	int nMaxConnectedKFs = 12;
+	int nMaxCandidateKFs = 4;
+	int nMinMapPoints = 1000;
+
 	while (1) {
 
 		if (CheckNewKeyFrames()) {
@@ -152,8 +156,15 @@ void UVR_SLAM::LocalMapper::Run() {
 			auto vPrevCandidatePoints = mpPrevKeyFrame->mpMatchInfo->GetMatchingPts(vnPrevOctaves);*/
 			double time1 = 0.0;
 			double time2 = 0.0;
+			/////////KF-KF 매칭
 			mpMatcher->OpticalMatchingForMapping2(mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, mK, mInvK, time1, debugMatch);
 			mpPrevKeyFrame->mpMatchInfo->mMatchedImage = debugMatch.clone();
+			///////매칭 정보 저장
+			std::stringstream sstdir;
+			sstdir << mpSystem->GetDirPath(0) << "/kfmatching/kfmatching_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
+			cv::imwrite(sstdir.str(), debugMatch);
+			///////매칭 정보 저장
+			/////////KF-KF 매칭
 
 			////KF 조절
 			if (mpTargetFrame->GetKeyFrameID() % 3 != 0)
@@ -167,181 +178,230 @@ void UVR_SLAM::LocalMapper::Run() {
 			mpSegmentator->InsertKeyFrame(mpTargetFrame);
 
 			//////////////////업데이트 맵포인트
-			float fratio = ((float)mpTargetFrame->mpMatchInfo->GetNumMapPoints()) / mpPrevKeyFrame->mpMatchInfo->GetNumMapPoints();
+			float fratio = 0.0f;
 			auto matchInfo = mpTargetFrame->mpMatchInfo;
 			matchInfo->UpdateFrame();
+			//mpPrevKeyFrame->mpMatchInfo->UpdateFrame();
 			//////////////////업데이트 맵포인트
 
-			///////////////////Window Test
-			//std::cout << "LM::Fusing::Start" << std::endl;
-			cv::Mat windowImg = cv::Mat::zeros(mnHeight * 2, mnWidth * 4, CV_8UC3);
-			std::chrono::high_resolution_clock::time_point fuse_start = std::chrono::high_resolution_clock::now();
-			int Nimg = 0;
-			cv::Rect currRect(mnWidth * 3, mnHeight, mnWidth, mnHeight);
-			mpTargetFrame->GetOriginalImage().copyTo(windowImg(currRect));
-			cv::Point2f ptBase(mnWidth * 3, mnHeight);
-			std::vector<int> vnMatches;
+			/////////////////////Window Test
+			std::vector<CandidatePoint*> vpCurrCPs;
+			auto vCurrPTs = mpTargetFrame->mpMatchInfo->GetMatchingPts(vpCurrCPs);
+			std::cout << "mapping test ::" << vCurrPTs.size() << ", " << vMatchCurrPts.size() << std::endl;
 			for (auto iter = mpMap->mQueueFrameWindows.begin(); iter != mpMap->mQueueFrameWindows.end(); iter++) {
 				auto pKF = *iter;
-					
-				int h = Nimg / 4;
-				int w = Nimg % 4;
-				cv::Mat img = pKF->GetOriginalImage();
-				cv::Rect tmpRect(mnWidth*w, mnHeight*h, mnWidth, mnHeight);
-				img.copyTo(windowImg(tmpRect));
-				Nimg++;
-
-				int nTemp = 0;
 				auto pTargetMatch = pKF->mpMatchInfo;
-				cv::Point2f ptTarget(mnWidth*w, mnHeight*h);
-
-				std::vector<cv::Point2f> vTempCurrPTs, vTempPrevPTs;
-				std::vector<CandidatePoint*> vTempCPs;
-				cv::Mat R, T;
-				//bool bTest = pKF->GetKeyFrameID() + 3 == mpTargetFrame->GetKeyFrameID() || pKF->GetKeyFrameID() + 6 == mpTargetFrame->GetKeyFrameID() || pKF->GetKeyFrameID() + 9 == mpTargetFrame->GetKeyFrameID();
-				//bool bTest = false;
-				bool bTest = pKF->GetKeyFrameID() + 3 == mpTargetFrame->GetKeyFrameID() && fratio < 0.9;
-
-				for (int i = 0; i < vMatchCurrPts.size(); i++) {
-					auto pCPi = vMatchPrevCPs[i];
+				for (int i = 0; i < vCurrPTs.size(); i++) {
+					auto pCPi = vpCurrCPs[i];
+					auto pMPi = pCPi->mpMapPoint;
 					int idx = pCPi->GetPointIndexInFrame(pTargetMatch);
 					if (idx >= 0) {
-						auto pt = pTargetMatch->GetPt(idx);
-						nTemp++;
-						//bool bUsed1 = pTargetMatch->CheckOpticalPointOverlap(used, Frame::mnRadius, 10, pt); //used //얘는 왜 used 따로 만듬???
-						//bool bUsed2 = pTargetMatch->CheckOpticalPointOverlap(usedCurr, Frame::mnRadius, 10, vMatchCurrPts[i]); //used //얘는 왜 used 따로 만듬???
-						//if (!bUsed1 || !bUsed2) {
-						//	continue;
-						//}
-						//cv::circle(used, pt, 2, cv::Scalar(255, 255, 255), -1);
-						//cv::circle(usedCurr, vMatchCurrPts[i], 2, cv::Scalar(255, 255, 255), -1);
-
-						cv::circle(windowImg, vMatchCurrPts[i] + ptBase, 2, cv::Scalar(255, 0, 255), -1);
-						cv::circle(windowImg, pt+ ptTarget, 2, cv::Scalar(255, 0, 255), -1);
-
-						if (bTest) {
-							vTempCurrPTs.push_back(vMatchCurrPts[i]);
-							vTempPrevPTs.push_back(pt);
-							vTempCPs.push_back(pCPi);
-						}
-
-						bool b = pCPi->bCreated;
-						auto pMPi = pCPi->mpMapPoint;
-						if (b) {
-							//둘다 존재하는지 체크하자
+						//auto pt = pTargetMatch->GetPt(idx);
+						if (pCPi->bCreated && pMPi) {
 							bool bCurr = pMPi->isInFrame(mpTargetFrame->mpMatchInfo);
 							bool bPrev = pMPi->isInFrame(pTargetMatch);
-
-							//cv::Point2f projPt;
-							//bool bProj = pMPi->Projection(projPt, pKF, mnWidth, mnHeight);
-							//if (bProj) {
-							//	//cv::circle(windowImg, projPt + ptTarget, 2, cv::Scalar(255, 0, 0), -1);
-							//	cv::line(windowImg, projPt + ptTarget, pt + ptTarget, cv::Scalar(0, 0, 255));
-							//}
-							//else {
-							//	cv::line(windowImg, projPt + ptTarget, pt + ptTarget, cv::Scalar(0, 0, 255));
-							//}
-
-							//cv::Point2f projPt2;
-							//bool bProj2 = pMPi->Projection(projPt2, mpTargetFrame, mnWidth, mnHeight);
-							//if (bProj2) {
-							//	//cv::circle(windowImg, projPt + ptTarget, 2, cv::Scalar(255, 0, 0), -1);
-							//	cv::line(windowImg, projPt2 + ptBase, vMatchCurrPts[i] + ptBase, cv::Scalar(0, 0, 255));
-							//}
-							
-							if (bCurr) {
-								if (pMPi->mnFirstKeyFrameID == mpTargetFrame->GetKeyFrameID()-3)
-									cv::circle(windowImg, vMatchCurrPts[i] + ptBase, 3, cv::Scalar(0,0,255));
-								else
-									cv::circle(windowImg, vMatchCurrPts[i] + ptBase, 2, cv::Scalar(255, 255, 0), -1);
-							}
-							if (bPrev) {
-								if (pMPi->mnFirstKeyFrameID == mpTargetFrame->GetKeyFrameID()-3)
-									cv::circle(windowImg, pt + ptTarget, 3, cv::Scalar(0, 0, 255), -1);
-								else
-									cv::circle(windowImg, pt+ ptTarget, 2, cv::Scalar(255, 255, 0), -1);
-							}
-							if (!bCurr && !bPrev) {
-								cv::circle(windowImg, vMatchCurrPts[i] + ptBase, 2, cv::Scalar(0, 255, 255), -1);
-								cv::circle(windowImg, pt+ ptTarget, 2, cv::Scalar(0, 255, 255), -1);
-							}
-
-							if (bCurr && !bPrev) {
-								//pMPi->AddFrame(pTargetMatch, pt);
-								//check projection pt
-								cv::circle(windowImg, vMatchCurrPts[i] + ptBase, 3, cv::Scalar(255, 0, 0));
-								cv::circle(windowImg, pt+ ptTarget, 3, cv::Scalar(255, 0, 0));
-							}
 							if (bPrev && !bCurr) {
-								//pMPi->AddFrame(mpTargetFrame->mpMatchInfo, vMatchCurrPts[i]);
-								//check projection pt
-								cv::circle(windowImg, vMatchCurrPts[i] + ptBase, 3, cv::Scalar(0, 255, 255));
-								cv::circle(windowImg, pt + ptTarget, 3, cv::Scalar(0, 255, 255));
+								pMPi->AddFrame(mpTargetFrame->mpMatchInfo, i);
 							}
-						}//맵포인트가 존재하는 경우
+						}
 					}
-				}//for curr pts
-				mpTargetFrame->AddKF(pKF, nTemp);
-				vnMatches.push_back(nTemp);
-
-				if (bTest) {
-					double d3;
-					//RecoverPose(mpTargetFrame, pKF, vTempPrevPTs, vTempCurrPTs, vTempCPs, R, T, d3, windowImg(tmpRect), windowImg(currRect));
-					
-					/*cv::Mat Rcurr, Tcurr, Rprev, Tprev;
-					pKF->GetPose(Rprev, Tprev);
-					mpTargetFrame->GetPose(Rcurr, Tcurr);
-					cv::Mat Rinv = Rprev.t();
-					cv::Mat Tinv = -Rinv*Tprev;
-					cv::Mat Rdiff = Rcurr*Rinv;
-					cv::Mat Tdiff = Rcurr*Tinv + Tcurr;
-					std::cout << Rdiff << R << std::endl;
-					std::cout << Tdiff.t() << T.t() << std::endl;*/
 				}
+			}
 
-			}//for iter
-			//std::cout << "LM::Fusing::End" << std::endl;
-			std::chrono::high_resolution_clock::time_point fuse_end = std::chrono::high_resolution_clock::now();
-			auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(fuse_end - fuse_start).count();
-			double fuse_time = duration / 1000.0;
-			std::stringstream ss;
-			ss << "WindowFusing= " << fratio << "::" << fuse_time;
-			for (int i = 0; i < vnMatches.size(); i++)
-				ss << "::" << vnMatches[i];
-			cv::rectangle(windowImg, cv::Point2f(0, 0), cv::Point2f(windowImg.cols, 30), cv::Scalar::all(0), -1);
-			cv::putText(windowImg, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+			////std::cout << "LM::Fusing::Start" << std::endl;
+			//cv::Mat windowImg = cv::Mat::zeros(mnHeight * 2, mnWidth * 4, CV_8UC3);
+			//std::chrono::high_resolution_clock::time_point fuse_start = std::chrono::high_resolution_clock::now();
+			//int Nimg = 0;
+			//cv::Rect currRect(mnWidth * 3, mnHeight, mnWidth, mnHeight);
+			//mpTargetFrame->GetOriginalImage().copyTo(windowImg(currRect));
+			//cv::Point2f ptBase(mnWidth * 3, mnHeight);
+			//bool bRecover = false;
+			//for (int i = 0; i < vMatchCurrPts.size(); i++) {
+			//	cv::circle(windowImg, vMatchCurrPts[i] + ptBase, 1, cv::Scalar(255, 0, 0), -1);
+			//}
+			//std::vector<int> vnMatches;
+			//for (auto iter = mpMap->mQueueFrameWindows.begin(); iter != mpMap->mQueueFrameWindows.end(); iter++) {
+			//	auto pKF = *iter;
+			//		
+			//	int h = Nimg / 4;
+			//	int w = Nimg % 4;
+			//	cv::Mat img = pKF->GetOriginalImage();
+			//	cv::Rect tmpRect(mnWidth*w, mnHeight*h, mnWidth, mnHeight);
+			//	img.copyTo(windowImg(tmpRect));
+			//	Nimg++;
 
-			ss.str("");
-			ss << "Optical flow Mapping2= " << mpTargetFrame->GetFrameID() << ", " << mpPrevKeyFrame->GetFrameID() << ", " << "::" << time1 << ", " << time2;
-			cv::rectangle(debugMatch, cv::Point2f(0, 0), cv::Point2f(debugMatch.cols, 30), cv::Scalar::all(0), -1);
-			cv::putText(debugMatch, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-			///////////////////Window Test
+			//	int nTemp = 0;
+			//	auto pTargetMatch = pKF->mpMatchInfo;
+			//	cv::Point2f ptTarget(mnWidth*w, mnHeight*h);
+
+			//	auto ttttPts = pTargetMatch->GetMatchingPts();
+			//	for (int i = 0; i < ttttPts.size(); i++) {
+			//		cv::circle(windowImg, ttttPts[i] + ptTarget, 1, cv::Scalar(255, 0, 0), -1);
+			//	}
+
+			//	std::vector<cv::Point2f> vTempCurrPTs, vTempPrevPTs;
+			//	std::vector<CandidatePoint*> vTempCPs;
+			//	cv::Mat R, T;
+			//	//bool bTest = pKF->GetKeyFrameID() + 3 == mpTargetFrame->GetKeyFrameID() || pKF->GetKeyFrameID() + 6 == mpTargetFrame->GetKeyFrameID() || pKF->GetKeyFrameID() + 9 == mpTargetFrame->GetKeyFrameID();
+			//	//bool bTest = false;
+			//	if(pKF->GetKeyFrameID() +3 == mpTargetFrame->GetKeyFrameID()){
+			//		//pKF->GetKeyFrameID() + 3 == mpTargetFrame->GetKeyFrameID()
+			//		fratio = ((float)mpTargetFrame->mpMatchInfo->GetNumMapPoints()) / pKF->mpMatchInfo->GetNumMapPoints();
+			//		if (fratio < 0.8)
+			//			bRecover = true;
+			//	}
+
+			//	for (int i = 0; i < vMatchCurrPts.size(); i++) {
+			//		auto pCPi = vMatchPrevCPs[i];
+			//		int idx = pCPi->GetPointIndexInFrame(pTargetMatch);
+			//		if (idx >= 0) {
+			//			auto pt = pTargetMatch->GetPt(idx);
+			//			nTemp++;
+			//			//bool bUsed1 = pTargetMatch->CheckOpticalPointOverlap(used, Frame::mnRadius, 10, pt); //used //얘는 왜 used 따로 만듬???
+			//			//bool bUsed2 = pTargetMatch->CheckOpticalPointOverlap(usedCurr, Frame::mnRadius, 10, vMatchCurrPts[i]); //used //얘는 왜 used 따로 만듬???
+			//			//if (!bUsed1 || !bUsed2) {
+			//			//	continue;
+			//			//}
+			//			//cv::circle(used, pt, 2, cv::Scalar(255, 255, 255), -1);
+			//			//cv::circle(usedCurr, vMatchCurrPts[i], 2, cv::Scalar(255, 255, 255), -1);
+
+			//			cv::circle(windowImg, vMatchCurrPts[i] + ptBase, 2, cv::Scalar(255, 0, 255), -1);
+			//			cv::circle(windowImg, pt+ ptTarget, 2, cv::Scalar(255, 0, 255), -1);
+
+			//			if (bRecover) {
+			//				vTempCurrPTs.push_back(vMatchCurrPts[i]);
+			//				vTempPrevPTs.push_back(pt);
+			//				vTempCPs.push_back(pCPi);
+			//			}
+
+			//			bool b = pCPi->bCreated;
+			//			auto pMPi = pCPi->mpMapPoint;
+			//			if (b && pMPi) {
+			//				//둘다 존재하는지 체크하자
+			//				bool bCurr = pMPi->isInFrame(mpTargetFrame->mpMatchInfo);
+			//				bool bPrev = pMPi->isInFrame(pTargetMatch);
+
+			//				//cv::Point2f projPt;
+			//				//bool bProj = pMPi->Projection(projPt, pKF, mnWidth, mnHeight);
+			//				//if (bProj) {
+			//				//	//cv::circle(windowImg, projPt + ptTarget, 2, cv::Scalar(255, 0, 0), -1);
+			//				//	cv::line(windowImg, projPt + ptTarget, pt + ptTarget, cv::Scalar(0, 0, 255));
+			//				//}
+			//				//else {
+			//				//	cv::line(windowImg, projPt + ptTarget, pt + ptTarget, cv::Scalar(0, 0, 255));
+			//				//}
+
+			//				//cv::Point2f projPt2;
+			//				//bool bProj2 = pMPi->Projection(projPt2, mpTargetFrame, mnWidth, mnHeight);
+			//				//if (bProj2) {
+			//				//	//cv::circle(windowImg, projPt + ptTarget, 2, cv::Scalar(255, 0, 0), -1);
+			//				//	cv::line(windowImg, projPt2 + ptBase, vMatchCurrPts[i] + ptBase, cv::Scalar(0, 0, 255));
+			//				//}
+			//				
+			//				if (bCurr) {
+			//					if (pMPi->mnFirstKeyFrameID == mpTargetFrame->GetKeyFrameID()-3)
+			//						cv::circle(windowImg, vMatchCurrPts[i] + ptBase, 3, cv::Scalar(0,0,255));
+			//					else
+			//						cv::circle(windowImg, vMatchCurrPts[i] + ptBase, 2, cv::Scalar(255, 255, 0), -1);
+			//				}
+			//				if (bPrev) {
+			//					if (pMPi->mnFirstKeyFrameID == mpTargetFrame->GetKeyFrameID()-3)
+			//						cv::circle(windowImg, pt + ptTarget, 3, cv::Scalar(0, 0, 255), -1);
+			//					else
+			//						cv::circle(windowImg, pt+ ptTarget, 2, cv::Scalar(255, 255, 0), -1);
+			//				}
+			//				if (!bCurr && !bPrev) {
+			//					cv::circle(windowImg, vMatchCurrPts[i] + ptBase, 2, cv::Scalar(0, 255, 255), -1);
+			//					cv::circle(windowImg, pt+ ptTarget, 2, cv::Scalar(0, 255, 255), -1);
+			//				}
+
+			//				if (bCurr && !bPrev) {
+			//					//pMPi->AddFrame(pTargetMatch, pt);
+			//					//check projection pt
+			//					cv::circle(windowImg, vMatchCurrPts[i] + ptBase, 3, cv::Scalar(255, 0, 0));
+			//					cv::circle(windowImg, pt+ ptTarget, 3, cv::Scalar(255, 0, 0));
+			//				}
+			//				if (bPrev && !bCurr) {
+			//					//pMPi->AddFrame(mpTargetFrame->mpMatchInfo, vMatchCurrPts[i]);
+			//					//check projection pt
+			//					cv::circle(windowImg, vMatchCurrPts[i] + ptBase, 3, cv::Scalar(0, 255, 255));
+			//					cv::circle(windowImg, pt + ptTarget, 3, cv::Scalar(0, 255, 255));
+			//				}
+			//			}//맵포인트가 존재하는 경우
+			//		}
+			//	}//for curr pts
+			//	mpTargetFrame->AddKF(pKF, nTemp);
+			//	vnMatches.push_back(nTemp);
+
+			//	if (bRecover) {
+			//		double d3;
+			//		RecoverPose(mpTargetFrame, pKF, vTempPrevPTs, vTempCurrPTs, vTempCPs, R, T, d3, windowImg(tmpRect), windowImg(currRect));
+			//		
+			//		/*cv::Mat Rcurr, Tcurr, Rprev, Tprev;
+			//		pKF->GetPose(Rprev, Tprev);
+			//		mpTargetFrame->GetPose(Rcurr, Tcurr);
+			//		cv::Mat Rinv = Rprev.t();
+			//		cv::Mat Tinv = -Rinv*Tprev;
+			//		cv::Mat Rdiff = Rcurr*Rinv;
+			//		cv::Mat Tdiff = Rcurr*Tinv + Tcurr;
+			//		std::cout << Rdiff << R << std::endl;
+			//		std::cout << Tdiff.t() << T.t() << std::endl;*/
+			//	}
+
+			//}//for iter
+			////std::cout << "LM::Fusing::End" << std::endl;
+			//std::chrono::high_resolution_clock::time_point fuse_end = std::chrono::high_resolution_clock::now();
+			//auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(fuse_end - fuse_start).count();
+			//double fuse_time = duration / 1000.0;
+			//std::stringstream ss;
+			//ss << "WindowFusing= " << fratio << "::" << fuse_time;
+			//for (int i = 0; i < vnMatches.size(); i++)
+			//	ss << "::" << vnMatches[i];
+			//cv::rectangle(windowImg, cv::Point2f(0, 0), cv::Point2f(windowImg.cols, 30), cv::Scalar::all(0), -1);
+			//cv::putText(windowImg, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+
+			//ss.str("");
+			//ss << "Optical flow Mapping2= " << mpTargetFrame->GetFrameID() << ", " << mpPrevKeyFrame->GetFrameID() << ", " << "::" << time1 << ", " << time2;
+			//cv::rectangle(debugMatch, cv::Point2f(0, 0), cv::Point2f(debugMatch.cols, 30), cv::Scalar::all(0), -1);
+			//cv::putText(debugMatch, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+			/////////////////////Window Test
 
 			//////맵포인트 생성
-			if (matchInfo->GetNumMapPoints() < 1000)
+			if (matchInfo->GetNumMapPoints() < nMinMapPoints)
 				nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, time2, debugMatch);
 			mpPrevKeyFrame->mpMatchInfo->mMatchedImage = debugMatch.clone();
 			//////맵포인트 생성
 
-			/////매칭 정보 저장
-			cv::Mat resImg = cv::Mat::zeros(mnHeight * 2, mnWidth * 5, CV_8UC3);
-			windowImg.copyTo(resImg(cv::Rect(0, 0, windowImg.cols, windowImg.rows)));
-			debugMatch.copyTo(resImg(cv::Rect(mnWidth*4, 0, debugMatch.cols, debugMatch.rows)));
-			std::stringstream sstdir;
-			sstdir << mpSystem->GetDirPath(0) << "/testmatching/fuse_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
-			cv::imwrite(sstdir.str(), resImg);
-			/////매칭 정보 저장
+			///////매칭 정보 저장
+			//cv::Mat resImg = cv::Mat::zeros(mnHeight * 2, mnWidth * 5, CV_8UC3);
+			//windowImg.copyTo(resImg(cv::Rect(0, 0, windowImg.cols, windowImg.rows)));
+			//debugMatch.copyTo(resImg(cv::Rect(mnWidth*4, 0, debugMatch.cols, debugMatch.rows)));
+			//std::stringstream sstdir;
+			//sstdir << mpSystem->GetDirPath(0) << "/testmatching/fuse_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
+			//cv::imwrite(sstdir.str(), resImg);
+			///////매칭 정보 저장
 
 			////프레임 윈도우에 추가
-			if (mpMap->mQueueFrameWindows.size() == 7){
+			if (mpMap->mQueueFrameWindows.size() == nMaxConnectedKFs){
 				auto pKF = mpMap->mQueueFrameWindows.front();
 				mpMap->mQueueFrameWindows.pop_front();
 				mpMap->mQueueCandidateGraphFrames.push_back(pKF);
-				if (mpMap->mQueueCandidateGraphFrames.size() == 8) {
+				if (mpMap->mQueueCandidateGraphFrames.size() == nMaxCandidateKFs) {
 					//하나 고르기
-
+					auto tempQueue = mpMap->mQueueCandidateGraphFrames;
+					int nMax = 0;
+					UVR_SLAM::Frame* targetKF = nullptr;
+					for (auto iter = tempQueue.begin(); iter != tempQueue.end(); iter++) {
+						auto pKFi = *iter;
+						int nValue = pKFi->mpMatchInfo->GetNumMapPoints();
+						if (nValue > nMax) {
+							targetKF = pKFi;
+							nMax = nValue;
+						}
+					}
 					//그걸 graph frame에 추가.
 					mpMap->mQueueCandidateGraphFrames.clear();
+					mpMap->mspGraphFrames.insert(targetKF);
 				}
 			}
 			mpMap->mQueueFrameWindows.push_back(mpTargetFrame);
@@ -1069,8 +1129,8 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 		float err1 = (diffPt1.dot(diffPt1));
 		float err2 = (diffPt2.dot(diffPt2));
 		
-		cv::circle(currImg, currPt, 3, cv::Scalar(0, 255, 0));
-		cv::circle(prevImg, prevPt, 3, cv::Scalar(0, 255, 0));
+		cv::circle(currImg, currPt, 3, cv::Scalar(0, 255, 0),-1);
+		cv::circle(prevImg, prevPt, 3, cv::Scalar(0, 255, 0), -1);
 		cv::line(prevImg, prevPt, projected1, cv::Scalar(255, 0, 0));
 		cv::line(currImg, currPt, projected2, cv::Scalar(255, 0, 0));
 		

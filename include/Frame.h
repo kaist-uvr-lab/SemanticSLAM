@@ -66,6 +66,7 @@ namespace UVR_SLAM {
 		int AddCP(CandidatePoint* pMP, cv::Point2f pt);
 		int nPrevNumCPs;
 		int GetNumCPs();
+		std::vector<cv::Point2f> GetMatchingPts();
 		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::MapPoint*>& vpMPs);
 		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs);
 		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs);
