@@ -74,7 +74,7 @@ namespace UVR_SLAM {
 		UVR_SLAM::CandidatePoint* GetCP(int idx);
 		cv::Point2f GetPt(int idx);
 		
-		bool CheckOpticalPointOverlap(int radius, int margin, cv::Point2f pt); //확인 후 삭제.
+		int CheckOpticalPointOverlap(int radius, int margin, cv::Point2f pt); //확인 후 삭제.
 		bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt); //확인 후 삭제.
 
 	private:

@@ -390,8 +390,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpLocalMapper->SetInitialKeyFrame(mpInitFrame1, mpInitFrame2);
 		mpMap->AddFrame(mpInitFrame1);
 		mpMap->AddFrame(mpInitFrame2);
-		mpMap->mQueueFrameWindows.push_back(mpInitFrame1);
-		mpMap->mQueueFrameWindows.push_back(mpInitFrame2);
+		mpMap->AddWindowFrame(mpInitFrame1);
+		mpMap->AddWindowFrame(mpInitFrame2);
 
 		mpInitFrame1->AddKF(mpInitFrame2, tempMPs.size());
 		mpInitFrame2->AddKF(mpInitFrame1, tempMPs.size());
@@ -535,6 +535,9 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		_mkdir(sababs.str().c_str());
 		sababs.str("");
 		sababs << base << "/testmatching";
+		_mkdir(sababs.str().c_str());
+		sababs.str("");
+		sababs << base << "/fuse";
 		_mkdir(sababs.str().c_str());
 		return mbInit;
 		//200419

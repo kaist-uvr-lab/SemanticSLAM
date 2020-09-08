@@ -4,8 +4,43 @@
 #include "MapPoint.h"
 #include "Plane.h"
 
-UVR_SLAM::Map::Map():mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2){}
-UVR_SLAM::Map::~Map(){}
+namespace UVR_SLAM{
+	Map::Map() :mnMaxConnectedKFs(16), mnMaxCandidateKFs(4), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2) {}
+	Map::~Map() {}
+	void Map::AddWindowFrame(Frame* pF){
+		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
+		if (mQueueFrameWindows.size() == mnMaxConnectedKFs) {
+			auto pKF = mQueueFrameWindows.front();
+			mQueueFrameWindows.pop_front();
+			mQueueCandidateGraphFrames.push_back(pKF);
+			if (mQueueCandidateGraphFrames.size() == mnMaxCandidateKFs) {
+				//하나 고르기
+				int nMax = 0;
+				UVR_SLAM::Frame* targetKF = nullptr;
+				for (auto iter = mQueueCandidateGraphFrames.begin(); iter != mQueueCandidateGraphFrames.end(); iter++) {
+					auto pKFi = *iter;
+					int nValue = pKFi->mpMatchInfo->GetNumMapPoints();
+					if (nValue > nMax) {
+						targetKF = pKFi;
+						nMax = nValue;
+					}
+				}
+				//그걸 graph frame에 추가.
+				mQueueCandidateGraphFrames.clear();
+				mspGraphFrames.insert(targetKF);
+			}
+		}
+		mQueueFrameWindows.push_back(pF);
+	}
+	std::vector<Frame*> Map::GetWindowFrames(){
+		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
+		return std::vector<Frame*>(mQueueFrameWindows.begin(), mQueueFrameWindows.end());
+	}
+	std::vector<Frame*> Map::GetGraphFrames() {
+		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
+		return std::vector<Frame*>(mspGraphFrames.begin(), mspGraphFrames.end());
+	}
+}
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 ////맵포인트 관리

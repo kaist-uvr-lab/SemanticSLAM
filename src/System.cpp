@@ -4,6 +4,7 @@
 #include <Initializer.h>
 #include <SemanticSegmentator.h>
 #include <LocalMapper.h>
+#include <LoopCloser.h>
 #include <PlaneEstimator.h>
 #include <Visualizer.h>
 #include <FrameVisualizer.h>
@@ -107,7 +108,7 @@ void UVR_SLAM::System::SaveTrajectory() {
 	std::stringstream ssdir, ssfile;
 	/*std::s  tringstream ssDirPath;
 	ssDirPath << "../../bin/SLAM/KeyframeDebugging/"*/
-	ssdir << "../../bin/SLAM/KeyframeDebugging/trajectory";
+	ssdir <<base<<"/trajectory";
 	_mkdir(ssdir.str().c_str());
 	ssfile << ssdir.str() << "/our.txt";
 	std::ofstream f;
@@ -192,10 +193,15 @@ void UVR_SLAM::System::Init() {
 	mpLocalMapper->SetSystem(this);
 	mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);
 
+	//Initializer 추가 설정
 	mpInitializer->SetLocalMapper(mpLocalMapper);
 	mpInitializer->SetSegmentator(mpSegmentator);
 	mpInitializer->SetPlaneEstimator(mpPlaneEstimator);
+	
 	//loop closing thread
+	mpLoopCloser = new UVR_SLAM::LoopCloser(mnWidth, mnHeight, mK, mpMap);
+	mpLoopCloser->SetSystem(this);
+	mptLoopCloser = new std::thread(&UVR_SLAM::LoopCloser::Run, mpLoopCloser);
 
 	//map optimizer
 	mpMapOptimizer = new UVR_SLAM::MapOptimizer(mstrFilePath, mpMap);
@@ -225,8 +231,10 @@ void UVR_SLAM::System::Init() {
 	mpPlaneEstimator->SetInitializer(mpInitializer);
 	mpPlaneEstimator->SetVisualizer(mpVisualizer);
 	mpSegmentator->SetLocalMapper(mpLocalMapper);
-
 	mpInitializer->SetVisualizer(mpVisualizer);
+
+	////Local Mapper 추가 설정
+	mpLocalMapper->SetLoopCloser(mpLoopCloser);
 
 	//Time
 	mnSegID = mnLoalMapperID = mnPlaneID = mnMapOptimizerID = 0;
@@ -313,7 +321,11 @@ void UVR_SLAM::System::SetDirPath(int id) {
 	std::stringstream ss;
 	{
 		std::unique_lock<std::mutex> lock(mMutexDirPath);
-		ss << mStrBasePath.c_str() << "/" << id;
+		if (id == 0) {
+			ss << mStrBasePath.c_str();
+		}
+		else
+			ss << mStrBasePath.c_str() << "/" << id;
 	}
 	_mkdir(ss.str().c_str());
 }
@@ -322,7 +334,10 @@ std::string UVR_SLAM::System::GetDirPath(int id){
 	std::stringstream ss;
 	{
 		std::unique_lock<std::mutex> lock(mMutexDirPath);
-		ss << mStrBasePath.c_str() << "/" << id;
+		if (id == 0) {
+			ss << mStrBasePath.c_str();
+		}else
+			ss << mStrBasePath.c_str() << "/" << id;
 	}
 	strPath = ss.str();
 	return strPath;

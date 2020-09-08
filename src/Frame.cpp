@@ -941,15 +941,17 @@ UVR_SLAM::MatchInfo::MatchInfo(Frame* pRef, Frame* pTarget, int w, int h):mnHeig
 UVR_SLAM::MatchInfo::~MatchInfo(){}
 
 //트래킹
-bool UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(int radius, int margin, cv::Point2f pt) {
+int UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(int radius, int margin, cv::Point2f pt) {
 	//range option도 필요할 듯
 	if (pt.x < margin || pt.x >= mnWidth - margin || pt.y < margin || pt.y >= mnHeight - margin) {
-		return false;
+		return -1;
 	}
-	if (mMapCP.at<ushort>(pt) > 0) {
-		return false;
+	int res = mMapCP.at<ushort>(pt)-1;
+	return res;
+	/*if (mMapCP.at<ushort>(pt) > 0) {
+		return ;
 	}
-	return true;
+	return true;*/
 }
 bool UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt) {
 	//range option도 필요할 듯
@@ -998,7 +1000,7 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 
 	for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += nIncEdge) {
 		auto pt = mpRefFrame->mvEdgePts[i];
-		if (!CheckOpticalPointOverlap(1, 10, pt)) {
+		if (CheckOpticalPointOverlap(1, 10, pt)>=0) {
 			continue;
 		}
 		auto pCP = new UVR_SLAM::CandidatePoint(this);
@@ -1012,7 +1014,7 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		}
 		circle(tempused, pt, Frame::mnRadius, cv::Scalar(255), -1);
 		*/
-		if (!CheckOpticalPointOverlap(1, 10, pt)) {
+		if (CheckOpticalPointOverlap(1, 10, pt)>=0) {
 			continue;
 		}
 		auto pCP = new UVR_SLAM::CandidatePoint(this, mpRefFrame->mvnOctaves[i]);

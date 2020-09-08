@@ -256,7 +256,7 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 		int prevIdx = vnIDXs[i];
 		auto pt = vpPts[i];
 		auto pCP = vpCPs[i];
-		if (pMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, pt)) {
+		if (pMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, pt) < 0) {
 			pMatchInfo->AddCP(pCP, pt);
 			nres++;
 		}

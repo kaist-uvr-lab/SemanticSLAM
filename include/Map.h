@@ -29,19 +29,27 @@ namespace UVR_SLAM {
 		void SetCurrFrame(Frame* pF);
 		Frame* GetCurrFrame();
 		void ClearFrames();
-		
+
+		void AddWindowFrame(Frame* pF);
+		std::vector<Frame*> GetWindowFrames();
+		std::vector<Frame*> GetGraphFrames();
+
 	private:
 		std::mutex mMutexGlobalFrames;
 		std::vector<Frame*> mvpGlobalFrames;
+
+		int mnMaxConnectedKFs;
+		int mnMaxCandidateKFs;
+		std::mutex mMutexWindowFrames;
+		std::list<Frame*> mQueueFrameWindows;
+		std::list<Frame*> mQueueCandidateGraphFrames;
+		std::set<Frame*> mspGraphFrames;
 ////////////////////////////////
 ////Dense Flow °ü¸®
 	public:
 		void AddFlow(int nFrameID, cv::Mat flow);
 		cv::Mat GetFlow(int nFrameID);
 		std::vector<cv::Mat> GetFlows(int nStartID, int nEndID);
-		std::list<Frame*> mQueueFrameWindows;
-		std::list<Frame*> mQueueCandidateGraphFrames;
-		std::set<Frame*> mspGraphFrames;
 	private:
 		std::mutex mMutexFlows;
 		std::map<int, cv::Mat> mmFlows;
@@ -84,7 +92,6 @@ namespace UVR_SLAM {
 		void InsertMapPoint(UVR_SLAM::MapPoint* pMP, UVR_SLAM::MapGrid* pMG);
 		void DeleteMapPoint(UVR_SLAM::MapPoint* pMP);
 		void UpdateMapPoint(UVR_SLAM::MapPoint* pMP, UVR_SLAM::MapGrid* pMG);
-
 
 		bool CheckGrid(cv::Point3f pt);
 		bool CheckGrid(cv::Point3f pt1, cv::Point3f pt2);

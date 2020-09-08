@@ -11,6 +11,7 @@ namespace UVR_SLAM {
 	class MatchInfo;
 	class PlaneEstimator;
 	class SemanticSegmentator;
+	class LoopCloser;
 	class CandidatePoint;
 	class Matcher;
 	class MapPoint;
@@ -31,6 +32,7 @@ namespace UVR_SLAM {
 		void SetLayoutEstimator(SemanticSegmentator* pEstimator);
 		void SetMatcher(Matcher* pMatcher);
 		void SetMapOptimizer(MapOptimizer* pMapOptimizer);
+		void SetLoopCloser(LoopCloser* pLoopCloser);
 		void SetVisualizer(Visualizer* pVis);
 		////////////////
 		void SetInitialKeyFrame(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2);
@@ -79,6 +81,7 @@ namespace UVR_SLAM {
 		SemanticSegmentator* mpSegmentator;
 		System* mpSystem;
 		Map* mpMap;
+		LoopCloser* mpLoopCloser;
 		MapOptimizer* mpMapOptimizer;
 		PlaneEstimator* mpPlaneEstimator;
 		Visualizer* mpVisualizer;

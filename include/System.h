@@ -60,6 +60,7 @@ namespace UVR_SLAM {
 	class SemanticSegmentator;
 	class LocalMapper;
 	class PlaneEstimator;
+	class LoopCloser;
 	class Visualizer;
 	class FrameVisualizer;
 	class MapOptimizer;
@@ -83,8 +84,8 @@ namespace UVR_SLAM {
 		void SetCurrFrame(cv::Mat img, double t);
 		void Track();
 		void InitDirPath();
-		void SetDirPath(int id);
-		std::string GetDirPath(int id);
+		void SetDirPath(int id = 0);
+		std::string GetDirPath(int id = 0);
 		//std::list<UVR_SLAM::MapPoint*> GetListNewMPs();
 		//void AddNewMP(MapPoint* pMP);
 
@@ -107,6 +108,9 @@ namespace UVR_SLAM {
 
 		LocalMapper* mpLocalMapper;
 		std::thread *mptLocalMapper;
+
+		LoopCloser* mpLoopCloser;
+		std::thread *mptLoopCloser;
 
 		PlaneEstimator* mpPlaneEstimator;
 		std::thread *mptPlaneEstimator;

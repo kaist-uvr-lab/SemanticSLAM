@@ -104,7 +104,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::vector<UVR_SLAM::Frame*> vpKFs;
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
 			
-			auto lpKFs = mpMap->mQueueFrameWindows;
+			auto lpKFs = mpMap->GetWindowFrames();
 			for (auto iter = lpKFs.begin(); iter != lpKFs.end(); iter++) {
 				auto pKF = *iter;
 				pKF->mnLocalBAID = nTargetID;
@@ -138,7 +138,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 				}
 			}
 
-			auto spGraphKFs = mpMap->mspGraphFrames;
+			auto spGraphKFs = mpMap->GetGraphFrames();
 			for (auto iter = spGraphKFs.begin(); iter != spGraphKFs.end(); iter++) {
 				auto pKFi = *iter;
 				pKFi->mnFixedBAID = nTargetID;

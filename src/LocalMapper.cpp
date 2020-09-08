@@ -6,6 +6,7 @@
 #include <MapGrid.h>
 #include <MapPoint.h>
 #include <Matcher.h>
+#include <LoopCloser.h>
 #include <Optimization.h>
 #include <PlaneEstimator.h>
 #include <Plane.h>
@@ -43,6 +44,10 @@ UVR_SLAM::LocalMapper::~LocalMapper() {}
 
 void UVR_SLAM::LocalMapper::SetSystem(System* pSystem) {
 	mpSystem = pSystem;
+}
+void UVR_SLAM::LocalMapper::SetLoopCloser(LoopCloser* pVis)
+{
+	mpLoopCloser = pVis;
 }
 void UVR_SLAM::LocalMapper::SetMapOptimizer(MapOptimizer* pMapOptimizer) {
 	mpMapOptimizer = pMapOptimizer;
@@ -117,8 +122,7 @@ void UVR_SLAM::LocalMapper::Reset() {
 }
 void UVR_SLAM::LocalMapper::Run() {
 
-	int nMaxConnectedKFs = 12;
-	int nMaxCandidateKFs = 4;
+	
 	int nMinMapPoints = 1000;
 
 	while (1) {
@@ -176,6 +180,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			mpMap->AddFrame(mpTargetFrame);
 			mpTargetFrame->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
 			mpSegmentator->InsertKeyFrame(mpTargetFrame);
+			mpLoopCloser->InsertKeyFrame(mpTargetFrame);
 
 			//////////////////업데이트 맵포인트
 			float fratio = 0.0f;
@@ -188,7 +193,8 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::vector<CandidatePoint*> vpCurrCPs;
 			auto vCurrPTs = mpTargetFrame->mpMatchInfo->GetMatchingPts(vpCurrCPs);
 			std::cout << "mapping test ::" << vCurrPTs.size() << ", " << vMatchCurrPts.size() << std::endl;
-			for (auto iter = mpMap->mQueueFrameWindows.begin(); iter != mpMap->mQueueFrameWindows.end(); iter++) {
+			auto vpFrameWindows = mpMap->GetWindowFrames();
+			for (auto iter = vpFrameWindows.begin(); iter != vpFrameWindows.end(); iter++) {
 				auto pKF = *iter;
 				auto pTargetMatch = pKF->mpMatchInfo;
 				for (int i = 0; i < vCurrPTs.size(); i++) {
@@ -382,30 +388,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			///////매칭 정보 저장
 
 			////프레임 윈도우에 추가
-			if (mpMap->mQueueFrameWindows.size() == nMaxConnectedKFs){
-				auto pKF = mpMap->mQueueFrameWindows.front();
-				mpMap->mQueueFrameWindows.pop_front();
-				mpMap->mQueueCandidateGraphFrames.push_back(pKF);
-				if (mpMap->mQueueCandidateGraphFrames.size() == nMaxCandidateKFs) {
-					//하나 고르기
-					auto tempQueue = mpMap->mQueueCandidateGraphFrames;
-					int nMax = 0;
-					UVR_SLAM::Frame* targetKF = nullptr;
-					for (auto iter = tempQueue.begin(); iter != tempQueue.end(); iter++) {
-						auto pKFi = *iter;
-						int nValue = pKFi->mpMatchInfo->GetNumMapPoints();
-						if (nValue > nMax) {
-							targetKF = pKFi;
-							nMax = nValue;
-						}
-					}
-					//그걸 graph frame에 추가.
-					mpMap->mQueueCandidateGraphFrames.clear();
-					mpMap->mspGraphFrames.insert(targetKF);
-				}
-			}
-			mpMap->mQueueFrameWindows.push_back(mpTargetFrame);
-			
+			mpMap->AddWindowFrame(mpTargetFrame);
 
 			//////////////업데이트 키프레임
 			////이건 단순히 해당 키프레임에서 추적되는 맵포인트가 연결되어 있는 프레임들의 리스트에 불과함.
@@ -662,16 +645,7 @@ void UVR_SLAM::LocalMapper::Run() {
 
 			
 
-			/////////////VoW 매칭
-			/*auto vpNeighKFs = mpTargetFrame->GetConnectedKFs();
-			for (int i = 0; i < vpNeighKFs.size(); i++) {
-				auto pKFi = vpNeighKFs[i];
-				if (mpTargetFrame->Score(pKFi) < 0.01) {
-					imshow("Loop!!", pKFi->GetOriginalImage());
-					cv::waitKey(1);
-				}
-			}*/
-			/////////////VoW 매칭
+			
 
 			/////////////////
 			////맵포인트 생성
@@ -1271,7 +1245,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, std::
 				for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
 					auto pMatch = iter->first;
 					if (pMatch->mpRefFrame->GetKeyFrameID() % 3 != 0){
-						std::cout << "asdj;asjd;lkasdj;flkasjdlkasdf"<<std::endl;
+						std::cout << "LocalMapper::asdj;asjd;lkasdj;flkasjdlkasdf"<<std::endl;
 						continue;
 					}
 					int idx = iter->second;

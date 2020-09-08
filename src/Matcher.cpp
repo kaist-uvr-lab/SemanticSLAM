@@ -1000,7 +1000,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 		auto pCPi = vpCPs[i];
 		//해당포인트가 이미 되어있으면 false, 없으면 true
 		//false이면 매칭 진행 x, true이면 진행 가능함.
-		bool b1 = pCurrMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, currPts[i]); //used //얘는 왜 used 따로 만듬???
+		bool b1 = pCurrMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, currPts[i]) >= 0; //used //얘는 왜 used 따로 만듬???
 
 		//현재 MP에 MP는 매칭이 되는지도 확인이 필요함.
 		////MP 영역과 매칭이 안되도록 함. 그리고 자기가 매칭 된 곳 근처가 안되도록 함. 자기 자신은 이미 포인트 생성할 때 걸러짐.
@@ -1013,7 +1013,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 		//}
 		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(usedPrev, Frame::mnRadius, 10, prevPts[i]); //used //얘는 왜 used 따로 만듬???
 		bool b4 = pPrevMatchInfo->CheckOpticalPointOverlap(usedCurr, Frame::mnRadius, 10, currPts[i]); //used //얘는 왜 used 따로 만듬???
-		if (!b1 || !b3 || !b4) {//|| b4 || b5
+		if (b1 || !b3 || !b4) {//|| b4 || b5
 			continue;
 		}
 		cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
@@ -1170,10 +1170,10 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Frame* pCurrKF, Frame* pPrevKF
 			continue;
 		}
 		auto pCPi = vPrevCPs[i];
-		bool b1 = pCurrMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, currPts[i]); //used //얘는 왜 used 따로 만듬???
+		bool b1 = pCurrMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, currPts[i]) >= 0; //used //얘는 왜 used 따로 만듬???
 		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(usedPrev, Frame::mnRadius, 10, prevPts[i]); //used //얘는 왜 used 따로 만듬???
 		bool b4 = pPrevMatchInfo->CheckOpticalPointOverlap(usedCurr, Frame::mnRadius, 10, currPts[i]); //used //얘는 왜 used 따로 만듬???
-		if (!b1 || !b3 || !b4) {//|| b4 || b5
+		if (b1 || !b3 || !b4) {//|| b4 || b5
 			continue;
 		}
 		cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
