@@ -880,7 +880,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	std::vector<MapPoint*> vpTempMPs;
 	std::vector<UVR_SLAM::CandidatePoint*> vpTempCPs;
 	prevPts = prev->mpMatchInfo->GetMatchingPts(vpTempCPs, vpTempMPs);//prev->mvMatchingPts;
-	std::cout << "Matcher::Tracking::" << vpTempCPs.size() << std::endl;
+	//std::cout << "Matcher::Tracking::" << vpTempCPs.size() << std::endl;
 	int maxLvl = 3;
 	int searchSize = 21;
 	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);

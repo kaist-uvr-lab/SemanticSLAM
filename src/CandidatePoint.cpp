@@ -117,7 +117,7 @@ namespace  UVR_SLAM{
 		cv::Mat nonZeroSingularValues = w > 0.0001;
 		int rank = countNonZero(nonZeroSingularValues);
 		if (rank < 4) {
-			std::cout << "non singular matrix in triangulate in CP" << std::endl;
+			//std::cout << "non singular matrix in triangulate in CP" << std::endl;
 			bRank = false;
 		}
 		//rank È®ÀÎ
@@ -126,7 +126,7 @@ namespace  UVR_SLAM{
 		x3D = x3D.rowRange(0, 3) / x3D.at<float>(3);
 		return x3D.clone();
 	}
-	void CandidatePoint::Test(cv::Mat& X3D, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax, cv::Mat& debug) {
+	void CandidatePoint::CreateMapPoint(cv::Mat& X3D, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax, cv::Mat& debug) {
 		cv::Point2f ptBottom = cv::Point2f(0, 480);
 		MatchInfo* pFirst;
 		int idx;

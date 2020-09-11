@@ -136,7 +136,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			ProcessNewKeyFrame();
 
 			int nTargetID = mpTargetFrame->GetFrameID();
-			std::cout << "lm::start::" << mpTargetFrame->GetFrameID() << std::endl;
+			//std::cout << "lm::start::" << mpTargetFrame->GetFrameID() << std::endl;
 
 			////Median Depth 게산
 			mpTargetFrame->ComputeSceneMedianDepth();
@@ -183,7 +183,8 @@ void UVR_SLAM::LocalMapper::Run() {
 			mpMap->AddFrame(mpTargetFrame);
 			mpTargetFrame->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
 			mpSegmentator->InsertKeyFrame(mpTargetFrame);
-			mpLoopCloser->InsertKeyFrame(mpTargetFrame);
+			mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
+			//mpLoopCloser->InsertKeyFrame(mpTargetFrame);
 
 			//////////////////업데이트 맵포인트
 			float fratio = 0.0f;
@@ -984,7 +985,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			ssa << "LocalMapping : " << mpTargetFrame->GetKeyFrameID() << "::" << t_test1 << "::" << ", " << nCreated << "::" << fratio;// << ", " << nMinKF << ", " << nMaxKF;
 			mpSystem->SetLocalMapperString(ssa.str());
 
-			std::cout << "lm::end::" <<mpTargetFrame->GetFrameID()<<"::"<<nCreated<< std::endl;
+			//std::cout << "lm::end::" <<mpTargetFrame->GetFrameID()<<"::"<<nCreated<< std::endl;
 			SetDoingProcess(false);
 			continue;
 			//////200412
@@ -1250,6 +1251,8 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 	///////데이터 전처리
 	cv::Mat Rcfromc = Rcurr.t();
 
+	//set kf 제거 필요함
+
 	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 
 	int N = vMatchCurrPts.size();
@@ -1265,7 +1268,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 			cv::Mat Xw;
 			bool b1, b2;
 			b1 = false;
-			pCPi->Test(Xw, mK, mInvK, Pcurr, Rcurr, Tcurr, currPt, b1, b2, debugMatch);
+			pCPi->CreateMapPoint(Xw, mK, mInvK, Pcurr, Rcurr, Tcurr, currPt, b1, b2, debugMatch);
 			if (b1) {
 				int label = pCPi->GetLabel();
 				auto pMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, pCPi, Xw, cv::Mat(), label, pCPi->octave);
@@ -1274,7 +1277,8 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 				for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
 					auto pMatch = iter->first;
 					if (pMatch->mpRefFrame->GetKeyFrameID() % 3 != 0){
-						std::cout << "LocalMapper::asdj;asjd;lkasdj;flkasjdlkasdf"<<std::endl;
+						////KF id를 조정하는 것이 필요함
+						//std::cout << "LocalMapper::asdj;asjd;lkasdj;flkasjdlkasdf"<<std::endl;
 						continue;
 					}
 					int idx = iter->second;
@@ -1290,7 +1294,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 		}
 		nRes++;
 	}
-	std::cout << "mapping::kf::" << spMatches.size() << std::endl;
+	//std::cout << "mapping::kf::" << spMatches.size() << std::endl;
 	std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
 	auto duration1 = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
 	ftime = duration1 / 1000.0;

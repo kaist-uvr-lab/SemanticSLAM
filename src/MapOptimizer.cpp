@@ -88,14 +88,14 @@ void UVR_SLAM::MapOptimizer::Run() {
 			SetDoingProcess(true);
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
-			std::cout << "ba::start::" << mpTargetFrame->GetFrameID() << std::endl;
+			//std::cout << "ba::start::" << mpTargetFrame->GetFrameID() << std::endl;
 			mStrPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
 			StopBA(false);
 			auto currMatchInfo = mpTargetFrame->mpMatchInfo;
 			auto targetFrame = mpTargetFrame;
 			///////////////////////////////////////////////////////////////
 			////preprocessing
-			std::cout << "ba::processing::start" << std::endl;
+			//std::cout << "ba::processing::start" << std::endl;
 			int nTargetID = mpTargetFrame->GetFrameID();
 			mpTargetFrame->mnLocalBAID = nTargetID;
 			//std::cout << "BA::preprocessing::start" << std::endl;
@@ -167,7 +167,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 				}
 			}*/
 
-			std::cout << "BA::Optimization::Start" << std::endl;
+			//std::cout << "BA::Optimization::Start" << std::endl;
 			//mpMap->SetNumDeleteMP();
 			auto vpPlaneInfos = mpMap->GetPlaneInfos();
 			int n = vpPlaneInfos.size() - 1;
@@ -188,7 +188,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::stringstream ss;
 			ss << "Map Optimizer::" << mpTargetFrame->GetKeyFrameID() <<", "<<vpKFs[0]->GetKeyFrameID()<<"::"<<letime<<"||"<< vpKFs.size()<<", "<< vpFixedKFs.size()<<", "<<vpMPs.size();
 			mpSystem->SetMapOptimizerString(ss.str());
-			std::cout << "ba::end::" << mpTargetFrame->GetFrameID() << std::endl;
+			//std::cout << "ba::end::" << mpTargetFrame->GetFrameID() << std::endl;
 			//Á¾·á
 			SetDoingProcess(false);
 		}

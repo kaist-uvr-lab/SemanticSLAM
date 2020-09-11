@@ -29,7 +29,7 @@ namespace UVR_SLAM {
 		bool CheckReprojectionError(cv::Point2f pt1, cv::Point2f pt2, float thresh);
 		int GetNumSize();
 		
-		void Test(cv::Mat& X3D, cv::Mat K,cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax, cv::Mat& debug);
+		void CreateMapPoint(cv::Mat& X3D, cv::Mat K,cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax, cv::Mat& debug);
 		//삼각화
 		//아웃라이어 체크(리프로젝션 에러)
 		//뎁스테스트

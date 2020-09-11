@@ -86,7 +86,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			
 			SetBoolDoingProcess(true);
 			ProcessNewKeyFrame();
-			std::cout << "segmentation::start::" << std::endl;
+			//std::cout << "segmentation::start::" << std::endl;
 			
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			cv::Mat colorimg, resized_color, segmented;
@@ -199,7 +199,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//cv::waitKey(1);
 			////////디버깅을 위한 이미지 저장
 			//////////////////////////////////////////////////
-			std::cout << "segmentation::end::"<< std::endl;
+			//std::cout << "segmentation::end::"<< std::endl;
 			mpTargetFrame->mpMatchInfo->SetLabel();
 			SetBoolDoingProcess(false);
 		}

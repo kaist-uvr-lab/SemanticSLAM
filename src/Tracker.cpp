@@ -162,8 +162,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 	}
 	else {
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
-
-		std::cout << "tracker::start::" <<pCurr->GetFrameID()<< std::endl;
+		//std::cout << "tracker::start::" <<pCurr->GetFrameID()<< std::endl;
 		//std::cout << mpMap->mpFirstKeyFrame->mpPlaneInformation->GetFloorPlane()->GetParam() << std::endl << std::endl << std::endl;
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		/////////Optical Flow Matching
@@ -261,6 +260,6 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 			nres++;
 		}
 	}
-	std::cout << "Tracking::UpdateMatchingInfo::" << nres << std::endl;
+	//std::cout << "Tracking::UpdateMatchingInfo::" << nres << std::endl;
 	return nres;
 }

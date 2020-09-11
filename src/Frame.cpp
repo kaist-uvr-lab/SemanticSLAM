@@ -1089,8 +1089,7 @@ void UVR_SLAM::MatchInfo::UpdateFrame() {
 		std::unique_lock<std::mutex>(mMutexCPs);
 		vpTempCPs = mvpMatchingCPs;
 	}
-	std::set<CandidatePoint*>spTempCPs(vpTempCPs.begin(), vpTempCPs.end());
-	std::cout << "MatchInfo::UpdateFrame::" << vpTempCPs.size() << ", " << spTempCPs.size() << std::endl;
+	
 	for (int i = 0; i < vpTempCPs.size(); i++) {
 		auto pCPi = vpTempCPs[i];
 		pCPi->AddFrame(this, i);
@@ -1103,7 +1102,7 @@ void UVR_SLAM::MatchInfo::UpdateFrame() {
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs) {
 	std::unique_lock<std::mutex>(mMutexCPs);
 	std::vector<cv::Point2f> res;
-	std::cout << "MatchInfo::CP::" << mvpMatchingCPs.size() << std::endl;
+	//std::cout << "MatchInfo::CP::" << mvpMatchingCPs.size() << std::endl;
 	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
 		auto pCPi = mvpMatchingCPs[i];
 		if (res.size() == nMaxMP)
