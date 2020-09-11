@@ -160,10 +160,10 @@ void UVR_SLAM::LocalMapper::Run() {
 			double time2 = 0.0;
 			/////////KF-KF 매칭
 			mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, mK, mInvK, time1, debugMatch);
-			if (mpTargetFrame->mpMatchInfo->GetNumMapPoints() < nMinMapPoints){
+			//if (mpTargetFrame->mpMatchInfo->GetNumMapPoints() < nMinMapPoints){
 				nCreated = CreateMapPoints(mpPrevKeyFrame, vMatchPrevPts, vMatchPrevCPs, time2, debugMatch);
 				//nCreated = CreateMapPoints(mpTargetFrame, vMatchCurrPts, vMatchPrevCPs, time2, debugMatch);
-			}
+			//}
 			mpPrevKeyFrame->mpMatchInfo->mMatchedImage = debugMatch.clone();
 
 			///////매칭 정보 저장
@@ -194,61 +194,61 @@ void UVR_SLAM::LocalMapper::Run() {
 			//////////////////업데이트 맵포인트
 
 			/////////////////////Window Test
-			////1
-			std::vector<CandidatePoint*> vpCurrCPs;
-			auto vCurrPTs = mpTargetFrame->mpMatchInfo->GetMatchingPts(vpCurrCPs);
-			auto vpFrameWindows = mpMap->GetWindowFrames();
-			/*cv::Mat currImg = mpTargetFrame->GetOriginalImage();
-			cv::Rect currRect(0, 0, mnWidth, mnHeight);*/
-			for (auto iter = vpFrameWindows.begin(); iter != vpFrameWindows.end(); iter++) {
-				auto pKF = *iter;
-				///////Matching Test
-				//if (pKF->GetKeyFrameID() + 3 == mpTargetFrame->GetKeyFrameID()) {
-				//	cv::Mat tempImg;
-				//	std::vector<cv::Point2f> vTempMatchPrevPts, vTempMatchCurrPts;
-				//	std::vector<CandidatePoint*> vTempMatchPrevCPs;
-				//	mpMatcher->OpticalMatchingForMapping(mpMap, mpPrevKeyFrame, pKF, vTempMatchPrevPts, vTempMatchCurrPts, vTempMatchPrevCPs, mK, mInvK, time1, tempImg);
-				//	/*if (mpTargetFrame->mpMatchInfo->GetNumMapPoints() < nMinMapPoints)
-				//	nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, time2, debugMatch);*/
-				//	std::stringstream asstdir;
-				//	asstdir << mpSystem->GetDirPath(0) << "/fuse/kfmatching_" << mpPrevKeyFrame->GetKeyFrameID() << "_" << pKF->GetKeyFrameID() << ".jpg";
-				//	cv::imwrite(asstdir.str(), tempImg);
-				//}
-				///////Matching Test
-				
+			//////1
+			//std::vector<CandidatePoint*> vpCurrCPs;
+			//auto vCurrPTs = mpTargetFrame->mpMatchInfo->GetMatchingPts(vpCurrCPs);
+			//auto vpFrameWindows = mpMap->GetWindowFrames();
+			///*cv::Mat currImg = mpTargetFrame->GetOriginalImage();
+			//cv::Rect currRect(0, 0, mnWidth, mnHeight);*/
+			//for (auto iter = vpFrameWindows.begin(); iter != vpFrameWindows.end(); iter++) {
+			//	auto pKF = *iter;
+			//	///////Matching Test
+			//	//if (pKF->GetKeyFrameID() + 3 == mpTargetFrame->GetKeyFrameID()) {
+			//	//	cv::Mat tempImg;
+			//	//	std::vector<cv::Point2f> vTempMatchPrevPts, vTempMatchCurrPts;
+			//	//	std::vector<CandidatePoint*> vTempMatchPrevCPs;
+			//	//	mpMatcher->OpticalMatchingForMapping(mpMap, mpPrevKeyFrame, pKF, vTempMatchPrevPts, vTempMatchCurrPts, vTempMatchPrevCPs, mK, mInvK, time1, tempImg);
+			//	//	/*if (mpTargetFrame->mpMatchInfo->GetNumMapPoints() < nMinMapPoints)
+			//	//	nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, time2, debugMatch);*/
+			//	//	std::stringstream asstdir;
+			//	//	asstdir << mpSystem->GetDirPath(0) << "/fuse/kfmatching_" << mpPrevKeyFrame->GetKeyFrameID() << "_" << pKF->GetKeyFrameID() << ".jpg";
+			//	//	cv::imwrite(asstdir.str(), tempImg);
+			//	//}
+			//	///////Matching Test
+			//	
 
-				/*cv::Mat windowImg = cv::Mat::zeros(mnHeight * 2, mnWidth, CV_8UC3);
-				cv::Mat img = pKF->GetOriginalImage();
-				cv::Rect tmpRect(0, mnHeight, mnWidth, mnHeight);
-				img.copyTo(windowImg(tmpRect));
-				currImg.clone().copyTo(windowImg(currRect));
-				cv::Mat img1 = windowImg(tmpRect);
-				cv::Mat img2 = windowImg(currRect);*/
+			//	/*cv::Mat windowImg = cv::Mat::zeros(mnHeight * 2, mnWidth, CV_8UC3);
+			//	cv::Mat img = pKF->GetOriginalImage();
+			//	cv::Rect tmpRect(0, mnHeight, mnWidth, mnHeight);
+			//	img.copyTo(windowImg(tmpRect));
+			//	currImg.clone().copyTo(windowImg(currRect));
+			//	cv::Mat img1 = windowImg(tmpRect);
+			//	cv::Mat img2 = windowImg(currRect);*/
 
-				auto pTargetMatch = pKF->mpMatchInfo;
-				for (int i = 0; i < vCurrPTs.size(); i++) {
-					auto pCPi = vpCurrCPs[i];
-					auto pMPi = pCPi->mpMapPoint;
-					int idx = pCPi->GetPointIndexInFrame(pTargetMatch);
-					int idx2 = pCPi->GetPointIndexInFrame(mpTargetFrame->mpMatchInfo);
-					if (idx >= 0) {
-						auto pt = pTargetMatch->GetPt(idx);
-						/*cv::circle(img1, pt, 2, cv::Scalar(255, 0, 255), -1);
-						cv::circle(img2, vCurrPTs[i], 2, cv::Scalar(255, 0, 255), -1);*/
-						if (pCPi->bCreated && pMPi) {
-							bool bCurr = pMPi->isInFrame(mpTargetFrame->mpMatchInfo);
-							bool bPrev = pMPi->isInFrame(pTargetMatch);
-							if (bPrev && !bCurr) {
-								pMPi->AddFrame(mpTargetFrame->mpMatchInfo, i);
-							}
-						}
-					}
-				}
-				/*std::stringstream sstdir;
-				sstdir << mpSystem->GetDirPath(0) << "/fuse/fuse_" << mpTargetFrame->GetKeyFrameID() << "_" << pKF->GetKeyFrameID() << ".jpg";
-				cv::imwrite(sstdir.str(), windowImg);*/
-			}
-			////1
+			//	auto pTargetMatch = pKF->mpMatchInfo;
+			//	for (int i = 0; i < vCurrPTs.size(); i++) {
+			//		auto pCPi = vpCurrCPs[i];
+			//		auto pMPi = pCPi->mpMapPoint;
+			//		int idx = pCPi->GetPointIndexInFrame(pTargetMatch);
+			//		int idx2 = pCPi->GetPointIndexInFrame(mpTargetFrame->mpMatchInfo);
+			//		if (idx >= 0) {
+			//			auto pt = pTargetMatch->GetPt(idx);
+			//			/*cv::circle(img1, pt, 2, cv::Scalar(255, 0, 255), -1);
+			//			cv::circle(img2, vCurrPTs[i], 2, cv::Scalar(255, 0, 255), -1);*/
+			//			if (pCPi->bCreated && pMPi) {
+			//				bool bCurr = pMPi->isInFrame(mpTargetFrame->mpMatchInfo);
+			//				bool bPrev = pMPi->isInFrame(pTargetMatch);
+			//				if (bPrev && !bCurr) {
+			//					pMPi->AddFrame(mpTargetFrame->mpMatchInfo, i);
+			//				}
+			//			}
+			//		}
+			//	}
+			//	/*std::stringstream sstdir;
+			//	sstdir << mpSystem->GetDirPath(0) << "/fuse/fuse_" << mpTargetFrame->GetKeyFrameID() << "_" << pKF->GetKeyFrameID() << ".jpg";
+			//	cv::imwrite(sstdir.str(), windowImg);*/
+			//}
+			//////1
 			////std::cout << "LM::Fusing::Start" << std::endl;
 			//cv::Mat windowImg = cv::Mat::zeros(mnHeight * 2, mnWidth * 4, CV_8UC3);
 			//std::chrono::high_resolution_clock::time_point fuse_start = std::chrono::high_resolution_clock::now();

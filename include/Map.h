@@ -108,16 +108,7 @@ namespace UVR_SLAM {
 		std::map<UVR_SLAM::MapPoint*, UVR_SLAM::MapGrid*> mmMapPointAndMapGrids; //map point가 어떠한 그리드에 포함되어 있는지 미리 확인함.
 		//std::vector<MapGrid*> mvMapGrids; //이 부분은 일단 제거
 ////구역별 맵 저장
-////////////////////////////////
-/////////trajectory 출력용
-	public:
-		void AddTraFrame(Frame* pF);
-		std::vector<Frame*> GetAllTrajectoryFrames();
-	private:
-		std::vector<Frame*> mvpAllTrajectoryFrames;
-		std::mutex mMutexAllFrames;
-/////////trajectory 출력용
-////////////////////////////
+
 ////평면 관리
 	public:
 		void AddPlaneInfo(PlaneProcessInformation* pPlaneInfo);

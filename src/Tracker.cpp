@@ -155,8 +155,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			mpRefKF = pCurr;
 			mbInitilized = true;
 			mpSystem->SetBoolInit(true);
-			mpMap->AddTraFrame(mpInitializer->mpInitFrame1);
-			mpMap->AddTraFrame(pCurr);
 			mnMapPointMatching = pCurr->mpMatchInfo->GetNumMapPoints();
 		}
 	}
@@ -173,7 +171,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat prevR, prevT;
 		pPrev->GetPose(prevR, prevT);
 		pCurr->SetPose(prevR, prevT);
-		mpMap->AddTraFrame(pCurr);
+		
 		////MatchInfo 설정
 		//초기 매칭 테스트
 		std::vector<UVR_SLAM::MapPoint*> vpTempMPs;
@@ -208,7 +206,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 		////////Visualization & 시간 계산
 		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
-		
 		auto duration1 = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_a - tracking_start).count();
 		double t1 = duration1 / 1000.0;
 		auto duration2 = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
@@ -221,9 +218,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 		/////////트래킹 결과 이미지 저장
 		//visualizer thread
-		mpVisualizer->SetMatchInfo(pCurr->mpMatchInfo);
 		//mpVisualizer->SetMPs(vpTempMPs);
 		if (!mpVisualizer->isDoingProcess()) {
+			mpVisualizer->SetMatchInfo(pCurr->mpMatchInfo);
 			mpVisualizer->SetBoolDoingProcess(true);
 		}
 		//visualizer thread

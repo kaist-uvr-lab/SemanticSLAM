@@ -265,10 +265,7 @@ void UVR_SLAM::System::SetCurrFrame(cv::Mat img, double t) {
 int Ntrial = 10;
 
 void UVR_SLAM::System::Track() {
-	//std::cout << "Track::Start\n";
 	mpTracker->Tracking(mpPrevFrame , mpCurrFrame);
-	//std::cout << "Track::End\n";
-
 	////제안서 작업시 이미지 특징점 저장용
 	/*cv::Mat img = mpCurrFrame->GetOriginalImage();
 	for (int i = 0; i < mpCurrFrame->mvKeyPoints.size(); i++) {
