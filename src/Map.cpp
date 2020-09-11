@@ -5,7 +5,10 @@
 #include "Plane.h"
 
 namespace UVR_SLAM{
-	Map::Map() :mnMaxConnectedKFs(16), mnMaxCandidateKFs(4), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2) {}
+	Map::Map():mnMaxConnectedKFs(16), mnMaxCandidateKFs(4), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2){}
+	Map::Map(int nConnected, int nCandiate) :mnMaxConnectedKFs(nConnected), mnMaxCandidateKFs(nCandiate), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2) {
+		std::cout << "MAP::" << mnMaxConnectedKFs << ", " << mnMaxCandidateKFs << std::endl;
+	}
 	Map::~Map() {}
 	void Map::AddWindowFrame(Frame* pF){
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
@@ -30,6 +33,7 @@ namespace UVR_SLAM{
 				mspGraphFrames.insert(targetKF);
 			}
 		}
+		
 		mQueueFrameWindows.push_back(pF);
 	}
 	std::vector<Frame*> Map::GetWindowFrames(){

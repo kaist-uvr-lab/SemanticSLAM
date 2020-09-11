@@ -153,16 +153,19 @@ void UVR_SLAM::LocalMapper::Run() {
 			cv::Mat debugMatch;
 			std::vector<cv::Point2f> vMatchPPrevPts, vMatchPrevPts, vMatchCurrPts;
 			std::vector<CandidatePoint*> vMatchPrevCPs;
-			std::vector<bool> vbInliers;
+			/*std::vector<bool> vbInliers;
 			std::vector<int> vnIDXs;
-			std::vector<int> vnPrevOctaves;
-			/*auto vPrevCPs = mpPrevKeyFrame->mpMatchInfo->GetMatchingCPs();
-			auto vPrevCandidatePoints = mpPrevKeyFrame->mpMatchInfo->GetMatchingPts(vnPrevOctaves);*/
+			std::vector<int> vnPrevOctaves;*/
 			double time1 = 0.0;
 			double time2 = 0.0;
 			/////////KF-KF 매칭
-			mpMatcher->OpticalMatchingForMapping2(mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, mK, mInvK, time1, debugMatch);
+			mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, mK, mInvK, time1, debugMatch);
+			if (mpTargetFrame->mpMatchInfo->GetNumMapPoints() < nMinMapPoints){
+				nCreated = CreateMapPoints(mpPrevKeyFrame, vMatchPrevPts, vMatchPrevCPs, time2, debugMatch);
+				//nCreated = CreateMapPoints(mpTargetFrame, vMatchCurrPts, vMatchPrevCPs, time2, debugMatch);
+			}
 			mpPrevKeyFrame->mpMatchInfo->mMatchedImage = debugMatch.clone();
+
 			///////매칭 정보 저장
 			std::stringstream sstdir;
 			sstdir << mpSystem->GetDirPath(0) << "/kfmatching/kfmatching_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
@@ -190,19 +193,47 @@ void UVR_SLAM::LocalMapper::Run() {
 			//////////////////업데이트 맵포인트
 
 			/////////////////////Window Test
+			////1
 			std::vector<CandidatePoint*> vpCurrCPs;
 			auto vCurrPTs = mpTargetFrame->mpMatchInfo->GetMatchingPts(vpCurrCPs);
-			std::cout << "mapping test ::" << vCurrPTs.size() << ", " << vMatchCurrPts.size() << std::endl;
 			auto vpFrameWindows = mpMap->GetWindowFrames();
+			/*cv::Mat currImg = mpTargetFrame->GetOriginalImage();
+			cv::Rect currRect(0, 0, mnWidth, mnHeight);*/
 			for (auto iter = vpFrameWindows.begin(); iter != vpFrameWindows.end(); iter++) {
 				auto pKF = *iter;
+				///////Matching Test
+				//if (pKF->GetKeyFrameID() + 3 == mpTargetFrame->GetKeyFrameID()) {
+				//	cv::Mat tempImg;
+				//	std::vector<cv::Point2f> vTempMatchPrevPts, vTempMatchCurrPts;
+				//	std::vector<CandidatePoint*> vTempMatchPrevCPs;
+				//	mpMatcher->OpticalMatchingForMapping(mpMap, mpPrevKeyFrame, pKF, vTempMatchPrevPts, vTempMatchCurrPts, vTempMatchPrevCPs, mK, mInvK, time1, tempImg);
+				//	/*if (mpTargetFrame->mpMatchInfo->GetNumMapPoints() < nMinMapPoints)
+				//	nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, time2, debugMatch);*/
+				//	std::stringstream asstdir;
+				//	asstdir << mpSystem->GetDirPath(0) << "/fuse/kfmatching_" << mpPrevKeyFrame->GetKeyFrameID() << "_" << pKF->GetKeyFrameID() << ".jpg";
+				//	cv::imwrite(asstdir.str(), tempImg);
+				//}
+				///////Matching Test
+				
+
+				/*cv::Mat windowImg = cv::Mat::zeros(mnHeight * 2, mnWidth, CV_8UC3);
+				cv::Mat img = pKF->GetOriginalImage();
+				cv::Rect tmpRect(0, mnHeight, mnWidth, mnHeight);
+				img.copyTo(windowImg(tmpRect));
+				currImg.clone().copyTo(windowImg(currRect));
+				cv::Mat img1 = windowImg(tmpRect);
+				cv::Mat img2 = windowImg(currRect);*/
+
 				auto pTargetMatch = pKF->mpMatchInfo;
 				for (int i = 0; i < vCurrPTs.size(); i++) {
 					auto pCPi = vpCurrCPs[i];
 					auto pMPi = pCPi->mpMapPoint;
 					int idx = pCPi->GetPointIndexInFrame(pTargetMatch);
+					int idx2 = pCPi->GetPointIndexInFrame(mpTargetFrame->mpMatchInfo);
 					if (idx >= 0) {
-						//auto pt = pTargetMatch->GetPt(idx);
+						auto pt = pTargetMatch->GetPt(idx);
+						/*cv::circle(img1, pt, 2, cv::Scalar(255, 0, 255), -1);
+						cv::circle(img2, vCurrPTs[i], 2, cv::Scalar(255, 0, 255), -1);*/
 						if (pCPi->bCreated && pMPi) {
 							bool bCurr = pMPi->isInFrame(mpTargetFrame->mpMatchInfo);
 							bool bPrev = pMPi->isInFrame(pTargetMatch);
@@ -212,8 +243,11 @@ void UVR_SLAM::LocalMapper::Run() {
 						}
 					}
 				}
+				/*std::stringstream sstdir;
+				sstdir << mpSystem->GetDirPath(0) << "/fuse/fuse_" << mpTargetFrame->GetKeyFrameID() << "_" << pKF->GetKeyFrameID() << ".jpg";
+				cv::imwrite(sstdir.str(), windowImg);*/
 			}
-
+			////1
 			////std::cout << "LM::Fusing::Start" << std::endl;
 			//cv::Mat windowImg = cv::Mat::zeros(mnHeight * 2, mnWidth * 4, CV_8UC3);
 			//std::chrono::high_resolution_clock::time_point fuse_start = std::chrono::high_resolution_clock::now();
@@ -373,8 +407,8 @@ void UVR_SLAM::LocalMapper::Run() {
 			/////////////////////Window Test
 
 			//////맵포인트 생성
-			if (matchInfo->GetNumMapPoints() < nMinMapPoints)
-				nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, time2, debugMatch);
+			/*if (matchInfo->GetNumMapPoints() < nMinMapPoints)
+				nCreated = CreateMapPoints(mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, time2, debugMatch);*/
 			mpPrevKeyFrame->mpMatchInfo->mMatchedImage = debugMatch.clone();
 			//////맵포인트 생성
 
@@ -1202,34 +1236,29 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 }
 
 ////////////200722 수정 필요
-int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Point2f> vMatchPrevPts, std::vector<cv::Point2f> vMatchCurrPts, std::vector<CandidatePoint*> vMatchPrevCPs, double& ftime, cv::Mat& debugMatch){
+int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point2f> vMatchCurrPts, std::vector<CandidatePoint*> vMatchPrevCPs, double& ftime, cv::Mat& debugMatch){
 	
 	std::set<UVR_SLAM::MatchInfo*> spMatches;
 
 	cv::Point2f ptBottom = cv::Point2f(0, mnHeight);
-	cv::Mat Rprev, Tprev, Rcurr, Tcurr;
+	cv::Mat Rcurr, Tcurr;
 	pCurrKF->GetPose(Rcurr, Tcurr);
-	pPrevKF->GetPose(Rprev, Tprev);
 
 	cv::Mat Pcurr, Pprev;
 	cv::hconcat(Rcurr, Tcurr, Pcurr);
-	cv::hconcat(Rprev, Tprev, Pprev);
 
 	///////데이터 전처리
 	cv::Mat Rcfromc = Rcurr.t();
-	cv::Mat Rpfromc = Rprev.t();
 
 	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 
-	int N = vMatchPrevPts.size();
+	int N = vMatchCurrPts.size();
 	int nRes = 0;
 	for (int i = 0; i < N; i++) {
 		auto pCPi = vMatchPrevCPs[i];
 		int nConnCP = pCPi->GetNumSize();
 		bool bMP = pCPi->bCreated; 
 		MapPoint* pMPinCP = pCPi->mpMapPoint;
-
-		auto prevPt = vMatchPrevPts[i];
 		auto currPt = vMatchCurrPts[i];
 	
 		if (nConnCP > 2 && !bMP) {
@@ -1255,44 +1284,11 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, Frame* pPrevKF, std::
 					spMatches.insert(pMatch);
 				}
 				
-				cv::circle(debugMatch, currPt +ptBottom, 3, cv::Scalar(0, 255, 255));
-				cv::circle(debugMatch, prevPt, 3, cv::Scalar(0, 255, 255));
+				cv::circle(debugMatch, currPt+ptBottom, 3, cv::Scalar(0, 255, 255));
+				//cv::circle(debugMatch, prevPt, 3, cv::Scalar(0, 255, 255));
 			}
 		}
-		
 		nRes++;
-		//int label = pPrevKF->mpMatchInfo->mvObjectLabels[vnIDXs[i]];
-		//int octave = pPrevKF->mpMatchInfo->mvnOctaves[vnIDXs[i]];
-		{
-			//////pMP
-			//int label = 0;
-			//int octave = 0;
-			//auto pMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, X3D, cv::Mat(), label, octave);
-			//if (label == 150) {
-			//	pMP->SetPlaneID(1);
-			//}
-			//else if (label == 100) {
-			//	pMP->SetPlaneID(2);
-			//}
-			///*if (vLabels3[i] > 0)
-			//pMP->SetPlaneID(1);*/
-		
-			//pMP->AddFrame(pCurrKF->mpMatchInfo, pt1);
-			//pMP->AddFrame(pPrevKF->mpMatchInfo, pt2);
-
-			//auto pt3D = mpMap->ProjectMapPoint(pMP, mpMap->mfMapGridSize);
-			//auto pMG = mpMap->GetGrid(pt3D);
-			//if (!pMG) {
-			//	pMG = mpMap->InsertGrid(pt3D);
-			//}
-			//mpMap->InsertMapPoint(pMP, pMG);
-
-			////pMP->UpdateNormalAndDepth();
-			////////visualize
-			//cv::circle(debugMatch, pt1 + ptBottom, 2, cv::Scalar(255, 0, 255), -1);
-			//cv::circle(debugMatch, pt2, 2, cv::Scalar(255, 0, 255), -1);
-			////////visualize
-		}
 	}
 	std::cout << "mapping::kf::" << spMatches.size() << std::endl;
 	std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();

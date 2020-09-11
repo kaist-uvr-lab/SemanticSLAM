@@ -140,6 +140,7 @@ namespace UVR_SLAM {
 		int mfIniThFAST;
 		int mfMinThFAST;
 		int mnWidth, mnHeight;
+		int mnMaxConnectedKFs, mnMaxCandidateKFs;
 
 		std::mutex mMutexDirPath;
 		std::string mStrBasePath;

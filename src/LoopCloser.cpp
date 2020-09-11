@@ -22,8 +22,9 @@ namespace UVR_SLAM {
 					auto pKFi = vpGrahWindows[i];
 					auto score = mpTargetFrame->Score(pKFi);
 					std::cout << "Loop::" << score << std::endl;
-					if (score < 0.01) {
-						imshow("Loop!!", pKFi->GetOriginalImage());
+					if (score > 0.01) {
+						imshow("Loop::1", mpTargetFrame->GetOriginalImage());
+						imshow("Loop::2", pKFi->GetOriginalImage());
 						cv::waitKey(1);
 					}
 				}

@@ -22,6 +22,7 @@ namespace UVR_SLAM {
 		//벽을 가져야 한다.
 		//바닥과 벽의 초기화 여부를 알아야 한다.
 		Map();
+		Map(int nConnected, int nCandiate);
 		virtual ~Map();
 	public:
 		void AddFrame(Frame* pF);

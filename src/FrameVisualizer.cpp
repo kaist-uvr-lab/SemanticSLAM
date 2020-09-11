@@ -57,7 +57,7 @@ namespace UVR_SLAM {
 					if (mvbMatchingInliers[i])
 						cv::circle(vis, p2D, 2, color, -1);
 					nMatch++;
-					cv::line(vis, p2D, mvMatchingPTs[i], color, 1);
+					//cv::line(vis, p2D, mvMatchingPTs[i], color, 1);
 				}
 				std::stringstream ss;
 				ss << "Traking = "<<mpKeyFrame->GetKeyFrameID()<<", "<<mpFrame->GetFrameID()<<", "<< nMatch << "::" <<mfTime<< "::";

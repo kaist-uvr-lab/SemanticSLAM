@@ -954,7 +954,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	return res;
 }
 
-int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Point2f>& vMatchedPrevPts, std::vector<cv::Point2f>& vMatchedCurrPts, std::vector<CandidatePoint*>& vMatchedCPs, cv::Mat K, cv::Mat InvK, double& dtime, cv::Mat& debugging) {
+int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Point2f>& vMatchedPrevPts, std::vector<cv::Point2f>& vMatchedCurrPts, std::vector<CandidatePoint*>& vMatchedCPs, cv::Mat K, cv::Mat InvK, double& dtime, cv::Mat& debugging) {
 	//////////////////////////
 	////Optical flow
 	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
@@ -979,13 +979,13 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 	prevPts = pPrevKF->mpMatchInfo->GetMatchingPts(vpCPs);
 	auto pPrevMatchInfo = pPrevKF->mpMatchInfo;
 	auto pCurrMatchInfo = pCurrKF->mpMatchInfo;
-	std::cout << "Mapping::Matching::" << prevPts.size() << ", " << vpCPs.size() << std::endl;
+	
 	int maxLvl = 3;
 	int searchSize = 21;
 	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
 	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
 	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
-	std::cout << "????????" << std::endl;
+	
 	////옵티컬 플로우 매칭 저장
 	std::vector<cv::Point2f> vTempPrevPts, vTempCurrPts;
 	std::vector<int> vTempIDXs;
@@ -996,24 +996,11 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 		if (status[i] == 0) {
 			continue;
 		}
-
 		auto pCPi = vpCPs[i];
-		//해당포인트가 이미 되어있으면 false, 없으면 true
-		//false이면 매칭 진행 x, true이면 진행 가능함.
-		bool b1 = pCurrMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, currPts[i]) >= 0; //used //얘는 왜 used 따로 만듬???
-
-		//현재 MP에 MP는 매칭이 되는지도 확인이 필요함.
-		////MP 영역과 매칭이 안되도록 함. 그리고 자기가 매칭 된 곳 근처가 안되도록 함. 자기 자신은 이미 포인트 생성할 때 걸러짐.
-		//bool b2 = pPrevMatchInfo->CheckOpticalPointOverlap(pCurrKF->mpMatchInfo->used, Frame::mnRadius, 10, currPts[i]);
-		//bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(used, Frame::mnRadius, 10, prevPts[i]); //used //얘는 왜 used 따로 만듬???
-
-		//if (!b1 || !b2 || !b3) {//|| b4 || b5
-		//						//std::cout << "OpticalMatchingForMapping::???????????" << std::endl;
-		//	continue;
-		//}
-		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(usedPrev, Frame::mnRadius, 10, prevPts[i]); //used //얘는 왜 used 따로 만듬???
-		bool b4 = pPrevMatchInfo->CheckOpticalPointOverlap(usedCurr, Frame::mnRadius, 10, currPts[i]); //used //얘는 왜 used 따로 만듬???
-		if (b1 || !b3 || !b4) {//|| b4 || b5
+		bool b1 = pCurrMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, currPts[i]) >= 0;
+		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(usedPrev, Frame::mnRadius, 10, prevPts[i]);
+		bool b4 = pPrevMatchInfo->CheckOpticalPointOverlap(usedCurr, Frame::mnRadius, 10, currPts[i]);
+		if (b1 || !b3 || !b4) {
 			continue;
 		}
 		cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
@@ -1044,6 +1031,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 	cv::Mat Rpfromc = Rprev.t();
 	
 	int nRes = 0;
+	int nTargetID = pPrevKF->GetFrameID();
 	for (int i = 0; i < Map.cols; i++) {
 
 		cv::Mat X3D = Map.col(i);
@@ -1086,17 +1074,23 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 		float err1 = (diffPt1.dot(diffPt1));
 		float err2 = (diffPt2.dot(diffPt2));
 		if (err1 > 9.0 || err2 > 9.0) {
+			
 			cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(255, 0, 0), -1);
 			cv::circle(debugging, prevPt, 2, cv::Scalar(255, 0, 0), -1);
 			continue;
 		}
 		////reprojection error
+
 		////CP 연결하기
 		vMatchedCurrPts.push_back(vTempCurrPts[i]);
 		vMatchedPrevPts.push_back(vTempPrevPts[i]);
 		int nCPidx = vTempIDXs[i];
 		auto pCPi = vpCPs[nCPidx];
-		if (pCPi->GetNumSize() == 1) {
+
+		
+
+		////시각화
+		if (pCPi->mnFirstID == nTargetID) {
 			cv::circle(debugging, prevPt, 2, cv::Scalar(0, 0, 255), -1);
 			cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(0, 0, 255), -1);
 		}
@@ -1104,8 +1098,23 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Frame* pCurrKF, Frame* pPrevKF,
 			cv::circle(debugging, prevPt, 2, cv::Scalar(255, 255, 0), -1);
 			cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(255, 255, 0), -1);
 		}
+		if (pCPi->bCreated) {
+
+			cv::circle(debugging, projected1 + ptBottom, 2, cv::Scalar(0, 255, 0), -1);
+			cv::circle(debugging, projected2, 2, cv::Scalar(0, 255, 0), -1);
+			cv::line(debugging, currPt + ptBottom, projected1 + ptBottom, cv::Scalar(0, 255, 255), 2);
+			cv::line(debugging, prevPt, projected2, cv::Scalar(0, 255, 255), 2);
+
+			cv::circle(debugging, prevPt, 3, cv::Scalar(0, 255, 255));
+			cv::circle(debugging, currPt + ptBottom, 3, cv::Scalar(0, 255, 255));
+		}
+		//else {
+		//	////MP 생성 확인
+		//	int label = pCPi->GetLabel();
+		//	auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCPi, X3D, cv::Mat(), label, pCPi->octave);
+		//	////MP 생성 확인
+		//}
 		pCurrKF->mpMatchInfo->AddCP(pCPi, currPt);
-		//pCPi->AddFrame(pCurrKF->mpMatchInfo, currPt);
 		vMatchedCPs.push_back(pCPi);
 
 		nRes++;
@@ -1217,7 +1226,6 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Frame* pCurrKF, Frame* pPrevKF
 			}
 
 			pCurrKF->mpMatchInfo->AddCP(pCPi, currPt);
-			//pCPi->AddFrame(pCurrKF->mpMatchInfo, currPt);
 			vMatchedCPs.push_back(pCPi);
 			nRes++;
 		}

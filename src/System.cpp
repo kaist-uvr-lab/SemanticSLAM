@@ -69,7 +69,10 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	mnPatchSize = fs["Dense.patch"];
 	mnHalfWindowSize = fs["Dense.window"];
 	
-	std::cout << mK << mD << std::endl;
+	mnMaxConnectedKFs = fs["KeyFrame.window"];
+	mnMaxCandidateKFs = fs["KeyFrame.candidate"];
+
+	std::cout << mK << mD <<"::"<<mnWidth<<", "<<mnHeight<< std::endl;
 
 	fs["VocPath"] >> strVOCPath;
 	fs["nVisScale"] >> mnVisScale;
@@ -144,7 +147,7 @@ void UVR_SLAM::System::Init() {
 	mpORBExtractor = mpInitORBExtractor;
 
 	//Map
-	mpMap = new UVR_SLAM::Map();
+	mpMap = new UVR_SLAM::Map(mnMaxConnectedKFs, mnMaxCandidateKFs);
 
 	//FrameWindow
 	mpFrameWindow = new UVR_SLAM::FrameWindow(15);
