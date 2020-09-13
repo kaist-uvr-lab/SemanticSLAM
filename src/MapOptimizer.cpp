@@ -5,6 +5,7 @@
 #include <FrameWindow.h>
 #include <MapPoint.h>
 #include <Optimization.h>
+#include <PlanarOptimization.h>
 //#include <PlaneEstimator.h>
 #include <Plane.h>
 #include <Map.h>
@@ -175,7 +176,8 @@ void UVR_SLAM::MapOptimizer::Run() {
 				Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);
 			else
 			{
-				Optimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpMPs, vpKFs, vpFixedKFs);
+				std::cout << "Plane optimization" << std::endl;
+				PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpMPs, vpKFs, vpFixedKFs);
 			}
 			
 			/*std::cout << "BA::Delete::Start" << std::endl;
