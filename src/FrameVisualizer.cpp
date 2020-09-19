@@ -27,6 +27,10 @@ namespace UVR_SLAM {
 				cv::Mat R = pF->GetRotation();
 				cv::Mat t = pF->GetTranslation();
 				
+				/*std::vector<CandidatePoint*> vpCPs;
+				std::vector<MapPoint*> vpMPs;
+				auto vPTs = mpFrame->mpMatchInfo->GetMatchingPts(vpCPs, vpMPs);*/
+
 				int nMatch = 0;
 				for (int i = 0; i < mvpMatchingMPs.size(); i++) {
 					UVR_SLAM::MapPoint* pMPi = mvpMatchingMPs[i];

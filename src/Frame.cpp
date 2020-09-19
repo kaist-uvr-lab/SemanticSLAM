@@ -969,6 +969,7 @@ bool UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(cv::Mat& overlap, int radius,
 void UVR_SLAM::MatchInfo::SetLabel() {
 	auto labelMat = mpRefFrame->matLabeled.clone();
 	std::vector<CandidatePoint*> vpCPs;
+	std::vector<MapPoint*> vpMPs;
 	auto vPTs = mpRefFrame->mpMatchInfo->GetMatchingPts(vpCPs);
 	for (int i = 0; i < vPTs.size(); i++) {
 		auto pCPi = vpCPs[i];
@@ -976,7 +977,7 @@ void UVR_SLAM::MatchInfo::SetLabel() {
 		int label = labelMat.at<uchar>(pt.y / 2, pt.x / 2);
 		//mvObjectLabels[i] = label1;
 		pCPi->SetLabel(label);
-		auto pMPi = pCPi->mpMapPoint;
+		auto pMPi = pCPi->GetMP();
 		if (pMPi)
 			pMPi->SetLabel(label);
 	}
@@ -995,7 +996,6 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		nIncORB = 1;
 
 	//이게 변경이 되어야 함. 이미 추가가 되어 있다고 가정.
-	//mvTempPts = GetMatchingPts(mvTempOctaves);
 	nPrevNumCPs = GetNumCPs();
 
 	for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += nIncEdge) {
@@ -1093,62 +1093,73 @@ void UVR_SLAM::MatchInfo::UpdateFrame() {
 	for (int i = 0; i < vpTempCPs.size(); i++) {
 		auto pCPi = vpTempCPs[i];
 		pCPi->AddFrame(this, i);
-		if (!pCPi->bCreated || !pCPi->mpMapPoint)
+		auto pMPi = pCPi->GetMP();
+		if(!pMPi)
 			continue;
-		auto pMPi = pCPi->mpMapPoint;
 		pMPi->AddFrame(this, i);
 	}
 }
-std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs) {
-	std::unique_lock<std::mutex>(mMutexCPs);
+//opt이 true이면 일정 수만 획득, false이면 전부 획득
+//트래킹시 일정값, BA에는 전부다.
+std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs, bool bOpt) {
+	std::vector<CandidatePoint*> vpTempCPs;
+	std::vector<Point2f> vPts;
+	{
+		std::unique_lock<std::mutex>(mMutexCPs);
+		vpTempCPs = mvpMatchingCPs;
+		vPts = mvMatchingPts;
+	}
+	
 	std::vector<cv::Point2f> res;
 	//std::cout << "MatchInfo::CP::" << mvpMatchingCPs.size() << std::endl;
-	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
-		auto pCPi = mvpMatchingCPs[i];
-		if (res.size() == nMaxMP)
+	for (int i = 0; i < vpTempCPs.size(); i++) {
+		auto pCPi = vpTempCPs[i];
+		if (bOpt && res.size() == nMaxMP)
 			break;
-		if (pCPi->bCreated && pCPi->mpMapPoint) {
-			//이게 있으면 reference frame에서 매칭이 안됨.
-			/*if (pCPi->mpMapPoint->isInFrame(this)) {
-				
-			}*/
-			res.push_back(mvMatchingPts[i]);
+		if (bOpt && !pCPi->isOptimized())
+			continue;
+		/*if (res.size() == nMaxMP)
+			break;*/
+		/*if (!pCPi->isOptimized())
+			continue;*/
+		auto pMPi = pCPi->GetMP();
+		if (pMPi && pCPi->GetQuality()) {
+			//if (pMPi->isDeleted() || pMPi->GetFVRatio() < 0.1)
+			if (pMPi->isDeleted())
+				continue;
+			res.push_back(vPts[i]);
 			vpCPs.push_back(pCPi);
-			vpMPs.push_back(pCPi->mpMapPoint);
+			vpMPs.push_back(pMPi);
 		}
 	}
 	return res;
 }
 
-std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLAM::MapPoint*>& vpMPs) {
-	std::unique_lock<std::mutex>(mMutexCPs);
-	std::vector<cv::Point2f> res;
-	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
-		auto pCPi = mvpMatchingCPs[i];
-		if (res.size() == nMaxMP)
-			break;
-		if (pCPi->bCreated && pCPi->mpMapPoint) {
-			res.push_back(mvMatchingPts[i]);
-			vpMPs.push_back(pCPi->mpMapPoint);
-		}
-	}
-	return res;
-}
 
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs){
-	std::unique_lock<std::mutex>(mMutexCPs);
+	std::vector<CandidatePoint*> vpTempCPs;
+	std::vector<Point2f> vPts;
+	{
+		std::unique_lock<std::mutex>(mMutexCPs);
+		vpTempCPs = mvpMatchingCPs;
+		vPts = mvMatchingPts;
+	}
 	std::vector<cv::Point2f> res;
-	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
-		res.push_back(mvMatchingPts[i]);
-		vpCPs.push_back(mvpMatchingCPs[i]);
+	for (int i = 0; i < vpTempCPs.size(); i++) {
+		res.push_back(vPts[i]);
+		vpCPs.push_back(vpTempCPs[i]);
 	}
 	return res;
 }
 
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts() {
-	std::unique_lock<std::mutex>(mMutexCPs);
+	std::vector<Point2f> vPts;
+	{
+		std::unique_lock<std::mutex>(mMutexCPs);
+		vPts = mvMatchingPts;
+	}
 	std::vector<cv::Point2f> res;
-	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
+	for (int i = 0; i < mvMatchingPts.size(); i++) {
 		res.push_back(mvMatchingPts[i]);
 	}
 	return res;
@@ -1162,5 +1173,21 @@ cv::Point2f UVR_SLAM::MatchInfo::GetPt(int idx) {
 	std::unique_lock<std::mutex>(mMutexCPs);
 	return mvMatchingPts[idx];
 }
-
+void UVR_SLAM::MatchInfo::UpdateFrameQuality() {
+	
+	std::vector<CandidatePoint*> vpCPs;
+	{
+		std::unique_lock<std::mutex>(mMutexCPs);
+		vpCPs = mvpMatchingCPs;
+	}
+	for (int i = 0; i < vpCPs.size(); i++) {
+		auto pCPi = vpCPs[i];
+		if (!pCPi->GetQuality())
+			pCPi->ResetMapPoint();
+		/*auto pMPi = pCPi->mpMapPoint;
+		if (pCPi->bCreated && pMPi) {
+			pCPi->ComputeQuality();
+		}*/
+	}
+}
 //////////////matchinfo

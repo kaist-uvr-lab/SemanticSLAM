@@ -7,6 +7,7 @@
 #include <Initializer.h>
 #include <LocalMapper.h>
 #include <SemanticSegmentator.h>
+#include <CandidatePoint.h>
 #include <SegmentationData.h>
 #include <PlaneEstimator.h>
 #include <FrameVisualizer.h>
@@ -103,7 +104,6 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 	bool bRotation = pCurr->CalcDiffAngleAxis(mpRefKF) > 10.0;
 	bool bMaxFrames = pCurr->GetFrameID() >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
 	bool bMinFrames = pCurr->GetFrameID() < mpRefKF->mnFrameID + mnMinFrames;
-	bool bDoingSegment = !mpSegmentator->isDoingProcess();
 
 	bool bMatchMapPoint = mnMapPointMatching < 200;
 	bool bMatchPoint = mnPointMatching < 500;
@@ -200,8 +200,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			pNewKF->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 			mpRefKF = pNewKF;
 			mpLocalMapper->InsertKeyFrame(pNewKF);
-			//mpSegmentator->InsertKeyFrame(pNewKF);
-			//mpPlaneEstimator->InsertKeyFrame(pNewKF);
 		}
 
 		////////Visualization & 시간 계산
@@ -240,23 +238,37 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 ////MP와 PT가 대응함.
 ////pPrev가 mpRefKF가 됨
+////페일, 석세스 비율은 속도를 떨어뜨리지 않음. 최적화 체크하는거 전부 속도를 떨어뜨림. 프린트 하면 느려짐.
 int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs) {
 	auto pMatchInfo = pCurr->mpMatchInfo;
+	int nCurrID = pCurr->GetFrameID();
 	auto pPrevMatchInfo = pPrev->mpMatchInfo;
-	
+	//std::cout << "fail test :  start" << std::endl;
 	int nres = 0;
+	int nLowQuality = 0;
 	for (int i = 0; i < vpPts.size(); i++) {
+		auto pCP = vpCPs[i];
+		pCP->mnVisibleFrameID = nCurrID;
 		if (!vbInliers[i]){
+			pCP->AddFail();
+			pCP->ComputeQuality();
+			/*if (!pCP->GetQuality()) {
+				nLowQuality++;
+				float ratio = ((float)pCP->GetSuccess()) / (pCP->GetSuccess() + pCP->GetFail());
+				std::cout << "fail test ::id=" << pCP->mnCandidatePointID << "::" << pCP->GetFail() << "::" << pCP->GetSuccess() << ", ratio = " << std::setw(3) << ratio << "::first=" << pCP->mnFirstMapPointID << ", visible=" << pCP->mnVisibleFrameID << ", last=" << pCP->GetLastSuccessFrame() << "::" << pCurr->GetFrameID() << ":: inlier =" << vbInliers[i] << "::" << pCP->isOptimized() << std::endl;
+			}*/
 			continue;
 		}
 		int prevIdx = vnIDXs[i];
 		auto pt = vpPts[i];
-		auto pCP = vpCPs[i];
 		if (pMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, pt) < 0) {
+			pCP->AddSuccess();
+			pCP->SetLastSuccessFrame(pCurr->GetFrameID());
 			pMatchInfo->AddCP(pCP, pt);
 			nres++;
 		}
+		
 	}
-	//std::cout << "Tracking::UpdateMatchingInfo::" << nres << std::endl;
+	//std::cout << "Tracking::UpdateMatchingInfo::" <<nLowQuality<<"::"<< nres << std::endl;
 	return nres;
 }

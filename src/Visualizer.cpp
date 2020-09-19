@@ -159,7 +159,9 @@ void UVR_SLAM::Visualizer::Init() {
 	///////////////
 	/*cv::namedWindow("Output::Matching");
 	cv::moveWindow("Output::Matching", nImageWindowStartX, nImageWIndowStartY1);*/
-	cv::namedWindow("Output::Segmentation");
+	cv::namedWindow("Output::PE::PARAM");
+	cv::moveWindow("Output::PE::PARAM", nImageWindowStartX, 0);
+	cv::namedWindow("Output::Segmentation");  
 	cv::moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1+2*mnHeight+30);
 	cv::namedWindow("Output::LoopFrame");
 	cv::moveWindow("Output::LoopFrame", nImageWindowStartX+mnWidth/2+15, nImageWIndowStartY1 + 2 * mnHeight + 35);
@@ -380,10 +382,12 @@ void UVR_SLAM::Visualizer::Run() {
 						if (bPlane)
 							color = cv::Scalar(0, 255, 255);
 					}
-					if(pMPi->GetConnedtedFrames().size() < 7){
+					/*if (pMPi->GetFVRatio()<0.1)
+						color = cv::Scalar(79, 79, 47);*/
+					/*if(pMPi->GetConnedtedFrames().size() < 7){
 						color = cv::Scalar(0, 0, 0);
 						continue;
-					}
+					}*/
 					cv::circle(tempVis, tpt, 2, color, -1);
 				}
 				//전체 맵포인트 시각화
@@ -394,7 +398,8 @@ void UVR_SLAM::Visualizer::Run() {
 				if (pMatchInfo) {
 					auto lastBAFrame = pMatchInfo->mpTargetFrame;
 					std::vector<MapPoint*> mvpMatchingMPs;
-					auto mvpMatchingPts = pMatchInfo->GetMatchingPts(mvpMatchingMPs);
+					std::vector<CandidatePoint*> mvpMatchingCPs;
+					auto mvpMatchingPts = pMatchInfo->GetMatchingPts(mvpMatchingCPs, mvpMatchingMPs);
 					for (int i = 0; i < mvpMatchingPts.size(); i++) {
 						auto pMPi = mvpMatchingMPs[i];
 						auto label = pMPi->GetLabel();

@@ -67,9 +67,9 @@ namespace UVR_SLAM {
 		int nPrevNumCPs;
 		int GetNumCPs();
 		std::vector<cv::Point2f> GetMatchingPts();
-		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::MapPoint*>& vpMPs);
+		//std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::MapPoint*>& vpMPs);
 		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs);
-		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs);
+		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs, bool bOpt = true);
 		
 		UVR_SLAM::CandidatePoint* GetCP(int idx);
 		cv::Point2f GetPt(int idx);
@@ -96,11 +96,14 @@ namespace UVR_SLAM {
 		cv::Mat mMatchedImage;
 		//엣지에서 뽑은 피티 저장.
 		std::vector<cv::Point2f> mvEdgePts;
-
+/////////////////////////////////
+///////Pose Quality Handler
 	public:
-
+		void UpdateFrameQuality();
 	private:
-
+///////Pose Quality Handler
+/////////////////////////////////
+		
 	};
 
 	class Frame {

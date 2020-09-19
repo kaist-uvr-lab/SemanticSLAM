@@ -19,8 +19,7 @@ UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint*
 	mnFirstKeyFrameID = mpRefKF->GetKeyFrameID();
 	//CP贸府
 	mpCP = pCP;
-	mpCP->bCreated = true;
-	mpCP->mpMapPoint = this;
+	mpCP->SetMapPoint(this, mpRefKF->GetFrameID());
 	//甘贸府
 	mpMap->AddMap(this, label);
 }
@@ -32,8 +31,7 @@ UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint*
 	mnFirstKeyFrameID = mpRefKF->GetKeyFrameID();
 	//CP贸府
 	mpCP = pCP;
-	mpCP->bCreated = true;
-	mpCP->mpMapPoint = this;
+	mpCP->SetMapPoint(this, mpRefKF->GetFrameID());
 	//甘贸府
 	mpMap->AddMap(this, label);
 }
@@ -257,8 +255,8 @@ void UVR_SLAM::MapPoint::Delete() {
 		mmpFrames.clear();
 	}
 	////CP 贸府
-	mpCP->bCreated = false;
-	mpCP->mpMapPoint = nullptr;
+	////咯扁辑档 俊矾 啊瓷己捞 乐澜.
+	mpCP->ResetMapPoint();
 	//甘贸府
 	mpMap->RemoveMap(this);
 	mpMap->DeleteMapPoint(this);

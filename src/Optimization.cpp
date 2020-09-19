@@ -1097,7 +1097,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 			if (chi2>chi2Mono[it] || !e->isDepthPositive())
 			{
 				vbInliers[idx] = false;
-				vpMPs[idx]->SetRecentTrackingFrameID(-1);
+				//vpMPs[idx]->SetRecentTrackingFrameID(-1);
 				//pFrame->mvbMPInliers[idx] = false;
 				//pFrame->mvpMPs[idx]->SetRecentTrackingFrameID(-1);
 				e->setLevel(1);
@@ -1106,7 +1106,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 			else
 			{
 				vbInliers[idx] = true;
-				vpMPs[idx]->SetRecentTrackingFrameID(nTargetID);
+				//vpMPs[idx]->SetRecentTrackingFrameID(nTargetID);
 				//pFrame->mvbMPInliers[idx] = true;
 				//pFrame->mvpMPs[idx]->SetRecentTrackingFrameID(nTargetID);
 				e->setLevel(0);

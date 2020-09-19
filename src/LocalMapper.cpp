@@ -134,6 +134,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			//////200412
 			
 			ProcessNewKeyFrame();
+			mpTargetFrame->mpMatchInfo->UpdateFrameQuality();
 
 			int nTargetID = mpTargetFrame->GetFrameID();
 			//std::cout << "lm::start::" << mpTargetFrame->GetFrameID() << std::endl;
@@ -183,7 +184,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			mpMap->AddFrame(mpTargetFrame);
 			mpTargetFrame->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
 			mpSegmentator->InsertKeyFrame(mpTargetFrame);
-			mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
+			//mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
 			//mpLoopCloser->InsertKeyFrame(mpTargetFrame);
 
 			//////////////////업데이트 맵포인트
@@ -194,6 +195,29 @@ void UVR_SLAM::LocalMapper::Run() {
 			//////////////////업데이트 맵포인트
 
 			/////////////////////Window Test
+			std::vector<CandidatePoint*> vpCurrCPs;
+			std::vector<MapPoint*> vpCurrMPs;
+			auto vCurrPTs = mpTargetFrame->mpMatchInfo->GetMatchingPts(vpCurrCPs, vpCurrMPs, false);
+			auto vpFrameWindows = mpMap->GetWindowFrames();
+			auto vpGraphKFs = mpMap->GetGraphFrames();
+			for (int i = 0; i < vpGraphKFs.size(); i++) {
+				vpFrameWindows.push_back(vpGraphKFs[i]);
+			}
+			for (auto iter = vpFrameWindows.begin(); iter != vpFrameWindows.end(); iter++) {
+				auto pKF = *iter;
+				int nKF = 0;
+				auto pTargetMatch = pKF->mpMatchInfo;
+				for (int i = 0; i < vCurrPTs.size(); i++) {
+					auto pCPi = vpCurrCPs[i];
+					auto pMPi = vpCurrMPs[i];
+					int idx = pCPi->GetPointIndexInFrame(pTargetMatch);
+					int idx2 = pCPi->GetPointIndexInFrame(mpTargetFrame->mpMatchInfo);
+					if (pMPi && !pMPi->isDeleted()) {
+						bool bPrev = pMPi->isInFrame(pTargetMatch);
+						nKF++;
+					}
+				}
+			}
 			//////1
 			//std::vector<CandidatePoint*> vpCurrCPs;
 			//auto vCurrPTs = mpTargetFrame->mpMatchInfo->GetMatchingPts(vpCurrCPs);
@@ -1151,7 +1175,7 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 		//scale 계산
 		int idx = vTempMatchIDXs[i]; //cp idx
 		auto pCPi = vPrevCPs[idx];
-		auto pMPi = pCPi->mpMapPoint;
+		auto pMPi = pCPi->GetMP();
 
 		vpTempCPs.push_back(pCPi);
 		vX3Ds.push_back(proj1);
@@ -1212,9 +1236,9 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 		
 		//MP fuse나 replace 함수가 필요해짐. 아니면, world pos만 변경하던가
 		//빈곳만 채우던가
-		bool bMP = pCPi->bCreated;
-		if (bMP) {
-			pCPi->mpMapPoint->SetWorldPos(X3D);
+		auto pMPi = pCPi->GetMP();
+		if (pMPi) {
+			pMPi->SetWorldPos(X3D);
 		}
 		else {
 			int label = pCPi->GetLabel();
@@ -1260,11 +1284,10 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 	for (int i = 0; i < N; i++) {
 		auto pCPi = vMatchPrevCPs[i];
 		int nConnCP = pCPi->GetNumSize();
-		bool bMP = pCPi->bCreated; 
-		MapPoint* pMPinCP = pCPi->mpMapPoint;
+		auto pMPinCP = pCPi->GetMP();
 		auto currPt = vMatchCurrPts[i];
 	
-		if (nConnCP > 2 && !bMP) {
+		if (nConnCP > 2 && !pMPinCP) {
 			cv::Mat Xw;
 			bool b1, b2;
 			b1 = false;
@@ -1285,7 +1308,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 					pMP->AddFrame(pMatch, idx);
 					//auto pt = pMatch->GetPt();
 					//pMP->AddFrame(pMatch, pt);
-					spMatches.insert(pMatch);
+					spMatches.insert(pMatch); //이거는 삭제 해도 괜찮을 듯
 				}
 				
 				cv::circle(debugMatch, currPt+ptBottom, 3, cv::Scalar(0, 255, 255));

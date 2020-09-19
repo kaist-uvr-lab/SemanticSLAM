@@ -1098,7 +1098,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 			cv::circle(debugging, prevPt, 2, cv::Scalar(255, 255, 0), -1);
 			cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(255, 255, 0), -1);
 		}
-		if (pCPi->bCreated) {
+		if (pCPi->GetMP()) {
 
 			cv::circle(debugging, projected1 + ptBottom, 2, cv::Scalar(0, 255, 0), -1);
 			cv::circle(debugging, projected2, 2, cv::Scalar(0, 255, 0), -1);
@@ -1131,6 +1131,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 	ss << "Optical flow Mapping2= " << pCurrKF->GetFrameID() << ", " << pPrevKF->GetFrameID() << ", " << "::" << tttt << "::" << nRes;
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));*/
+	return nRes;
 }
 
 int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Point2f>& vMatchedPrevPts, std::vector<cv::Point2f>& vMatchedCurrPts, std::vector<CandidatePoint*>& vMatchedCPs, cv::Mat K, cv::Mat InvK, double& dtime, cv::Mat& debugging) {
@@ -1220,7 +1221,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Frame* pCurrKF, Frame* pPrevKF
 				cv::circle(debugging, prevPt, 2, cv::Scalar(255, 255, 0), -1);
 				cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(255, 255, 0), -1);
 			}
-			if (pCPi->bCreated) {
+			if (pCPi->GetMP()) {
 				cv::circle(debugging, prevPt, 3, cv::Scalar(0, 255, 255));
 				cv::circle(debugging, currPt + ptBottom, 3, cv::Scalar(0, 255, 255));
 			}

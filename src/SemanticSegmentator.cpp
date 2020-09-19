@@ -252,11 +252,12 @@ void UVR_SLAM::SemanticSegmentator::ImageLabeling(cv::Mat segmented, cv::Mat& la
 			case 44://갚난
 					//case 94://막대기
 			case 23: //그림
-			case 101://포스터
+			//case 101://포스터
 				labeld.at<uchar>(i, j) = 255;
 				break;
 			case 4:  //floor
 			case 29: //rug
+			case 101://포스터
 				labeld.at<uchar>(i, j) = 150;
 				break;
 			case 6:
