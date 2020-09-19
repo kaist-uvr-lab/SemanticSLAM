@@ -32,9 +32,12 @@ namespace UVR_SLAM {
 		void ClearFrames();
 
 		void AddWindowFrame(Frame* pF);
-		std::vector<Frame*> GetWindowFrames();
-		std::vector<Frame*> GetGraphFrames();
-
+		std::list<Frame*> GetWindowFrames();
+		std::list<Frame*> GetGraphFrames();
+		std::list<Frame*>::const_iterator GetWindowFramesStartIterator();
+		std::list<Frame*>::const_iterator GetWindowFramesEndIterator();
+		std::list<Frame*>::const_iterator GetGraphFramesStartIterator();
+		std::list<Frame*>::const_iterator GetGraphFramesEndIterator();
 	private:
 		std::mutex mMutexGlobalFrames;
 		std::vector<Frame*> mvpGlobalFrames;
@@ -44,7 +47,7 @@ namespace UVR_SLAM {
 		std::mutex mMutexWindowFrames;
 		std::list<Frame*> mQueueFrameWindows;
 		std::list<Frame*> mQueueCandidateGraphFrames;
-		std::set<Frame*> mspGraphFrames;
+		std::list<Frame*> mlpGraphFrames;
 ////////////////////////////////
 ////Dense Flow °ü¸®
 	public:

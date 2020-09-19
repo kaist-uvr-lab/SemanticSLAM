@@ -108,7 +108,10 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
 			
 			auto lpKFs = mpMap->GetWindowFrames();
-			for (auto iter = lpKFs.begin(); iter != lpKFs.end(); iter++) {
+			auto siter = mpMap->GetWindowFramesStartIterator();
+			auto eiter = mpMap->GetWindowFramesEndIterator();
+			for (auto iter = siter; iter != eiter; iter++) {
+			//for (std::list<Frame*>::const_iterator iter = lpKFs.begin(), iend = lpKFs.end(); iter != iend; iter++) {
 				auto pKF = *iter;
 				pKF->mnLocalBAID = nTargetID;
 				vpKFs.push_back(pKF);
@@ -145,8 +148,11 @@ void UVR_SLAM::MapOptimizer::Run() {
 				}
 			}
 
-			auto spGraphKFs = mpMap->GetGraphFrames();
-			for (auto iter = spGraphKFs.begin(); iter != spGraphKFs.end(); iter++) {
+			auto lpGraphKFs = mpMap->GetGraphFrames();
+			auto siter2 = mpMap->GetGraphFramesStartIterator();
+			auto eiter2 = mpMap->GetGraphFramesEndIterator();
+			for (auto iter = siter2; iter != eiter2; iter++) {
+			//for (std::list<Frame*>::const_iterator iter = lpGraphKFs.begin(), iend= lpGraphKFs.end(); iter != iend; iter++) {
 				auto pKFi = *iter;
 				pKFi->mnFixedBAID = nTargetID;
 				pKFi->mnLocalBAID = nTargetID;
@@ -203,6 +209,69 @@ void UVR_SLAM::MapOptimizer::Run() {
 			mpSystem->SetMapOptimizerString(ss.str());
 			//std::cout << "ba::end::" << mpTargetFrame->GetFrameID() << std::endl;
 			//Á¾·á
+
+			////////TEST
+			//auto vpFrameWindows = mpMap->GetWindowFrames();
+			//auto vpGraphKFs = mpMap->GetGraphFrames();
+			///*for (int i = 0; i < vpGraphKFs.size(); i++) {
+			//vpFrameWindows.push_back(vpGraphKFs[i]);
+			//}*/
+			//std::vector<int> nTest;
+			//for (auto iter = vpFrameWindows.begin(); iter != vpFrameWindows.end(); iter++) {
+			//	auto pKF = *iter;
+			//	int nKF = 0;
+			//	auto pTargetMatch = pKF->mpMatchInfo;
+			//	for (int i = 0; i < vpMPs.size(); i++) {
+			//		auto pMPi = vpMPs[i];
+			//		/*int idx = pCPi->GetPointIndexInFrame(pTargetMatch);
+			//		int idx2 = pCPi->GetPointIndexInFrame(mpTargetFrame->mpMatchInfo);*/
+			//		if (pMPi && !pMPi->isDeleted()) {
+			//			bool bPrev = pMPi->isInFrame(pTargetMatch);
+			//			if (bPrev)
+			//				nKF++;
+			//		}
+
+			//	}
+			//	nTest.push_back(nKF);
+			//}
+			//std::cout << "test::window::" << vpMPs.size() << "::";
+			//for (int i = 0; i < nTest.size(); i++) {
+			//	std::cout << nTest[i];
+			//	if (i == nTest.size() - 1)
+			//		std::cout << std::endl;
+			//	else
+			//		std::cout << ", ";
+			//}
+
+			//if (vpGraphKFs.size() > 0) {
+			//	nTest.clear();
+			//	for (auto iter = vpGraphKFs.begin(); iter != vpGraphKFs.end(); iter++) {
+			//		auto pKF = *iter;
+			//		int nKF = 0;
+			//		auto pTargetMatch = pKF->mpMatchInfo;
+			//		for (int i = 0; i < vpMPs.size(); i++) {
+			//			auto pMPi = vpMPs[i];
+			//			/*int idx = pCPi->GetPointIndexInFrame(pTargetMatch);
+			//			int idx2 = pCPi->GetPointIndexInFrame(mpTargetFrame->mpMatchInfo);*/
+			//			if (pMPi && !pMPi->isDeleted()) {
+			//				bool bPrev = pMPi->isInFrame(pTargetMatch);
+			//				if (bPrev)
+			//					nKF++;
+			//			}
+
+			//		}
+			//		nTest.push_back(nKF);
+			//	}
+			//	std::cout << "test::graph::";
+			//	for (int i = 0; i < nTest.size(); i++) {
+			//		std::cout << nTest[i];
+			//		if (i == nTest.size() - 1)
+			//			std::cout << std::endl;
+			//		else
+			//			std::cout << ", ";
+			//	}
+			//}
+			////////TEST
 			SetDoingProcess(false);
 		}
 	}

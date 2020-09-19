@@ -17,9 +17,12 @@ namespace UVR_SLAM {
 				ProcessNewKeyFrame();
 
 				/////////////VoW ¸ÅÄª
-				auto vpGrahWindows = mpMap->GetGraphFrames();
-				for (int i = 0; i < vpGrahWindows.size(); i++) {
-					auto pKFi = vpGrahWindows[i];
+				auto lpGrahWindows = mpMap->GetGraphFrames();
+				auto siter = mpMap->GetGraphFramesStartIterator();
+				auto eiter = mpMap->GetGraphFramesEndIterator();
+				for (auto iter = siter; iter != eiter; iter++) {
+				//for (std::list<Frame*>::const_iterator iter = lpGrahWindows.begin(), iend = lpGrahWindows.end(); iter != iend; iter++) {
+					auto pKFi = *iter;
 					auto score = mpTargetFrame->Score(pKFi);
 					std::cout << "Loop::" << score << std::endl;
 					if (score > 0.01) {
@@ -28,6 +31,17 @@ namespace UVR_SLAM {
 						cv::waitKey(1);
 					}
 				}
+				//vector ¹öÀü ÀÏ ¶§
+				/*for (int i = 0; i < vpGrahWindows.size(); i++) {
+					auto pKFi = vpGrahWindows[i];
+					auto score = mpTargetFrame->Score(pKFi);
+					std::cout << "Loop::" << score << std::endl;
+					if (score > 0.01) {
+						imshow("Loop::1", mpTargetFrame->GetOriginalImage());
+						imshow("Loop::2", pKFi->GetOriginalImage());
+						cv::waitKey(1);
+					}
+				}*/
 				/////////////VoW ¸ÅÄª
 
 				SetBoolProcessing(false);

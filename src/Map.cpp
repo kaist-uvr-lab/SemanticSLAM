@@ -30,19 +30,37 @@ namespace UVR_SLAM{
 				}
 				//그걸 graph frame에 추가.
 				mQueueCandidateGraphFrames.clear();
-				mspGraphFrames.insert(targetKF);
+				mlpGraphFrames.push_back(targetKF);
 			}
 		}
 		
 		mQueueFrameWindows.push_back(pF);
 	}
-	std::vector<Frame*> Map::GetWindowFrames(){
+	std::list<Frame*> Map::GetWindowFrames(){
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
-		return std::vector<Frame*>(mQueueFrameWindows.begin(), mQueueFrameWindows.end());
+		return mQueueFrameWindows;
+		//return std::vector<Frame*>(mQueueFrameWindows.begin(), mQueueFrameWindows.end());
 	}
-	std::vector<Frame*> Map::GetGraphFrames() {
+	std::list<Frame*> Map::GetGraphFrames() {
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
-		return std::vector<Frame*>(mspGraphFrames.begin(), mspGraphFrames.end());
+		return mlpGraphFrames;
+		//return std::vector<Frame*>(mspGraphFrames.begin(), mspGraphFrames.end());
+	}
+	std::list<Frame*>::const_iterator Map::GetWindowFramesStartIterator() {
+		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
+		return mQueueFrameWindows.begin();
+	}
+	std::list<Frame*>::const_iterator Map::GetWindowFramesEndIterator(){
+		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
+		return mQueueFrameWindows.end();
+	}
+	std::list<Frame*>::const_iterator Map::GetGraphFramesStartIterator(){
+		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
+		return mlpGraphFrames.begin();
+	}
+	std::list<Frame*>::const_iterator Map::GetGraphFramesEndIterator(){
+		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
+		return mlpGraphFrames.end();
 	}
 }
 

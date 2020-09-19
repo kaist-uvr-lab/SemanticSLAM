@@ -422,8 +422,11 @@ void UVR_SLAM::Visualizer::Run() {
 				////////////////////////////////////////////////////////////
 				}
 			////trajectory
-			auto sGraphKFs = mpMap->GetGraphFrames();
-			for (auto iter = sGraphKFs.begin(), iend = sGraphKFs.end(); iter != iend; iter++) {
+			auto lGraphKFs = mpMap->GetGraphFrames();
+			auto siter = mpMap->GetGraphFramesStartIterator();
+			auto eiter = mpMap->GetGraphFramesEndIterator();
+			for (auto iter = siter; iter != eiter; iter++) {
+			//for (std::list<Frame*>::const_iterator iter = lGraphKFs.begin(), iend = lGraphKFs.end(); iter != iend; iter++) {
 				auto pKFi = *iter;
 				cv::Mat t1 = pKFi->GetCameraCenter();
 				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
@@ -431,7 +434,10 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::circle(tempVis, pt1, 2, cv::Scalar(0, 155, 248), -1);
 			}
 			auto lKFs = mpMap->GetWindowFrames();
-			for (auto iter = lKFs.begin(); iter != lKFs.end(); iter++) {
+			auto siter2 = mpMap->GetWindowFramesStartIterator();
+			auto eiter2 = mpMap->GetWindowFramesEndIterator();
+			for (auto iter = siter2; iter != eiter2; iter++) {
+			//for (std::list<Frame*>::const_iterator iter = lKFs.begin(), iend = lKFs.end(); iter != iend; iter++) {
 				auto pKFi = *iter;
 				cv::Mat t1 = pKFi->GetCameraCenter();
 				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);

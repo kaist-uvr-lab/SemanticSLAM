@@ -195,29 +195,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			//////////////////업데이트 맵포인트
 
 			/////////////////////Window Test
-			std::vector<CandidatePoint*> vpCurrCPs;
-			std::vector<MapPoint*> vpCurrMPs;
-			auto vCurrPTs = mpTargetFrame->mpMatchInfo->GetMatchingPts(vpCurrCPs, vpCurrMPs, false);
-			auto vpFrameWindows = mpMap->GetWindowFrames();
-			auto vpGraphKFs = mpMap->GetGraphFrames();
-			for (int i = 0; i < vpGraphKFs.size(); i++) {
-				vpFrameWindows.push_back(vpGraphKFs[i]);
-			}
-			for (auto iter = vpFrameWindows.begin(); iter != vpFrameWindows.end(); iter++) {
-				auto pKF = *iter;
-				int nKF = 0;
-				auto pTargetMatch = pKF->mpMatchInfo;
-				for (int i = 0; i < vCurrPTs.size(); i++) {
-					auto pCPi = vpCurrCPs[i];
-					auto pMPi = vpCurrMPs[i];
-					int idx = pCPi->GetPointIndexInFrame(pTargetMatch);
-					int idx2 = pCPi->GetPointIndexInFrame(mpTargetFrame->mpMatchInfo);
-					if (pMPi && !pMPi->isDeleted()) {
-						bool bPrev = pMPi->isInFrame(pTargetMatch);
-						nKF++;
-					}
-				}
-			}
+			
 			//////1
 			//std::vector<CandidatePoint*> vpCurrCPs;
 			//auto vCurrPTs = mpTargetFrame->mpMatchInfo->GetMatchingPts(vpCurrCPs);
