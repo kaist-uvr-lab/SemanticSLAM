@@ -127,6 +127,10 @@ bool UVR_SLAM::MapPoint::isDeleted(){
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	return mbDelete;
 }
+void UVR_SLAM::MapPoint::SetDelete() {
+	std::unique_lock<std::mutex> lockMP(mMutexMP);
+	mbDelete = true;
+}
 
 
 void UVR_SLAM::MapPoint::IncreaseVisible(int n)

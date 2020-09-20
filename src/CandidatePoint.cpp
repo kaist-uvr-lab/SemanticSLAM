@@ -383,12 +383,12 @@ mnCandidatePointID(++nCandidatePointID), mnLastFrameID(-1), mnVisibleFrameID(-1)
 			nTotal = mnTotal;
 		}
 
-		int nDiffFrame = mnVisibleFrameID - mnFirstMapPointID;
+		int nDiffFrame = nVisible - mnFirstMapPointID;
 		if (nDiffFrame < 10)
 			return;
 
 		bool b = true;
-		bool bFrame = (nLastFrame + 10) < mnVisibleFrameID;
+		bool bFrame = (nLastFrame + 10) < nVisible;
 		float ratio = ((float)nS) / nTotal;
 		bool bRatio = ratio < 0.6;
 		
@@ -444,7 +444,8 @@ mnCandidatePointID(++nCandidatePointID), mnLastFrameID(-1), mnVisibleFrameID(-1)
 		mpMapPoint = pMP;
 	}
 	void CandidatePoint::DeleteMapPoint() {
-		std::unique_lock<std::mutex> lockMP(mMutexCP);
+		//std::unique_lock<std::mutex> lockMP(mMutexCP);
+		mpMapPoint->SetDelete();
 		mpMapPoint->Delete();
 	}
 	void CandidatePoint::ResetMapPoint() {

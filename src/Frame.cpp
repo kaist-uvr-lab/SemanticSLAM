@@ -1192,7 +1192,7 @@ void UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 	for (int i = 0; i < vpCPs.size(); i++) {
 		auto pCPi = vpCPs[i];
 		if (!pCPi->GetQuality())
-			pCPi->ResetMapPoint();
+			pCPi->DeleteMapPoint();
 		/*auto pMPi = pCPi->mpMapPoint;
 		if (pCPi->bCreated && pMPi) {
 			pCPi->ComputeQuality();

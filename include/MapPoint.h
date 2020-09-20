@@ -58,6 +58,7 @@ namespace UVR_SLAM {
 		
 		//void SetDelete(bool b);
 		bool isDeleted();
+		void SetDelete();
 		
 		float GetMaxDistance();
 		float GetMinDistance();
