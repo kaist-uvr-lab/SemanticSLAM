@@ -1092,7 +1092,7 @@ void UVR_SLAM::MatchInfo::UpdateFrame() {
 	
 	for (int i = 0; i < vpTempCPs.size(); i++) {
 		auto pCPi = vpTempCPs[i];
-		pCPi->AddFrame(this, i);
+		pCPi->ConnectToFrame(this, i);
 		if (!pCPi->bCreated || !pCPi->mpMapPoint)
 			continue;
 		auto pMPi = pCPi->mpMapPoint;

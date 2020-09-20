@@ -15,8 +15,8 @@ namespace UVR_SLAM {
 		CandidatePoint(MatchInfo* pRefKF, int alabel = 0, int aoct = 0);
 		virtual ~CandidatePoint();
 		std::map<MatchInfo*, int> GetFrames();
-		void AddFrame(UVR_SLAM::MatchInfo* pF, cv::Point2f pt); //index in frame
-		void AddFrame(UVR_SLAM::MatchInfo* pF, int idx); //index in frame
+		//void AddFrame(UVR_SLAM::MatchInfo* pF, cv::Point2f pt); //index in frame
+		void ConnectToFrame(UVR_SLAM::MatchInfo* pF, int idx); //index in frame
 		void RemoveFrame(UVR_SLAM::MatchInfo* pKF);
 		void Delete();
 		int GetPointIndexInFrame(MatchInfo* pF);

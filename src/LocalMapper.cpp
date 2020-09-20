@@ -160,10 +160,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			double time2 = 0.0;
 			/////////KF-KF 매칭
 			mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, mK, mInvK, time1, debugMatch);
-			//if (mpTargetFrame->mpMatchInfo->GetNumMapPoints() < nMinMapPoints){
-			//nCreated = CreateMapPoints(mpPrevKeyFrame, vMatchPrevPts, vMatchPrevCPs, time2, debugMatch); //제대로 동작안함.
 			nCreated = CreateMapPoints(mpTargetFrame, vMatchCurrPts, vMatchPrevCPs, time2, debugMatch); //왜인지는 모르겟으나 잘 동작함
-			//}
 			mpPrevKeyFrame->mpMatchInfo->mMatchedImage = debugMatch.clone();
 
 			///////매칭 정보 저장
