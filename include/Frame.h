@@ -63,7 +63,7 @@ namespace UVR_SLAM {
 		int mnMatch;
 //////////////////
 	public:
-		int AddCP(CandidatePoint* pMP, cv::Point2f pt);
+		
 		int nPrevNumCPs;
 		int GetNumCPs();
 		std::vector<cv::Point2f> GetMatchingPts();
@@ -78,11 +78,21 @@ namespace UVR_SLAM {
 		bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt); //확인 후 삭제.
 
 	private:
-		std::mutex mMutexCPs;
 		cv::Mat mMapCP; //현재 이미지 내에 CP의 포인트 위치 & 인덱스, ushort, 16US1
+//////////////////
+///////////CP MP PT 자료구조
+	public:
 		std::vector<UVR_SLAM::CandidatePoint*> mvpMatchingCPs; //KF-KF 매칭에서 삼각화시 베이스라인을 충분히 확보하기 위함.
+		std::vector<MapPoint*> mvpMatchingMPs;
 		std::vector<cv::Point2f> mvMatchingPts; //CPPt에서 변경함
 
+		int AddCP(CandidatePoint* pMP, cv::Point2f pt);
+
+	private:
+		std::mutex mMutexCPs;
+		int mnNumCP;
+///////////CP MP PT 자료구조
+//////////////////
 //////////////////
 	public:
 		//현재 매칭된 값을 저장함.
