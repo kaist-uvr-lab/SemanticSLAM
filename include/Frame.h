@@ -38,7 +38,10 @@ namespace UVR_SLAM {
 	class MapGrid;
 	class MatchInfo {
 	public:
-		
+		MatchInfo();
+		MatchInfo(Frame* pRef, Frame* pTarget, int w, int h);
+
+
 		///////////////////이 위에는 확실한 수정 코드
 		//int AddMP(MapPoint* pMP, cv::Point2f pt);
 		
@@ -47,8 +50,7 @@ namespace UVR_SLAM {
 		///////////////이 위에는 수정 또는 삭제인데 코드를 보고 결정해야 함
 		///////////////이 위에는 삭제할 것들
 		//, usedCPMap; //자기 자신의 KP를 추가할 때 이미 매칭이 되었던 건지 확인하기 위해서
-		MatchInfo();
-		MatchInfo(Frame* pRef, Frame* pTarget, int w, int h);
+		
 		virtual ~MatchInfo();
 		void UpdateFrame();
 		void SetMatchingPoints(); //초기화나 매핑시 포인트 매칭을 위한 포인트 추가 과정.
@@ -65,32 +67,35 @@ namespace UVR_SLAM {
 	public:
 		
 		int nPrevNumCPs;
+		/*
+		////테스트 중 제거
 		int GetNumCPs();
 		std::vector<cv::Point2f> GetMatchingPts();
 		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::MapPoint*>& vpMPs);
 		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs);
 		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs);
-		
 		UVR_SLAM::CandidatePoint* GetCP(int idx);
 		cv::Point2f GetPt(int idx);
-		
+		*/
+
 		int CheckOpticalPointOverlap(int radius, int margin, cv::Point2f pt); //확인 후 삭제.
 		bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt); //확인 후 삭제.
 
 	private:
-		cv::Mat mMapCP; //현재 이미지 내에 CP의 포인트 위치 & 인덱스, ushort, 16US1
+		
 //////////////////
 ///////////CP MP PT 자료구조
 	public:
 		std::vector<UVR_SLAM::CandidatePoint*> mvpMatchingCPs; //KF-KF 매칭에서 삼각화시 베이스라인을 충분히 확보하기 위함.
 		std::vector<MapPoint*> mvpMatchingMPs;
 		std::vector<cv::Point2f> mvMatchingPts; //CPPt에서 변경함
-
+		int GetNumSize();
 		int AddCP(CandidatePoint* pMP, cv::Point2f pt);
 
 	private:
 		std::mutex mMutexCPs;
 		int mnNumCP;
+		cv::Mat mMapCP; //현재 이미지 내에 CP의 포인트 위치 & 인덱스, ushort, 16US1
 ///////////CP MP PT 자료구조
 //////////////////
 //////////////////

@@ -932,8 +932,8 @@ float UVR_SLAM::Frame::CalcDiffAngleAxis(UVR_SLAM::Frame* pF) {
 }
 
 //////////////matchinfo
-UVR_SLAM::MatchInfo::MatchInfo():mnMatch(0){}
-UVR_SLAM::MatchInfo::MatchInfo(Frame* pRef, Frame* pTarget, int w, int h):mnHeight(h), mnWidth(w), mnMatch(0){
+UVR_SLAM::MatchInfo::MatchInfo():mnMatch(0), mnNumCP(0){}
+UVR_SLAM::MatchInfo::MatchInfo(Frame* pRef, Frame* pTarget, int w, int h):mnHeight(h), mnWidth(w), mnMatch(0), mnNumCP(0){
 	mpTargetFrame = pTarget;
 	mpRefFrame = pRef;
 	mMapCP = cv::Mat::zeros(h, w, CV_16SC1);
@@ -968,9 +968,9 @@ bool UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(cv::Mat& overlap, int radius,
 
 void UVR_SLAM::MatchInfo::SetLabel() {
 	auto labelMat = mpRefFrame->matLabeled.clone();
-	std::vector<CandidatePoint*> vpCPs;
-	auto vPTs = mpRefFrame->mpMatchInfo->GetMatchingPts(vpCPs);
-	for (int i = 0; i < vPTs.size(); i++) {
+	
+	int N = GetNumSize();
+	for (int i = 0; i < N; i++) {
 		auto pCPi = vpCPs[i];
 		auto pt = vPTs[i];
 		int label = labelMat.at<uchar>(pt.y / 2, pt.x / 2);
@@ -980,6 +980,18 @@ void UVR_SLAM::MatchInfo::SetLabel() {
 		if (pMPi)
 			pMPi->SetLabel(label);
 	}
+	//std::vector<CandidatePoint*> vpCPs;
+	//auto vPTs = mpRefFrame->mpMatchInfo->GetMatchingPts(vpCPs);
+	//for (int i = 0; i < vPTs.size(); i++) {
+	//	auto pCPi = vpCPs[i];
+	//	auto pt = vPTs[i];
+	//	int label = labelMat.at<uchar>(pt.y / 2, pt.x / 2);
+	//	//mvObjectLabels[i] = label1;
+	//	pCPi->SetLabel(label);
+	//	auto pMPi = pCPi->mpMapPoint;
+	//	if (pMPi)
+	//		pMPi->SetLabel(label);
+	//}
 }
 
 //새로운 맵포인트를 생성하기 위한 키포인트를 생성.
@@ -996,8 +1008,7 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 
 	//이게 변경이 되어야 함. 이미 추가가 되어 있다고 가정.
 	//mvTempPts = GetMatchingPts(mvTempOctaves);
-	nPrevNumCPs = GetNumCPs();
-
+	
 	for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += nIncEdge) {
 		auto pt = mpRefFrame->mvEdgePts[i];
 		if (CheckOpticalPointOverlap(1, 10, pt)>=0) {
@@ -1064,17 +1075,26 @@ int UVR_SLAM::MatchInfo::GetNumMapPoints() {
 	std::unique_lock<std::mutex>(mMutexData);
 	return mnMatch;
 }
-int UVR_SLAM::MatchInfo::GetNumCPs() {
-	std::unique_lock<std::mutex>(mMutexCPs);
-	return mvpMatchingCPs.size();
-}
+//int UVR_SLAM::MatchInfo::GetNumCPs() {
+//	std::unique_lock<std::mutex>(mMutexCPs);
+//	return mvpMatchingCPs.size();
+//}
 
-int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
+int UVR_SLAM::MatchInfo::GetNumSize() {
 	std::unique_lock<std::mutex>(mMutexCPs);
+	return mnNumCP;
+}
+int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
+	
 	int res = mvpMatchingCPs.size();
 	mvpMatchingCPs.push_back(pCP);
+	mvpMatchingMPs.push_back(nullptr);
 	mvMatchingPts.push_back(pt);
-	cv::circle(mMapCP, pt, Frame::mnRadius, cv::Scalar(res+1), -1);
+	{
+		std::unique_lock<std::mutex>(mMutexCPs);
+		mnNumCP++;
+		cv::circle(mMapCP, pt, Frame::mnRadius, cv::Scalar(res+1), -1);
+	}
 	return res;
 }
 ////이것은 사용이 안될 수도 있음.
