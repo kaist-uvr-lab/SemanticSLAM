@@ -1321,7 +1321,8 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 		{
 			auto pMatch = vToErase[i].first;
 			MapPoint* pMPi = vToErase[i].second;
-			pMPi->RemoveFrame(pMatch);
+			pMatch->RemoveMP();
+			pMPi->DisconnectFrame(pMatch);
 		}
 	}
 

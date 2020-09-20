@@ -116,8 +116,8 @@ namespace UVR_SLAM {
 
 		//////////////////////프레임과 관련된 것들
 	public:
-		void AddFrame(UVR_SLAM::MatchInfo* pF, int idx); //index in frame
-		void RemoveFrame(UVR_SLAM::MatchInfo* pKF);
+		void ConnectFrame(UVR_SLAM::MatchInfo* pF, int idx); //index in frame
+		void DisconnectFrame(UVR_SLAM::MatchInfo* pKF);
 		std::map<MatchInfo*, int> GetConnedtedFrames();
 		int GetNumConnectedFrames();
 		void Delete();

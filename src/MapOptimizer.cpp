@@ -4,6 +4,7 @@
 #include <Visualizer.h>
 #include <FrameWindow.h>
 #include <MapPoint.h>
+#include <CandidatePoint.h>
 #include <Optimization.h>
 #include <PlanarOptimization.h>
 //#include <PlaneEstimator.h>
@@ -102,6 +103,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			//std::cout << "BA::preprocessing::start" << std::endl;
 			std::chrono::high_resolution_clock::time_point temp_1 = std::chrono::high_resolution_clock::now();
 			std::vector<UVR_SLAM::MapPoint*> vpMPs;// , vpMPs2;
+			std::vector<UVR_SLAM::CandidatePoint*> vpCPs;
 			std::vector<UVR_SLAM::Frame*> vpKFs;
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
 			
@@ -125,7 +127,8 @@ void UVR_SLAM::MapOptimizer::Run() {
 				auto pKFi = vpKFs[k];
 				auto matchInfo = pKFi->mpMatchInfo;
 				std::vector<MapPoint*> mvpMatchingMPs;
-				auto mvpMatchingPTs = matchInfo->GetMatchingPts(mvpMatchingMPs);
+				std::vector<CandidatePoint*> mvpMatchingCPs;
+				auto mvpMatchingPTs = matchInfo->GetMatchingPtsOptimization(mvpMatchingCPs, mvpMatchingMPs);
 				for (int i = 0; i < mvpMatchingMPs.size(); i++) {
 					auto pMPi = mvpMatchingMPs[i];
 					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
@@ -134,8 +137,10 @@ void UVR_SLAM::MapOptimizer::Run() {
 					if (pMPi->GetNumConnectedFrames() < 3) {
 						continue;
 					}
+					auto pCPi = mvpMatchingCPs[i];
 					pMPi->mnLocalBAID = nTargetID;
 					vpMPs.push_back(pMPi);
+					vpCPs.push_back(pCPi);
 				}
 			}
 
@@ -178,6 +183,11 @@ void UVR_SLAM::MapOptimizer::Run() {
 			{
 				std::cout << "Plane optimization" << std::endl;
 				PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpMPs, vpKFs, vpFixedKFs);
+			}
+
+			for (int i = 0; i < vpCPs.size(); i++)
+			{
+				vpCPs[i]->SetOptimization(true);
 			}
 			
 			/*std::cout << "BA::Delete::Start" << std::endl;

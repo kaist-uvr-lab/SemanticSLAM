@@ -134,6 +134,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			//////200412
 			
 			ProcessNewKeyFrame();
+			mpTargetFrame->mpMatchInfo->UpdateFrameQuality();
 
 			int nTargetID = mpTargetFrame->GetFrameID();
 			//std::cout << "lm::start::" << mpTargetFrame->GetFrameID() << std::endl;
@@ -1148,7 +1149,7 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 		//scale 계산
 		int idx = vTempMatchIDXs[i]; //cp idx
 		auto pCPi = vPrevCPs[idx];
-		auto pMPi = pCPi->mpMapPoint;
+		auto pMPi = pCPi->GetMP();
 
 		vpTempCPs.push_back(pCPi);
 		vX3Ds.push_back(proj1);
@@ -1209,9 +1210,9 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 		
 		//MP fuse나 replace 함수가 필요해짐. 아니면, world pos만 변경하던가
 		//빈곳만 채우던가
-		bool bMP = pCPi->bCreated;
-		if (bMP) {
-			pCPi->mpMapPoint->SetWorldPos(X3D);
+		auto pMPi = pCPi->GetMP();
+		if (pMPi) {
+			pMPi->SetWorldPos(X3D);
 		}
 		else {
 			int label = pCPi->GetLabel();
@@ -1223,7 +1224,8 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 				if (pMatch->mpRefFrame->GetKeyFrameID() % 3 != 0)
 					continue;
 				int idx = iter->second;
-				pMP->AddFrame(pMatch, idx);
+				pMatch->AddMP();
+				pMP->ConnectFrame(pMatch, idx);
 			}
 			/*pMP->AddFrame(pCurrKF->mpMatchInfo, pt1);
 			pMP->AddFrame(pPrevKF->mpMatchInfo, pt2);*/
@@ -1257,11 +1259,10 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 	for (int i = 0; i < N; i++) {
 		auto pCPi = vMatchPrevCPs[i];
 		int nConnCP = pCPi->GetNumSize();
-		bool bMP = pCPi->bCreated; 
-		MapPoint* pMPinCP = pCPi->mpMapPoint;
+		auto pMPinCP = pCPi->GetMP();
 		auto currPt = vMatchCurrPts[i];
 	
-		if (nConnCP > 2 && !bMP) {
+		if (nConnCP > 2 && !pMPinCP) {
 			cv::Mat Xw;
 			bool b1, b2;
 			b1 = false;
@@ -1279,7 +1280,8 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 						continue;
 					}
 					int idx = iter->second;
-					pMP->AddFrame(pMatch, idx);
+					pMatch->AddMP();
+					pMP->ConnectFrame(pMatch, idx);
 					//auto pt = pMatch->GetPt();
 					//pMP->AddFrame(pMatch, pt);
 					spMatches.insert(pMatch);

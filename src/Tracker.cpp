@@ -11,6 +11,7 @@
 #include <PlaneEstimator.h>
 #include <FrameVisualizer.h>
 #include <Visualizer.h>
+#include <CandidatePoint.h>
 
 //std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
 
@@ -200,8 +201,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			pNewKF->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 			mpRefKF = pNewKF;
 			mpLocalMapper->InsertKeyFrame(pNewKF);
-			//mpSegmentator->InsertKeyFrame(pNewKF);
-			//mpPlaneEstimator->InsertKeyFrame(pNewKF);
 		}
 
 		////////Visualization & 시간 계산
@@ -243,16 +242,22 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs) {
 	auto pMatchInfo = pCurr->mpMatchInfo;
 	auto pPrevMatchInfo = pPrev->mpMatchInfo;
-	
+	int nCurrID = pCurr->GetFrameID();
 	int nres = 0;
+	int nLowQuality = 0;
 	for (int i = 0; i < vpPts.size(); i++) {
+		auto pCP = vpCPs[i];
+		pCP->mnVisibleFrameID = nCurrID;
 		if (!vbInliers[i]){
+			pCP->AddFail();
+			pCP->ComputeQuality();
 			continue;
 		}
 		int prevIdx = vnIDXs[i];
 		auto pt = vpPts[i];
-		auto pCP = vpCPs[i];
 		if (pMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, pt) < 0) {
+			pCP->AddSuccess();
+			pCP->SetLastSuccessFrame(pCurr->GetFrameID());
 			pMatchInfo->AddCP(pCP, pt);
 			nres++;
 		}

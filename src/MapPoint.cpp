@@ -19,8 +19,7 @@ UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint*
 	mnFirstKeyFrameID = mpRefKF->GetKeyFrameID();
 	//CP贸府
 	mpCP = pCP;
-	mpCP->bCreated = true;
-	mpCP->mpMapPoint = this;
+	mpCP->SetMapPoint(this, mpRefKF->GetFrameID());
 	//甘贸府
 	mpMap->AddMap(this, label);
 }
@@ -32,8 +31,7 @@ UVR_SLAM::MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint*
 	mnFirstKeyFrameID = mpRefKF->GetKeyFrameID();
 	//CP贸府
 	mpCP = pCP;
-	mpCP->bCreated = true;
-	mpCP->mpMapPoint = this;
+	mpCP->SetMapPoint(this, mpRefKF->GetFrameID());
 	//甘贸府
 	mpMap->AddMap(this, label);
 }
@@ -181,7 +179,7 @@ void UVR_SLAM::MapPoint::Fuse(UVR_SLAM::MapPoint* pMP) {
 
 		if (!pMP->isInFrame(pKF))
 		{
-			pMP->AddFrame(pKF, mit->second);
+			pMP->ConnectFrame(pKF, mit->second);
 		}
 		else
 		{
@@ -209,19 +207,18 @@ int UVR_SLAM::MapPoint::GetNumConnectedFrames() {
 	return mnConnectedFrames;
 }
 
-void UVR_SLAM::MapPoint::AddFrame(UVR_SLAM::MatchInfo* pF, int idx) {
+void UVR_SLAM::MapPoint::ConnectFrame(UVR_SLAM::MatchInfo* pF, int idx) {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	auto res = mmpFrames.find(pF);
 	if (res == mmpFrames.end()) {
 		mmpFrames.insert(std::pair<UVR_SLAM::MatchInfo*, int>(pF, idx));
-		pF->AddMP();
 		mnConnectedFrames++;
 	}
 	else {
 		std::cout << "MapPoint::AddFrame::Error" << std::endl;
 	}
 }
-void UVR_SLAM::MapPoint::RemoveFrame(UVR_SLAM::MatchInfo* pF){
+void UVR_SLAM::MapPoint::DisconnectFrame(UVR_SLAM::MatchInfo* pF){
 	{
 		std::unique_lock<std::mutex> lockMP(mMutexMP);
 		auto res = mmpFrames.find(pF);
@@ -229,7 +226,6 @@ void UVR_SLAM::MapPoint::RemoveFrame(UVR_SLAM::MatchInfo* pF){
 			int idx = res->second;
 			res = mmpFrames.erase(res);
 			mnConnectedFrames--;
-			pF->RemoveMP();
 			if (pF->mpRefFrame == mpRefKF) {
 				mpRefKF = mmpFrames.begin()->first->mpRefFrame;
 			}
@@ -257,8 +253,7 @@ void UVR_SLAM::MapPoint::Delete() {
 		mmpFrames.clear();
 	}
 	////CP 贸府
-	mpCP->bCreated = false;
-	mpCP->mpMapPoint = nullptr;
+	mpCP->ResetMapPoint();
 	//甘贸府
 	mpMap->RemoveMap(this);
 	mpMap->DeleteMapPoint(this);

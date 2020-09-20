@@ -79,10 +79,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpTempFrame = mpInitFrame1;
 		mpInitFrame1->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
 		mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo(mpInitFrame1, nullptr, mnWidth, mnHeight);
-		std::cout << "1" << std::endl;
 		mpInitFrame1->mpMatchInfo->SetMatchingPoints();
 		mpSegmentator->InsertKeyFrame(mpInitFrame1);
-		std::cout << "2" << std::endl;
 		return mbInit;
 	}
 	else {
@@ -217,6 +215,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			auto pCP = mpInitFrame1->mpMatchInfo->GetCP(idx2);
 			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
 			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpInitFrame2, pCP, X3D, cv::Mat(), label1);
+			pCP->SetOptimization(true);
 			tempMPs.push_back(pMP);
 			vTempMappedPts1.push_back(vTempMatchPts1[i]);
 			vTempMappedPts2.push_back(vTempMatchPts2[i]);
@@ -364,7 +363,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 		
 		/////////////////////Object labeling
-		mpInitFrame1->mpMatchInfo->SetLabel();
+		//mpInitFrame1->mpMatchInfo->SetLabel();
 		
 		/*for (int i = 0; i < mpInitFrame2->mpMatchInfo->mvMatchingPts.size(); i++) {
 			int idx = mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs[i];

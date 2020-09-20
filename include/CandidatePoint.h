@@ -11,13 +11,14 @@ namespace UVR_SLAM {
 	class CandidatePoint {
 		
 	public:
+		int mnCandidatePointID;
 		CandidatePoint();
 		CandidatePoint(MatchInfo* pRefKF, int alabel = 0, int aoct = 0);
 		virtual ~CandidatePoint();
 		std::map<MatchInfo*, int> GetFrames();
 		//void AddFrame(UVR_SLAM::MatchInfo* pF, cv::Point2f pt); //index in frame
-		void ConnectToFrame(UVR_SLAM::MatchInfo* pF, int idx); //index in frame
-		void RemoveFrame(UVR_SLAM::MatchInfo* pKF);
+		void ConnectFrame(UVR_SLAM::MatchInfo* pF, int idx); //index in frame
+		void DisconnectFrame(UVR_SLAM::MatchInfo* pKF);
 		void Delete();
 		int GetPointIndexInFrame(MatchInfo* pF);
 		bool DelayedTriangulate(Map* pMap, MatchInfo* pMatch, cv::Point2f pt, MatchInfo* pPPrevMatch, MatchInfo* pPrevMatch, cv::Mat K, cv::Mat invK, cv::Mat& debug);
@@ -36,8 +37,6 @@ namespace UVR_SLAM {
 	public:
 		int mnFirstID; //처음 발견한 프레임
 		int octave;
-		bool bCreated;
-		MapPoint* mpMapPoint;
 	private:
 		MatchInfo* mpRefKF;
 		bool mbDelete;
@@ -51,6 +50,48 @@ namespace UVR_SLAM {
 	private:
 		std::mutex mMutexLabel;
 		int label;
+
+	////////////////////////
+	////////MP관리
+	public:
+		void DeleteMapPoint();
+		void ResetMapPoint();
+		void SetMapPoint(MapPoint* pMP, int id);
+		MapPoint* GetMP();
+	private:
+		int mnMapPoint;
+		bool bCreated;
+		MapPoint* mpMapPoint;
+	////////MP관리
+	////////////////////////
+
+	///////////////////
+	////매칭 퀄리티 관련
+	public:
+		int mnVisibleFrameID;
+		float GetRatio();
+		void AddFail(int n = 1);
+		int GetFail();
+		void AddSuccess(int n = 1);
+		int GetSuccess();
+		void SetLastSuccessFrame(int id);
+		int GetLastSuccessFrame();
+		void SetLastVisibleFrame(int id);
+		int GetLastVisibleFrame();
+		void ComputeQuality();
+		bool GetQuality();
+		void SetOptimization(bool b);
+		bool isOptimized();
+	private:
+		bool mbOptimized;
+		int mnFail, mnSuccess, mnTotal;
+		int mnLastFrameID;
+		int mnFirstMapPointID;
+		bool mbLowQuality;
+	////매칭 퀄리티 관련
+	///////////////////
 	};
+
+
 }
 #endif
