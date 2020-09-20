@@ -56,8 +56,7 @@ namespace UVR_SLAM {
 		void SetMatchingPoints(); //초기화나 매핑시 포인트 매칭을 위한 포인트 추가 과정.
 		void SetLabel();
 
-		void AddMP();
-		void RemoveMP(); //삭제 예정
+		
 		int GetNumMapPoints();
 //////////////////
 	private:
@@ -87,11 +86,16 @@ namespace UVR_SLAM {
 ///////////CP MP PT 자료구조
 	public:
 		std::vector<UVR_SLAM::CandidatePoint*> mvpMatchingCPs; //KF-KF 매칭에서 삼각화시 베이스라인을 충분히 확보하기 위함.
-		std::vector<MapPoint*> mvpMatchingMPs;
+		//std::vector<MapPoint*> mvpMatchingMPs;
 		std::vector<cv::Point2f> mvMatchingPts; //CPPt에서 변경함
 		int GetNumSize();
 		int AddCP(CandidatePoint* pMP, cv::Point2f pt);
-
+		void AddMP(UVR_SLAM::MapPoint* pMP, int idx);
+		void RemoveMP(UVR_SLAM::MapPoint* pMP); //삭제 예정
+		////MP가 존재하는 pt와 CP를 얻는 용도. 트래킹과 BA 과정에서 이용.
+		std::vector<cv::Point2f> GetMatchingPtsForTracking(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs);
+		std::vector<cv::Point2f> GetMatchingPtsForMapping(std::vector<UVR_SLAM::MapPoint*>& vpMPs); //최적화, 시각화에서 MP 전체를 얻기 위해 사용
+		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs);
 	private:
 		std::mutex mMutexCPs;
 		int mnNumCP;
@@ -142,8 +146,6 @@ namespace UVR_SLAM {
 		void GetPose(cv::Mat&_R, cv::Mat& _t);
 		cv::Mat GetRotation();
 		cv::Mat GetTranslation();
-		void AddMP(UVR_SLAM::MapPoint* pMP, int idx);
-		void RemoveMP(int idx); 
 		
 		void Reset();
 		float CalcDiffAngleAxis(UVR_SLAM::Frame* pF);

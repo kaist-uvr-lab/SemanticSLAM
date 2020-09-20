@@ -178,15 +178,14 @@ void UVR_SLAM::MapPoint::Fuse(UVR_SLAM::MapPoint* pMP) {
 	{
 		// Replace measurement in keyframe
 		MatchInfo* pKF = mit->first;
-
-		if (!pMP->isInFrame(pKF))
+		/*if (!pMP->isInFrame(pKF))
 		{
 			pMP->AddFrame(pKF, mit->second);
 		}
 		else
 		{
 			pKF->RemoveMP();
-		}
+		}*/
 	}
 	pMP->IncreaseFound(nfound);
 	pMP->IncreaseVisible(nvisible);
@@ -209,19 +208,18 @@ int UVR_SLAM::MapPoint::GetNumConnectedFrames() {
 	return mnConnectedFrames;
 }
 
-void UVR_SLAM::MapPoint::AddFrame(UVR_SLAM::MatchInfo* pF, int idx) {
+void UVR_SLAM::MapPoint::ConnectFrame(UVR_SLAM::MatchInfo* pF, int idx) {
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	auto res = mmpFrames.find(pF);
 	if (res == mmpFrames.end()) {
 		mmpFrames.insert(std::pair<UVR_SLAM::MatchInfo*, int>(pF, idx));
-		pF->AddMP();
 		mnConnectedFrames++;
 	}
 	else {
 		std::cout << "MapPoint::AddFrame::Error" << std::endl;
 	}
 }
-void UVR_SLAM::MapPoint::RemoveFrame(UVR_SLAM::MatchInfo* pF){
+void UVR_SLAM::MapPoint::DisconnectFrame(UVR_SLAM::MatchInfo* pF){
 	{
 		std::unique_lock<std::mutex> lockMP(mMutexMP);
 		auto res = mmpFrames.find(pF);
@@ -229,7 +227,6 @@ void UVR_SLAM::MapPoint::RemoveFrame(UVR_SLAM::MatchInfo* pF){
 			int idx = res->second;
 			res = mmpFrames.erase(res);
 			mnConnectedFrames--;
-			pF->RemoveMP();
 			if (pF->mpRefFrame == mpRefKF) {
 				mpRefKF = mmpFrames.begin()->first->mpRefFrame;
 			}
@@ -251,7 +248,7 @@ void UVR_SLAM::MapPoint::Delete() {
 		for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
 			auto* pF = iter->first;
 			auto idx = iter->second;
-			pF->RemoveMP();
+			pF->RemoveMP(this);
 		}
 		mnConnectedFrames = 0;
 		mmpFrames.clear();

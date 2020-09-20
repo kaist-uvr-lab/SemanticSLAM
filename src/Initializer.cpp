@@ -214,7 +214,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			//std::cout << vTempPts1[idx] << ", " << mpInitFrame1->mpMatchInfo->GetCPPt(idx2) <<"::"<< vTempMatchPts1[i] << std::endl;
 
 			res3++;
-			auto pCP = mpInitFrame1->mpMatchInfo->GetCP(idx2);
+			auto pCP = mpInitFrame1->mpMatchInfo->mvpMatchingCPs[idx2];//mpInitFrame1->mpMatchInfo->GetCP(idx2);
 			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
 			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpInitFrame2, pCP, X3D, cv::Mat(), label1);
 			tempMPs.push_back(pMP);
@@ -223,10 +223,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			//vTempMappedOctaves.push_back(vTempMatchOctaves[i]);
 			vTempMappedIDXs.push_back(i);//vTempMatchIDXs[i]
 			
-			//pCP->AddFrame(mpInitFrame2->mpMatchInfo, vTempMatchPts2[i]);
 			mpInitFrame2->mpMatchInfo->AddCP(pCP, vTempMatchPts2[i]);
-			//pMP->AddFrame(mpInitFrame1->mpMatchInfo, idx2);
-			//pMP->AddFrame(mpInitFrame2->mpMatchInfo, idx2);
 
 			cv::circle(debugging, pt1, 2, cv::Scalar(0, 255, 0), -1);
 			cv::circle(debugging, pt2+ ptBottom, 2, cv::Scalar(0, 255, 0), -1);
@@ -543,167 +540,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//200419
 		///////////////////////////////////////////////////////////////////////////////////////
 
-		
-		/////////////////////////////////////////////////////////////////////////////////////////////////////
-		//////////////////////////////////////////////////////BACKUP CODE
-		////////////////////////rotation test
-		//cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(param).clone();
-		//cv::Mat normal;
-		//float dist;
-		//pFloor->GetParam(normal, dist);
-		//cv::Mat tempP = Rcw.t()*normal;
-		//if (tempP.at<float>(0) < 0.00001)
-		//	tempP.at<float>(0) = 0.0;
-		//if (tempP.at<float>(2) < 0.00001)
-		//	tempP.at<float>(2) = 0.0;
-
-		////카메라 자세 변환
-		//mpInitFrame1->GetPose(R, t);
-		//mpInitFrame1->SetPose(R*Rcw, t);
-		//mpInitFrame2->GetPose(R, t);
-		//mpInitFrame2->SetPose(R*Rcw, t);
-
-		////전체 맵포인트 변환
-		//for (int i = 0; i < mvpMPs.size(); i++) {
-		//	UVR_SLAM::MapPoint* pMP = mvpMPs[i];
-		//	if (!pMP)
-		//		continue;
-		//	if (pMP->isDeleted())
-		//		continue;
-		//	cv::Mat tempX = Rcw.t()*pMP->GetWorldPos();
-		//	pMP->SetWorldPos(tempX);
-		//}
-		////평면 파라메터 변환
-		//pFloor->SetParam(tempP, dist);
-		////////////////////////rotation test
-		//바닥 맵포인트 바로 생성
-		//인포메이션 바로 생성하기.
-
-
-		//////매칭 테스트
-		//cv::Mat debugImg;
-		//std::vector<cv::DMatch> vMatches;
-		//std::vector<cv::Mat> vPlanarMaps;
-		//std::vector<bool> vbInliers;
-		//std::vector<std::pair<int, cv::Point2f>> vPairs;
-		//vPlanarMaps = std::vector<cv::Mat>(mpInitFrame2->mvKeyPoints.size(), cv::Mat::zeros(0, 0, CV_8UC1));
-		//UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(mpInitFrame2, pFloor, vPlanarMaps);
-		//mpMatcher->MatchingWithEpiPolarGeometry(mpInitFrame1, mpInitFrame2, vPlanarMaps, vbInliers, vMatches, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugImg);
-		////mpMatcher->DenseMatchingWithEpiPolarGeometry(mpInitFrame1, mpInitFrame2, vPlanarMaps, vPairs, mpSystem->mnPatchSize, mpSystem->mnHalfWindowSize, debugImg);
-
-		//std::stringstream ss;
-		//ss << mpSystem->GetDirPath(0) << "/init.jpg";
-		//imwrite(ss.str(), debugImg);
-
-		//for (int i = 0; i < vPairs.size(); i++) {
-		//	//기존 평면인지 확인이 어려움.
-		//	
-		//	auto idx = vPairs[i].first;
-		//	auto pt = vPairs[i].second;
-		//	if (mpInitFrame2->mvpMPs[idx]) {
-		//		mpInitFrame2->mvpMPs[idx]->Delete();
-		//	}
-		//	UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[idx],mpInitFrame2->matDescriptor.row(idx), UVR_SLAM::PLANE_DENSE_MP);
-		//	pNewMP->SetPlaneID(pFloor->mnPlaneID);
-		//	pNewMP->SetObjectType(pFloor->mnPlaneType);
-		//	pNewMP->AddDenseFrame(mpInitFrame1, pt);
-		//	pNewMP->AddDenseFrame(mpInitFrame2, mpInitFrame2->mvKeyPoints[idx].pt);
-		//	//pNewMP->AddFrame(mpInitFrame2, idx);
-		//	pNewMP->UpdateNormalAndDepth();
-		//	pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
-		//	mpSystem->mlpNewMPs.push_back(pNewMP);
-		//	pFloor->tmpMPs.push_back(pNewMP);
-		//}
-
-		//for (int i = 0; i < vMatches.size(); i++) {
-		//	if (vbInliers[i]) {
-		//		int idx1 = vMatches[i].trainIdx;
-		//		int idx2 = vMatches[i].queryIdx;
-		//		UVR_SLAM::MapPoint* pNewMP = mpInitFrame2->mvpMPs[idx2];
-		//		if (pNewMP && pNewMP->isDeleted()) {
-		//			continue;
-		//		}
-		//		if (mpInitFrame2->mvpMPs[idx2] && mpInitFrame1->mvpMPs[idx1]) {
-		//			std::cout << "init::case::1" << std::endl;
-		//			pNewMP = mpInitFrame2->mvpMPs[idx2];
-		//			pNewMP->SetWorldPos(vPlanarMaps[idx2]);
-		//		}else if (mpInitFrame2->mvpMPs[idx2]) {
-		//			std::cout << "init::case::2" << std::endl;
-		//			pNewMP = mpInitFrame2->mvpMPs[idx2];
-		//			pNewMP->SetWorldPos(vPlanarMaps[idx2]);
-		//		}
-		//		else if (mpInitFrame1->mvpMPs[idx1]) {
-		//			std::cout << "init::case::3" << std::endl;
-		//			pNewMP = mpInitFrame1->mvpMPs[idx1];
-		//			pNewMP->SetWorldPos(vPlanarMaps[idx2]);
-		//		}
-		//		else {
-		//			std::cout << "init::case::4" << std::endl;
-		//			pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[idx2], mpInitFrame2->matDescriptor.row(idx2), UVR_SLAM::PLANE_MP);
-		//			pNewMP->SetPlaneID(pFloor->mnPlaneID);
-		//			pNewMP->SetObjectType(pFloor->mnPlaneType);
-		//			pNewMP->AddFrame(mpInitFrame1, idx1);
-		//			pNewMP->AddFrame(mpInitFrame2, idx2);
-		//			pNewMP->UpdateNormalAndDepth();
-		//			pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
-		//		}
-		//		mpSystem->mlpNewMPs.push_back(pNewMP);
-		//		pFloor->tmpMPs.push_back(pNewMP);
-		//		//mpFrameWindow->AddMapPoint(pNewMP, nTargetID);
-		//	}
-		//	else {
-		//		/*if (vPlanarMaps[i].rows == 0)
-		//			continue;
-		//		UVR_SLAM::MapPoint* pNewMP = new UVR_SLAM::MapPoint(mpInitFrame2, vPlanarMaps[i], mpInitFrame2->matDescriptor.row(i), UVR_SLAM::PLANE_MP);
-		//		pNewMP->SetPlaneID(pFloor->mnPlaneID);
-		//		pNewMP->SetObjectType(pFloor->mnPlaneType);
-		//		pNewMP->AddFrame(mpInitFrame2, i);
-		//		pNewMP->UpdateNormalAndDepth();
-		//		pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
-		//		mpSystem->mlpNewMPs.push_back(pNewMP);
-		//		pFloor->tmpMPs.push_back(pNewMP);*/
-		//	}
-
-		//	
-		//	
-		//}
-
-		////매칭 테스트
-		//UVR_SLAM::PlaneInformation::CreatePlanarMapPoints(mpInitFrame2, mpSystem);
-
-		////plane 변환 테스트
-		//float planeDist = 0.0;
-		//pFloor->SetParam(tempP, dist);
-		//std::cout << "plane : " << pFloor->mvpMPs.size() <<", "<<mvpFloorMPs.size()<< std::endl;
-		//for (int i = 0; i < pFloor->mvpMPs.size(); i++) {
-		//	UVR_SLAM::MapPoint* pMP = pFloor->mvpMPs[i];
-		//	planeDist += (dist+ pMP->GetWorldPos().dot(tempP));
-		//}
-		//std::cout << "sum plane dist : " << planeDist << ", " << std::endl;
-
-		//cv::Mat newR, newT;
-		//mpInitFrame2->GetPose(newR, newT);
-		//cv::Mat tempVis = mpInitFrame2->GetOriginalImage();
-		//for (int i = 0; i < mvpMPs.size(); i++) {
-		//	UVR_SLAM::MapPoint* pMP = mvpMPs[i];
-		//	if (!pMP)
-		//		continue;
-		//	if (pMP->isDeleted())
-		//		continue;
-		//	cv::Mat p3D = mvpMPs[i]->GetWorldPos();
-		//	cv::Mat temp = newR*p3D + newT;
-		//	std::cout << temp.t() << mK << std::endl;
-		//	temp = mK*temp;
-		//	std::cout << temp << std::endl;
-		//	cv::Point2f pt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
-		//	cv::circle(tempVis, pt, 2, cv::Scalar(255, 0, 0), -1);
-		//	cv::circle(tempVis, mpInitFrame2->mvKeyPoints[i].pt, 2, cv::Scalar(0, 0, 255), -1);
-		//}
-		//imshow("testestestset::", tempVis); cv::waitKey(1000);
-
-		////////////////////rotation test
-		//////////////////////////////////////////////////////BACKUP CODE
-		/////////////////////////////////////////////////////////////////////////////////////////////////////
 	}
 	return mbInit;
 }

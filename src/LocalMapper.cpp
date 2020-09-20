@@ -136,7 +136,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			ProcessNewKeyFrame();
 
 			int nTargetID = mpTargetFrame->GetFrameID();
-			//std::cout << "lm::start::" << mpTargetFrame->GetFrameID() << std::endl;
+			std::cout << "lm::start::" << mpTargetFrame->GetFrameID() << std::endl;
 
 			////Median Depth 게산
 			mpTargetFrame->ComputeSceneMedianDepth();
@@ -982,7 +982,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			ssa << "LocalMapping : " << mpTargetFrame->GetKeyFrameID() << "::" << t_test1 << "::" << ", " << nCreated << "::" << fratio;// << ", " << nMinKF << ", " << nMaxKF;
 			mpSystem->SetLocalMapperString(ssa.str());
 
-			//std::cout << "lm::end::" <<mpTargetFrame->GetFrameID()<<"::"<<nCreated<< std::endl;
+			std::cout << "lm::end::" <<mpTargetFrame->GetFrameID()<<"::"<<nCreated<< std::endl;
 			SetDoingProcess(false);
 			continue;
 			//////200412
@@ -1223,7 +1223,9 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 				if (pMatch->mpRefFrame->GetKeyFrameID() % 3 != 0)
 					continue;
 				int idx = iter->second;
-				pMP->AddFrame(pMatch, idx);
+				pMP->ConnectFrame(pMatch, idx);
+				pMatch->AddMP(pMP, idx);
+
 			}
 			/*pMP->AddFrame(pCurrKF->mpMatchInfo, pt1);
 			pMP->AddFrame(pPrevKF->mpMatchInfo, pt2);*/
@@ -1235,8 +1237,6 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 
 ////////////200722 수정 필요
 int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point2f> vMatchCurrPts, std::vector<CandidatePoint*> vMatchPrevCPs, double& ftime, cv::Mat& debugMatch){
-	
-	std::set<UVR_SLAM::MatchInfo*> spMatches;
 
 	cv::Point2f ptBottom = cv::Point2f(0, mnHeight);
 	cv::Mat Rcurr, Tcurr;
@@ -1279,10 +1279,8 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 						continue;
 					}
 					int idx = iter->second;
-					pMP->AddFrame(pMatch, idx);
-					//auto pt = pMatch->GetPt();
-					//pMP->AddFrame(pMatch, pt);
-					spMatches.insert(pMatch);
+					pMP->ConnectFrame(pMatch, idx);
+					pMatch->AddMP(pMP, idx);
 				}
 				
 				cv::circle(debugMatch, currPt+ptBottom, 3, cv::Scalar(0, 255, 255));
@@ -1295,7 +1293,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 	std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
 	auto duration1 = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
 	ftime = duration1 / 1000.0;
-	return spMatches.size();
+	return nRes;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////

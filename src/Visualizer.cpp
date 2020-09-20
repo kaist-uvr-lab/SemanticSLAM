@@ -393,7 +393,25 @@ void UVR_SLAM::Visualizer::Run() {
 				/////트래킹 결과 출력
 				if (pMatchInfo) {
 					auto lastBAFrame = pMatchInfo->mpTargetFrame;
-					std::vector<MapPoint*> mvpMatchingMPs;
+					int N = pMatchInfo->GetNumSize();
+					std::vector<MapPoint*> vpMatchingMPs;
+					auto mvpMatchingPts = pMatchInfo->GetMatchingPtsForMapping(vpMatchingMPs);
+					for (int i = 0; i < N; i++) {
+						auto pMPi = vpMatchingMPs[i];
+						auto label = pMPi->GetLabel();
+						if (!pMPi || pMPi->isDeleted())
+							continue;
+						cv::Mat x3D = pMPi->GetWorldPos();
+						cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
+						tpt += mVisMidPt;
+						cv::Scalar color = cv::Scalar(125, 125, 125);
+						if (label == 255)
+							color = cv::Scalar(255, 0, 0);
+						else if (label == 150)
+							color = cv::Scalar(0, 0, 255);
+						cv::circle(tempVis, tpt, 2, color, -1);
+					}
+					/*std::vector<MapPoint*> mvpMatchingMPs;
 					auto mvpMatchingPts = pMatchInfo->GetMatchingPts(mvpMatchingMPs);
 					for (int i = 0; i < mvpMatchingPts.size(); i++) {
 						auto pMPi = mvpMatchingMPs[i];
@@ -410,7 +428,7 @@ void UVR_SLAM::Visualizer::Run() {
 							color = cv::Scalar(0, 0, 255);
 						cv::circle(tempVis, tpt, 2, color, -1);
 					}
-					
+					*/
 					////tracking results
 				}
 				/////트래킹 결과 출력

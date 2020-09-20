@@ -124,7 +124,22 @@ void UVR_SLAM::MapOptimizer::Run() {
 			for (int k = 0; k < vpKFs.size(); k++){
 				auto pKFi = vpKFs[k];
 				auto matchInfo = pKFi->mpMatchInfo;
-				std::vector<MapPoint*> mvpMatchingMPs;
+				int N = matchInfo->GetNumSize();
+				std::vector<MapPoint*> vpMatchingMPs;
+				auto mvpMatchingPTs = matchInfo->GetMatchingPtsForMapping(vpMatchingMPs);
+
+				for (int i = 0; i < N; i++) {
+					auto pMPi = vpMatchingMPs[i];
+					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
+						continue;
+					}
+					if (pMPi->GetNumConnectedFrames() < 3) {
+						continue;
+					}
+					pMPi->mnLocalBAID = nTargetID;
+					vpMPs.push_back(pMPi);
+				}
+				/*std::vector<MapPoint*> mvpMatchingMPs;
 				auto mvpMatchingPTs = matchInfo->GetMatchingPts(mvpMatchingMPs);
 				for (int i = 0; i < mvpMatchingMPs.size(); i++) {
 					auto pMPi = mvpMatchingMPs[i];
@@ -136,7 +151,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 					}
 					pMPi->mnLocalBAID = nTargetID;
 					vpMPs.push_back(pMPi);
-				}
+				}*/
 			}
 
 			auto spGraphKFs = mpMap->GetGraphFrames();

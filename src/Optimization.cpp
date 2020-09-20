@@ -1227,7 +1227,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 			/*if (pKFi->GetKeyFrameID() > maxKFid)
 				continue;*/
 			int idx = mit->second;
-			auto pt = pMatch->GetPt(idx);
+			auto pt = pMatch->mvMatchingPts[idx];//pMatch->GetPt(idx);
 			Eigen::Matrix<double, 2, 1> obs;
 			obs << pt.x, pt.y;
 
@@ -1321,7 +1321,8 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 		{
 			auto pMatch = vToErase[i].first;
 			MapPoint* pMPi = vToErase[i].second;
-			pMPi->RemoveFrame(pMatch);
+			pMatch->RemoveMP(pMPi);
+			pMPi->DisconnectFrame(pMatch);
 		}
 	}
 
