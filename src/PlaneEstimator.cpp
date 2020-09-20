@@ -189,8 +189,8 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			auto lpKFs = mpMap->GetWindowFrames();
 			auto siter = mpMap->GetWindowFramesStartIterator();
 			auto eiter = mpMap->GetWindowFramesEndIterator();
-			for (auto iter = siter; iter != eiter; iter++) {
-			//for (std::list<Frame*>::const_iterator iter = lpKFs.begin(), iend = lpKFs.end(); iter != iend; iter++) {
+			//for (auto iter = siter; iter != eiter; iter++) {
+			for (std::list<Frame*>::const_iterator iter = lpKFs.begin(), iend = lpKFs.end(); iter != iend; iter++) {
 				auto pKFi = *iter;
 				auto matchInfo = pKFi->mpMatchInfo;
 				std::vector<MapPoint*> mvpMatchingMPs;

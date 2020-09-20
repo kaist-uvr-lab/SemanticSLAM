@@ -6,6 +6,8 @@
 #include <opencv2/core.hpp>
 #include <mutex>
 #include <list>
+#include <concurrent_queue.h>
+#include <concurrent_vector.h>
 
 namespace UVR_SLAM {
 	class Frame;

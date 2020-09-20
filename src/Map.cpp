@@ -38,13 +38,13 @@ namespace UVR_SLAM{
 	}
 	std::list<Frame*> Map::GetWindowFrames(){
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
-		return mQueueFrameWindows;
-		//return std::vector<Frame*>(mQueueFrameWindows.begin(), mQueueFrameWindows.end());
+		//return mQueueFrameWindows;
+		return std::list<Frame*>(mQueueFrameWindows.begin(), mQueueFrameWindows.end());
 	}
 	std::list<Frame*> Map::GetGraphFrames() {
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
-		return mlpGraphFrames;
-		//return std::vector<Frame*>(mspGraphFrames.begin(), mspGraphFrames.end());
+		//return mlpGraphFrames;
+		return std::list<Frame*>(mlpGraphFrames.begin(), mlpGraphFrames.end());
 	}
 	std::list<Frame*>::const_iterator Map::GetWindowFramesStartIterator() {
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);

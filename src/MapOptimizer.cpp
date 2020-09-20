@@ -110,8 +110,8 @@ void UVR_SLAM::MapOptimizer::Run() {
 			auto lpKFs = mpMap->GetWindowFrames();
 			auto siter = mpMap->GetWindowFramesStartIterator();
 			auto eiter = mpMap->GetWindowFramesEndIterator();
-			for (auto iter = siter; iter != eiter; iter++) {
-			//for (std::list<Frame*>::const_iterator iter = lpKFs.begin(), iend = lpKFs.end(); iter != iend; iter++) {
+			//for (auto iter = siter; iter != eiter; iter++) {
+			for (std::list<Frame*>::const_iterator iter = lpKFs.begin(), iend = lpKFs.end(); iter != iend; iter++) {
 				auto pKF = *iter;
 				pKF->mnLocalBAID = nTargetID;
 				vpKFs.push_back(pKF);
@@ -151,8 +151,8 @@ void UVR_SLAM::MapOptimizer::Run() {
 			auto lpGraphKFs = mpMap->GetGraphFrames();
 			auto siter2 = mpMap->GetGraphFramesStartIterator();
 			auto eiter2 = mpMap->GetGraphFramesEndIterator();
-			for (auto iter = siter2; iter != eiter2; iter++) {
-			//for (std::list<Frame*>::const_iterator iter = lpGraphKFs.begin(), iend= lpGraphKFs.end(); iter != iend; iter++) {
+			//for (auto iter = siter2; iter != eiter2; iter++) {
+			for (std::list<Frame*>::const_iterator iter = lpGraphKFs.begin(), iend= lpGraphKFs.end(); iter != iend; iter++) {
 				auto pKFi = *iter;
 				pKFi->mnFixedBAID = nTargetID;
 				pKFi->mnLocalBAID = nTargetID;

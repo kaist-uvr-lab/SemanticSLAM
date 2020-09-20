@@ -1084,13 +1084,15 @@ void UVR_SLAM::MatchInfo::RemoveCP(int idx){
 	mvpMatchingCPs[idx] = nullptr;	
 }
 void UVR_SLAM::MatchInfo::UpdateFrame() {
+	int N;
 	std::vector<CandidatePoint*> vpTempCPs;
 	{
 		std::unique_lock<std::mutex>(mMutexCPs);
 		vpTempCPs = mvpMatchingCPs;
+		N = vpTempCPs.size();
 	}
 	
-	for (int i = 0; i < vpTempCPs.size(); i++) {
+	for (int i = 0; i < N; i++) {
 		auto pCPi = vpTempCPs[i];
 		pCPi->AddFrame(this, i);
 		auto pMPi = pCPi->GetMP();
@@ -1104,63 +1106,70 @@ void UVR_SLAM::MatchInfo::UpdateFrame() {
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs, bool bOpt) {
 	std::vector<CandidatePoint*> vpTempCPs;
 	std::vector<Point2f> vPts;
+	std::vector<cv::Point2f> res;
+	int N;
 	{
 		std::unique_lock<std::mutex>(mMutexCPs);
+		N = mvpMatchingCPs.size();
 		vpTempCPs = mvpMatchingCPs;
 		vPts = mvMatchingPts;
-	}
-	
-	std::vector<cv::Point2f> res;
-	//std::cout << "MatchInfo::CP::" << mvpMatchingCPs.size() << std::endl;
-	for (int i = 0; i < vpTempCPs.size(); i++) {
-		auto pCPi = vpTempCPs[i];
-		if (bOpt && res.size() == nMaxMP)
-			break;
-		if (bOpt && !pCPi->isOptimized())
-			continue;
-		/*if (res.size() == nMaxMP)
-			break;*/
-		/*if (!pCPi->isOptimized())
-			continue;*/
-		auto pMPi = pCPi->GetMP();
-		if (pMPi && pCPi->GetQuality()) {
-			//if (pMPi->isDeleted() || pMPi->GetFVRatio() < 0.1)
-			if (pMPi->isDeleted())
+
+		for (int i = 0; i < N; i++) {
+			auto pCPi = vpTempCPs[i];
+			if (bOpt && res.size() == nMaxMP)
+				break;
+			if (bOpt && !pCPi->isOptimized())
 				continue;
-			res.push_back(vPts[i]);
-			vpCPs.push_back(pCPi);
-			vpMPs.push_back(pMPi);
+			/*if (res.size() == nMaxMP)
+			break;*/
+			/*if (!pCPi->isOptimized())
+			continue;*/
+			auto pMPi = pCPi->GetMP();
+			if (pMPi && pCPi->GetQuality()) {
+				//if (pMPi->isDeleted() || pMPi->GetFVRatio() < 0.1)
+				if (pMPi->isDeleted())
+					continue;
+				res.push_back(vPts[i]);
+				vpCPs.push_back(pCPi);
+				vpMPs.push_back(pMPi);
+			}
 		}
 	}
+	
 	return res;
 }
-
 
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs){
 	std::vector<CandidatePoint*> vpTempCPs;
 	std::vector<Point2f> vPts;
+	std::vector<cv::Point2f> res;
+	int N;
 	{
 		std::unique_lock<std::mutex>(mMutexCPs);
+		N = mvpMatchingCPs.size();
 		vpTempCPs = mvpMatchingCPs;
 		vPts = mvMatchingPts;
-	}
-	std::vector<cv::Point2f> res;
-	for (int i = 0; i < vpTempCPs.size(); i++) {
-		res.push_back(vPts[i]);
-		vpCPs.push_back(vpTempCPs[i]);
+		
+		for (int i = 0; i < N; i++) {
+			res.push_back(vPts[i]);
+			vpCPs.push_back(vpTempCPs[i]);
+		}
 	}
 	return res;
 }
 
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts() {
 	std::vector<Point2f> vPts;
+	std::vector<cv::Point2f> res;
+	int N;
 	{
 		std::unique_lock<std::mutex>(mMutexCPs);
 		vPts = mvMatchingPts;
-	}
-	std::vector<cv::Point2f> res;
-	for (int i = 0; i < mvMatchingPts.size(); i++) {
-		res.push_back(mvMatchingPts[i]);
+		N = vPts.size();
+
+		for (int i = 0; i < N; i++) {
+			res.push_back(vPts[i]);
+		}
 	}
 	return res;
 }
