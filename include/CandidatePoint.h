@@ -57,6 +57,7 @@ namespace UVR_SLAM {
 		void DeleteMapPoint();
 		void ResetMapPoint();
 		void SetMapPoint(MapPoint* pMP, int id);
+		int GetNumMapPoints();
 		MapPoint* GetMP();
 	private:
 		int mnMapPoint;

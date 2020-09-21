@@ -392,8 +392,7 @@ namespace  UVR_SLAM{
 		bool bFrame = (nLastFrame + 10) < nVisible;
 		float ratio = ((float)nS) / nTotal;
 		bool bRatio = ratio < 0.6;
-
-
+		//std::cout << nS <<", "<< ratio << ", " << nVisible << ", " << nLastFrame << std::endl;
 		if (bFrame && bRatio)
 			b = false;
 		
@@ -420,6 +419,10 @@ namespace  UVR_SLAM{
 
 	/////////////////////////////
 	////MP °ü¸®
+	int CandidatePoint::GetNumMapPoints() {
+		std::unique_lock<std::mutex> lockMP(mMutexCP);
+		return mnMapPoint;
+	}
 	MapPoint* CandidatePoint::GetMP() {
 		std::unique_lock<std::mutex> lockMP(mMutexCP);
 		return mpMapPoint;
@@ -438,7 +441,6 @@ namespace  UVR_SLAM{
 	void CandidatePoint::ResetMapPoint() {
 		std::unique_lock<std::mutex> lockMP(mMutexCP);
 		mnMapPoint--;
-		//mpMapPoint->Delete();
 		bCreated = false;
 		mpMapPoint = nullptr;
 		mnFail = 0;

@@ -1100,19 +1100,33 @@ void UVR_SLAM::MatchInfo::UpdateFrame() {
 		pMPi->ConnectFrame(this, i);
 	}
 }
-void UVR_SLAM::MatchInfo::UpdateFrameQuality() {
+bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 
 	std::vector<CandidatePoint*> vpCPs;
+	std::vector<MapPoint*> vpMPs;
 	{
 		std::unique_lock<std::mutex>(mMutexCPs);
 		vpCPs = mvpMatchingCPs;
 	}
+	int nMP = 0;
+	int nLowQuality = 0;
 	for (int i = 0; i < vpCPs.size(); i++) {
 		auto pCPi = vpCPs[i];
+		auto pMPi = pCPi->GetMP();
+		if (pMPi && !pMPi->isDeleted())
+			nMP++;
 		if (!pCPi->GetQuality()){
 			pCPi->DeleteMapPoint();
+			nLowQuality++;
 		}
 	}
+	float ratio = ((float)nLowQuality) / nMP;
+	bool b1 = ratio < 0.5;
+	bool b2 = nMP < 300;
+	std::cout << "update frame quality : " << ratio << ", " << nMP << std::endl;
+	return b1 || b2;
+	//MP 비율
+	//전체 MP 수
 }
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsTracking(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs) {
 	std::unique_lock<std::mutex>(mMutexCPs);
@@ -1163,6 +1177,10 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsOptimization(std::ve
 			res.push_back(mvMatchingPts[i]);
 			vpMPs.push_back(pMPi);
 			vpCPs.push_back(pCPi);
+		}
+		if (!pCPi->GetQuality()){
+			//std::cout << "GetMatchingPtsOptimization::Quality error" << std::endl;
+			pCPi->DeleteMapPoint();
 		}
 	}
 	return res;
