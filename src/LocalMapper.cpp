@@ -1307,12 +1307,14 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 	cv::Mat Rnew = Rinv*Rprev;
 
 	/////TEST CODE
+	std::vector<cv::Mat> vX3Ds;
+	std::vector<float> vPrevScales;
 	mpMap->ClearReinit();
 	int nTest = 0;
 	for (int i = 0; i < matTriangulateInliers.rows; i++) {
 		int val = matTriangulateInliers.at<uchar>(i);
 		int idx = vTempMatchIDXs[i]; //cp idx
-		if (val == 0 || !vbInliers[i])
+		if (val == 0)
 			continue;
 
 		cv::Mat X3D = Map3D.col(i).clone();
@@ -1340,10 +1342,33 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 		if (err1 > 9.0 || err2 > 9.0) {
 			continue;
 		}
+		cv::circle(currImg, currPt, 3, cv::Scalar(0, 255, 0), -1);
+		cv::line(currImg, currPt, projected2, cv::Scalar(255, 0, 0));
+		cv::circle(prevImg, prevPt, 3, cv::Scalar(0, 255, 0), -1);
+		cv::line(prevImg, prevPt, projected1, cv::Scalar(255, 0, 0));
 		////reprojection error
-
 		
-		//처리는 카메라 좌표계가지 변환 후 다시 해야 함.
+		//////////Scale 계산2
+		//auto pCPi = vPrevCPs[idx];
+		//auto pMPi = pCPi->GetMP();
+
+		////vpTempCPs.push_back(pCPi);
+		//vX3Ds.push_back(X3D);
+
+		//if (pMPi) {
+		//	cv::Mat Xw = pMPi->GetWorldPos();
+		//	if (pPrevKF && pMPi->isInFrame(pPrevKF->mpMatchInfo))
+		//	{
+		//		cv::Mat proj3 = Rprev*Xw + Tprev;
+		//		//proj3 = mK*proj3;
+		//		float depth3 = proj3.at<float>(2);
+		//		float scale = depth3 / depth1;
+		//		vPrevScales.push_back(scale);
+		//	}
+		//}
+
+		////Xscaled 에 대해서 reprojection test
+		////처리는 카메라 좌표계가지 변환 후 다시 해야 함.
 		cv::Mat Xscaled = Rinv*(X3D*scale) + Tinv;//proj1*scale;
 		mpMap->AddReinit(Xscaled);
 
@@ -1359,22 +1384,41 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 		float newDepth2 = newProj2.at<float>(2);
 		cv::Point2f newProjected2(newProj2.at<float>(0) / newDepth2, newProj2.at<float>(1) / newDepth2);
 		cv::circle(currImg, newProjected2, 3, cv::Scalar(255, 0, 0), -1);
-		//Xscaled 에 대해서 reprojection test
-		//시각화
-		cv::circle(currImg, currPt, 2, cv::Scalar(0, 255, 0), -1);
-		cv::line(currImg, currPt, projected2, cv::Scalar(255, 0, 0));
-		cv::circle(prevImg, prevPt, 2, cv::Scalar(0, 255, 0), -1);
-		cv::line(prevImg, prevPt, projected1, cv::Scalar(255, 0, 0));
-
+		
+		////시각화
+		
 		nTest++;
 	}
 
-	std::cout << "recover pose::candidate points::" << nTest << std::endl;
+	/*if (vPrevScales.size() < 10)
+		return -1;*/
+	//////메디안 스케일 계산
+	//std::nth_element(vPrevScales.begin(), vPrevScales.begin() + vPrevScales.size() / 2, vPrevScales.end());
+	//float medianPrevScale = vPrevScales[vPrevScales.size() / 2];
 
-	std::vector<float> vScales;
-	float sumScale = 0.0;
-	std::vector<float> vPrevScales;
-	float meanPrevScale = 0.0;
+	//////스케일 보정
+	//for (int i = 0; i < vX3Ds.size(); i++) {
+	//	////처리는 카메라 좌표계가지 변환 후 다시 해야 함.
+	//	cv::Mat Xscaled = Rinv*(vX3Ds[i]* medianPrevScale) + Tinv;//proj1*scale;
+	//	mpMap->AddReinit(Xscaled);
+
+	//	//Xscaled 에 대해서 reprojection test
+	//	cv::Mat newProj1 = Rprev*Xscaled + Tprev;
+	//	newProj1 = mK*newProj1;
+	//	float newDepth1 = newProj1.at<float>(2);
+	//	cv::Point2f newProjected1(newProj1.at<float>(0) / newDepth1, newProj1.at<float>(1) / newDepth1);
+	//	cv::circle(prevImg, newProjected1, 2, cv::Scalar(255, 0, 0), -1);
+
+	//	cv::Mat newProj2 = Rcurr*Xscaled + Tcurr;
+	//	newProj2 = mK*newProj2;
+	//	float newDepth2 = newProj2.at<float>(2);
+	//	cv::Point2f newProjected2(newProj2.at<float>(0) / newDepth2, newProj2.at<float>(1) / newDepth2);
+	//	cv::circle(currImg, newProjected2, 2, cv::Scalar(255, 0, 0), -1);
+	//	//Xscaled 에 대해서 reprojection test
+	//	//시각화
+	//	
+	//}
+	std::cout << "recover pose::candidate points::" << nTest << std::endl;
 	imshow("recover::1", currImg);
 	imshow("recover::2", prevImg);
 	cv::waitKey(1);
