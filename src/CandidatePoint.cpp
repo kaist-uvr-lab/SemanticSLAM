@@ -383,12 +383,13 @@ namespace  UVR_SLAM{
 			nVisible = mnVisibleFrameID;
 			nTotal = mnTotal;
 		}
-
-		int nDiffFrame = nVisible - mnFirstMapPointID;
+		
+		/*int nDiffFrame = nVisible - mnFirstMapPointID;
 		if (nDiffFrame < 10)
-			return;
+			return;*/
 
 		bool b = true;
+
 		bool bFrame = (nLastFrame + 10) < nVisible;
 		float ratio = ((float)nS) / nTotal;
 		bool bRatio = ratio < 0.6;
@@ -448,9 +449,9 @@ namespace  UVR_SLAM{
 		mbOptimized = false;
 		mbLowQuality = true;
 
-		/*mnFirstMapPointID = -1;
-		mnVisibleFrameID;
-		mnLastFrameID;*/
+		mnFirstMapPointID = -1;
+		mnVisibleFrameID = -1;
+		mnLastFrameID = -1;
 
 	}
 	////MP °ü¸®
