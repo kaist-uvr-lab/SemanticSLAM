@@ -50,11 +50,13 @@ namespace UVR_SLAM{
 ////맵포인트 관리
 void UVR_SLAM::Map::AddMap(MapPoint* pMP, int label){
 	std::unique_lock<std::mutex> lock(mMutexMap);
-	mmpMapMPs.insert(std::make_pair(pMP, label));
+	if(mmpMapMPs.find(pMP) == mmpMapMPs.end())
+		mmpMapMPs.insert(std::make_pair(pMP, label));
 }
 void UVR_SLAM::Map::RemoveMap(MapPoint* pMP){
 	std::unique_lock<std::mutex> lock(mMutexMap);
-	mmpMapMPs.erase(pMP);
+	if (mmpMapMPs.find(pMP) != mmpMapMPs.end())
+		mmpMapMPs.erase(pMP);
 }
 std::map<UVR_SLAM::MapPoint*, int> UVR_SLAM::Map::GetMap() {
 	std::unique_lock<std::mutex> lock(mMutexMap);

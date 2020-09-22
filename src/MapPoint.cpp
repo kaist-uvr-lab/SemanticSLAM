@@ -208,6 +208,10 @@ int UVR_SLAM::MapPoint::GetNumConnectedFrames() {
 }
 
 void UVR_SLAM::MapPoint::ConnectFrame(UVR_SLAM::MatchInfo* pF, int idx) {
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexLabel);
+		mpMap->AddMap(this, label);
+	}
 	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	auto res = mmpFrames.find(pF);
 	if (res == mmpFrames.end()) {
@@ -235,8 +239,6 @@ void UVR_SLAM::MapPoint::DisconnectFrame(UVR_SLAM::MatchInfo* pF){
 	}
 	if (mbDelete){
 		Delete();
-		//mpMap->RemoveMap(this);
-		//mpMap->AddDeleteMP(this);
 	}
 }
 
