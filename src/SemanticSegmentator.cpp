@@ -101,45 +101,17 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseSegmentation);
 			mpSystem->mbSegmentationEnd = false;
 			/////////////////////////////////////////
-			//insert kyeframe to plane estimator
-
-			//mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
-			//if (mpSystem->isInitialized()) {
-			//	//std::cout << "insert??????????" << std::endl;
-			//	mpLocalMapper->InsertKeyFrame(mpTargetFrame);
-			//}
-			
 			
 			//request post
 			//리사이즈 안하면 칼라이미지로
 			int status = 0;
 			JSONConverter::RequestPOST(ip, port, resized_color, segmented, mpTargetFrame->GetFrameID(), status);
 
-			//////////////////////////////
-			////제안서 세그멘테이션 테스트
-			//cv::Mat tempImg = cv::imread("D:/abcabcabc.png");
-			//cv::Mat tempSeg, tempSegColor;
-			//JSONConverter::RequestPOST(ip, port, tempImg, tempSeg, mpTargetFrame->GetFrameID(), status);
-			//tempSegColor = cv::Mat::zeros(tempSeg.size(), CV_8UC3);
-			//for (int x = 0; x < tempSeg.cols; x++) {
-			//	for (int y = 0; y < tempSeg.rows; y++) {
-			//		int label = tempSeg.at<uchar>(y, x);
-			//		tempSegColor.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
-			//	}
-			//}
-			//cv::resize(tempSegColor, tempSegColor, cv::Size(tempImg.cols, tempImg.rows));
-			//cv::addWeighted(tempSegColor, 0.5, tempImg, 0.5, 0.0, tempImg);
-			//imshow("aaaaaa", tempImg); waitKey(1);
-			//imwrite("D:/aaaseg.jpg", tempSegColor);
-			//////////////////////////////
-
-			//cv::resize(segmented, segmented, colorimg.size());
-			
 			int nRatio = colorimg.rows / segmented.rows;
 			//ratio 버전이 아닌 다르게
-			ImageLabeling(segmented, mpTargetFrame->matLabeled);
-			//ObjectLabeling(mpTargetFrame->matLabeled, nRatio);
-			//mpMap->SetCurrFrame(mpTargetFrame);
+			/////////미리 지정된 오브젝트만 레이블링 하는 코드
+			//ImageLabeling(segmented, mpTargetFrame->matLabeled);
+			mpTargetFrame->matLabeled = segmented.clone();
 			mpTargetFrame->matSegmented = segmented.clone();
 			mpTargetFrame->SetBoolSegmented(true);
 			////////////////////////////////////////////////////////
@@ -151,55 +123,20 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//unlock & notify
 			////////////////////////////////////////////////////////
 
-			//시간체크
+			////시간체크
 			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
 			auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float tttt = duration / 1000.0;
-
-			//////////////////////
-			////lock
-			//std::cout << "seg::s" << std::endl;
-			////plane estimation에서 맵포인트를 생성할 때까지 락.
-			/*{
-				std::unique_lock<std::mutex> lock(mpSystem->mMutexUsePlaneEstimation);
-				while (!mpSystem->mbPlaneEstimationEnd) {
-					mpSystem->cvUsePlaneEstimation.wait(lock);
-				}
-			}*/
-			//std::cout << "seg::e" << std::endl;
-			////lock
-			//시간체크
-			std::chrono::high_resolution_clock::time_point p_end = std::chrono::high_resolution_clock::now();
-			auto duration2 = std::chrono::duration_cast<std::chrono::milliseconds>(p_end - s_end).count();
-			float tttt2 = duration2 / 1000.0;
-			//////////////////////
-
+			////시간체크
+		
 			//////////////////////////////////////////////
 			//////디버깅 값 전달
 			std::stringstream ssa;
-			/*if (mpPrevTargetFrame)
-				ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() << "=" << mpPrevTargetFrame->GetFrameID() << ", " << mpTargetFrame->GetFrameID() << " : " << tttt << "||" << tttt2 << std::endl;
-			else
-				ssa << "Seg";*/
-			ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() <<" : " << tttt << "||" << tttt2 << std::endl;
-			//ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() << " : " << tttt << ", " << tttt5 << "||" << n1 << ", " << n2 << "::" << numOfLables;
+			ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() <<" : " << tttt << std::endl;
 			mpSystem->SetSegmentationString(ssa.str());
 			//////디버깅 값 전달
 			//////////////////////////////////////////////
 
-			//////////////////////////////////////////////////
-			////////디버깅을 위한 이미지 저장
-			//mStrDirPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
-			//std::stringstream ss;
-			//ss << mStrDirPath.c_str() << "/segmentation.jpg";
-			//cv::imwrite(ss.str(), segmented);
-			//ss.str("");
-			//ss << mStrDirPath.c_str() << "/segmentation_color_"<<mpTargetFrame->GetFrameID()<<".jpg";
-			//cv::imwrite(ss.str(), colorimg);
-			//cv::waitKey(1);
-			////////디버깅을 위한 이미지 저장
-			//////////////////////////////////////////////////
-			//std::cout << "segmentation::end::"<< std::endl;
 			mpTargetFrame->mpMatchInfo->SetLabel();
 			SetBoolDoingProcess(false);
 		}
