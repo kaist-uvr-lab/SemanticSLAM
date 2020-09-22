@@ -10,6 +10,10 @@ namespace UVR_SLAM{
 		std::cout << "MAP::" << mnMaxConnectedKFs << ", " << mnMaxCandidateKFs << std::endl;
 	}
 	Map::~Map() {}
+	Frame* Map::GetLastWindowFrame() {
+		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
+		return mQueueFrameWindows.back();
+	}
 	void Map::AddWindowFrame(Frame* pF){
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
 		if (mQueueFrameWindows.size() == mnMaxConnectedKFs) {
@@ -316,6 +320,23 @@ void UVR_SLAM::Map::UpdateMapPoint(UVR_SLAM::MapPoint* pMP, UVR_SLAM::MapGrid* p
 	mmMapPointAndMapGrids[pMP] = pMG;
 
 }
+
+
+
 //////Map Grid & Map Points
 /////Map Grid
 ////////////////////////////////////////
+
+//////////Reinit test code
+std::vector<cv::Mat> UVR_SLAM::Map::GetReinit(){
+	std::unique_lock<std::mutex> lock(mMutexReinit);
+	return std::vector<cv::Mat>(mvReinit.begin(), mvReinit.end());
+}
+void UVR_SLAM::Map::ClearReinit(){
+	std::unique_lock<std::mutex> lock(mMutexReinit);
+	mvReinit.clear();
+}
+void UVR_SLAM::Map::AddReinit(cv::Mat m){
+	mvReinit.push_back(m);
+}
+//////////Reinit test code

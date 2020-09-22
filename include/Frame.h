@@ -39,14 +39,8 @@ namespace UVR_SLAM {
 	class MatchInfo {
 	public:
 		
-		///////////////////이 위에는 확실한 수정 코드
-		//int AddMP(MapPoint* pMP, cv::Point2f pt);
 		
 		
-		void RemoveCP(int idx); //이것은 아예 사용이 안될 수도 있음.
-		///////////////이 위에는 수정 또는 삭제인데 코드를 보고 결정해야 함
-		///////////////이 위에는 삭제할 것들
-		//, usedCPMap; //자기 자신의 KP를 추가할 때 이미 매칭이 되었던 건지 확인하기 위해서
 		MatchInfo();
 		MatchInfo(Frame* pRef, Frame* pTarget, int w, int h);
 		virtual ~MatchInfo();
@@ -54,7 +48,7 @@ namespace UVR_SLAM {
 		bool UpdateFrameQuality();
 		void SetMatchingPoints(); //초기화나 매핑시 포인트 매칭을 위한 포인트 추가 과정.
 		void SetLabel();
-
+		void RemoveCP(int idx);
 		void AddMP();
 		void RemoveMP(); //삭제 예정
 		int GetNumMapPoints();
@@ -89,7 +83,7 @@ namespace UVR_SLAM {
 	public:
 		//현재 매칭된 값을 저장함.
 		static int nMaxMP;
-		
+		float mfLowQualityRatio;
 		int mnWidth, mnHeight;
 		UVR_SLAM::Frame* mpTargetFrame, *mpRefFrame, *mpNextFrame;
 		////매칭 된 정보를 저장하는건데 사용 안할듯함.
