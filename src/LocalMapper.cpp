@@ -134,8 +134,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			//////200412
 			
 			ProcessNewKeyFrame();
-			mpTargetFrame->mpMatchInfo->UpdateFrameQuality();
-
+			
 			int nTargetID = mpTargetFrame->GetFrameID();
 			//std::cout << "lm::start::" << mpTargetFrame->GetFrameID() << std::endl;
 

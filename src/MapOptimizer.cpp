@@ -189,6 +189,47 @@ void UVR_SLAM::MapOptimizer::Run() {
 			{
 				vpCPs[i]->SetOptimization(true);
 			}
+
+			///////KF 이미지 시각화
+			{
+				int nKF = lpKFs.size();
+				int nRows = nKF / 4 + 1;
+				if (nKF % 4 == 0)
+					nRows--;
+				int nCols = 4;
+				cv::Mat ba_img = cv::Mat::zeros(mnHeight*nRows, mnWidth*nCols, CV_8UC3);
+				int nidx = 0;
+
+				auto lastKF = vpKFs[nKF - 1];
+				std::vector<MapPoint*> vpMPs;
+				auto vPTs = lastKF->mpMatchInfo->GetMatchingPts(vpMPs);
+				for (int i = 0; i < nKF; i++) {
+					auto pKFi = vpKFs[i];
+					auto pMatch = pKFi->mpMatchInfo;
+					cv::Mat img = pKFi->GetOriginalImage();
+					for (int j = 0; j < vpMPs.size(); j++) {
+						auto pMPj = vpMPs[j];
+						if (!pMPj || pMPj->isDeleted())
+							continue;
+						int idx = pMPj->GetPointIndexInFrame(pMatch);
+						if (idx < 0)
+							continue;
+						auto pt = pMatch->GetPt(idx);
+						cv::circle(img, pt, 2, cv::Scalar(0, 0, 255), -1);
+					}
+
+					int h = nidx / 4;
+					int w = nidx % 4;
+					
+					cv::Rect tmpRect(mnWidth*w, mnHeight*h, mnWidth, mnHeight);
+					img.copyTo(ba_img(tmpRect));
+					nidx++;
+
+				}
+				cv::resize(ba_img, ba_img, ba_img.size() / 2);
+				imshow("BA", ba_img);
+				cv::waitKey(1);
+			}
 			
 			/*std::cout << "BA::Delete::Start" << std::endl;
 			mpMap->DeleteMPs();
