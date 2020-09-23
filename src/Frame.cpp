@@ -1088,8 +1088,8 @@ bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 		if (pMPi && !pMPi->isDeleted())
 			nMP++;
 	}
-	bool b1 = mfLowQualityRatio < 0.3;
-	bool b2 = nMP < 250;
+	bool b1 = mfLowQualityRatio < 0.4;
+	bool b2 = nMP < 200;
 	//std::cout << "frame quality : " << nMP << ", " << mfLowQualityRatio << std::endl;
 	return b1 || b2;
 	//전체 MP 수, quality가 안좋은 애들은 이미 여기에 존재하지를 못함. 

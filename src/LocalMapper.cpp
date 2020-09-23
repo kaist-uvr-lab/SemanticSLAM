@@ -166,29 +166,46 @@ void UVR_SLAM::LocalMapper::Run() {
 			mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, mK, mInvK, time1, debugMatch);
 			//////Pose Recovery
 			if (bLowQualityFrame) {
-				auto lastKF = mpMap->GetLastWindowFrame();
-				auto lastMatch = lastKF->mpMatchInfo;
-				int n = 0;
-				std::vector<bool> vbTempInliers(vMatchPrevCPs.size(), false);
-				std::vector<cv::Point2f> vTempPTs1, vTempPTs2;
-				std::vector<CandidatePoint*> vTempCPs;
-				for (int i = 0; i < vMatchPrevCPs.size(); i++) {
-					auto pCPi = vMatchPrevCPs[i];
-					int idx = pCPi->GetPointIndexInFrame(lastMatch);
-					if (idx < 0 || pCPi->GetNumSize() < 4)
-						continue;
-					auto pMPi = pCPi->GetMP();
-					if (!pCPi->GetQuality())
-						pCPi->ResetMapPoint();
-					if (!pMPi || pMPi->isDeleted()) {
-						n++;
-						vbTempInliers[i] = true;
+				auto llastKF = mpMap->GetReverseWindowFrame(1);
+				if(llastKF){
+					auto lastKF = mpMap->GetLastWindowFrame();
+					auto lastMatch = lastKF->mpMatchInfo;
+					auto llastMatch = llastKF->mpMatchInfo;
+					int n = 0;
+					std::vector<bool> vbTempInliers;
+					std::vector<cv::Point2f> vTempPTs1, vTempPTs2, vTempPTs3; //curr, prev, pprev
+					std::vector<CandidatePoint*> vTempCPs;
+					for (int i = 0; i < vMatchPrevCPs.size(); i++) {
+						auto pCPi = vMatchPrevCPs[i];
+						int pidx = pCPi->GetPointIndexInFrame(lastMatch);
+						int ppidx = pCPi->GetPointIndexInFrame(llastMatch);
+						if (ppidx < 0 || pidx < 0 || pCPi->GetNumSize() < 2){
+							vbTempInliers.push_back(false);
+							continue;
+						}
+						auto pt1 = vMatchCurrPts[i];
+						auto pt2 = lastMatch->GetPt(pidx);
+						auto pt3 = llastMatch->GetPt(ppidx);
+						vTempCPs.push_back(pCPi);
+						vTempPTs1.push_back(pt1);
+						vTempPTs2.push_back(pt2);
+						vTempPTs3.push_back(pt3);
+
+						auto pMPi = pCPi->GetMP();
+						if (!pCPi->GetQuality())
+							pCPi->ResetMapPoint();
+						if (!pMPi || pMPi->isDeleted()) {
+							n++;
+							vbTempInliers.push_back(true);
+						}
+						else
+							vbTempInliers.push_back(false);
 					}
+					double d3 = 0.0;
+					cv::Mat R, T;
+					RecoverPose(mpTargetFrame, lastKF, llastKF, vTempPTs1, vTempPTs2, vTempPTs3, vTempCPs, vbTempInliers, R, T, d3, mpTargetFrame->GetOriginalImage(), lastKF->GetOriginalImage(), llastKF->GetOriginalImage());
+					std::cout << "recover test::" << lastKF->GetFrameID() << "::" << n <<", "<<vTempCPs.size()<< std::endl;
 				}
-				double d3 = 0.0;
-				cv::Mat R, T;
-				RecoverPose(mpTargetFrame, lastKF, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, vbTempInliers, R, T, d3, lastKF->GetOriginalImage(), mpTargetFrame->GetOriginalImage());
-				std::cout << "recover test::" << lastKF->GetFrameID() << "::" << n << std::endl;
 			}
 			//////Pose Recovery
 			/////Create Map Points
@@ -1264,22 +1281,23 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 
 	return res2;
 }
-int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Point2f> vMatchPrevPts, std::vector<cv::Point2f> vMatchCurrPts, std::vector<CandidatePoint*> vPrevCPs, std::vector<bool>& vbInliers, cv::Mat& R, cv::Mat& T, double& ftime, cv::Mat& prevImg, cv::Mat& currImg) {
+int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, std::vector<cv::Point2f> vCurrPts, std::vector<cv::Point2f> vPrevPts, std::vector<cv::Point2f> vPPrevPts, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers, cv::Mat& R, cv::Mat& T, double& ftime,
+	cv::Mat& currImg, cv::Mat& prevImg, cv::Mat& pprevImg) {
 
 	//Find fundamental matrix & matching
 	std::vector<uchar> vFInliers;
-	std::vector<cv::Point2f> vTempFundPrevPts, vTempFundCurrPts;
+	std::vector<cv::Point2f> vTempFundPPrevPts, vTempFundPrevPts, vTempFundCurrPts;
 	std::vector<int> vTempMatchIDXs;
-	cv::Mat E12 = cv::findEssentialMat(vMatchPrevPts, vMatchCurrPts, mK, cv::FM_RANSAC, 0.999, 1.0, vFInliers);
+	cv::Mat E12 = cv::findEssentialMat(vPrevPts, vCurrPts, mK, cv::FM_RANSAC, 0.999, 1.0, vFInliers);
 	for (unsigned long i = 0; i < vFInliers.size(); i++) {
 		if (vFInliers[i]) {
-			vTempFundPrevPts.push_back(vMatchPrevPts[i]);
-			vTempFundCurrPts.push_back(vMatchCurrPts[i]);
+			vTempFundPrevPts.push_back(vPrevPts[i]);
+			vTempFundCurrPts.push_back(vCurrPts[i]);
 			vTempMatchIDXs.push_back(i);//vTempIndexs[i]
 		}
 	}
 	
-	if (vTempMatchIDXs.size() < 10)
+	if (vTempMatchIDXs.size() < 200)
 		return -1;
 	////////F, E를 통한 매칭 결과 반영
 	/////////삼각화 : OpenCV
@@ -1288,6 +1306,8 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 	cv::Mat K;
 	mK.convertTo(K, CV_64FC1);
 	int res2 = cv::recoverPose(E12, vTempFundPrevPts, vTempFundCurrPts, mK, R, T, 50.0, matTriangulateInliers, Map3D);
+	if (countNonZero(matTriangulateInliers) < 100)
+		return -1;
 	R.convertTo(R, CV_32FC1);
 	T.convertTo(T, CV_32FC1);
 	Map3D.convertTo(Map3D, CV_32FC1);
@@ -1296,15 +1316,17 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 	pCurrKF->GetPose(Rcurr, Tcurr);
 	cv::Mat Rprev, Tprev;
 	pPrevKF->GetPose(Rprev, Tprev);
-	
-	cv::Mat Rinv = Rprev.t();
-	cv::Mat Tinv = -Rinv*Tprev;
+	cv::Mat Rpprev, Tpprev;
+	pPPrevKF->GetPose(Rpprev, Tpprev);
+
+	cv::Mat Rpinv = Rprev.t();
+	cv::Mat Tpinv = -Rpinv*Tprev;
 
 	//Tprev ->Tcurr로 가는 변환 매트릭스, T를 이용하여 스케일을 전환
-	cv::Mat Rdiff = Rcurr*Rinv;
-	cv::Mat Tdiff = Rcurr*Tinv + Tcurr;
+	cv::Mat Rdiff = Rcurr*Rpinv;
+	cv::Mat Tdiff = Rcurr*Tpinv + Tcurr;
 	float scale = sqrt(Tdiff.dot(Tdiff));
-	cv::Mat Rnew = Rinv*Rprev;
+	cv::Mat Rnew = Rpinv*Rprev;
 
 	/////TEST CODE
 	std::vector<cv::Mat> vX3Ds;
@@ -1342,10 +1364,10 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 		if (err1 > 9.0 || err2 > 9.0) {
 			continue;
 		}
-		cv::circle(currImg, currPt, 3, cv::Scalar(0, 255, 0), -1);
+		/*cv::circle(currImg, currPt, 3, cv::Scalar(0, 255, 0), -1);
 		cv::line(currImg, currPt, projected2, cv::Scalar(255, 0, 0));
 		cv::circle(prevImg, prevPt, 3, cv::Scalar(0, 255, 0), -1);
-		cv::line(prevImg, prevPt, projected1, cv::Scalar(255, 0, 0));
+		cv::line(prevImg, prevPt, projected1, cv::Scalar(255, 0, 0));*/
 		////reprojection error
 		
 		//////////Scale 계산2
@@ -1369,7 +1391,7 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 
 		////Xscaled 에 대해서 reprojection test
 		////처리는 카메라 좌표계가지 변환 후 다시 해야 함.
-		cv::Mat Xscaled = Rinv*(X3D*scale) + Tinv;//proj1*scale;
+		cv::Mat Xscaled = Rpinv*(X3D*scale) + Tpinv;//proj1*scale;
 		mpMap->AddReinit(Xscaled);
 
 		//Xscaled 에 대해서 reprojection test
@@ -1385,6 +1407,11 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 		cv::Point2f newProjected2(newProj2.at<float>(0) / newDepth2, newProj2.at<float>(1) / newDepth2);
 		cv::circle(currImg, newProjected2, 3, cv::Scalar(255, 0, 0), -1);
 		
+		cv::Mat newProj3 = Rpprev*Xscaled + Tpprev;
+		newProj3 = mK*newProj3;
+		float newDepth3 = newProj3.at<float>(2);
+		cv::Point2f newProjected3(newProj3.at<float>(0) / newDepth3, newProj3.at<float>(1) / newDepth3);
+		cv::circle(pprevImg, newProjected3, 3, cv::Scalar(255, 0, 0), -1);
 		////시각화
 		
 		nTest++;
@@ -1418,9 +1445,10 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 	//	//시각화
 	//	
 	//}
-	std::cout << "recover pose::candidate points::" << nTest << std::endl;
+	//std::cout << "recover pose::candidate points::" << nTest << std::endl;
 	imshow("recover::1", currImg);
 	imshow("recover::2", prevImg);
+	imshow("recover::3", pprevImg);
 	cv::waitKey(1);
 
 }

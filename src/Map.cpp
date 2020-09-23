@@ -10,6 +10,16 @@ namespace UVR_SLAM{
 		std::cout << "MAP::" << mnMaxConnectedKFs << ", " << mnMaxCandidateKFs << std::endl;
 	}
 	Map::~Map() {}
+	Frame* Map::GetReverseWindowFrame(int idx) {
+		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
+		int n = 0;
+		for (auto iter = mQueueFrameWindows.rbegin(); iter != mQueueFrameWindows.rend(); iter++, n++) {
+			if (n == idx) {
+				return *iter;
+			}
+		}
+		return nullptr;
+	}
 	Frame* Map::GetLastWindowFrame() {
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
 		return mQueueFrameWindows.back();

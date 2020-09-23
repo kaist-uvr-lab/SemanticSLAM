@@ -41,6 +41,7 @@ namespace UVR_SLAM {
 		void ClearFrames();
 
 		Frame* GetLastWindowFrame();
+		Frame* GetReverseWindowFrame(int idx);
 		void AddWindowFrame(Frame* pF);
 		std::vector<Frame*> GetWindowFrames();
 		std::vector<Frame*> GetGraphFrames();
