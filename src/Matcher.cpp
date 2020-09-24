@@ -992,7 +992,10 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 	std::vector<cv::Point2f> prevPts,currPts;
 	std::vector<int> vnOctaves;
 	std::vector<CandidatePoint*> vpCPs;
-	prevPts = pPrevKF->mpMatchInfo->GetMatchingPtsMapping(vpCPs);
+	
+	int nCP = pPrevKF->mpMatchInfo->GetNumCPs();
+	vpCPs = pPrevKF->mpMatchInfo->mvpMatchingCPs;
+	prevPts = pPrevKF->mpMatchInfo->mvMatchingPts;//pPrevKF->mpMatchInfo->GetMatchingPtsMapping(vpCPs);
 	auto pPrevMatchInfo = pPrevKF->mpMatchInfo;
 	auto pCurrMatchInfo = pCurrKF->mpMatchInfo;
 	
