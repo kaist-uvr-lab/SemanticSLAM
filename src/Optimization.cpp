@@ -1693,4 +1693,170 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 	//std::cout << "ba::restore::mp::end" << std::endl;
 }
 ////Opticalflow 버전용
+
+void UVR_SLAM::Optimization::PoseRecoveryOptimization(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, std::vector<cv::Point2f> vCurrPTs, std::vector<cv::Point2f> vPrevPTs, std::vector<cv::Point2f> vPPrevPTs, std::vector<cv::Mat>& vP3Ds) {
+	std::vector<bool> vbNotIncludedMP;
+	vbNotIncludedMP.resize(vP3Ds.size());
+
+	g2o::SparseOptimizer optimizer;
+	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
+
+	linearSolver = new g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>();
+
+	g2o::BlockSolver_6_3 * solver_ptr = new g2o::BlockSolver_6_3(linearSolver);
+
+	g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+	optimizer.setAlgorithm(solver);
+
+	long unsigned int maxKFid = pCurrKF->GetFrameID();
+
+	///////KF Curr추가
+	cv::Mat Rcurr, Tcurr;
+	pCurrKF->GetPose(Rcurr, Tcurr);
+	cv::Mat TCurrcw = cv::Mat::zeros(4, 4, CV_32FC1);
+	Rcurr.copyTo(TCurrcw.rowRange(0, 3).colRange(0, 3));
+	Tcurr.copyTo(TCurrcw.col(3).rowRange(0, 3));
+	g2o::VertexSE3Expmap * vSE3Curr = new g2o::VertexSE3Expmap();
+	vSE3Curr->setEstimate(Converter::toSE3Quat(TCurrcw));
+	vSE3Curr->setId(pCurrKF->GetFrameID());
+	vSE3Curr->setFixed(false);
+	optimizer.addVertex(vSE3Curr);
+	///////KF Curr추가
+
+	///////KF Prev추가
+	cv::Mat Rprev, Tprev;
+	pPrevKF->GetPose(Rprev, Tprev);
+	cv::Mat TPrevcw = cv::Mat::zeros(4, 4, CV_32FC1);
+	Rprev.copyTo(TPrevcw.rowRange(0, 3).colRange(0, 3));
+	Tprev.copyTo(TPrevcw.col(3).rowRange(0, 3));
+	g2o::VertexSE3Expmap * vSE3Prev = new g2o::VertexSE3Expmap();
+	vSE3Prev->setEstimate(Converter::toSE3Quat(TPrevcw));
+	vSE3Prev->setId(pPrevKF->GetFrameID());
+	vSE3Prev->setFixed(true);
+	optimizer.addVertex(vSE3Prev);
+	///////KF Prev추가
+
+	///////KF PPrev추가
+	cv::Mat Rpprev, Tpprev;
+	pPPrevKF->GetPose(Rpprev, Tpprev);
+	cv::Mat TPprevcw = cv::Mat::zeros(4, 4, CV_32FC1);
+	Rpprev.copyTo(TPprevcw.rowRange(0, 3).colRange(0, 3));
+	Tpprev.copyTo(TPprevcw.col(3).rowRange(0, 3));
+	g2o::VertexSE3Expmap * vSE3Pprev = new g2o::VertexSE3Expmap();
+	vSE3Pprev->setEstimate(Converter::toSE3Quat(TPprevcw));
+	vSE3Pprev->setId(pPPrevKF->GetFrameID());
+	vSE3Pprev->setFixed(true);
+	optimizer.addVertex(vSE3Pprev);
+	///////KF PPrev추가
+
+	const float thHuber2D = sqrt(5.99);
+	const float thHuber3D = sqrt(7.815);
+	////새로 추가된 맵포인트 설정
+	for (size_t i = 0; i<vP3Ds.size(); i++)
+	{
+		
+		g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
+		vPoint->setEstimate(Converter::toVector3d(vP3Ds[i]));
+		const int id = i + maxKFid + 1;
+		vPoint->setId(id);
+		vPoint->setMarginalized(true);
+		optimizer.addVertex(vPoint);
+		
+		////KFcurr edge
+		{
+			Eigen::Matrix<double, 2, 1> obs;
+			obs << vCurrPTs[i].x, vCurrPTs[i].y;
+
+			g2o::EdgeSE3ProjectXYZ* eCurr= new g2o::EdgeSE3ProjectXYZ();
+			eCurr->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
+			eCurr->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pCurrKF->GetFrameID())));
+			eCurr->setMeasurement(obs);
+			eCurr->setInformation(Eigen::Matrix2d::Identity());
+
+			g2o::RobustKernelHuber* rkCurr = new g2o::RobustKernelHuber;
+			eCurr->setRobustKernel(rkCurr);
+			rkCurr->setDelta(thHuber2D);
+
+			eCurr->fx = pCurrKF->fx;
+			eCurr->fy = pCurrKF->fy;
+			eCurr->cx = pCurrKF->cx;
+			eCurr->cy = pCurrKF->cy;
+			optimizer.addEdge(eCurr);
+		}
+		////KFcurr edge
+
+		////KFprev edge
+		{
+			Eigen::Matrix<double, 2, 1> obsPrev;
+			obsPrev << vPrevPTs[i].x, vPrevPTs[i].y;
+
+			g2o::EdgeSE3ProjectXYZ* ePrev = new g2o::EdgeSE3ProjectXYZ();
+			ePrev->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
+			ePrev->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pPrevKF->GetFrameID())));
+			ePrev->setMeasurement(obsPrev);
+			ePrev->setInformation(Eigen::Matrix2d::Identity());
+
+			g2o::RobustKernelHuber* rkPrev = new g2o::RobustKernelHuber;
+			ePrev->setRobustKernel(rkPrev);
+			rkPrev->setDelta(thHuber2D);
+
+			ePrev->fx = pCurrKF->fx;
+			ePrev->fy = pCurrKF->fy;
+			ePrev->cx = pCurrKF->cx;
+			ePrev->cy = pCurrKF->cy;
+			optimizer.addEdge(ePrev);
+		}
+		////KFprev edge
+
+		////KFpprev edge
+		{
+			Eigen::Matrix<double, 2, 1> obsPprev;
+			obsPprev << vPPrevPTs[i].x, vPPrevPTs[i].y;
+
+			g2o::EdgeSE3ProjectXYZ* ePprev = new g2o::EdgeSE3ProjectXYZ();
+			ePprev->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
+			ePprev->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pPPrevKF->GetFrameID())));
+			ePprev->setMeasurement(obsPprev);
+			ePprev->setInformation(Eigen::Matrix2d::Identity());
+
+			g2o::RobustKernelHuber* rkPprev = new g2o::RobustKernelHuber;
+			ePprev->setRobustKernel(rkPprev);
+			rkPprev->setDelta(thHuber2D);
+
+			ePprev->fx = pCurrKF->fx;
+			ePprev->fy = pCurrKF->fy;
+			ePprev->cx = pCurrKF->cx;
+			ePprev->cy = pCurrKF->cy;
+			optimizer.addEdge(ePprev);
+		}
+		////KFprev edge
+
+		vbNotIncludedMP[i] = false;
+	}
+	////새로 추가된 맵포인트 설정
+
+	optimizer.initializeOptimization();
+	optimizer.optimize(10);
+
+	//Curr KF 포즈 수정
+	{
+		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pCurrKF->GetFrameID()));
+		g2o::SE3Quat SE3quat = vSE3->estimate();
+		cv::Mat R, t;
+		cv::Mat Tcw = Converter::toCvMat(SE3quat);
+		R = Tcw.rowRange(0, 3).colRange(0, 3);
+		t = Tcw.rowRange(0, 3).col(3);
+		pCurrKF->SetPose(R, t);
+	}
+	////포인트 복원
+	for (size_t i = 0; i<vP3Ds.size(); i++)
+	{
+		if (vbNotIncludedMP[i])
+			continue;
+		g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(i + maxKFid + 1));
+		vP3Ds[i] = Converter::toCvMat(vPoint->estimate()).clone();
+	}
+	////포인트 복원
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

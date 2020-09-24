@@ -1281,6 +1281,7 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 
 	return res2;
 }
+
 int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, std::vector<cv::Point2f> vCurrPts, std::vector<cv::Point2f> vPrevPts, std::vector<cv::Point2f> vPPrevPts, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers, cv::Mat& R, cv::Mat& T, double& ftime,
 	cv::Mat& currImg, cv::Mat& prevImg, cv::Mat& pprevImg) {
 
@@ -1291,9 +1292,10 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pP
 	cv::Mat E12 = cv::findEssentialMat(vPrevPts, vCurrPts, mK, cv::FM_RANSAC, 0.999, 1.0, vFInliers);
 	for (unsigned long i = 0; i < vFInliers.size(); i++) {
 		if (vFInliers[i]) {
-			vTempFundPrevPts.push_back(vPrevPts[i]);
-			vTempFundCurrPts.push_back(vCurrPts[i]);
-			vTempMatchIDXs.push_back(i);//vTempIndexs[i]
+			vTempFundCurrPts.push_back(std::move(vCurrPts[i]));
+			vTempFundPrevPts.push_back(std::move(vPrevPts[i]));
+			vTempFundPPrevPts.push_back(std::move(vPPrevPts[i]));
+			vTempMatchIDXs.push_back(std::move(i));//vTempIndexs[i]
 		}
 	}
 	
@@ -1305,6 +1307,7 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pP
 	cv::Mat Map3D;
 	cv::Mat K;
 	mK.convertTo(K, CV_64FC1);
+
 	int res2 = cv::recoverPose(E12, vTempFundPrevPts, vTempFundCurrPts, mK, R, T, 50.0, matTriangulateInliers, Map3D);
 	if (countNonZero(matTriangulateInliers) < 100)
 		return -1;
@@ -1326,25 +1329,29 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pP
 	cv::Mat Rdiff = Rcurr*Rpinv;
 	cv::Mat Tdiff = Rcurr*Tpinv + Tcurr;
 	float scale = sqrt(Tdiff.dot(Tdiff));
-	cv::Mat Rnew = Rpinv*Rprev;
+	
+	/////Optimize용
+	std::vector<cv::Point2f> vMapCurrPTs, vMapPrevPTs, vMapPPrevPTs;
+	std::vector<CandidatePoint*> vMapCPs;
+	std::vector<cv::Mat> vX3Ds;
 
 	/////TEST CODE
-	std::vector<cv::Mat> vX3Ds;
 	std::vector<float> vPrevScales;
 	mpMap->ClearReinit();
 	int nTest = 0;
+
 	for (int i = 0; i < matTriangulateInliers.rows; i++) {
 		int val = matTriangulateInliers.at<uchar>(i);
-		int idx = vTempMatchIDXs[i]; //cp idx
 		if (val == 0)
 			continue;
-
+		int idx = vTempMatchIDXs[i]; //cp idx
 		cv::Mat X3D = Map3D.col(i).clone();
 		X3D /= X3D.at<float>(3);
 		X3D = X3D.rowRange(0, 3);
 
-		auto currPt = vTempFundCurrPts[i];
-		auto prevPt = vTempFundPrevPts[i];
+		auto currPt = std::move(vTempFundCurrPts[i]);
+		auto prevPt = std::move(vTempFundPrevPts[i]);
+		auto pprevPt = std::move(vTempFundPPrevPts[i]);
 
 		////reprojection error
 		cv::Mat proj1 = X3D.clone();
@@ -1364,57 +1371,66 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pP
 		if (err1 > 9.0 || err2 > 9.0) {
 			continue;
 		}
-		/*cv::circle(currImg, currPt, 3, cv::Scalar(0, 255, 0), -1);
-		cv::line(currImg, currPt, projected2, cv::Scalar(255, 0, 0));
-		cv::circle(prevImg, prevPt, 3, cv::Scalar(0, 255, 0), -1);
-		cv::line(prevImg, prevPt, projected1, cv::Scalar(255, 0, 0));*/
-		////reprojection error
 		
-		//////////Scale 계산2
-		//auto pCPi = vPrevCPs[idx];
-		//auto pMPi = pCPi->GetMP();
-
-		////vpTempCPs.push_back(pCPi);
-		//vX3Ds.push_back(X3D);
-
-		//if (pMPi) {
-		//	cv::Mat Xw = pMPi->GetWorldPos();
-		//	if (pPrevKF && pMPi->isInFrame(pPrevKF->mpMatchInfo))
-		//	{
-		//		cv::Mat proj3 = Rprev*Xw + Tprev;
-		//		//proj3 = mK*proj3;
-		//		float depth3 = proj3.at<float>(2);
-		//		float scale = depth3 / depth1;
-		//		vPrevScales.push_back(scale);
-		//	}
-		//}
-
 		////Xscaled 에 대해서 reprojection test
 		////처리는 카메라 좌표계가지 변환 후 다시 해야 함.
 		cv::Mat Xscaled = Rpinv*(X3D*scale) + Tpinv;//proj1*scale;
-		mpMap->AddReinit(Xscaled);
+		//mpMap->AddReinit(Xscaled);
 
-		//Xscaled 에 대해서 reprojection test
-		cv::Mat newProj1 = Rprev*Xscaled + Tprev;
-		newProj1 = mK*newProj1;
-		float newDepth1 = newProj1.at<float>(2);
-		cv::Point2f newProjected1(newProj1.at<float>(0) / newDepth1, newProj1.at<float>(1) / newDepth1);
-		cv::circle(prevImg, newProjected1, 3, cv::Scalar(255, 0, 0), -1);
+		////////최적화를 위한 추가
+		vMapCPs.push_back(vpCPs[idx]);
+		vMapCurrPTs.push_back(std::move(currPt));
+		vMapPrevPTs.push_back(std::move(prevPt));
+		vMapPPrevPTs.push_back(std::move(pprevPt));
+		vX3Ds.push_back(std::move(Xscaled));
+		////////시각화
+		//cv::Mat newProj1 = Rprev*Xscaled + Tprev;
+		//newProj1 = mK*newProj1;
+		//float newDepth1 = newProj1.at<float>(2);
+		//cv::Point2f newProjected1(newProj1.at<float>(0) / newDepth1, newProj1.at<float>(1) / newDepth1);
+		//cv::circle(prevImg, newProjected1, 3, cv::Scalar(255, 0, 0), -1);
 
-		cv::Mat newProj2 = Rcurr*Xscaled + Tcurr;
+		//cv::Mat newProj2 = Rcurr*Xscaled + Tcurr;
+		//newProj2 = mK*newProj2;
+		//float newDepth2 = newProj2.at<float>(2);
+		//cv::Point2f newProjected2(newProj2.at<float>(0) / newDepth2, newProj2.at<float>(1) / newDepth2);
+		//cv::circle(currImg, newProjected2, 3, cv::Scalar(255, 0, 0), -1);
+		//
+		//cv::Mat newProj3 = Rpprev*Xscaled + Tpprev;
+		//newProj3 = mK*newProj3;
+		//float newDepth3 = newProj3.at<float>(2);
+		//cv::Point2f newProjected3(newProj3.at<float>(0) / newDepth3, newProj3.at<float>(1) / newDepth3);
+		//cv::circle(pprevImg, newProjected3, 3, cv::Scalar(255, 0, 0), -1);
+		////////시각화
+		nTest++;
+	}
+
+	UVR_SLAM::Optimization::PoseRecoveryOptimization(pCurrKF, pPrevKF, pPPrevKF, vMapCurrPTs, vMapPrevPTs, vMapPPrevPTs, vX3Ds);
+
+	/////시각화 확인
+	for (int i = 0; i < vX3Ds.size(); i++) {
+		cv::Mat X3D = vX3Ds[i];
+		mpMap->AddReinit(X3D);
+
+		////////시각화
+		cv::Mat newProj2 = Rcurr*X3D + Tcurr;
 		newProj2 = mK*newProj2;
 		float newDepth2 = newProj2.at<float>(2);
 		cv::Point2f newProjected2(newProj2.at<float>(0) / newDepth2, newProj2.at<float>(1) / newDepth2);
 		cv::circle(currImg, newProjected2, 3, cv::Scalar(255, 0, 0), -1);
 		
-		cv::Mat newProj3 = Rpprev*Xscaled + Tpprev;
+		cv::Mat newProj1 = Rprev*X3D + Tprev;
+		newProj1 = mK*newProj1;
+		float newDepth1 = newProj1.at<float>(2);
+		cv::Point2f newProjected1(newProj1.at<float>(0) / newDepth1, newProj1.at<float>(1) / newDepth1);
+		cv::circle(prevImg, newProjected1, 3, cv::Scalar(255, 0, 0), -1);
+		
+		cv::Mat newProj3 = Rpprev*X3D + Tpprev;
 		newProj3 = mK*newProj3;
 		float newDepth3 = newProj3.at<float>(2);
 		cv::Point2f newProjected3(newProj3.at<float>(0) / newDepth3, newProj3.at<float>(1) / newDepth3);
 		cv::circle(pprevImg, newProjected3, 3, cv::Scalar(255, 0, 0), -1);
-		////시각화
-		
-		nTest++;
+		////////시각화
 	}
 
 	/*if (vPrevScales.size() < 10)
