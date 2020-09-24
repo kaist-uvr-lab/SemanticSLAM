@@ -879,7 +879,23 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	std::vector<cv::Point2f> prevPts, currPts;
 	std::vector<MapPoint*> vpTempMPs;
 	std::vector<UVR_SLAM::CandidatePoint*> vpTempCPs;
-	prev->mpMatchInfo->GetMatchingPtsTracking(vpTempCPs, vpTempMPs, prevPts);//prev->mvMatchingPts;
+
+	int Ncp = prev->mpMatchInfo->GetNumCPs();
+	for (int i = 0; i < Ncp; i++) {
+		auto pCPi = prev->mpMatchInfo->mvpMatchingCPs[i];
+		if (prevPts.size() == 500)
+			break;
+		auto pMPi = pCPi->GetMP();
+		if (pMPi && pCPi->GetQuality() && pCPi->isOptimized()) {
+			if (pMPi->isDeleted())
+				continue;
+			prevPts.push_back(prev->mpMatchInfo->mvMatchingPts[i]);
+			vpTempCPs.push_back(pCPi);
+			vpTempMPs.push_back(pMPi);
+		}
+	}
+
+	//prev->mpMatchInfo->GetMatchingPtsTracking(vpTempCPs, vpTempMPs, prevPts);//prev->mvMatchingPts;
 	//std::cout << "Matcher::Tracking::" << vpTempCPs.size() << std::endl;
 	int maxLvl = 3;
 	int searchSize = 21;

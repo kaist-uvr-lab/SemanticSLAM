@@ -201,13 +201,29 @@ void UVR_SLAM::MapOptimizer::Run() {
 				int nidx = 0;
 
 				auto lastKF = vpKFs[nKF - 1];
-				std::vector<MapPoint*> vpMPs;
-				auto vPTs = lastKF->mpMatchInfo->GetMatchingPts(vpMPs);
+				auto lastMatch = lastKF->mpMatchInfo;
+				//std::vector<MapPoint*> vpMPs;
+				//auto vPTs = lastKF->mpMatchInfo->GetMatchingPts(vpMPs);
 				for (int i = 0; i < nKF; i++) {
 					auto pKFi = vpKFs[i];
 					auto pMatch = pKFi->mpMatchInfo;
 					cv::Mat img = pKFi->GetOriginalImage();
-					for (int j = 0; j < vpMPs.size(); j++) {
+
+					int nCP = pMatch->GetNumCPs();
+					for (int j = 0; j < nCP; j++) {
+						auto pCPi = pMatch->mvpMatchingCPs[j];
+						auto pt = pMatch->mvMatchingPts[j];
+						auto pMPi = pCPi->GetMP();
+						if (!pMPi || pMPi->isDeleted() || !pCPi->GetQuality())
+							continue;
+						if (pMPi->isInFrame(lastMatch)) {
+							cv::circle(img, pt, 2, cv::Scalar(0, 0, 255), -1);
+						}
+						else {
+							cv::circle(img, pt, 2, cv::Scalar(0, 255,0), -1);
+						}
+					}
+					/*for (int j = 0; j < vpMPs.size(); j++) {
 						auto pMPj = vpMPs[j];
 						if (!pMPj || pMPj->isDeleted())
 							continue;
@@ -216,7 +232,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 							continue;
 						auto pt = pMatch->GetPt(idx);
 						cv::circle(img, pt, 2, cv::Scalar(0, 0, 255), -1);
-					}
+					}*/
 
 					int h = nidx / 4;
 					int w = nidx % 4;

@@ -2,6 +2,7 @@
 #include "Frame.h"
 #include "System.h"
 #include "MapPoint.h"
+#include "CandidatePoint.h"
 #include "Map.h"
 
 namespace UVR_SLAM {
@@ -27,41 +28,23 @@ namespace UVR_SLAM {
 				cv::Mat R = pF->GetRotation();
 				cv::Mat t = pF->GetTranslation();
 				std::vector<MapPoint*> vpMPs;
-				auto vPTs = pF->mpMatchInfo->GetMatchingPts(vpMPs);
 				int nMatch = 0;
-				for (int i = 0; i < vpMPs.size(); i++) {
-					UVR_SLAM::MapPoint* pMPi = vpMPs[i];
-					if (!pMPi || pMPi->isDeleted())
+				int nCP = pF->mpMatchInfo->GetNumCPs();
+				for (int i = 0; i < nCP; i++) {
+					auto pCPi = pF->mpMatchInfo->mvpMatchingCPs[i];
+					auto pMPi = pCPi->GetMP();
+					if (!pMPi || pMPi->isDeleted() || !pCPi->GetQuality())
 						continue;
 					cv::Point2f p2D;
 					cv::Mat pCam;
 					bool b = pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
-					auto pt = vPTs[i];
+					auto pt = pF->mpMatchInfo->mvMatchingPts[i];
 					cv::Scalar color(150, 150, 0);
-					//int label = 0;// mpRefKF->mpMatchInfo->mvObjectLabels[vnIDXs[i]];
-					//int pid = pMPi->GetPlaneID();
-					//int type = pMPi->GetRecentLayoutFrameID();
-					
-					//if (pid > 0 && label == 150) {
-					//	color = cv::Scalar(0, 0, 255);
-					//}
-					//else if (pid > 0 && label == 100) {
-					//	color = cv::Scalar(0, 255, 0);
-					//}
-					////else if (pid > 0 && label == 255) {
-					//else if (label == 255) {
-					//	color = cv::Scalar(255, 0, 0);
-					//	//color = UVR_SLAM::ObjectColors::mvObjectLabelColors[pid];
-					//}
-					//if (pid <= 0)
-					//	color /= 2;
-
-					/*if (mvbMatchingInliers[i])
-						cv::circle(vis, p2D, 2, color, -1);*/
 					nMatch++;
 					cv::circle(vis, p2D, 2, color, -1);
-					cv::line(vis, p2D,pt, color, 1);
+					cv::line(vis, p2D, pt, color, 1);
 				}
+				
 				std::stringstream ss;
 				ss << "Traking = "<<mpKeyFrame->GetKeyFrameID()<<", "<<mpFrame->GetFrameID()<<", "<< nMatch << "::" <<mfTime<< "::";
 				cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);

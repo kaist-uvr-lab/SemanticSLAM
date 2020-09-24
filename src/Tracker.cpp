@@ -169,6 +169,11 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mpRefKF->SetRecentTrackedFrameID(pCurr->GetFrameID());
 		pCurr->mpMatchInfo = new UVR_SLAM::MatchInfo(pCurr, mpRefKF, mnWidth, mnHeight);
 		
+		/*int Ncp = mpRefKF->mpMatchInfo->GetNumCPs();
+		for (int i = 0; i < Ncp; i++) {
+			mpRefKF->mpMatchInfo->mvpMatchingCPs[i]->GetFrames();
+		}*/
+
 		cv::Mat prevR, prevT;
 		pPrev->GetPose(prevR, prevT);
 		pCurr->SetPose(prevR, prevT);
