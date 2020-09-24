@@ -71,7 +71,7 @@ namespace UVR_SLAM {
 		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::MapPoint*>& vpMPs);
 		std::vector<cv::Point2f> GetMatchingPtsOptimization(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs);
 		std::vector<cv::Point2f> GetMatchingPtsMapping(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs);
-		std::vector<cv::Point2f> GetMatchingPtsTracking(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs);
+		int GetMatchingPtsTracking(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vPTs);
 		
 		UVR_SLAM::CandidatePoint* GetCP(int idx);
 		cv::Point2f GetPt(int idx);

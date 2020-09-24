@@ -26,38 +26,41 @@ namespace UVR_SLAM {
 				//vis.convertTo(vis, CV_8UC3);
 				cv::Mat R = pF->GetRotation();
 				cv::Mat t = pF->GetTranslation();
-				
+				std::vector<MapPoint*> vpMPs;
+				auto vPTs = pF->mpMatchInfo->GetMatchingPts(vpMPs);
 				int nMatch = 0;
-				for (int i = 0; i < mvpMatchingMPs.size(); i++) {
-					UVR_SLAM::MapPoint* pMPi = mvpMatchingMPs[i];
+				for (int i = 0; i < vpMPs.size(); i++) {
+					UVR_SLAM::MapPoint* pMPi = vpMPs[i];
 					if (!pMPi || pMPi->isDeleted())
 						continue;
 					cv::Point2f p2D;
 					cv::Mat pCam;
 					bool b = pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
-
-					int label = 0;// mpRefKF->mpMatchInfo->mvObjectLabels[vnIDXs[i]];
-					int pid = pMPi->GetPlaneID();
-					int type = pMPi->GetRecentLayoutFrameID();
+					auto pt = vPTs[i];
 					cv::Scalar color(150, 150, 0);
-					if (pid > 0 && label == 150) {
-						color = cv::Scalar(0, 0, 255);
-					}
-					else if (pid > 0 && label == 100) {
-						color = cv::Scalar(0, 255, 0);
-					}
-					//else if (pid > 0 && label == 255) {
-					else if (label == 255) {
-						color = cv::Scalar(255, 0, 0);
-						//color = UVR_SLAM::ObjectColors::mvObjectLabelColors[pid];
-					}
-					if (pid <= 0)
-						color /= 2;
+					//int label = 0;// mpRefKF->mpMatchInfo->mvObjectLabels[vnIDXs[i]];
+					//int pid = pMPi->GetPlaneID();
+					//int type = pMPi->GetRecentLayoutFrameID();
+					
+					//if (pid > 0 && label == 150) {
+					//	color = cv::Scalar(0, 0, 255);
+					//}
+					//else if (pid > 0 && label == 100) {
+					//	color = cv::Scalar(0, 255, 0);
+					//}
+					////else if (pid > 0 && label == 255) {
+					//else if (label == 255) {
+					//	color = cv::Scalar(255, 0, 0);
+					//	//color = UVR_SLAM::ObjectColors::mvObjectLabelColors[pid];
+					//}
+					//if (pid <= 0)
+					//	color /= 2;
 
-					if (mvbMatchingInliers[i])
-						cv::circle(vis, p2D, 2, color, -1);
+					/*if (mvbMatchingInliers[i])
+						cv::circle(vis, p2D, 2, color, -1);*/
 					nMatch++;
-					//cv::line(vis, p2D, mvMatchingPTs[i], color, 1);
+					cv::circle(vis, p2D, 2, color, -1);
+					cv::line(vis, p2D,pt, color, 1);
 				}
 				std::stringstream ss;
 				ss << "Traking = "<<mpKeyFrame->GetKeyFrameID()<<", "<<mpFrame->GetFrameID()<<", "<< nMatch << "::" <<mfTime<< "::";
@@ -74,18 +77,17 @@ namespace UVR_SLAM {
 		std::unique_lock<std::mutex> lock(mMutexFrameVisualizer);
 		mpKeyFrame = pKF;
 		mpFrame = pF;
+		/*
 		mvpMatchingMPs.resize(vbInliers.size());
 		mvMatchingPTs.resize(vbInliers.size());
 		mvbMatchingInliers.resize(vbInliers.size());
 		std::copy(vMPs.begin(), vMPs.end(), mvpMatchingMPs.begin());
 		std::copy(vPts.begin(), vPts.end(), mvMatchingPTs.begin());
-		std::copy(vbInliers.begin(), vbInliers.end(), mvbMatchingInliers.begin());
+		std::copy(vbInliers.begin(), vbInliers.end(), mvbMatchingInliers.begin());*/
 		mfTime = fTime;
 		mbVisualize = true;
 	}
-	void FrameVisualizer::GetFrameMatchingInformation(Frame* pKF, Frame* pF, std::vector<UVR_SLAM::MapPoint*>& vMPs, std::vector<cv::Point2f>& vPts, std::vector<bool>& vbInliers) {
 
-	}
 	bool FrameVisualizer::isVisualize() {
 		std::unique_lock<std::mutex> lock(mMutexFrameVisualizer);
 		return mbVisualize;

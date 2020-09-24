@@ -1084,14 +1084,14 @@ void UVR_SLAM::MatchInfo::RemoveCP(int idx){
 	mvpMatchingCPs[idx] = nullptr;	
 }
 void UVR_SLAM::MatchInfo::UpdateFrame() {
-	std::vector<CandidatePoint*> vpTempCPs;
+	int N;
 	{
 		std::unique_lock<std::mutex>(mMutexCPs);
-		vpTempCPs = mvpMatchingCPs;
+		N = mvpMatchingCPs.size();
 	}
 	
-	for (int i = 0; i < vpTempCPs.size(); i++) {
-		auto pCPi = vpTempCPs[i];
+	for (int i = 0; i < N; i++) {
+		auto pCPi = mvpMatchingCPs[i];
 		pCPi->ConnectFrame(this, i);
 		auto pMPi = pCPi->GetMP();
 		if (!pMPi)
@@ -1102,42 +1102,51 @@ void UVR_SLAM::MatchInfo::UpdateFrame() {
 }
 void UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 
-	std::vector<CandidatePoint*> vpCPs;
+	int N;
 	{
 		std::unique_lock<std::mutex>(mMutexCPs);
-		vpCPs = mvpMatchingCPs;
+		N = mvpMatchingCPs.size();
 	}
-	for (int i = 0; i < vpCPs.size(); i++) {
-		auto pCPi = vpCPs[i];
+	for (int i = 0; i < N; i++) {
+		auto pCPi = mvpMatchingCPs[i];
 		if (!pCPi->GetQuality()){
 			pCPi->DeleteMapPoint();
 		}
 	}
 }
-std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsTracking(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs) {
-	std::unique_lock<std::mutex>(mMutexCPs);
-	std::vector<cv::Point2f> res;
+int UVR_SLAM::MatchInfo::GetMatchingPtsTracking(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vPTs) {
+	
+	//std::vector<cv::Point2f> res;
 	//std::cout << "MatchInfo::CP::" << mvpMatchingCPs.size() << std::endl;
-	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
+	int nres;
+	{
+		std::unique_lock<std::mutex>(mMutexCPs);
+		nres = mvpMatchingCPs.size();
+	}
+	for (int i = 0; i < nres; i++) {
 		auto pCPi = mvpMatchingCPs[i];
-		if (res.size() == nMaxMP)
+		if (vPTs.size() == nMaxMP)
 			break;
 		auto pMPi = pCPi->GetMP();
 		if (pMPi && pCPi->GetQuality() && pCPi->isOptimized()) {
 			if (pMPi->isDeleted())
 				continue;
-			res.push_back(mvMatchingPts[i]);
+			vPTs.push_back(mvMatchingPts[i]);
 			vpCPs.push_back(pCPi);
 			vpMPs.push_back(pMPi);
 		}
 	}
-	return res;
+	return nres;
 }
 
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLAM::MapPoint*>& vpMPs) {
-	std::unique_lock<std::mutex>(mMutexCPs);
+	int N;
+	{
+		std::unique_lock<std::mutex>(mMutexCPs);
+		N = mvpMatchingCPs.size();
+	}
 	std::vector<cv::Point2f> res;
-	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
+	for (int i = 0; i < N; i++) {
 		auto pCPi = mvpMatchingCPs[i];
 		
 		auto pMPi = pCPi->GetMP();
@@ -1151,9 +1160,13 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLA
 	return res;
 }
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsOptimization(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs) {
-	std::unique_lock<std::mutex>(mMutexCPs);
+	int N;
+	{
+		std::unique_lock<std::mutex>(mMutexCPs);
+		N = mvpMatchingCPs.size();
+	}
 	std::vector<cv::Point2f> res;
-	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
+	for (int i = 0; i < N; i++) {
 		auto pCPi = mvpMatchingCPs[i];
 
 		auto pMPi = pCPi->GetMP();
@@ -1169,9 +1182,13 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsOptimization(std::ve
 }
 
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsMapping(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs){
-	std::unique_lock<std::mutex>(mMutexCPs);
+	int N;
+	{
+		std::unique_lock<std::mutex>(mMutexCPs);
+		N = mvpMatchingCPs.size();
+	}
 	std::vector<cv::Point2f> res;
-	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
+	for (int i = 0; i < N; i++) {
 		res.push_back(mvMatchingPts[i]);
 		vpCPs.push_back(mvpMatchingCPs[i]);
 	}
@@ -1179,9 +1196,13 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsMapping(std::vector<
 }
 
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts() {
-	std::unique_lock<std::mutex>(mMutexCPs);
+	int N;
+	{
+		std::unique_lock<std::mutex>(mMutexCPs);
+		N = mvpMatchingCPs.size();
+	}
 	std::vector<cv::Point2f> res;
-	for (int i = 0; i < mvpMatchingCPs.size(); i++) {
+	for (int i = 0; i < N; i++) {
 		res.push_back(mvMatchingPts[i]);
 	}
 	return res;
