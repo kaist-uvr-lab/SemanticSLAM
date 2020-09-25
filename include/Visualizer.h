@@ -32,6 +32,21 @@ namespace UVR_SLAM {
 		std::mutex mMutexDoingProcess;
 		bool mbDoingProcess;
 		int mnWidth, mnHeight;
+//////////////////////
+////output시각화
+	public:
+		void SetOutputImage(cv::Mat out, int type);
+		cv::Mat GetOutputImage(int type);
+		bool isOutputTypeChanged(int type);
+		int mnWindowImgCols, mnWindowImgRows;
+	private:
+		std::vector<cv::Mat> mvOutputImgs;
+		std::vector<cv::Rect> mvRects;
+		cv::Mat mOutputImage;
+		std::vector<bool> mvOutputChanged;
+		std::mutex mMutexOutput;
+////output시각화
+//////////////////////
 	public:
 		void Init();
 	private:

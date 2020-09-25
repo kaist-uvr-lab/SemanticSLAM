@@ -156,9 +156,6 @@ void UVR_SLAM::System::Init() {
 	//optmizer
 	mpOptimizer = new UVR_SLAM::Optimization();
 
-	//matcher
-	mpMatcher = new UVR_SLAM::Matcher(DescriptorMatcher::create("BruteForce-Hamming"), mnWidth, mnHeight);
-
 	//Visualizer
 	mpVisualizer = new Visualizer(mnWidth, mnHeight, mnVisScale, mpMap);
 	mpVisualizer->Init();
@@ -168,7 +165,12 @@ void UVR_SLAM::System::Init() {
 	//FrameVisualizer
 	mpFrameVisualizer = new FrameVisualizer(mnWidth, mnHeight, mK, mpMap);
 	mpFrameVisualizer->SetSystem(this);
+	mpFrameVisualizer->SetVisualizer(mpVisualizer);
 	mptFrameVisualizer = new std::thread(&UVR_SLAM::FrameVisualizer::Run, mpFrameVisualizer);
+
+	//matcher
+	mpMatcher = new UVR_SLAM::Matcher(DescriptorMatcher::create("BruteForce-Hamming"), mnWidth, mnHeight);
+	mpMatcher->SetVisualizer(mpVisualizer);
 
 	//initializer
 	mpInitializer = new UVR_SLAM::Initializer(this, mpMap, mK, mnWidth, mnHeight);

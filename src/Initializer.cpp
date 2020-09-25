@@ -235,7 +235,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 		mpInitFrame1->mpMatchInfo->UpdateFrame();
 		mpInitFrame2->mpMatchInfo->UpdateFrame();
-		cv::imshow("Init::proj", debugging);
+		mpVisualizer->SetOutputImage(debugging, 0);
+
 		cv::waitKey(1);
 		//////////////////////////////////////
 		/////median depth 

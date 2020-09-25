@@ -217,7 +217,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 		///////시각화
 		if (!mpFrameVisualizer->isVisualize()) {
-			mpFrameVisualizer->SetFrameMatchingInformation(mpRefKF, pCurr, vpTempMPs, vpTempPts, vbTempInliers, t2);
+			mpFrameVisualizer->SetFrameMatchingInformation(mpRefKF, pCurr, t2);//vpTempMPs, vpTempPts, vbTempInliers,
 		}
 
 		/////////트래킹 결과 이미지 저장

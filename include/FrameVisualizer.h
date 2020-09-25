@@ -12,7 +12,7 @@ namespace UVR_SLAM {
 	class MapPoint;
 	class System;
 	class Map;
-
+	class Visualizer;
 	class FrameVisualizer {
 	public:
 		FrameVisualizer();
@@ -20,8 +20,9 @@ namespace UVR_SLAM {
 		virtual ~FrameVisualizer();
 
 		void SetSystem(System* pSystem);
-		void SetFrameMatchingInformation(Frame* pKF, Frame* pF, std::vector<UVR_SLAM::MapPoint*> vMPs, std::vector<cv::Point2f> vPts, std::vector<bool> vbInliers, float fTime);
-		void GetFrameMatchingInformation(Frame* pKF, Frame* pF, std::vector<UVR_SLAM::MapPoint*>& vMPs, std::vector<cv::Point2f>& vPts, std::vector<bool>& vbInliers);
+		void SetVisualizer(Visualizer* pVis);
+		void SetFrameMatchingInformation(Frame* pKF, Frame* pF, float time);
+		//void GetFrameMatchingInformation(Frame* pKF, Frame* pF, std::vector<UVR_SLAM::MapPoint*>& vMPs, std::vector<cv::Point2f>& vPts, std::vector<bool>& vbInliers);
 		void SetBoolVisualize(bool b);
 		bool isVisualize();
 		void Run();
@@ -33,6 +34,7 @@ namespace UVR_SLAM {
 		cv::Mat mK;
 		System* mpSystem;
 		Map* mpMap;
+		Visualizer* mpVisualizer;
 		bool mbVisualize;
 		float mfTime;
 

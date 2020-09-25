@@ -12,6 +12,7 @@ namespace UVR_SLAM {
 	class MapPoint;
 	class Frame;
 	class FrameWindow;
+	class Visualizer;
 	class PlaneInformation;
 	class Map;
 	class Matcher {
@@ -19,7 +20,7 @@ namespace UVR_SLAM {
 		Matcher();
 		Matcher(cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h);
 		virtual ~Matcher();
-
+		void SetVisualizer(Visualizer* pVis);
 ///////////////////////////////////////////////////////////
 ////200410 Optical flow 적용 버전
 	public:
@@ -54,6 +55,7 @@ namespace UVR_SLAM {
 	private:
 		cv::Mat K, D;
 		int mWidth, mHeight;
+		Visualizer* mpVisualizer;
 		cv::Ptr<cv::DescriptorMatcher> matcher;
 		bool mbCheckOrientation;
 		float mfNNratio; //projection maching에서 이용

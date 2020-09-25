@@ -2,6 +2,7 @@
 #include "Frame.h"
 #include "System.h"
 #include "MapPoint.h"
+#include "Visualizer.h"
 #include "CandidatePoint.h"
 #include "Map.h"
 
@@ -15,6 +16,9 @@ namespace UVR_SLAM {
 	void UVR_SLAM::FrameVisualizer::SetSystem(System* pSystem){
 		mpSystem = pSystem;
 	}
+	void UVR_SLAM::FrameVisualizer::SetVisualizer(Visualizer* pVis) {
+		mpVisualizer = pVis;
+	}
 	void UVR_SLAM::FrameVisualizer::Run(){
 	
 		while (1) {
@@ -24,6 +28,7 @@ namespace UVR_SLAM {
 				Frame* pF = mpFrame;
 
 				cv::Mat vis = pF->GetOriginalImage();
+				cv::Mat kfImg = pKF->GetOriginalImage();
 				//vis.convertTo(vis, CV_8UC3);
 				cv::Mat R = pF->GetRotation();
 				cv::Mat t = pF->GetTranslation();
@@ -49,14 +54,19 @@ namespace UVR_SLAM {
 				ss << "Traking = "<<mpKeyFrame->GetKeyFrameID()<<", "<<mpFrame->GetFrameID()<<", "<< nMatch << "::" <<mfTime<< "::";
 				cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
 				cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-				cv::imshow("Output::Tracking", vis);
-				//std::cout << "FrameVisualizer::End" << std::endl;
+
+				cv::Mat res = cv::Mat::zeros(mnHeight * 2, mnWidth, CV_8UC3);
+				cv::Rect rect1 = cv::Rect(0, 0, mnWidth, mnHeight);
+				cv::Rect rect2 = cv::Rect(0, mnHeight, mnWidth, mnHeight);
+				vis.copyTo(res(rect1));
+				kfImg.copyTo(res(rect2));
+				mpVisualizer->SetOutputImage(res, 0);
 				SetBoolVisualize(false);
 			}//visualize
 		}
 	}
 
-	void FrameVisualizer::SetFrameMatchingInformation(Frame* pKF, Frame* pF, std::vector<UVR_SLAM::MapPoint*> vMPs, std::vector<cv::Point2f> vPts, std::vector<bool> vbInliers, float fTime) {
+	void FrameVisualizer::SetFrameMatchingInformation(Frame* pKF, Frame* pF, float fTime) {
 		std::unique_lock<std::mutex> lock(mMutexFrameVisualizer);
 		mpKeyFrame = pKF;
 		mpFrame = pF;

@@ -34,13 +34,13 @@ namespace UVR_SLAM {
 		void AddWindowFrame(Frame* pF);
 		std::vector<Frame*> GetWindowFrames();
 		std::vector<Frame*> GetGraphFrames();
-
+		int mnMaxConnectedKFs;
+		int mnMaxCandidateKFs;
 	private:
 		std::mutex mMutexGlobalFrames;
 		std::vector<Frame*> mvpGlobalFrames;
 
-		int mnMaxConnectedKFs;
-		int mnMaxCandidateKFs;
+		
 		std::mutex mMutexWindowFrames;
 		std::list<Frame*> mQueueFrameWindows;
 		std::list<Frame*> mQueueCandidateGraphFrames;

@@ -192,14 +192,13 @@ void UVR_SLAM::MapOptimizer::Run() {
 
 			///////KF 이미지 시각화
 			{
-				int nKF = lpKFs.size();
-				int nRows = nKF / 4 + 1;
-				if (nKF % 4 == 0)
-					nRows--;
-				int nCols = 4;
+				
+				int nRows = mpVisualizer->mnWindowImgRows;
+				int nCols = mpVisualizer->mnWindowImgCols;
 				cv::Mat ba_img = cv::Mat::zeros(mnHeight*nRows, mnWidth*nCols, CV_8UC3);
 				int nidx = 0;
 
+				int nKF = lpKFs.size();
 				auto lastKF = vpKFs[nKF - 1];
 				auto lastMatch = lastKF->mpMatchInfo;
 				//std::vector<MapPoint*> vpMPs;
@@ -234,8 +233,8 @@ void UVR_SLAM::MapOptimizer::Run() {
 						cv::circle(img, pt, 2, cv::Scalar(0, 0, 255), -1);
 					}*/
 
-					int h = nidx / 4;
-					int w = nidx % 4;
+					int h = nidx / nCols;
+					int w = nidx % nCols;
 					
 					cv::Rect tmpRect(mnWidth*w, mnHeight*h, mnWidth, mnHeight);
 					img.copyTo(ba_img(tmpRect));
@@ -243,8 +242,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 
 				}
 				cv::resize(ba_img, ba_img, ba_img.size() / 2);
-				imshow("BA", ba_img);
-				cv::waitKey(1);
+				mpVisualizer->SetOutputImage(ba_img, 1);
 			}
 			
 			/*std::cout << "BA::Delete::Start" << std::endl;

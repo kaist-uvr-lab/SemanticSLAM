@@ -70,13 +70,13 @@ void SetAxisMode() {
 		break;
 	}
 }
-
+cv::Point2f rectPt;
 void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void* userdata)
 {
 	if (event == cv::EVENT_LBUTTONDOWN)
 	{
 		//std::cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << std::endl;
-		sPt = cv::Point2f(x, y);
+		sPt = cv::Point2f(x, y)- rectPt;
 
 		////button interface
 		if (sPt.x < 50 && sPt.y < 50) {
@@ -89,7 +89,7 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 	else if (event == cv::EVENT_LBUTTONUP)
 	{
 		//std::cout << "Left button of the mouse is released - position (" << x << ", " << y << ")" << std::endl;
-		ePt = cv::Point2f(x, y);
+		ePt = cv::Point2f(x, y)- rectPt;
 		mPt = ePt - sPt;
 		M = cv::Mat::zeros(2, 3, CV_64FC1);
 		M.at<double>(0, 0) = 1.0;
@@ -134,11 +134,40 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 void UVR_SLAM::Visualizer::Init() {
 	
 	//Visualization
-	mVisPoseGraph = cv::Mat(mnHeight * 2, mnHeight * 2, CV_8UC3, cv::Scalar(255, 255, 255));
+	mVisPoseGraph = cv::Mat(mnHeight * 2, mnWidth * 2, CV_8UC3, cv::Scalar(255, 255, 255));
 	rectangle(mVisPoseGraph, cv::Rect(0, 0, 50, 50), cv::Scalar(255, 255, 0), -1);
 	rectangle(mVisPoseGraph, cv::Rect(0, 50, 50, 50), cv::Scalar(0, 255, 255), -1);
-	mVisMidPt = cv::Point2f(mnHeight, mnHeight);
+	mVisMidPt = cv::Point2f(mnHeight, mnWidth);
 	mVisPrevPt = mVisMidPt;
+
+	//tracking
+	cv::Mat img1 = cv::Mat::zeros(mnHeight * 2, mnWidth, CV_8UC3);
+	mvOutputImgs.push_back((img1));
+	cv::Rect r1(0, 0, mnWidth, mnHeight * 2);
+	mvRects.push_back(r1);
+	mvOutputChanged.push_back(false);
+
+	//sliding window
+	mnWindowImgRows = 4;
+	int nWindowSize = mpMap->mnMaxConnectedKFs;
+	mnWindowImgCols = nWindowSize / mnWindowImgRows;
+	if (nWindowSize % 4 != 0)
+		mnWindowImgCols++;
+	cv::Mat img2 = cv::Mat::zeros(mnWindowImgRows*mnHeight / 2, mnWindowImgCols * mnWidth /2, CV_8UC3);
+	mvOutputImgs.push_back((img2));
+	cv::Rect r2(mnWidth * 3, 0, mnWindowImgCols * mnWidth / 2, mnWindowImgRows*mnHeight / 2);
+	mvRects.push_back(r2);
+	mvOutputChanged.push_back(false);
+
+	//map
+	cv::Mat img3 = cv::Mat::zeros(mnHeight * 2, mnWidth*2, CV_8UC3);
+	mvOutputImgs.push_back((img3));
+	cv::Rect r3(mnWidth, 0, mnWidth * 2, mnHeight * 2);
+	mvRects.push_back(r3);
+	mvOutputChanged.push_back(false);
+	rectPt = cv::Point2f(r3.x, r3.y);
+
+	mOutputImage = cv::Mat::zeros(mnHeight * 2, mnWidth * 3 + img2.cols, CV_8UC3);
 
 	//set image
 	int nImageWindowStartX = -1690;
@@ -146,10 +175,14 @@ void UVR_SLAM::Visualizer::Init() {
 	int nImageWIndowStartY1 = 20;
 	int nImageWIndowStartY2 = 50;
 
+	cv::namedWindow("Output::Display");
+	cv::moveWindow("Output::Display", nImageWindowStartX, nImageWIndowStartY1);
+
+	/*
 	/////////////////////////////
 	////New 배치
-	/*cv::namedWindow("Output::PE::PARAM");
-	cv::moveWindow("Output::PE::PARAM", nImageWindowStartX, 0);*/
+	cv::namedWindow("Output::PE::PARAM");
+	cv::moveWindow("Output::PE::PARAM", nImageWindowStartX, 0);
 	cv::namedWindow("edge+optical");
 	cv::moveWindow("edge+optical", nImageWindowStartX, 0);
 	////New 배치
@@ -157,8 +190,8 @@ void UVR_SLAM::Visualizer::Init() {
 	
 
 	///////////////
-	/*cv::namedWindow("Output::Matching");
-	cv::moveWindow("Output::Matching", nImageWindowStartX, nImageWIndowStartY1);*/
+	//cv::namedWindow("Output::Matching");
+	cv::moveWindow("Output::Matching", nImageWindowStartX, nImageWIndowStartY1);
 	cv::namedWindow("Output::Segmentation");
 	cv::moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1+2*mnHeight+30);
 	cv::namedWindow("Output::LoopFrame");
@@ -167,8 +200,8 @@ void UVR_SLAM::Visualizer::Init() {
 	cv::moveWindow("Output::Tracking", nImageWindowStartX + mnWidth, nImageWIndowStartY1);
 	cv::namedWindow("Output::Time");
 	cv::moveWindow("Output::Time", nImageWindowStartX + mnWidth, 50 + mnHeight);
-	/*cv::namedWindow("Output::PlaneEstimation");
-	cv::moveWindow("Output::PlaneEstimation", nImageWindowStartX + mnWidth, 50 + mnHeight);*/
+	//cv::namedWindow("Output::PlaneEstimation");
+	//cv::moveWindow("Output::PlaneEstimation", nImageWindowStartX + mnWidth, 50 + mnHeight);
 	//cv::namedWindow("Output::Segmentation");
 	//cv::moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1);
 	//cv::namedWindow("Output::SegmentationMask");
@@ -185,8 +218,10 @@ void UVR_SLAM::Visualizer::Init() {
 
 	//Opencv Image Window
 	int nAdditional1 = 355;
-	/*namedWindow("Output::Trajectory");
-	moveWindow("Output::Trajectory", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth, 0);*/
+	namedWindow("Output::Trajectory");
+	moveWindow("Output::Trajectory", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth, 0);
+
+
 	cv::namedWindow("Initialization::Frame::1");
 	cv::moveWindow("Initialization::Frame::1", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 0);
 	cv::namedWindow("Initialization::Frame::2");
@@ -195,13 +230,10 @@ void UVR_SLAM::Visualizer::Init() {
 	cv::moveWindow("LocalMapping::CreateMPs", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 0);
 	cv::namedWindow("Output::Matching::SemanticFrame");
 	cv::moveWindow("Output::Matching::SemanticFrame", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth, 30 + mnHeight);
-
 	cv::namedWindow("Test::Matching::Frame");
 	cv::moveWindow("Test::Matching::Frame", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth*0.7, 30 + mnHeight);
-
-	
-
-	cv::setMouseCallback("Output::Trajectory", UVR_SLAM::Visualizer::CallBackFunc, NULL);
+	*/
+	cv::setMouseCallback("Output::Display", UVR_SLAM::Visualizer::CallBackFunc, NULL);
 	nScale = mnVisScale;
 }
 
@@ -216,6 +248,20 @@ void UVR_SLAM::Visualizer::SetBoolDoingProcess(bool b) {
 bool UVR_SLAM::Visualizer::isDoingProcess() {
 	std::unique_lock<std::mutex> lockTemp(mMutexDoingProcess);
 	return mbDoingProcess;
+}
+void UVR_SLAM::Visualizer::SetOutputImage(cv::Mat out, int type) {
+	std::unique_lock<std::mutex> lockTemp(mMutexOutput);
+	mvOutputImgs[type] = out.clone();
+	mvOutputChanged[type] = true;
+}
+cv::Mat UVR_SLAM::Visualizer::GetOutputImage(int type){
+	std::unique_lock<std::mutex> lockTemp(mMutexOutput);
+	mvOutputChanged[type] = false;
+	return mvOutputImgs[type].clone();
+}
+bool UVR_SLAM::Visualizer::isOutputTypeChanged(int type) {
+	std::unique_lock<std::mutex> lockTemp(mMutexOutput);
+	return mvOutputChanged[type];
 }
 
 void UVR_SLAM::Visualizer::Run() {
@@ -303,14 +349,17 @@ void UVR_SLAM::Visualizer::Run() {
 			bSaveMap = false;
 		}
 
+		//if (true) {
+
+		//update pt
+		mVisMidPt += mPt;
+		mPt = cv::Point2f(0, 0);
+		mnVisScale = nScale;
+
 		if (isDoingProcess()) {
 
 			cv::Mat tempVis = mVisPoseGraph.clone();
 			
-			//update pt
-			mVisMidPt += mPt;
-			mPt = cv::Point2f(0, 0);
-			mnVisScale = nScale;
 
 			cv::Scalar color1 = cv::Scalar(0, 0, 255);
 			cv::Scalar color2 = cv::Scalar(0, 255, 0);
@@ -467,7 +516,8 @@ void UVR_SLAM::Visualizer::Run() {
 			//fuse time text
 
 			
-			cv::imshow("Output::Trajectory", tempVis);
+			tempVis.copyTo(mOutputImage(mvRects[2]));
+			
 			
 			//time 
 			cv::Mat imgTime = cv::Mat::zeros(500, 500, CV_8UC1);
@@ -478,9 +528,18 @@ void UVR_SLAM::Visualizer::Run() {
 			cv::putText(imgTime, mpSystem->GetPlaneString(), cv::Point2f(0, 140), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			cv::imshow("Output::Time", imgTime);
 
-			cv::waitKey(1);
 			SetBoolDoingProcess(false);
 		}//if
+		if (isOutputTypeChanged(0)) {
+			cv::Mat mTrackImg = GetOutputImage(0);
+			mTrackImg.copyTo(mOutputImage(mvRects[0]));
+		}
+		if (isOutputTypeChanged(1)) {
+			cv::Mat mWinImg = GetOutputImage(1);
+			mWinImg.copyTo(mOutputImage(mvRects[1]));
+		}
+		imshow("Output::Display", mOutputImage);
+		cv::waitKey(1);
 	}//while
 }
 

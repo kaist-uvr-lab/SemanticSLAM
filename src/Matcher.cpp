@@ -9,6 +9,7 @@
 #include <gms_matcher.h>
 #include <PlaneEstimator.h>
 #include <Plane.h>
+#include <Visualizer.h>
 #include <Map.h>
 
 UVR_SLAM::Matcher::Matcher(){}
@@ -25,7 +26,9 @@ UVR_SLAM::Matcher::Matcher(cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int
 	//cv::FlannBasedMatcher matcher = cv::FlannBasedMatcher(cv::makePtr<cv::flann::LshIndexParams>(12, 20, 2), cv::makePtr<cv::flann::SearchParams>(50));
 }
 UVR_SLAM::Matcher::~Matcher(){}
-
+void UVR_SLAM::Matcher::SetVisualizer(Visualizer* pVis) {
+	mpVisualizer = pVis;
+}
 const double nn_match_ratio = 0.7f; // Nearest-neighbour matching ratio
 
 //////////////////////////////////////////////////////////////////
@@ -750,7 +753,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	ss << "Optical flow init= " << res<<", "<<tttt;
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-	cv::imshow("Init::OpticalFlow ", debugging);
+	//mpVisualizer->SetOutputImage(debugging, 0);
 	/////////////////////////
 
 	return res;
@@ -847,7 +850,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	ss << "Optical flow init= " << vpPts1.size() << ", " << tttt;
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-	imshow("Init::OpticalFlow ", debugging);
+	//imshow("Init::OpticalFlow ", debugging);
+	mpVisualizer->SetOutputImage(debugging,0);
 	///////////////////////////
 
 	return vpPts2.size();
