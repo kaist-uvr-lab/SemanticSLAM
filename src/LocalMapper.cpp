@@ -1253,6 +1253,10 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 
 	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 
+	bool bPatchTest = true;
+	cv::Point2f ptLeft(-14, -14);
+	cv::Point2f ptRight(+14, +14);
+
 	int N = vMatchCurrPts.size();
 	int nRes = 0;
 	for (int i = 0; i < N; i++) {
@@ -1277,6 +1281,35 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 						////KF id를 조정하는 것이 필요함
 						//std::cout << "LocalMapper::asdj;asjd;lkasdj;flkasjdlkasdf"<<std::endl;
 						continue;
+					}
+					if (bPatchTest) {
+						int idx = iter->second;
+						auto pt = pMatch->mvMatchingPts[idx];
+						if (pMatch->mpRefFrame->isInImage(currPt.x, currPt.y, 30.0) && pMatch->mpRefFrame->isInImage(pt.x, pt.y, 30.0)) {
+							cv::Rect r1(currPt + ptLeft, currPt + ptRight);
+							cv::Rect r2(pt +     ptLeft, pt + ptRight);
+							cv::Point2f tempPt(r1.width / 2, r1.height / 2);
+							cv::Mat img1 = pCurrKF->GetOriginalImage()(r1);
+							cv::Mat img2 = pMatch->mpRefFrame->GetOriginalImage()(r2);
+							
+							std::vector<Point2f> pts1, pts2;
+							pts1.push_back(tempPt);
+							std::vector<uchar> status;
+							std::vector<float> err;
+							int searchSize = 11;
+							cv::calcOpticalFlowPyrLK(img1, img2, pts1, pts2, status, err, cv::Size(searchSize, searchSize), 0);
+
+							cv::circle(img1, tempPt, 2, cv::Scalar(255, 0, 255), -1);
+							if (status[0] == 1) {
+								//std::cout << pts2[0] << std::endl;
+								cv::circle(img2, pts2[0], 2, cv::Scalar(255, 0, 255), -1);
+							}
+							imshow("patch1", img1);
+							imshow("patch2", img2);
+							
+							cv::waitKey(1);
+							bPatchTest = false;
+						}
 					}
 					int idx = iter->second;
 					pMatch->AddMP();
