@@ -1406,6 +1406,10 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pP
 	}
 
 	UVR_SLAM::Optimization::PoseRecoveryOptimization(pCurrKF, pPrevKF, pPPrevKF, vMapCurrPTs, vMapPrevPTs, vMapPPrevPTs, vX3Ds);
+	pCurrKF->GetPose(Rcurr, Tcurr);
+
+	int nMP = 0;
+	float nSuccess = 0;
 
 	/////시각화 확인
 	for (int i = 0; i < vX3Ds.size(); i++) {
@@ -1413,23 +1417,80 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pP
 		mpMap->AddReinit(X3D);
 
 		////////시각화
-		cv::Mat newProj2 = Rcurr*X3D + Tcurr;
-		newProj2 = mK*newProj2;
-		float newDepth2 = newProj2.at<float>(2);
-		cv::Point2f newProjected2(newProj2.at<float>(0) / newDepth2, newProj2.at<float>(1) / newDepth2);
-		cv::circle(currImg, newProjected2, 3, cv::Scalar(255, 0, 0), -1);
-		
-		cv::Mat newProj1 = Rprev*X3D + Tprev;
+		cv::Mat newProj1 = Rcurr*X3D + Tcurr;
 		newProj1 = mK*newProj1;
 		float newDepth1 = newProj1.at<float>(2);
 		cv::Point2f newProjected1(newProj1.at<float>(0) / newDepth1, newProj1.at<float>(1) / newDepth1);
-		cv::circle(prevImg, newProjected1, 3, cv::Scalar(255, 0, 0), -1);
+		cv::circle(currImg, newProjected1, 3, cv::Scalar(255, 0, 0), -1);
+		
+		cv::Mat newProj2 = Rprev*X3D + Tprev;
+		newProj2 = mK*newProj2;
+		float newDepth2 = newProj2.at<float>(2);
+		cv::Point2f newProjected2(newProj2.at<float>(0) / newDepth2, newProj2.at<float>(1) / newDepth2);
+		cv::circle(prevImg, newProjected2, 3, cv::Scalar(255, 0, 0), -1);
 		
 		cv::Mat newProj3 = Rpprev*X3D + Tpprev;
 		newProj3 = mK*newProj3;
 		float newDepth3 = newProj3.at<float>(2);
 		cv::Point2f newProjected3(newProj3.at<float>(0) / newDepth3, newProj3.at<float>(1) / newDepth3);
 		cv::circle(pprevImg, newProjected3, 3, cv::Scalar(255, 0, 0), -1);
+
+		auto pCPi = vMapCPs[i];
+		auto pMPi = pCPi->GetMP();
+		if (pMPi && !pMPi->isDeleted()) {
+			nMP++;
+			cv::Mat Xw = pMPi->GetWorldPos();
+			pMPi->SetWorldPos(X3D);
+			{
+				cv::Mat proj = Rcurr*Xw + Tcurr;
+				proj = mK*proj;
+				float depth = proj.at<float>(2);
+				//std::cout << "diff::" << newDepth2 - depth <<"::"<<X3D.t()<<Xw.t()<< std::endl;
+				cv::Point2f projPt(proj.at<float>(0) / depth, proj.at<float>(1) / depth);
+				cv::line(currImg, projPt, newProjected1, cv::Scalar(0, 0, 255), 2);
+			}
+			
+			{
+				cv::Mat proj = Rprev*Xw + Tprev;
+				proj = mK*proj;
+				float depth = proj.at<float>(2);
+				//std::cout << "diff::" << newDepth2 - depth <<"::"<<X3D.t()<<Xw.t()<< std::endl;
+				cv::Point2f projPt(proj.at<float>(0) / depth, proj.at<float>(1) / depth);
+				if (pMPi->isInFrame(pPrevKF->mpMatchInfo)){
+					cv::line(prevImg, projPt, newProjected2, cv::Scalar(0, 0, 255), 2);
+				}
+				else
+					cv::circle(prevImg, projPt, 2, cv::Scalar(0, 255, 0), -1);
+			}
+			
+			{
+				cv::Mat proj = Rpprev*Xw + Tpprev;
+				proj = mK*proj;
+				float depth = proj.at<float>(2);
+				//std::cout << "diff::" << newDepth2 - depth <<"::"<<X3D.t()<<Xw.t()<< std::endl;
+				cv::Point2f projPt(proj.at<float>(0) / depth, proj.at<float>(1) / depth);
+				if (pMPi->isInFrame(pPPrevKF->mpMatchInfo)){
+					cv::line(pprevImg, projPt, newProjected3, cv::Scalar(0, 0, 255), 2);
+				}
+				else
+					cv::circle(pprevImg, projPt, 2, cv::Scalar(0, 255, 0), -1);
+			}
+		}
+		else {
+			////new mp test
+			int label = pCPi->GetLabel();
+			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, pCPi, X3D, cv::Mat(), label, pCPi->octave);
+			auto mmpFrames = pCPi->GetFrames();
+			for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
+				auto pMatch = iter->first;
+				if (pMatch->mpRefFrame->GetKeyFrameID() % 3 != 0) {
+					continue;
+				}
+				int idx = iter->second;
+				pMatch->AddMP();
+				pMP->ConnectFrame(pMatch, idx);
+			}
+		}
 		////////시각화
 	}
 
