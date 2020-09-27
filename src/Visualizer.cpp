@@ -141,34 +141,46 @@ void UVR_SLAM::Visualizer::Init() {
 	mVisPrevPt = mVisMidPt;
 
 	//tracking
-	cv::Mat img1 = cv::Mat::zeros(mnHeight * 2, mnWidth, CV_8UC3);
-	mvOutputImgs.push_back((img1));
-	cv::Rect r1(0, 0, mnWidth, mnHeight * 2);
-	mvRects.push_back(r1);
-	mvOutputChanged.push_back(false);
-
+	cv::Mat img1 = cv::Mat::zeros((mnHeight/2) * 2, mnWidth/2, CV_8UC3);
 	//sliding window
 	mnWindowImgRows = 4;
 	int nWindowSize = mpMap->mnMaxConnectedKFs;
 	mnWindowImgCols = nWindowSize / mnWindowImgRows;
 	if (nWindowSize % 4 != 0)
 		mnWindowImgCols++;
-	cv::Mat img2 = cv::Mat::zeros(mnWindowImgRows*mnHeight / 2, mnWindowImgCols * mnWidth /2, CV_8UC3);
+	cv::Mat img2 = cv::Mat::zeros(mnWindowImgRows*mnHeight / 2, mnWindowImgCols * mnWidth / 2, CV_8UC3);
+	cv::Mat img3 = cv::Mat::zeros(mnHeight * 2, mnWidth * 2, CV_8UC3);
+	cv::Mat img4 = cv::Mat::zeros((mnHeight / 2) * 2, mnWidth / 2, CV_8UC3);
+
+	mvOutputImgs.push_back((img1));
 	mvOutputImgs.push_back((img2));
-	cv::Rect r2(mnWidth * 3, 0, mnWindowImgCols * mnWidth / 2, mnWindowImgRows*mnHeight / 2);
-	mvRects.push_back(r2);
-	mvOutputChanged.push_back(false);
-
-	//map
-	cv::Mat img3 = cv::Mat::zeros(mnHeight * 2, mnWidth*2, CV_8UC3);
 	mvOutputImgs.push_back((img3));
-	cv::Rect r3(mnWidth, 0, mnWidth * 2, mnHeight * 2);
+	mvOutputImgs.push_back((img4));
+
+	cv::Rect r1(0, 0, img1.cols, img1.rows);
+	mvRects.push_back(r1);
+	
+	cv::Rect r2(img1.cols+img3.cols, 0, img2.cols, img2.rows);
+	mvRects.push_back(r2);
+
+	cv::Rect r3(img1.cols, 0, img3.cols, img3.rows);
 	mvRects.push_back(r3);
+	
+	cv::Rect r4(0, img1.rows, img1.cols, img1.rows);
+	mvRects.push_back(r4);
+
 	mvOutputChanged.push_back(false);
+	mvOutputChanged.push_back(false);
+	mvOutputChanged.push_back(false);
+	mvOutputChanged.push_back(false);
+	//map
+	
 	rectPt = cv::Point2f(r3.x, r3.y);
-
-	mOutputImage = cv::Mat::zeros(mnHeight * 2, mnWidth * 3 + img2.cols, CV_8UC3);
-
+	int nDisRows = mnHeight * 2;
+	int nDisCols = img1.cols + img2.cols + img3.cols;
+	mOutputImage = cv::Mat::zeros(nDisRows, nDisCols, CV_8UC3);
+	std::cout << nDisRows << ", " << nDisCols <<"::"<<img1.cols<<", "<<img2.cols<<", "<<img3.cols<< std::endl;
+	std::cout << r1.x << " " << r2.x << ", " << r3.x << "::" << r1.width << ", " << r2.width << ", " << r3.width << std::endl;
 	//set image
 	int nImageWindowStartX = -1690;
 	int nImageWindowEndX = 1920;
@@ -537,6 +549,10 @@ void UVR_SLAM::Visualizer::Run() {
 		if (isOutputTypeChanged(1)) {
 			cv::Mat mWinImg = GetOutputImage(1);
 			mWinImg.copyTo(mOutputImage(mvRects[1]));
+		}
+		if (isOutputTypeChanged(3)) {
+			cv::Mat mMappingImg = GetOutputImage(3);
+			mMappingImg.copyTo(mOutputImage(mvRects[3]));
 		}
 		imshow("Output::Display", mOutputImage);
 		cv::waitKey(1);

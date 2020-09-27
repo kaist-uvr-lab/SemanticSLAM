@@ -189,7 +189,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::vector<int> vnIDXs, vnMPIDXs;
 		cv::Mat debugImg;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->GetOriginalImage().size(), CV_8UC1);
-		mnPointMatching = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempCPs, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, overlap, debugImg); //pCurr
+		mnPointMatching = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempCPs, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, overlap); //pCurr
 
 		//mpSystem->mbTrackingEnd = true;
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();

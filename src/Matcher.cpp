@@ -850,14 +850,15 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	ss << "Optical flow init= " << vpPts1.size() << ", " << tttt;
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-	//imshow("Init::OpticalFlow ", debugging);
-	mpVisualizer->SetOutputImage(debugging,0);
+	cv::Mat resized;
+	cv::resize(debugging, resized, cv::Size(debugging.cols / 2, debugging.rows / 2));
+	mpVisualizer->SetOutputImage(resized,0);
 	///////////////////////////
 
 	return vpPts2.size();
 }
 
-int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts,std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, cv::Mat& overlap, cv::Mat& debugging) {
+int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts,std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, cv::Mat& overlap) {
 	
 	//////////////////////////
 	////Optical flow
@@ -865,16 +866,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	std::vector<cv::Mat> currPyr, prevPyr;
 	std::vector<uchar> status;
 	std::vector<float> err;
-	
-	///////debug
 	cv::Mat prevImg = prev->GetOriginalImage();
 	cv::Mat currImg = curr->GetOriginalImage();
-	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
-	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
-	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
-	debugging = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
-	prevImg.copyTo(debugging(mergeRect1));
-	currImg.copyTo(debugging(mergeRect2));
 	
 	///////////
 	//matKPs, mvKPs
@@ -914,8 +907,6 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 
 	for (int i = 0; i < prevPts.size(); i++) {
 
-		cv::circle(debugging, prevPts[i], 3, cv::Scalar(255, 0, 0));
-
 		if (status[i] == 0) {
 			continue;
 		}
@@ -950,27 +941,12 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 0, 255), -1);
 			cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);
 		}*/
-
-		//트래킹 결과 출력
-		
-		cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 0, 255),-1);
-		cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);
-		cv::line(debugging, prevPts[i]+ ptBottom, currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
-		//cv::line(debugging2, curr->mpMatchInfo->mpTargetFrame->mpMatchInfo->mvMatchingPts[prev->mpMatchInfo->mvnMatchingPtIDXs[i]], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
 		res++;
 	}
 
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 	double tttt = duration / 1000.0;
-
-	////fuse time text 
-	std::stringstream ss;
-	//ss << "Optical flow tracking= " << res <<", "<<vpMPs.size()<<", "<<nBad<< "::" << tttt;
-	ss << "Optical flow tracking= " << res << "::" << tttt;
-	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
-	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
-	//cv::imshow("edge+optical", debugging);
 	return res;
 }
 

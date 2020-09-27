@@ -235,6 +235,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 		mpInitFrame1->mpMatchInfo->UpdateFrame();
 		mpInitFrame2->mpMatchInfo->UpdateFrame();
+		cv::resize(debugging, debugging, cv::Size(debugging.cols / 2, debugging.rows / 2));
 		mpVisualizer->SetOutputImage(debugging, 0);
 
 		cv::waitKey(1);
