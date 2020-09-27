@@ -7,13 +7,13 @@ static int nCandidatePointID = 0;
 
 namespace  UVR_SLAM{
 	CandidatePoint::CandidatePoint():octave(0), bCreated(false), mbDelete(false),
-	mnFail(0), mnSuccess(0), mnTotal(0), mnMapPoint(0), mnCandidatePointID(++nCandidatePointID), mnLastFrameID(-1), mnVisibleFrameID(-1), mbLowQuality(true),
+	mnFail(0), mnSuccess(0), mnTotal(0), mnCandidatePointID(++nCandidatePointID), mnLastFrameID(-1), mnVisibleFrameID(-1), mbLowQuality(true),
 		mbOptimized(false)
 	{
 		mpMapPoint = nullptr;
 	}
 	CandidatePoint::CandidatePoint(MatchInfo* pRefKF, int alabel, int aoct):mpRefKF(pRefKF), label(alabel), octave(aoct), bCreated(false), mbDelete(false),
-	mnFail(0), mnSuccess(0), mnTotal(0), mnMapPoint(0), mnCandidatePointID(++nCandidatePointID), mnLastFrameID(-1), mnVisibleFrameID(-1), mbLowQuality(true), mbOptimized(false)
+	mnFail(0), mnSuccess(0), mnTotal(0), mnCandidatePointID(++nCandidatePointID), mnLastFrameID(-1), mnVisibleFrameID(-1), mbLowQuality(true), mbOptimized(false)
 	{
 		mpMapPoint = nullptr;
 		mnFirstID = pRefKF->mpRefFrame->GetFrameID();
@@ -392,8 +392,7 @@ namespace  UVR_SLAM{
 		bool bFrame = (nLastFrame + 10) < nVisible;
 		float ratio = ((float)nS) / nTotal;
 		bool bRatio = ratio < 0.6;
-
-
+		//std::cout << nS <<", "<< ratio << ", " << nVisible << ", " << nLastFrame << std::endl;
 		if (bFrame && bRatio)
 			b = false;
 		
@@ -426,7 +425,6 @@ namespace  UVR_SLAM{
 	}
 	void CandidatePoint::SetMapPoint(MapPoint* pMP, int id) {
 		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		mnMapPoint++;
 		bCreated = true;
 		mnFirstMapPointID = id;
 		mpMapPoint = pMP;
@@ -437,8 +435,6 @@ namespace  UVR_SLAM{
 	}
 	void CandidatePoint::ResetMapPoint() {
 		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		mnMapPoint--;
-		//mpMapPoint->Delete();
 		bCreated = false;
 		mpMapPoint = nullptr;
 		mnFail = 0;

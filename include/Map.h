@@ -15,6 +15,15 @@ namespace UVR_SLAM {
 	class PlaneProcessInformation;
 	class MapGrid;
 	class Map {
+///////////
+	public:
+		std::vector<cv::Mat> GetReinit();
+		void ClearReinit();
+		void AddReinit(cv::Mat m);
+	private:
+		std::mutex mMutexReinit;
+		std::vector<cv::Mat> mvReinit;
+/////////
 	public:
 		//keyframes
 		//전체 맵포인트
@@ -31,6 +40,8 @@ namespace UVR_SLAM {
 		Frame* GetCurrFrame();
 		void ClearFrames();
 
+		Frame* GetLastWindowFrame();
+		Frame* GetReverseWindowFrame(int idx);
 		void AddWindowFrame(Frame* pF);
 		std::vector<Frame*> GetWindowFrames();
 		std::vector<Frame*> GetGraphFrames();

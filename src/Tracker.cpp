@@ -249,13 +249,14 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 	auto pPrevMatchInfo = pPrev->mpMatchInfo;
 	int nCurrID = pCurr->GetFrameID();
 	int nres = 0;
-	int nLowQuality = 0;
+	int nFail = 0;
 	for (int i = 0; i < vpPts.size(); i++) {
 		auto pCP = vpCPs[i];
 		pCP->mnVisibleFrameID = nCurrID;
 		if (!vbInliers[i]){
 			pCP->AddFail();
 			pCP->ComputeQuality();
+			nFail++;
 			continue;
 		}
 		int prevIdx = vnIDXs[i];
@@ -267,6 +268,7 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 			nres++;
 		}
 	}
-	//std::cout << "Tracking::UpdateMatchingInfo::" << nres << std::endl;
+	pMatchInfo->mfLowQualityRatio = ((float)nFail)/ vpPts.size();
+	//std::cout << "Tracking::UpdateMatchingInfo::" << pMatchInfo->mfLowQualityRatio <<"::"<< nFail <<", "<<nres<<", "<<vpPts.size()<< std::endl;
 	return nres;
 }

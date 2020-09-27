@@ -158,19 +158,62 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::vector<int> vnPrevOctaves;*/
 			double time1 = 0.0;
 			double time2 = 0.0;
+			
+			/////프레임 퀄리티 계산
+			bool bLowQualityFrame = mpTargetFrame->mpMatchInfo->UpdateFrameQuality();
+			/////프레임 퀄리티 계산
 			/////////KF-KF 매칭
 			mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, mK, mInvK, time1, debugMatch);
 			cv::Mat resized;
 			cv::resize(debugMatch, resized, cv::Size(debugMatch.cols/2, debugMatch.rows/2));
 			mpVisualizer->SetOutputImage(resized, 3);
-			nCreated = CreateMapPoints(mpTargetFrame, vMatchCurrPts, vMatchPrevCPs, time2, debugMatch); //왜인지는 모르겟으나 잘 동작함
-			mpPrevKeyFrame->mpMatchInfo->mMatchedImage = debugMatch.clone();
+			//////Pose Recovery
+			if (bLowQualityFrame) {
+				auto llastKF = mpMap->GetReverseWindowFrame(1);
+				if(llastKF){
+					auto lastKF = mpMap->GetLastWindowFrame();
+					auto lastMatch = lastKF->mpMatchInfo;
+					auto llastMatch = llastKF->mpMatchInfo;
+					int n = 0;
+					std::vector<bool> vbTempInliers;
+					std::vector<cv::Point2f> vTempPTs1, vTempPTs2, vTempPTs3; //curr, prev, pprev
+					std::vector<CandidatePoint*> vTempCPs;
+					for (int i = 0; i < vMatchPrevCPs.size(); i++) {
+						auto pCPi = vMatchPrevCPs[i];
+						int pidx = pCPi->GetPointIndexInFrame(lastMatch);
+						int ppidx = pCPi->GetPointIndexInFrame(llastMatch);
+						if (ppidx < 0 || pidx < 0 || pCPi->GetNumSize() < 2){
+							vbTempInliers.push_back(false);
+							continue;
+						}
+						auto pt1 = vMatchCurrPts[i];
+						auto pt2 = lastMatch->GetPt(pidx);
+						auto pt3 = llastMatch->GetPt(ppidx);
+						vTempCPs.push_back(pCPi);
+						vTempPTs1.push_back(pt1);
+						vTempPTs2.push_back(pt2);
+						vTempPTs3.push_back(pt3);
 
-			///////매칭 정보 저장
-			std::stringstream sstdir;
-			sstdir << mpSystem->GetDirPath(0) << "/kfmatching/kfmatching_" << mpTargetFrame->GetKeyFrameID() << "_" << mpPrevKeyFrame->GetKeyFrameID() << ".jpg";
-			cv::imwrite(sstdir.str(), debugMatch);
-			///////매칭 정보 저장
+						auto pMPi = pCPi->GetMP();
+						if (!pCPi->GetQuality())
+							pCPi->ResetMapPoint();
+						if (!pMPi || pMPi->isDeleted()) {
+							n++;
+							vbTempInliers.push_back(true);
+						}
+						else
+							vbTempInliers.push_back(false);
+					}
+					double d3 = 0.0;
+					cv::Mat R, T;
+					RecoverPose(mpTargetFrame, lastKF, llastKF, vTempPTs1, vTempPTs2, vTempPTs3, vTempCPs, vbTempInliers, R, T, d3, mpTargetFrame->GetOriginalImage(), lastKF->GetOriginalImage(), llastKF->GetOriginalImage());
+					std::cout << "recover test::" << lastKF->GetFrameID() << "::" << n <<", "<<vTempCPs.size()<< std::endl;
+				}
+			}
+			//////Pose Recovery
+			/////Create Map Points
+			nCreated = CreateMapPoints(mpTargetFrame, vMatchCurrPts, vMatchPrevCPs, time2, debugMatch); //왜인지는 모르겟으나 잘 동작함
+			/////Create Map Points
 			/////////KF-KF 매칭
 
 			////KF 조절
@@ -184,7 +227,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			mpTargetFrame->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
 			mpSegmentator->InsertKeyFrame(mpTargetFrame);
 			mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
-			//mpLoopCloser->InsertKeyFrame(mpTargetFrame);
+			mpLoopCloser->InsertKeyFrame(mpTargetFrame);
 
 			//////////////////업데이트 맵포인트
 			float fratio = 0.0f;
@@ -1062,10 +1105,6 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 }
 int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Point2f> vMatchPrevPts, std::vector<cv::Point2f> vMatchCurrPts, std::vector<CandidatePoint*> vPrevCPs, cv::Mat& R, cv::Mat& T, double& ftime, cv::Mat& prevImg, cv::Mat& currImg) {
 	
-	//스케일과 맵 그리고 포즈를 복원
-
-	cv::Point2f ptBottom(0, mnHeight);
-
 	//Find fundamental matrix & matching
 	std::vector<uchar> vFInliers;
 	std::vector<cv::Point2f> vTempFundPrevPts, vTempFundCurrPts;
@@ -1107,6 +1146,7 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 
 	for (int i = 0; i < matTriangulateInliers.rows; i++) {
 		int val = matTriangulateInliers.at<uchar>(i);
+		int idx = vTempMatchIDXs[i]; //cp idx
 		if (val == 0)
 			continue;
 
@@ -1149,7 +1189,7 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 		////reprojection error
 
 		//scale 계산
-		int idx = vTempMatchIDXs[i]; //cp idx
+		
 		auto pCPi = vPrevCPs[idx];
 		auto pMPi = pCPi->GetMP();
 
@@ -1237,6 +1277,253 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 	return res2;
 }
 
+int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, std::vector<cv::Point2f> vCurrPts, std::vector<cv::Point2f> vPrevPts, std::vector<cv::Point2f> vPPrevPts, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers, cv::Mat& R, cv::Mat& T, double& ftime,
+	cv::Mat& currImg, cv::Mat& prevImg, cv::Mat& pprevImg) {
+
+	//Find fundamental matrix & matching
+	std::vector<uchar> vFInliers;
+	std::vector<cv::Point2f> vTempFundPPrevPts, vTempFundPrevPts, vTempFundCurrPts;
+	std::vector<int> vTempMatchIDXs;
+	cv::Mat E12 = cv::findEssentialMat(vPrevPts, vCurrPts, mK, cv::FM_RANSAC, 0.999, 1.0, vFInliers);
+	for (unsigned long i = 0; i < vFInliers.size(); i++) {
+		if (vFInliers[i]) {
+			vTempFundCurrPts.push_back(std::move(vCurrPts[i]));
+			vTempFundPrevPts.push_back(std::move(vPrevPts[i]));
+			vTempFundPPrevPts.push_back(std::move(vPPrevPts[i]));
+			vTempMatchIDXs.push_back(std::move(i));//vTempIndexs[i]
+		}
+	}
+	
+	if (vTempMatchIDXs.size() < 200)
+		return -1;
+	////////F, E를 통한 매칭 결과 반영
+	/////////삼각화 : OpenCV
+	cv::Mat matTriangulateInliers;
+	cv::Mat Map3D;
+	cv::Mat K;
+	mK.convertTo(K, CV_64FC1);
+
+	int res2 = cv::recoverPose(E12, vTempFundPrevPts, vTempFundCurrPts, mK, R, T, 50.0, matTriangulateInliers, Map3D);
+	if (countNonZero(matTriangulateInliers) < 100)
+		return -1;
+	R.convertTo(R, CV_32FC1);
+	T.convertTo(T, CV_32FC1);
+	Map3D.convertTo(Map3D, CV_32FC1);
+
+	cv::Mat Rcurr, Tcurr;
+	pCurrKF->GetPose(Rcurr, Tcurr);
+	cv::Mat Rprev, Tprev;
+	pPrevKF->GetPose(Rprev, Tprev);
+	cv::Mat Rpprev, Tpprev;
+	pPPrevKF->GetPose(Rpprev, Tpprev);
+
+	cv::Mat Rpinv = Rprev.t();
+	cv::Mat Tpinv = -Rpinv*Tprev;
+
+	//Tprev ->Tcurr로 가는 변환 매트릭스, T를 이용하여 스케일을 전환
+	cv::Mat Rdiff = Rcurr*Rpinv;
+	cv::Mat Tdiff = Rcurr*Tpinv + Tcurr;
+	float scale = sqrt(Tdiff.dot(Tdiff));
+	
+	/////Optimize용
+	std::vector<cv::Point2f> vMapCurrPTs, vMapPrevPTs, vMapPPrevPTs;
+	std::vector<CandidatePoint*> vMapCPs;
+	std::vector<cv::Mat> vX3Ds;
+
+	/////TEST CODE
+	std::vector<float> vPrevScales;
+	mpMap->ClearReinit();
+	int nTest = 0;
+
+	for (int i = 0; i < matTriangulateInliers.rows; i++) {
+		int val = matTriangulateInliers.at<uchar>(i);
+		if (val == 0)
+			continue;
+		int idx = vTempMatchIDXs[i]; //cp idx
+		cv::Mat X3D = Map3D.col(i).clone();
+		X3D /= X3D.at<float>(3);
+		X3D = X3D.rowRange(0, 3);
+
+		auto currPt = std::move(vTempFundCurrPts[i]);
+		auto prevPt = std::move(vTempFundPrevPts[i]);
+		auto pprevPt = std::move(vTempFundPPrevPts[i]);
+
+		////reprojection error
+		cv::Mat proj1 = X3D.clone();
+		cv::Mat proj2 = R*X3D + T;
+		proj1 = mK*proj1;
+		proj2 = mK*proj2;
+		float depth1 = proj1.at<float>(2);
+		float depth2 = proj2.at<float>(2);
+		cv::Point2f projected1(proj1.at<float>(0) / depth1, proj1.at<float>(1) / depth1);
+		cv::Point2f projected2(proj2.at<float>(0) / depth2, proj2.at<float>(1) / depth2);
+
+		auto diffPt1 = projected1 - prevPt;
+		auto diffPt2 = projected2 - currPt;
+		float err1 = (diffPt1.dot(diffPt1));
+		float err2 = (diffPt2.dot(diffPt2));
+
+		if (err1 > 9.0 || err2 > 9.0) {
+			continue;
+		}
+		
+		////Xscaled 에 대해서 reprojection test
+		////처리는 카메라 좌표계가지 변환 후 다시 해야 함.
+		cv::Mat Xscaled = Rpinv*(X3D*scale) + Tpinv;//proj1*scale;
+		//mpMap->AddReinit(Xscaled);
+
+		////////최적화를 위한 추가
+		vMapCPs.push_back(vpCPs[idx]);
+		vMapCurrPTs.push_back(std::move(currPt));
+		vMapPrevPTs.push_back(std::move(prevPt));
+		vMapPPrevPTs.push_back(std::move(pprevPt));
+		vX3Ds.push_back(std::move(Xscaled));
+		////////시각화
+		//cv::Mat newProj1 = Rprev*Xscaled + Tprev;
+		//newProj1 = mK*newProj1;
+		//float newDepth1 = newProj1.at<float>(2);
+		//cv::Point2f newProjected1(newProj1.at<float>(0) / newDepth1, newProj1.at<float>(1) / newDepth1);
+		//cv::circle(prevImg, newProjected1, 3, cv::Scalar(255, 0, 0), -1);
+
+		//cv::Mat newProj2 = Rcurr*Xscaled + Tcurr;
+		//newProj2 = mK*newProj2;
+		//float newDepth2 = newProj2.at<float>(2);
+		//cv::Point2f newProjected2(newProj2.at<float>(0) / newDepth2, newProj2.at<float>(1) / newDepth2);
+		//cv::circle(currImg, newProjected2, 3, cv::Scalar(255, 0, 0), -1);
+		//
+		//cv::Mat newProj3 = Rpprev*Xscaled + Tpprev;
+		//newProj3 = mK*newProj3;
+		//float newDepth3 = newProj3.at<float>(2);
+		//cv::Point2f newProjected3(newProj3.at<float>(0) / newDepth3, newProj3.at<float>(1) / newDepth3);
+		//cv::circle(pprevImg, newProjected3, 3, cv::Scalar(255, 0, 0), -1);
+		////////시각화
+		nTest++;
+	}
+
+	UVR_SLAM::Optimization::PoseRecoveryOptimization(pCurrKF, pPrevKF, pPPrevKF, vMapCurrPTs, vMapPrevPTs, vMapPPrevPTs, vX3Ds);
+	pCurrKF->GetPose(Rcurr, Tcurr);
+
+	int nMP = 0;
+	float nSuccess = 0;
+
+	/////시각화 확인
+	for (int i = 0; i < vX3Ds.size(); i++) {
+		cv::Mat X3D = vX3Ds[i];
+		mpMap->AddReinit(X3D);
+
+		////////시각화
+		cv::Mat newProj1 = Rcurr*X3D + Tcurr;
+		newProj1 = mK*newProj1;
+		float newDepth1 = newProj1.at<float>(2);
+		cv::Point2f newProjected1(newProj1.at<float>(0) / newDepth1, newProj1.at<float>(1) / newDepth1);
+		cv::circle(currImg, newProjected1, 3, cv::Scalar(255, 0, 0), -1);
+		
+		cv::Mat newProj2 = Rprev*X3D + Tprev;
+		newProj2 = mK*newProj2;
+		float newDepth2 = newProj2.at<float>(2);
+		cv::Point2f newProjected2(newProj2.at<float>(0) / newDepth2, newProj2.at<float>(1) / newDepth2);
+		cv::circle(prevImg, newProjected2, 3, cv::Scalar(255, 0, 0), -1);
+		
+		cv::Mat newProj3 = Rpprev*X3D + Tpprev;
+		newProj3 = mK*newProj3;
+		float newDepth3 = newProj3.at<float>(2);
+		cv::Point2f newProjected3(newProj3.at<float>(0) / newDepth3, newProj3.at<float>(1) / newDepth3);
+		cv::circle(pprevImg, newProjected3, 3, cv::Scalar(255, 0, 0), -1);
+
+		auto pCPi = vMapCPs[i];
+		auto pMPi = pCPi->GetMP();
+		if (pMPi && !pMPi->isDeleted()) {
+			nMP++;
+			cv::Mat Xw = pMPi->GetWorldPos();
+			pMPi->SetWorldPos(X3D);
+			{
+				cv::Mat proj = Rcurr*Xw + Tcurr;
+				proj = mK*proj;
+				float depth = proj.at<float>(2);
+				//std::cout << "diff::" << newDepth2 - depth <<"::"<<X3D.t()<<Xw.t()<< std::endl;
+				cv::Point2f projPt(proj.at<float>(0) / depth, proj.at<float>(1) / depth);
+				cv::line(currImg, projPt, newProjected1, cv::Scalar(0, 0, 255), 2);
+			}
+			
+			{
+				cv::Mat proj = Rprev*Xw + Tprev;
+				proj = mK*proj;
+				float depth = proj.at<float>(2);
+				//std::cout << "diff::" << newDepth2 - depth <<"::"<<X3D.t()<<Xw.t()<< std::endl;
+				cv::Point2f projPt(proj.at<float>(0) / depth, proj.at<float>(1) / depth);
+				if (pMPi->isInFrame(pPrevKF->mpMatchInfo)){
+					cv::line(prevImg, projPt, newProjected2, cv::Scalar(0, 0, 255), 2);
+				}
+				else
+					cv::circle(prevImg, projPt, 2, cv::Scalar(0, 255, 0), -1);
+			}
+			
+			{
+				cv::Mat proj = Rpprev*Xw + Tpprev;
+				proj = mK*proj;
+				float depth = proj.at<float>(2);
+				//std::cout << "diff::" << newDepth2 - depth <<"::"<<X3D.t()<<Xw.t()<< std::endl;
+				cv::Point2f projPt(proj.at<float>(0) / depth, proj.at<float>(1) / depth);
+				if (pMPi->isInFrame(pPPrevKF->mpMatchInfo)){
+					cv::line(pprevImg, projPt, newProjected3, cv::Scalar(0, 0, 255), 2);
+				}
+				else
+					cv::circle(pprevImg, projPt, 2, cv::Scalar(0, 255, 0), -1);
+			}
+		}
+		else {
+			////new mp test
+			int label = pCPi->GetLabel();
+			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, pCPi, X3D, cv::Mat(), label, pCPi->octave);
+			auto mmpFrames = pCPi->GetFrames();
+			for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
+				auto pMatch = iter->first;
+				if (pMatch->mpRefFrame->GetKeyFrameID() % 3 != 0) {
+					continue;
+				}
+				int idx = iter->second;
+				pMatch->AddMP();
+				pMP->ConnectFrame(pMatch, idx);
+			}
+		}
+		////////시각화
+	}
+
+	/*if (vPrevScales.size() < 10)
+		return -1;*/
+	//////메디안 스케일 계산
+	//std::nth_element(vPrevScales.begin(), vPrevScales.begin() + vPrevScales.size() / 2, vPrevScales.end());
+	//float medianPrevScale = vPrevScales[vPrevScales.size() / 2];
+
+	//////스케일 보정
+	//for (int i = 0; i < vX3Ds.size(); i++) {
+	//	////처리는 카메라 좌표계가지 변환 후 다시 해야 함.
+	//	cv::Mat Xscaled = Rinv*(vX3Ds[i]* medianPrevScale) + Tinv;//proj1*scale;
+	//	mpMap->AddReinit(Xscaled);
+
+	//	//Xscaled 에 대해서 reprojection test
+	//	cv::Mat newProj1 = Rprev*Xscaled + Tprev;
+	//	newProj1 = mK*newProj1;
+	//	float newDepth1 = newProj1.at<float>(2);
+	//	cv::Point2f newProjected1(newProj1.at<float>(0) / newDepth1, newProj1.at<float>(1) / newDepth1);
+	//	cv::circle(prevImg, newProjected1, 2, cv::Scalar(255, 0, 0), -1);
+
+	//	cv::Mat newProj2 = Rcurr*Xscaled + Tcurr;
+	//	newProj2 = mK*newProj2;
+	//	float newDepth2 = newProj2.at<float>(2);
+	//	cv::Point2f newProjected2(newProj2.at<float>(0) / newDepth2, newProj2.at<float>(1) / newDepth2);
+	//	cv::circle(currImg, newProjected2, 2, cv::Scalar(255, 0, 0), -1);
+	//	//Xscaled 에 대해서 reprojection test
+	//	//시각화
+	//	
+	//}
+	//std::cout << "recover pose::candidate points::" << nTest << std::endl;
+	imshow("recover::1", currImg);
+	imshow("recover::2", prevImg);
+	imshow("recover::3", pprevImg);
+	cv::waitKey(1);
+
+}
 ////////////200722 수정 필요
 int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point2f> vMatchCurrPts, std::vector<CandidatePoint*> vMatchPrevCPs, double& ftime, cv::Mat& debugMatch){
 	

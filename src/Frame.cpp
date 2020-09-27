@@ -932,8 +932,8 @@ float UVR_SLAM::Frame::CalcDiffAngleAxis(UVR_SLAM::Frame* pF) {
 }
 
 //////////////matchinfo
-UVR_SLAM::MatchInfo::MatchInfo():mnMatch(0){}
-UVR_SLAM::MatchInfo::MatchInfo(Frame* pRef, Frame* pTarget, int w, int h):mnHeight(h), mnWidth(w), mnMatch(0){
+UVR_SLAM::MatchInfo::MatchInfo():mnMatch(0), mfLowQualityRatio(0.0){}
+UVR_SLAM::MatchInfo::MatchInfo(Frame* pRef, Frame* pTarget, int w, int h):mnHeight(h), mnWidth(w), mnMatch(0), mfLowQualityRatio(0.0){
 	mpTargetFrame = pTarget;
 	mpRefFrame = pRef;
 	mMapCP = cv::Mat::zeros(h, w, CV_16SC1);
@@ -1023,33 +1023,6 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 	}
 }
 
-
-////////20.09.05 수정 필요 -> 삭제 예정
-//AddMP는 KF-KF 매칭에서 이미 매칭이 성공한 애들에 대해서 Map Point를 프레임에 등록할 때 수행하게 됨.
-//int UVR_SLAM::MatchInfo::AddMP(UVR_SLAM::MapPoint* pMP, cv::Point2f pt) {
-//	std::unique_lock<std::mutex>(mMutexData);
-//	//int res = mvpMatchingMPs.size();
-//	//mvpMatchingMPs.push_back(pMP);
-//	//mvMatchingPts.push_back(pt);
-//	//mvObjectLabels.push_back(0);
-//	//cv::circle(used, pt, Frame::mnRadius, cv::Scalar(255), -1);
-//	////cv::circle(usedCPMap, pt, 5, cv::Scalar(0), -1);
-//	//return res;
-//	return 0;
-//}
-
-////////20.09.05 삭제
-////트래킹에서 KF-F매칭하고 최적화를 진행한 후 아웃라이어로 인식이 되지 않았을 때 추가하는 것.그런데 CP에 octave, label다 가지고 있으니 필요한가??
-//void UVR_SLAM::MatchInfo::AddMatchingPt(cv::Point2f pt, UVR_SLAM::CandidatePoint* pCP) {
-//	std::unique_lock<std::mutex>(mMutexData);
-//	int res = mvMatchingPts.size();
-//	this->mvpMatchingCPs.push_back(pCP);
-//	this->mvMatchingPts.push_back(pt);
-//	//this->mvMatchingPts.push_back(pt);
-//	//this->mvpMatchingMPs.push_back(pMP);
-//	////cv::circle(usedCPMap, pt, 5, cv::Scalar(0), -1);
-//}
-
 void UVR_SLAM::MatchInfo::AddMP() {
 	std::unique_lock<std::mutex>(mMutexData);
 	mnMatch++;
@@ -1100,20 +1073,30 @@ void UVR_SLAM::MatchInfo::UpdateFrame() {
 		pMPi->ConnectFrame(this, i);
 	}
 }
-void UVR_SLAM::MatchInfo::UpdateFrameQuality() {
+bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 
 	int N;
 	{
 		std::unique_lock<std::mutex>(mMutexCPs);
 		N = mvpMatchingCPs.size();
 	}
+	int nMP = 0;
 	for (int i = 0; i < N; i++) {
 		auto pCPi = mvpMatchingCPs[i];
-		if (!pCPi->GetQuality()){
+		if (!pCPi->GetQuality()) {
 			pCPi->DeleteMapPoint();
 		}
+		auto pMPi = pCPi->GetMP();
+		if (pMPi && !pMPi->isDeleted())
+			nMP++;
 	}
+	bool b1 = mfLowQualityRatio < 0.4;
+	bool b2 = nMP < 200;
+	//std::cout << "frame quality : " << nMP << ", " << mfLowQualityRatio << std::endl;
+	//전체 MP 수, quality가 안좋은 애들은 이미 여기에 존재하지를 못함. 
+	return b1 || b2;
 }
+
 int UVR_SLAM::MatchInfo::GetMatchingPtsTracking(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vPTs) {
 	
 	//std::vector<cv::Point2f> res;
@@ -1176,6 +1159,10 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsOptimization(std::ve
 			res.push_back(mvMatchingPts[i]);
 			vpMPs.push_back(pMPi);
 			vpCPs.push_back(pCPi);
+		}
+		if (!pCPi->GetQuality()){
+			//std::cout << "GetMatchingPtsOptimization::Quality error" << std::endl;
+			pCPi->DeleteMapPoint();
 		}
 	}
 	return res;

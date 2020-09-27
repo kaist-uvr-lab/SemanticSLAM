@@ -21,11 +21,12 @@ namespace UVR_SLAM {
 				for (int i = 0; i < vpGrahWindows.size(); i++) {
 					auto pKFi = vpGrahWindows[i];
 					auto score = mpTargetFrame->Score(pKFi);
-					std::cout << "Loop::" << score << std::endl;
+					
 					if (score > 0.01) {
+						std::cout << "Loop::Score::" << score << std::endl;
 						imshow("Loop::1", mpTargetFrame->GetOriginalImage());
 						imshow("Loop::2", pKFi->GetOriginalImage());
-						cv::waitKey(1);
+						cv::waitKey(500);
 					}
 				}
 				/////////////VoW ¸ÅÄª

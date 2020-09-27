@@ -59,7 +59,6 @@ namespace UVR_SLAM {
 		void SetMapPoint(MapPoint* pMP, int id);
 		MapPoint* GetMP();
 	private:
-		int mnMapPoint;
 		bool bCreated;
 		MapPoint* mpMapPoint;
 	////////MP°ü¸®
