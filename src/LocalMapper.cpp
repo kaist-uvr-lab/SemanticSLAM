@@ -163,53 +163,53 @@ void UVR_SLAM::LocalMapper::Run() {
 			bool bLowQualityFrame = mpTargetFrame->mpMatchInfo->UpdateFrameQuality();
 			/////프레임 퀄리티 계산
 			/////////KF-KF 매칭
-			mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, mK, mInvK, time1, debugMatch);
+			mpMatcher->OpticalMatchingForMapping2(mpMap, mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, mK, mInvK, time1, debugMatch);
 			cv::Mat resized;
 			cv::resize(debugMatch, resized, cv::Size(debugMatch.cols/2, debugMatch.rows/2));
 			mpVisualizer->SetOutputImage(resized, 3);
 			//////Pose Recovery
-			if (bLowQualityFrame) {
-				auto llastKF = mpMap->GetReverseWindowFrame(1);
-				if(llastKF){
-					auto lastKF = mpMap->GetLastWindowFrame();
-					auto lastMatch = lastKF->mpMatchInfo;
-					auto llastMatch = llastKF->mpMatchInfo;
-					int n = 0;
-					std::vector<bool> vbTempInliers;
-					std::vector<cv::Point2f> vTempPTs1, vTempPTs2, vTempPTs3; //curr, prev, pprev
-					std::vector<CandidatePoint*> vTempCPs;
-					for (int i = 0; i < vMatchPrevCPs.size(); i++) {
-						auto pCPi = vMatchPrevCPs[i];
-						int pidx = pCPi->GetPointIndexInFrame(lastMatch);
-						int ppidx = pCPi->GetPointIndexInFrame(llastMatch);
-						if (ppidx < 0 || pidx < 0 || pCPi->GetNumSize() < 2){
-							vbTempInliers.push_back(false);
-							continue;
-						}
-						auto pt1 = vMatchCurrPts[i];
-						auto pt2 = lastMatch->GetPt(pidx);
-						auto pt3 = llastMatch->GetPt(ppidx);
-						vTempCPs.push_back(pCPi);
-						vTempPTs1.push_back(pt1);
-						vTempPTs2.push_back(pt2);
-						vTempPTs3.push_back(pt3);
+			//if (bLowQualityFrame) {
+			//	auto llastKF = mpMap->GetReverseWindowFrame(1);
+			//	if(llastKF){
+			//		auto lastKF = mpMap->GetLastWindowFrame();
+			//		auto lastMatch = lastKF->mpMatchInfo;
+			//		auto llastMatch = llastKF->mpMatchInfo;
+			//		int n = 0;
+			//		std::vector<bool> vbTempInliers;
+			//		std::vector<cv::Point2f> vTempPTs1, vTempPTs2, vTempPTs3; //curr, prev, pprev
+			//		std::vector<CandidatePoint*> vTempCPs;
+			//		for (int i = 0; i < vMatchPrevCPs.size(); i++) {
+			//			auto pCPi = vMatchPrevCPs[i];
+			//			int pidx = pCPi->GetPointIndexInFrame(lastMatch);
+			//			int ppidx = pCPi->GetPointIndexInFrame(llastMatch);
+			//			if (ppidx < 0 || pidx < 0 || pCPi->GetNumSize() < 2){
+			//				vbTempInliers.push_back(false);
+			//				continue;
+			//			}
+			//			auto pt1 = vMatchCurrPts[i];
+			//			auto pt2 = lastMatch->GetPt(pidx);
+			//			auto pt3 = llastMatch->GetPt(ppidx);
+			//			vTempCPs.push_back(pCPi);
+			//			vTempPTs1.push_back(pt1);
+			//			vTempPTs2.push_back(pt2);
+			//			vTempPTs3.push_back(pt3);
 
-						auto pMPi = pCPi->GetMP();
-						if (!pCPi->GetQuality())
-							pCPi->ResetMapPoint();
-						if (!pMPi || pMPi->isDeleted()) {
-							n++;
-							vbTempInliers.push_back(true);
-						}
-						else
-							vbTempInliers.push_back(false);
-					}
-					double d3 = 0.0;
-					cv::Mat R, T;
-					RecoverPose(mpTargetFrame, lastKF, llastKF, vTempPTs1, vTempPTs2, vTempPTs3, vTempCPs, vbTempInliers, R, T, d3, mpTargetFrame->GetOriginalImage(), lastKF->GetOriginalImage(), llastKF->GetOriginalImage());
-					std::cout << "recover test::" << lastKF->GetFrameID() << "::" << n <<", "<<vTempCPs.size()<< std::endl;
-				}
-			}
+			//			auto pMPi = pCPi->GetMP();
+			//			if (!pCPi->GetQuality())
+			//				pCPi->ResetMapPoint();
+			//			if (!pMPi || pMPi->isDeleted()) {
+			//				n++;
+			//				vbTempInliers.push_back(true);
+			//			}
+			//			else
+			//				vbTempInliers.push_back(false);
+			//		}
+			//		double d3 = 0.0;
+			//		cv::Mat R, T;
+			//		RecoverPose(mpTargetFrame, lastKF, llastKF, vTempPTs1, vTempPTs2, vTempPTs3, vTempCPs, vbTempInliers, R, T, d3, mpTargetFrame->GetOriginalImage(), lastKF->GetOriginalImage(), llastKF->GetOriginalImage());
+			//		std::cout << "recover test::" << lastKF->GetFrameID() << "::" << n <<", "<<vTempCPs.size()<< std::endl;
+			//	}
+			//}
 			//////Pose Recovery
 			/////Create Map Points
 			nCreated = CreateMapPoints(mpTargetFrame, vMatchCurrPts, vMatchPrevCPs, time2, debugMatch); //왜인지는 모르겟으나 잘 동작함

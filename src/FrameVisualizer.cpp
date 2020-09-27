@@ -22,6 +22,10 @@ namespace UVR_SLAM {
 	void UVR_SLAM::FrameVisualizer::Run(){
 	
 		while (1) {
+
+			cv::Scalar color1(255, 255, 0);
+			cv::Scalar color2(0, 255, 255);
+
 			if (isVisualize()) {
 				//std::cout << "FrameVisualizer::Start" << std::endl;
 				Frame* pKF = mpKeyFrame;
@@ -29,6 +33,7 @@ namespace UVR_SLAM {
 
 				cv::Mat vis = pF->GetOriginalImage();
 				cv::Mat kfImg = pKF->GetOriginalImage();
+				auto pKFMatch = pKF->mpMatchInfo;
 				//vis.convertTo(vis, CV_8UC3);
 				cv::Mat R = pF->GetRotation();
 				cv::Mat t = pF->GetTranslation();
@@ -40,14 +45,14 @@ namespace UVR_SLAM {
 					auto pMPi = pCPi->GetMP();
 					if (!pMPi || pMPi->isDeleted() || !pCPi->GetQuality())
 						continue;
+					
 					cv::Point2f p2D;
 					cv::Mat pCam;
 					bool b = pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
 					auto pt = pF->mpMatchInfo->mvMatchingPts[i];
-					cv::Scalar color(150, 150, 0);
 					nMatch++;
-					cv::circle(vis, p2D, 2, color, -1);
-					cv::line(vis, p2D, pt, color, 1);
+					cv::circle(vis, p2D, 3, color1, -1);
+					cv::line(vis, p2D, pt, color2, 2);
 				}
 				
 				std::stringstream ss;
