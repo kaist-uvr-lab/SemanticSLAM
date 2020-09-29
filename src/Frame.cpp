@@ -1000,27 +1000,23 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 
 	for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += nIncEdge) {
 		auto pt = mpRefFrame->mvEdgePts[i];
-		if (CheckOpticalPointOverlap(1, 10, pt)>=0) {
+		if (CheckOpticalPointOverlap(1, 10, pt)>-1) {
 			continue;
 		}
 		auto pCP = new UVR_SLAM::CandidatePoint(this);
-		this->AddCP(pCP, pt);
-		//pCP->AddFrame(this, pt);
+		int idx = this->AddCP(pCP, pt);
+		pCP->ConnectFrame(this, idx);
 	}
 	for (int i = 0; i < mpRefFrame->mvPts.size(); i+= nIncORB) {
 		auto pt = mpRefFrame->mvPts[i];
-		/*if (!CheckOpticalPointOverlap(mMapCP, 1, 10, pt) || !CheckOpticalPointOverlap(tempused, 1, 10, pt)) {
-			continue;
-		}
-		circle(tempused, pt, Frame::mnRadius, cv::Scalar(255), -1);
-		*/
-		if (CheckOpticalPointOverlap(1, 10, pt)>=0) {
+		if (CheckOpticalPointOverlap(1, 10, pt)>-1) {
 			continue;
 		}
 		auto pCP = new UVR_SLAM::CandidatePoint(this, mpRefFrame->mvnOctaves[i]);
-		this->AddCP(pCP, pt);
-		//pCP->AddFrame(this, pt);
+		int idx = this->AddCP(pCP, pt);
+		pCP->ConnectFrame(this, idx);
 	}
+	std::cout << "aaa::" << this->GetNumCPs() << std::endl;
 }
 
 void UVR_SLAM::MatchInfo::AddMP() {
@@ -1056,7 +1052,7 @@ void UVR_SLAM::MatchInfo::RemoveCP(int idx){
 	cv::circle(mMapCP, mvMatchingPts[idx], Frame::mnRadius, cv::Scalar(0), -1);
 	mvpMatchingCPs[idx] = nullptr;	
 }
-void UVR_SLAM::MatchInfo::UpdateFrame() {
+void UVR_SLAM::MatchInfo::ConnectAll() {
 	int N;
 	{
 		std::unique_lock<std::mutex>(mMutexCPs);
@@ -1073,6 +1069,26 @@ void UVR_SLAM::MatchInfo::UpdateFrame() {
 		pMPi->ConnectFrame(this, i);
 	}
 }
+void UVR_SLAM::MatchInfo::DisconnectAll() {
+	int N;
+	{
+		std::unique_lock<std::mutex>(mMutexCPs);
+		N = mvpMatchingCPs.size();
+	}
+	std::cout << "disconnectall::start" << std::endl;
+	for (int i = 0; i < N; i++) {
+		auto pCPi = mvpMatchingCPs[i];
+		if (!pCPi)
+			continue;
+		pCPi->DisconnectFrame(this);
+		auto pMPi = pCPi->GetMP();
+		if (!pMPi || pMPi->isDeleted())
+			continue;
+		this->RemoveMP();
+		pMPi->DisconnectFrame(this);
+	}
+	std::cout << "disconnectall::end" << std::endl;
+}
 bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 
 	int N;
@@ -1081,18 +1097,22 @@ bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 		N = mvpMatchingCPs.size();
 	}
 	int nMP = 0;
+	int nTest = 0;
 	for (int i = 0; i < N; i++) {
 		auto pCPi = mvpMatchingCPs[i];
 		if (!pCPi->GetQuality()) {
 			pCPi->DeleteMapPoint();
 		}
 		auto pMPi = pCPi->GetMP();
-		if (pMPi && !pMPi->isDeleted())
+		if (pMPi && !pMPi->isDeleted()){
 			nMP++;
+			if (pMPi->GetNumConnectedFrames() > 2)
+				nTest++;
+		}
 	}
-	bool b1 = mfLowQualityRatio < 0.4;
+	bool b1 = mfLowQualityRatio > 0.4;
 	bool b2 = nMP < 200;
-	//std::cout << "frame quality : " << nMP << ", " << mfLowQualityRatio << std::endl;
+	std::cout << "frame quality : " << nTest << ", " << mfLowQualityRatio << std::endl;
 	//전체 MP 수, quality가 안좋은 애들은 이미 여기에 존재하지를 못함. 
 	return b1 || b2;
 }

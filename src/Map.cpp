@@ -5,8 +5,8 @@
 #include "Plane.h"
 
 namespace UVR_SLAM{
-	Map::Map():mnMaxConnectedKFs(16), mnMaxCandidateKFs(4), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2){}
-	Map::Map(int nConnected, int nCandiate) :mnMaxConnectedKFs(nConnected), mnMaxCandidateKFs(nCandiate), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2) {
+	Map::Map():mnMaxConnectedKFs(8), mnMaxCandidateKFs(4), mnHalfConnect(4), mnHalfCandidate(2), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2){}
+	Map::Map(int nConnected, int nCandiate) :mnMaxConnectedKFs(nConnected), mnMaxCandidateKFs(nCandiate), mnHalfConnect(nConnected/2), mnHalfCandidate(nCandiate/2), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2) {
 		std::cout << "MAP::" << mnMaxConnectedKFs << ", " << mnMaxCandidateKFs << std::endl;
 	}
 	Map::~Map() {}
@@ -24,35 +24,52 @@ namespace UVR_SLAM{
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
 		return mQueueFrameWindows.back();
 	}
-	void Map::AddWindowFrame(Frame* pF){
+	Frame* Map::AddWindowFrame(Frame* pF){
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
+		Frame* res = nullptr;
 		if (mQueueFrameWindows.size() == mnMaxConnectedKFs) {
-			auto pKF = mQueueFrameWindows.front();
-			mQueueFrameWindows.pop_front();
-			mQueueCandidateGraphFrames.push_back(pKF);
-			if (mQueueCandidateGraphFrames.size() == mnMaxCandidateKFs) {
-				//하나 고르기
-				int nMax = 0;
-				UVR_SLAM::Frame* targetKF = nullptr;
-				for (auto iter = mQueueCandidateGraphFrames.begin(); iter != mQueueCandidateGraphFrames.end(); iter++) {
-					auto pKFi = *iter;
-					int nValue = pKFi->mpMatchInfo->GetNumMapPoints();
-					if (nValue > nMax) {
-						targetKF = pKFi;
-						nMax = nValue;
-					}
+			std::cout << "map::start" << std::endl;
+			for (int i = 0; i < mnHalfConnect; i++) {
+				std::cout << i << ", " << mQueueFrameWindows.size() << std::endl;
+				if(i % 2 == 0){
+					auto pKF = mQueueFrameWindows.front();
+					mQueueCandidateGraphFrames.push_back(pKF);
+					res = pKF;
 				}
-				//그걸 graph frame에 추가.
-				mQueueCandidateGraphFrames.clear();
-				mspGraphFrames.insert(targetKF);
+				else {
+					auto pKF = mQueueFrameWindows.front();
+					pKF->mpMatchInfo->DisconnectAll();
+				}
+				mQueueFrameWindows.pop_front();
 			}
+			if (mQueueCandidateGraphFrames.size() == mnMaxCandidateKFs) {
+				for (int i = 0; i < mnMaxCandidateKFs; i++) {
+					if (i == 0) {
+						auto pKF = mQueueCandidateGraphFrames.front();
+						mspGraphFrames.insert(pKF);
+					}
+					else {
+						auto pKF = mQueueCandidateGraphFrames.front();
+						pKF->mpMatchInfo->DisconnectAll();
+					}
+					mQueueCandidateGraphFrames.pop_front();
+				}
+			}
+			std::cout << "map::end" << std::endl;
 		}
-		
 		mQueueFrameWindows.push_back(pF);
+		return res;
 	}
 	std::vector<Frame*> Map::GetWindowFrames(){
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
-		return std::vector<Frame*>(mQueueFrameWindows.begin(), mQueueFrameWindows.end());
+		std::vector<Frame*> res;
+		for (auto iter = mQueueCandidateGraphFrames.begin(); iter != mQueueCandidateGraphFrames.end(); iter++) {
+			res.push_back(*iter);
+		}
+		for (auto iter = mQueueFrameWindows.begin(); iter != mQueueFrameWindows.end(); iter++) {
+			res.push_back(*iter);
+		}
+		return res;
 	}
 	std::vector<Frame*> Map::GetGraphFrames() {
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);

@@ -116,19 +116,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			return mbInit;
 		}
 		
-		////////현재 프레임의 매칭 정보 복사 및 초기 프레임의 포인트 저장
-		//mpInitFrame2->mpMatchInfo->mvpMatchingMPs = std::vector<UVR_SLAM::MapPoint*>(vTempPts2.size(), nullptr);
-		/*for (int i = 0; i < vTempPts2.size(); i++) {
-			int idx = vTempIndexs[i];
-			mpInitFrame2->mpMatchInfo->mvMatchingPts.push_back(vTempPts2[i]);
-			mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs.push_back(idx);
-			mpInitFrame2->mpMatchInfo->mvObjectLabels.push_back(0);
-			mpInitFrame2->mpMatchInfo->mvnOctaves.push_back(mpInitFrame1->mpMatchInfo->mvnOctaves[idx]);
-			vTempPts1.push_back(mpInitFrame1->mpMatchInfo->mvMatchingPts[idx]);
-			cv::circle(mpInitFrame2->mpMatchInfo->used, vTempPts2[i], 2, cv::Scalar(255), -1);
-		}*/
-		////////현재 프레임의 매칭 정보 복사
-
 		/////////////////////Fundamental Matrix Decomposition & Triangulation
 		std::vector<uchar> vFInliers;
 		std::vector<cv::Point2f> vTempMatchPts1, vTempMatchPts2;
@@ -147,7 +134,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 				resMatches.push_back(std::make_pair(vTempPts1[i], vTempPts2[i]));
 				vTempMatchPts1.push_back(vTempPts1[i]);
 				vTempMatchPts2.push_back(vTempPts2[i]);
-				//vTempMatchOctaves.push_back(mpInitFrame1->mpMatchInfo->mvTempOctaves[vTempIndexs[i]]);
 				vTempMatchIDXs.push_back(i);//vTempIndexs[i]
 			}
 		}
@@ -219,13 +205,14 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			tempMPs.push_back(pMP);
 			vTempMappedPts1.push_back(vTempMatchPts1[i]);
 			vTempMappedPts2.push_back(vTempMatchPts2[i]);
-			//vTempMappedOctaves.push_back(vTempMatchOctaves[i]);
 			vTempMappedIDXs.push_back(i);//vTempMatchIDXs[i]
 			
-			//pCP->AddFrame(mpInitFrame2->mpMatchInfo, vTempMatchPts2[i]);
-			mpInitFrame2->mpMatchInfo->AddCP(pCP, vTempMatchPts2[i]);
-			//pMP->AddFrame(mpInitFrame1->mpMatchInfo, idx2);
-			//pMP->AddFrame(mpInitFrame2->mpMatchInfo, idx2);
+			//Initframe1에는 이미 등록이 되어 있음.
+			int idx3 = mpInitFrame2->mpMatchInfo->AddCP(pCP, vTempMatchPts2[i]);
+			pCP->ConnectFrame(mpInitFrame2->mpMatchInfo, idx3);
+			//MP 등록
+			pMP->ConnectFrame(mpInitFrame1->mpMatchInfo, idx2);
+			pMP->ConnectFrame(mpInitFrame2->mpMatchInfo, idx3);
 
 			cv::circle(debugging, pt1, 2, cv::Scalar(0, 255, 0), -1);
 			cv::circle(debugging, pt2+ ptBottom, 2, cv::Scalar(0, 255, 0), -1);
@@ -233,8 +220,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			cv::line(debugging, pt2 + ptBottom, projected2 + ptBottom, cv::Scalar(255, 0, 0));
 
 		}
-		mpInitFrame1->mpMatchInfo->UpdateFrame();
-		mpInitFrame2->mpMatchInfo->UpdateFrame();
+		//mpInitFrame1->mpMatchInfo->UpdateFrame();
+		//mpInitFrame2->mpMatchInfo->UpdateFrame();
 		cv::resize(debugging, debugging, cv::Size(debugging.cols / 2, debugging.rows / 2));
 		mpVisualizer->SetOutputImage(debugging, 0);
 
@@ -338,49 +325,32 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//////////카메라 자세 변환 하는 경우
 		mpInitFrame1->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME, 0);
 		mpInitFrame2->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-		//맵포인트 정보 설정
+		
+		////맵포인트 정보 설정
 		for (int i = 0; i < tempMPs.size(); i++) {
 			UVR_SLAM::MapPoint* pNewMP = tempMPs[i];
 			auto pt1 = vTempMappedPts1[i];
 			auto pt2 = vTempMappedPts2[i];
-			
 			int idx2 = vTempMappedIDXs[i];
 			
-			//mpInitFrame2->mpMatchInfo->mvnMatchingIDXs.push_back(mpInitFrame1->mpMatchInfo->mvnMatchingIDXs.size());
-			//mpInitFrame1->mpMatchInfo->mvnMatchingIDXs.push_back(-1);
-
-			//pNewMP->mnOctave = vTempMappedOctaves[i];//mpInitFrame1->mpMatchInfo->mvnOctaves[idx1];
-			
 			pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
+			////이 사이는 이제 이용 안하는데??
 			pNewMP->IncreaseVisible(2);
 			pNewMP->IncreaseFound(2);
-			//pNewMP->UpdateNormalAndDepth();
 			mpSystem->mlpNewMPs.push_back(pNewMP);
+			////이 사이는 이제 이용 안하는데??
 			auto pt3D = mpMap->ProjectMapPoint(pNewMP, mpMap->mfMapGridSize);
+			/////그리드 관련된 내용은 삭제하던가 따로 빼놓기
 			auto pMG = mpMap->GetGrid(pt3D);
 			if (!pMG) {
 				pMG = mpMap->InsertGrid(pt3D);
 			}
 			mpMap->InsertMapPoint(pNewMP, pMG);
+			/////그리드 관련된 내용은 삭제하던가 따로 빼놓기
 		}
-		
-		/////////////////////Object labeling
-		//mpInitFrame1->mpMatchInfo->SetLabel();
-		
-		/*for (int i = 0; i < mpInitFrame2->mpMatchInfo->mvMatchingPts.size(); i++) {
-			int idx = mpInitFrame2->mpMatchInfo->mvnMatchingPtIDXs[i];
-			mpInitFrame2->mpMatchInfo->mvObjectLabels[i] = mpInitFrame1->mpMatchInfo->mvObjectLabels[idx];
-		}*/
-		/////////////////////Object labeling
-
-		//////키프레임으로 업데이트 과정
-		//타겟 프레임과의 매칭 정보 저장
-		//mpInitFrame1->mpMatchInfo->mnTargetMatch = mpInitFrame1->mpMatchInfo->mvMatchingPts.size();
-		//mpInitFrame2->mpMatchInfo->SetKeyFrame();
-		//////키프레임으로 업데이트 과정
+		////맵포인트 정보 설정
 
 		/////////////레이아웃 추정
-		//mpPlaneEstimator->InsertKeyFrame(mpInitFrame2);
 		mpSegmentator->InsertKeyFrame(mpInitFrame2);
 		/////////////레이아웃 추정
 
@@ -389,13 +359,13 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		////여기서 무슨일 하는지 정리 후 삭제
 		///////////10개 중에 한개씩 저장. 그냥 평면 값 비교하기 위해
 		mpLocalMapper->SetInitialKeyFrame(mpInitFrame1, mpInitFrame2);
-		mpMap->AddFrame(mpInitFrame1);
+		mpMap->AddFrame(mpInitFrame1); //여기도 이제 변경해도 될 거 같음. 삭제.
 		mpMap->AddFrame(mpInitFrame2);
 		mpMap->AddWindowFrame(mpInitFrame1);
 		mpMap->AddWindowFrame(mpInitFrame2);
 
-		mpInitFrame1->AddKF(mpInitFrame2, tempMPs.size());
-		mpInitFrame2->AddKF(mpInitFrame1, tempMPs.size());
+		//mpInitFrame1->AddKF(mpInitFrame2, tempMPs.size()); //여기도
+		//mpInitFrame2->AddKF(mpInitFrame1, tempMPs.size());
 		////////////////////시각화에 카메라 포즈를 출력하기 위해
 		mpMap->mpFirstKeyFrame = mpInitFrame1;
 		mpVisualizer->SetMatchInfo(mpInitFrame2->mpMatchInfo);

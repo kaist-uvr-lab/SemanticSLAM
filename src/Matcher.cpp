@@ -878,6 +878,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	std::vector<UVR_SLAM::CandidatePoint*> vpTempCPs;
 
 	int Ncp = prev->mpMatchInfo->GetNumCPs();
+	std::cout << "Tracking::start::" << prev->GetKeyFrameID()<<"::"<< Ncp << std::endl;
 	for (int i = 0; i < Ncp; i++) {
 		auto pCPi = prev->mpMatchInfo->mvpMatchingCPs[i];
 		if (prevPts.size() == 500)
@@ -891,7 +892,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			vpTempMPs.push_back(pMPi);
 		}
 	}
-
+	std::cout << "Tracking::ID=::" << prev->GetKeyFrameID() << "CP traverse end" << std::endl;
 	//prev->mpMatchInfo->GetMatchingPtsTracking(vpTempCPs, vpTempMPs, prevPts);//prev->mvMatchingPts;
 	//std::cout << "Matcher::Tracking::" << vpTempCPs.size() << std::endl;
 	int maxLvl = 3;
@@ -943,7 +944,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		}*/
 		res++;
 	}
-
+	std::cout << "Tracking::end::매칭수::" << prev->GetKeyFrameID() << "::" << res << std::endl;
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 	double tttt = duration / 1000.0;
@@ -1030,6 +1031,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 	cv::Mat Rpfromc = Rprev.t();
 	
 	int nRes = 0;
+	int nA = 0;
 	int nTargetID = pPrevKF->GetFrameID();
 	for (int i = 0; i < Map.cols; i++) {
 
@@ -1105,7 +1107,11 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 		//	auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCPi, X3D, cv::Mat(), label, pCPi->octave);
 		//	////MP 생성 확인
 		//}
-		pCurrKF->mpMatchInfo->AddCP(pCPi, currPt);
+		int idxi = pCurrKF->mpMatchInfo->AddCP(pCPi, currPt);
+		pCPi->ConnectFrame(pCurrKF->mpMatchInfo,idxi);
+		if (pCPi->GetFrames().size() > 2) {
+			nA++;
+		}
 		vMatchedCPs.push_back(pCPi);
 
 		nRes++;
@@ -1116,7 +1122,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 	dtime = duration / 1000.0;
-
+	return nA;
 	//fuse time text 
 	/*std::stringstream ss;
 	ss << "Optical flow Mapping2= " << pCurrKF->GetFrameID() << ", " << pPrevKF->GetFrameID() << ", " << "::" << tttt << "::" << nRes;

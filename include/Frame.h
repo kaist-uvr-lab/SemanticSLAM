@@ -44,7 +44,8 @@ namespace UVR_SLAM {
 		MatchInfo();
 		MatchInfo(Frame* pRef, Frame* pTarget, int w, int h);
 		virtual ~MatchInfo();
-		void UpdateFrame();
+		void ConnectAll();
+		void DisconnectAll();
 		bool UpdateFrameQuality();
 		void SetMatchingPoints(); //초기화나 매핑시 포인트 매칭을 위한 포인트 추가 과정.
 		void SetLabel();

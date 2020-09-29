@@ -1254,7 +1254,6 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 			vpEdgeKFMono.push_back(pKFi);
 			vpMapPointEdgeMono.push_back(pMP);
 		}
-
 	}
 
 	bStopBA = pMapOptimizer->isStopBA();

@@ -244,6 +244,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 ////MP와 PT가 대응함.
 ////pPrev가 mpRefKF가 됨
+//매칭정보에 비율을 아예 추가하기
 int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs) {
 	auto pMatchInfo = pCurr->mpMatchInfo;
 	auto pPrevMatchInfo = pPrev->mpMatchInfo;
@@ -269,6 +270,6 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 		}
 	}
 	pMatchInfo->mfLowQualityRatio = ((float)nFail)/ vpPts.size();
-	//std::cout << "Tracking::UpdateMatchingInfo::" << pMatchInfo->mfLowQualityRatio <<"::"<< nFail <<", "<<nres<<", "<<vpPts.size()<< std::endl;
+	std::cout << "Tracking::UpdateMatchingInfo::" << pMatchInfo->mfLowQualityRatio <<"::"<< nFail <<", "<<nres<<", "<<vpPts.size()<< std::endl;
 	return nres;
 }

@@ -77,6 +77,19 @@ namespace UVR_SLAM {
 		void Init();
 
 	public:
+		Optimization *mpOptimizer;
+		Matcher* mpMatcher;
+		Initializer* mpInitializer;
+		Map* mpMap;
+		LocalMapper* mpLocalMapper;
+		MapOptimizer* mpMapOptimizer;
+		LoopCloser* mpLoopCloser;
+		SemanticSegmentator* mpSegmentator;
+		PlaneEstimator* mpPlaneEstimator;
+		Visualizer* mpVisualizer;
+		FrameVisualizer* mpFrameVisualizer;
+
+	public:
 		void SaveTrajectory();
 		void SetBoolInit(bool b);
 		bool isInitialized();
@@ -86,8 +99,6 @@ namespace UVR_SLAM {
 		void InitDirPath();
 		void SetDirPath(int id = 0);
 		std::string GetDirPath(int id = 0);
-		//std::list<UVR_SLAM::MapPoint*> GetListNewMPs();
-		//void AddNewMP(MapPoint* pMP);
 
 	private:
 		ORBextractor* mpInitORBExtractor;
@@ -96,39 +107,17 @@ namespace UVR_SLAM {
 		Frame* mpCurrFrame;
 		Frame* mpPrevFrame;
 		//Frame* mpInitFrame;
-		
-		Optimization *mpOptimizer;
-		Matcher* mpMatcher;
-		Initializer* mpInitializer;
 
-		Map* mpMap;
-
-		SemanticSegmentator* mpSegmentator;
-		std::thread *mptLayoutEstimator;
-
-		LocalMapper* mpLocalMapper;
 		std::thread *mptLocalMapper;
-
-		LoopCloser* mpLoopCloser;
+		std::thread* mptMapOptimizer;
 		std::thread *mptLoopCloser;
-
-		PlaneEstimator* mpPlaneEstimator;
+		std::thread *mptLayoutEstimator;
 		std::thread *mptPlaneEstimator;
-
-		Visualizer* mpVisualizer;
 		std::thread* mptVisualizer;
-
-		FrameVisualizer* mpFrameVisualizer;
 		std::thread* mptFrameVisualizer;
 
-		MapOptimizer* mpMapOptimizer;
-		std::thread* mptMapOptimizer;
-
 		Tracker* mpTracker;
-		//std::thread *mptTracker;
-		
 		std::string mstrFilePath;
-
 		//management created map points
 		//std::mutex mMutexListMPs;
 		//std::list<UVR_SLAM::MapPoint*> mlpNewMPs;

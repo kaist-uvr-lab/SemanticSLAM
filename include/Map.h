@@ -42,7 +42,7 @@ namespace UVR_SLAM {
 
 		Frame* GetLastWindowFrame();
 		Frame* GetReverseWindowFrame(int idx);
-		void AddWindowFrame(Frame* pF);
+		Frame* AddWindowFrame(Frame* pF);
 		std::vector<Frame*> GetWindowFrames();
 		std::vector<Frame*> GetGraphFrames();
 		int mnMaxConnectedKFs;
@@ -50,7 +50,7 @@ namespace UVR_SLAM {
 	private:
 		std::mutex mMutexGlobalFrames;
 		std::vector<Frame*> mvpGlobalFrames;
-
+		int mnHalfConnect, mnHalfCandidate;
 		
 		std::mutex mMutexWindowFrames;
 		std::list<Frame*> mQueueFrameWindows;

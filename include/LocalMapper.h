@@ -7,33 +7,31 @@
 #include <mutex>
 
 namespace UVR_SLAM {
+	class System;
+	class MapPoint;
+	class CandidatePoint;
 	class Frame;
 	class MatchInfo;
-	class PlaneEstimator;
-	class SemanticSegmentator;
-	class LoopCloser;
-	class CandidatePoint;
-	class Matcher;
-	class MapPoint;
-	class System;
 	class Map;
+
+	class Matcher;
 	class MapOptimizer;
+	class LoopCloser;
+	class SemanticSegmentator;
+	class PlaneEstimator;
+	
 	class Visualizer;
+
 	class LocalMapper {
 	public:
 		LocalMapper();
-		LocalMapper(Map* pMap, std::string strPath, int w, int h);
+		LocalMapper(System* pSystem, std::string strPath, int w, int h);
 		virtual ~LocalMapper();
+		void Init();
 	public:
 		void Reset();
 		void Run();
-		void SetSystem(System* pSystem);
-		void SetPlaneEstimator(PlaneEstimator* pPlaneEstimator);
-		void SetLayoutEstimator(SemanticSegmentator* pEstimator);
-		void SetMatcher(Matcher* pMatcher);
-		void SetMapOptimizer(MapOptimizer* pMapOptimizer);
-		void SetLoopCloser(LoopCloser* pLoopCloser);
-		void SetVisualizer(Visualizer* pVis);
+		
 		////////////////
 		void SetInitialKeyFrame(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2);
 		void InsertKeyFrame(UVR_SLAM::Frame *pKF);
@@ -42,6 +40,7 @@ namespace UVR_SLAM {
 		void ProcessNewKeyFrame();
 		bool isDoingProcess();
 		void CalculateKFConnections();
+
 	private:
 		int CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point2f> vMatchCurrPts, std::vector<CandidatePoint*> vMatchPrevCPs, double& ftime, cv::Mat& debugMatch);
 		int RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Point2f> vMatchPrevPts, std::vector<cv::Point2f> vMatchCurrPts, std::vector<CandidatePoint*> vPrevCPs, cv::Mat& R, cv::Mat& T, double& ftime, cv::Mat& prevImg, cv::Mat& currImg);
@@ -80,15 +79,18 @@ namespace UVR_SLAM {
 		bool mbDoingProcess;
 
 		std::vector<MapPoint*> mvpDeletedMPs;
-		SemanticSegmentator* mpSegmentator;
+
 		System* mpSystem;
 		Map* mpMap;
-		LoopCloser* mpLoopCloser;
 		MapOptimizer* mpMapOptimizer;
+		LoopCloser* mpLoopCloser;
+		SemanticSegmentator* mpSegmentator;
 		PlaneEstimator* mpPlaneEstimator;
 		Visualizer* mpVisualizer;
+		
 		Frame* mpTargetFrame, *mpPrevKeyFrame, *mpPPrevKeyFrame;
 		Matcher* mpMatcher;
+
 		int mnWidth, mnHeight;
 		cv::Mat mK, mInvK;
 	};
