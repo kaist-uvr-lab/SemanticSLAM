@@ -126,11 +126,9 @@ void UVR_SLAM::LocalMapper::Run() {
 			ProcessNewKeyFrame();
 			mpTargetFrame->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
 
-			std::cout << "LM::Start::" << mpTargetFrame->GetKeyFrameID() << std::endl;
 			int nTargetID = mpTargetFrame->GetFrameID();
 			mpTargetFrame->mpMatchInfo->ConnectAll();
 			mpPrevKeyFrame->mpMatchInfo->SetMatchingPoints();
-			std::cout << "LM::ID=" << mpTargetFrame->GetKeyFrameID() <<"::CP수 = "<<mpPrevKeyFrame->mpMatchInfo->GetNumCPs()<< std::endl;
 			int nCreated = 0;
 			////////New Matching & Create & Delayed CP test
 			cv::Mat debugMatch;
@@ -142,11 +140,9 @@ void UVR_SLAM::LocalMapper::Run() {
 			
 			/////프레임 퀄리티 계산
 			bool bLowQualityFrame = mpTargetFrame->mpMatchInfo->UpdateFrameQuality();
-			std::cout << "LM::ID=" << mpTargetFrame->GetKeyFrameID() <<"퀄리티="<<bLowQualityFrame<< std::endl;
 			/////프레임 퀄리티 계산
 			/////////KF-KF 매칭
 			int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, mK, mInvK, time1, debugMatch);
-			std::cout << "LM::ID=" << mpTargetFrame->GetKeyFrameID() <<"::매칭수::"<< nMatch <<", "<< vMatchCurrPts.size()<< std::endl;
 			//////Pose Recovery
 			//if (bLowQualityFrame) {
 			//	auto llastKF = mpMap->GetReverseWindowFrame(1);
@@ -193,7 +189,6 @@ void UVR_SLAM::LocalMapper::Run() {
 			//////Pose Recovery
 			/////Create Map Points
 			nCreated = CreateMapPoints(mpTargetFrame, vMatchCurrPts, vMatchPrevCPs, time2, debugMatch); //왜인지는 모르겟으나 잘 동작함
-			std::cout << "LM::ID=" << mpTargetFrame->GetKeyFrameID() <<"::뉴MP="<< nCreated << std::endl;
 			cv::Mat resized;
 			cv::resize(debugMatch, resized, cv::Size(debugMatch.cols / 2, debugMatch.rows / 2));
 			mpVisualizer->SetOutputImage(resized, 3);
@@ -204,7 +199,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			if (pTarget) {
 				mpSegmentator->InsertKeyFrame(pTarget);
 				mpPlaneEstimator->InsertKeyFrame(pTarget);
-				mpLoopCloser->InsertKeyFrame(pTarget);
+				//mpLoopCloser->InsertKeyFrame(pTarget);
 			}
 			if (mpMapOptimizer->isDoingProcess()) {
 				//std::cout << "lm::ba::busy" << std::endl;

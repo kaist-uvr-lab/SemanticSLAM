@@ -197,7 +197,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		//graph-based0.
 		mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);
 		int nMP = UpdateMatchingInfo(mpRefKF, pCurr, vpTempCPs,vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
-	
+		
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크
 		auto pNewKF = CheckNeedKeyFrame(pCurr, pPrev);
@@ -270,6 +270,6 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 		}
 	}
 	pMatchInfo->mfLowQualityRatio = ((float)nFail)/ vpPts.size();
-	std::cout << "Tracking::UpdateMatchingInfo::" << pMatchInfo->mfLowQualityRatio <<"::"<< nFail <<", "<<nres<<", "<<vpPts.size()<< std::endl;
+	std::cout << "Tracking::ID=" << pPrev->GetKeyFrameID() <<", "<< nCurrID << " matching = " << nres <<", Quality = "<< pMatchInfo->mfLowQualityRatio << std::endl;
 	return nres;
 }

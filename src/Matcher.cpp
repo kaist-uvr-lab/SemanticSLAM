@@ -878,7 +878,6 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	std::vector<UVR_SLAM::CandidatePoint*> vpTempCPs;
 
 	int Ncp = prev->mpMatchInfo->GetNumCPs();
-	std::cout << "Tracking::start::" << prev->GetKeyFrameID()<<"::"<< Ncp << std::endl;
 	for (int i = 0; i < Ncp; i++) {
 		auto pCPi = prev->mpMatchInfo->mvpMatchingCPs[i];
 		if (prevPts.size() == 500)
@@ -892,7 +891,6 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			vpTempMPs.push_back(pMPi);
 		}
 	}
-	std::cout << "Tracking::ID=::" << prev->GetKeyFrameID() << "CP traverse end" << std::endl;
 	//prev->mpMatchInfo->GetMatchingPtsTracking(vpTempCPs, vpTempMPs, prevPts);//prev->mvMatchingPts;
 	//std::cout << "Matcher::Tracking::" << vpTempCPs.size() << std::endl;
 	int maxLvl = 3;
@@ -944,7 +942,6 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		}*/
 		res++;
 	}
-	std::cout << "Tracking::end::¸ÅÄª¼ö::" << prev->GetKeyFrameID() << "::" << res << std::endl;
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 	double tttt = duration / 1000.0;

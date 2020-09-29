@@ -144,7 +144,7 @@ void UVR_SLAM::Visualizer::Init() {
 	cv::Mat img1 = cv::Mat::zeros((mnHeight/2) * 2, mnWidth/2, CV_8UC3);
 	//sliding window
 	mnWindowImgRows = 4;
-	int nWindowSize = mpMap->mnMaxConnectedKFs;
+	int nWindowSize = mpMap->mnMaxConnectedKFs + mpMap->mnHalfConnectedKFs + mpMap->mnQuarterConnectedKFs;
 	mnWindowImgCols = nWindowSize / mnWindowImgRows;
 	if (nWindowSize % 4 != 0)
 		mnWindowImgCols++;
@@ -487,7 +487,7 @@ void UVR_SLAM::Visualizer::Run() {
 				pt1 += mVisMidPt;
 				cv::circle(tempVis, pt1, 2, cv::Scalar(0, 155, 248), -1);
 			}
-			auto lKFs = mpMap->GetWindowFrames();
+			auto lKFs = mpMap->GetWindowFramesVector();
 			for (auto iter = lKFs.begin(); iter != lKFs.end(); iter++) {
 				auto pKFi = *iter;
 				cv::Mat t1 = pKFi->GetCameraCenter();
@@ -536,10 +536,8 @@ void UVR_SLAM::Visualizer::Run() {
 			//cv::rectangle(tempVis, cv::Point2f(0, 0), cv::Point2f(tempVis.cols, 30), cv::Scalar::all(0), -1);
 			//cv::putText(tempVis, ss.str(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			//fuse time text
-
 			
 			tempVis.copyTo(mOutputImage(mvRects[2]));
-			
 			
 			//time 
 			cv::Mat imgTime = cv::Mat::zeros(500, 500, CV_8UC1);

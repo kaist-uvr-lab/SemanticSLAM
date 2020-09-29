@@ -5,15 +5,15 @@
 #include "Plane.h"
 
 namespace UVR_SLAM{
-	Map::Map():mnMaxConnectedKFs(8), mnMaxCandidateKFs(4), mnHalfConnect(4), mnHalfCandidate(2), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2){}
-	Map::Map(int nConnected, int nCandiate) :mnMaxConnectedKFs(nConnected), mnMaxCandidateKFs(nCandiate), mnHalfConnect(nConnected/2), mnHalfCandidate(nCandiate/2), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2) {
+	Map::Map():mnMaxConnectedKFs(8), mnHalfConnectedKFs(4), mnQuarterConnectedKFs(2), mnMaxCandidateKFs(4), mnHalfCandidate(2), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2){}
+	Map::Map(int nConnected, int nCandiate) :mnMaxConnectedKFs(nConnected), mnHalfConnectedKFs(nConnected/2), mnQuarterConnectedKFs(nConnected/4), mnMaxCandidateKFs(nCandiate), mnHalfCandidate(nCandiate/2), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2) {
 		std::cout << "MAP::" << mnMaxConnectedKFs << ", " << mnMaxCandidateKFs << std::endl;
 	}
 	Map::~Map() {}
 	Frame* Map::GetReverseWindowFrame(int idx) {
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
 		int n = 0;
-		for (auto iter = mQueueFrameWindows.rbegin(); iter != mQueueFrameWindows.rend(); iter++, n++) {
+		for (auto iter = mQueueFrameWindows1.rbegin(); iter != mQueueFrameWindows1.rend(); iter++, n++) {
 			if (n == idx) {
 				return *iter;
 			}
@@ -22,53 +22,71 @@ namespace UVR_SLAM{
 	}
 	Frame* Map::GetLastWindowFrame() {
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
-		return mQueueFrameWindows.back();
+		return mQueueFrameWindows1.back();
 	}
 	Frame* Map::AddWindowFrame(Frame* pF){
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
 		Frame* res = nullptr;
-		if (mQueueFrameWindows.size() == mnMaxConnectedKFs) {
-			std::cout << "map::start" << std::endl;
-			for (int i = 0; i < mnHalfConnect; i++) {
-				std::cout << i << ", " << mQueueFrameWindows.size() << std::endl;
-				if(i % 2 == 0){
-					auto pKF = mQueueFrameWindows.front();
-					mQueueCandidateGraphFrames.push_back(pKF);
-					res = pKF;
-				}
-				else {
-					auto pKF = mQueueFrameWindows.front();
-					pKF->mpMatchInfo->DisconnectAll();
-				}
-				mQueueFrameWindows.pop_front();
+		if (mQueueFrameWindows1.size() == mnMaxConnectedKFs) {
+			auto pKF = mQueueFrameWindows1.front();
+			if (pKF->GetKeyFrameID() % 2 == 0) {
+				mQueueFrameWindows2.push_back(pKF);
 			}
-			if (mQueueCandidateGraphFrames.size() == mnMaxCandidateKFs) {
-				for (int i = 0; i < mnMaxCandidateKFs; i++) {
-					if (i == 0) {
-						auto pKF = mQueueCandidateGraphFrames.front();
-						mspGraphFrames.insert(pKF);
-					}
-					else {
-						auto pKF = mQueueCandidateGraphFrames.front();
-						pKF->mpMatchInfo->DisconnectAll();
-					}
-					mQueueCandidateGraphFrames.pop_front();
+			mQueueFrameWindows1.pop_front();
+			if (mQueueFrameWindows2.size() > mnHalfConnectedKFs) {
+				auto pKF = mQueueFrameWindows2.front();
+				if (pKF->GetKeyFrameID() % 4 == 0) {
+					mQueueFrameWindows3.push_back(pKF);
 				}
+				mQueueFrameWindows2.pop_front();
 			}
-			std::cout << "map::end" << std::endl;
+			if (mQueueFrameWindows3.size() > mnQuarterConnectedKFs) {
+				auto pKF = mQueueFrameWindows3.front();
+				if (pKF->GetKeyFrameID() % 8 == 0) {
+					mspGraphFrames.insert(pKF);
+				}
+				mQueueFrameWindows3.pop_front();
+			}
 		}
-		mQueueFrameWindows.push_back(pF);
+		mQueueFrameWindows1.push_back(pF);
 		return res;
 	}
-	std::vector<Frame*> Map::GetWindowFrames(){
+	//level = 1이면 첫번째 레벨의큐, 2이면 두번째 레벨의 큐 접근, 3이면 세번째 레벨 큐 접근
+	std::vector<Frame*> Map::GetWindowFramesVector(int level){
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
 		std::vector<Frame*> res;
-		for (auto iter = mQueueCandidateGraphFrames.begin(); iter != mQueueCandidateGraphFrames.end(); iter++) {
-			res.push_back(*iter);
-		}
-		for (auto iter = mQueueFrameWindows.begin(); iter != mQueueFrameWindows.end(); iter++) {
-			res.push_back(*iter);
-		}
+
+		if (level > 2)
+			for (auto iter = mQueueFrameWindows3.begin(); iter != mQueueFrameWindows3.end(); iter++) {
+				res.push_back(*iter);
+			}
+		if (level > 1)
+			for (auto iter = mQueueFrameWindows2.begin(); iter != mQueueFrameWindows2.end(); iter++) {
+				res.push_back(*iter);
+			}
+		if(level > 0)
+			for (auto iter = mQueueFrameWindows1.begin(); iter != mQueueFrameWindows1.end(); iter++) {
+				res.push_back(*iter);
+			}
+		
+		return res;
+	}
+	std::set<Frame*> Map::GetWindowFramesSet(int level) {
+		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
+		std::set<Frame*> res;
+
+		if (level > 2)
+			for (auto iter = mQueueFrameWindows3.begin(); iter != mQueueFrameWindows3.end(); iter++) {
+				res.insert(*iter);
+			}
+		if (level > 1)
+			for (auto iter = mQueueFrameWindows2.begin(); iter != mQueueFrameWindows2.end(); iter++) {
+				res.insert(*iter);
+			}
+		if (level > 0)
+			for (auto iter = mQueueFrameWindows1.begin(); iter != mQueueFrameWindows1.end(); iter++) {
+				res.insert(*iter);
+			}
 		return res;
 	}
 	std::vector<Frame*> Map::GetGraphFrames() {

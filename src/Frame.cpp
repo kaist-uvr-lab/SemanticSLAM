@@ -1016,7 +1016,7 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		int idx = this->AddCP(pCP, pt);
 		pCP->ConnectFrame(this, idx);
 	}
-	std::cout << "aaa::" << this->GetNumCPs() << std::endl;
+	
 }
 
 void UVR_SLAM::MatchInfo::AddMP() {
@@ -1075,7 +1075,6 @@ void UVR_SLAM::MatchInfo::DisconnectAll() {
 		std::unique_lock<std::mutex>(mMutexCPs);
 		N = mvpMatchingCPs.size();
 	}
-	std::cout << "disconnectall::start" << std::endl;
 	for (int i = 0; i < N; i++) {
 		auto pCPi = mvpMatchingCPs[i];
 		if (!pCPi)
@@ -1087,7 +1086,6 @@ void UVR_SLAM::MatchInfo::DisconnectAll() {
 		this->RemoveMP();
 		pMPi->DisconnectFrame(this);
 	}
-	std::cout << "disconnectall::end" << std::endl;
 }
 bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 
@@ -1112,7 +1110,6 @@ bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 	}
 	bool b1 = mfLowQualityRatio > 0.4;
 	bool b2 = nMP < 200;
-	std::cout << "frame quality : " << nTest << ", " << mfLowQualityRatio << std::endl;
 	//전체 MP 수, quality가 안좋은 애들은 이미 여기에 존재하지를 못함. 
 	return b1 || b2;
 }

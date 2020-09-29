@@ -43,17 +43,19 @@ namespace UVR_SLAM {
 		Frame* GetLastWindowFrame();
 		Frame* GetReverseWindowFrame(int idx);
 		Frame* AddWindowFrame(Frame* pF);
-		std::vector<Frame*> GetWindowFrames();
+		//level = 1이면 첫번째 레벨의큐, 2이면 두번째 레벨의 큐 접근, 3이면 세번째 레벨 큐 접근
+		std::vector<Frame*> GetWindowFramesVector(int level = 3);
+		std::set<Frame*> GetWindowFramesSet(int level = 3);
 		std::vector<Frame*> GetGraphFrames();
-		int mnMaxConnectedKFs;
+		int mnMaxConnectedKFs, mnHalfConnectedKFs, mnQuarterConnectedKFs;
 		int mnMaxCandidateKFs;
 	private:
 		std::mutex mMutexGlobalFrames;
 		std::vector<Frame*> mvpGlobalFrames;
-		int mnHalfConnect, mnHalfCandidate;
+		int mnHalfCandidate;
 		
 		std::mutex mMutexWindowFrames;
-		std::list<Frame*> mQueueFrameWindows;
+		std::list<Frame*> mQueueFrameWindows1, mQueueFrameWindows2, mQueueFrameWindows3;
 		std::list<Frame*> mQueueCandidateGraphFrames;
 		std::set<Frame*> mspGraphFrames;
 ////////////////////////////////
