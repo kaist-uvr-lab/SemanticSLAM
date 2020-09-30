@@ -253,18 +253,17 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 	int nFail = 0;
 	for (int i = 0; i < vpPts.size(); i++) {
 		auto pCP = vpCPs[i];
-		pCP->mnVisibleFrameID = nCurrID;
+		auto pMP = vpMPs[i];
 		if (!vbInliers[i]){
-			pCP->AddFail();
-			pCP->ComputeQuality();
+			pMP->AddFail();
 			nFail++;
 			continue;
 		}
 		int prevIdx = vnIDXs[i];
 		auto pt = vpPts[i];
 		if (pMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, pt) < 0) {
-			pCP->AddSuccess();
-			pCP->SetLastSuccessFrame(pCurr->GetFrameID());
+			pMP->AddSuccess();
+			pMP->SetLastSuccessFrame(pCurr->GetFrameID());
 			pMatchInfo->AddCP(pCP, pt);
 			nres++;
 		}

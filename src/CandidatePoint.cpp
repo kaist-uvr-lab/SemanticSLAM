@@ -7,13 +7,12 @@ static int nCandidatePointID = 0;
 
 namespace  UVR_SLAM{
 	CandidatePoint::CandidatePoint():octave(0), bCreated(false), mbDelete(false),
-	mnFail(0), mnSuccess(0), mnTotal(0), mnCandidatePointID(++nCandidatePointID), mnLastFrameID(-1), mnVisibleFrameID(-1), mbLowQuality(true),
-		mbOptimized(false)
+		mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mnCandidatePointID(++nCandidatePointID)		
 	{
 		mpMapPoint = nullptr;
 	}
 	CandidatePoint::CandidatePoint(MatchInfo* pRefKF, int alabel, int aoct):mpRefKF(pRefKF), label(alabel), octave(aoct), bCreated(false), mbDelete(false),
-	mnFail(0), mnSuccess(0), mnTotal(0), mnCandidatePointID(++nCandidatePointID), mnLastFrameID(-1), mnVisibleFrameID(-1), mbLowQuality(true), mbOptimized(false)
+		mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mnCandidatePointID(++nCandidatePointID)
 	{
 		mpMapPoint = nullptr;
 		mnFirstID = pRefKF->mpRefFrame->GetFrameID();
@@ -199,124 +198,28 @@ namespace  UVR_SLAM{
 		return cv::Point2f(Ximg.at<float>(0) / Ximg.at < float>(2), Ximg.at<float>(1) / Ximg.at < float>(2));
 	}
 
-	//////////////////////////////
-	/////¸ÅÄª Ä÷¸®Æ¼
-	float CandidatePoint::GetRatio() {
-		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		if (bCreated) {
-			int n = mpMapPoint->GetNumConnectedFrames();
-			return ((float)mnConnectedFrames) / n;
-		}
-		else
-			return 0.0;
-	}
-	void CandidatePoint::AddFail(int n) {
-		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		mnFail += n;
-		mnTotal += n;
-	}
-	int CandidatePoint::GetFail() {
-		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		return mnFail;
-	}
-	void CandidatePoint::AddSuccess(int n) {
-		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		mnSuccess += n;
-		mnTotal += n;
-	}
-	int CandidatePoint::GetSuccess() {
-		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		return mnSuccess;
-	}
-	void CandidatePoint::SetLastSuccessFrame(int id) {
-		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		mnLastFrameID = id;
-	}
-	int CandidatePoint::GetLastSuccessFrame() {
-		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		return mnLastFrameID;
-	}
-	void CandidatePoint::SetLastVisibleFrame(int id) {
-		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		mnVisibleFrameID = id;
-	}
-	int CandidatePoint::GetLastVisibleFrame() {
-		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		return mnVisibleFrameID;
-	}
-	void CandidatePoint::ComputeQuality() {
-
-		int nS, nF, nLastFrame, nVisible, nTotal;
-		{
-			std::unique_lock<std::mutex> lockMP(mMutexCP);
-			if (!mbOptimized)
-				return;
-			nS = mnSuccess;
-			nF = mnFail;
-			nLastFrame = mnLastFrameID;
-			nVisible = mnVisibleFrameID;
-			nTotal = mnTotal;
-		}
-
-		int nDiffFrame = nVisible - mnFirstMapPointID;
-		if (nDiffFrame < 10)
-			return;
-
-		bool b = true;
-		bool bFrame = (nLastFrame + 10) < nVisible;
-		float ratio = ((float)nS) / nTotal;
-		bool bRatio = ratio < 0.6;
-		//std::cout << nS <<", "<< ratio << ", " << nVisible << ", " << nLastFrame << std::endl;
-		if (bFrame || bRatio)
-			b = false;
-		
-		{
-			std::unique_lock<std::mutex> lockMP(mMutexCP);
-			mbLowQuality = b;
-		}
-	}
-	bool CandidatePoint::GetQuality() {
-		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		///¸ÅÄª ¼º´ÉÀÌ ÁÁÀ¸¸é true, ¾ÈÁÁÀ¸¸é false
-		return mbLowQuality;
-	}
-	void CandidatePoint::SetOptimization(bool b) {
-		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		mbOptimized = b;
-	}
-	bool CandidatePoint::isOptimized() {
-		std::unique_lock<std::mutex> lockMP(mMutexCP);
-		return mbOptimized;
-	}
-	/////¸ÅÄª Ä÷¸®Æ¼
-	//////////////////////////////
-
 	/////////////////////////////
 	////MP °ü¸®
 	MapPoint* CandidatePoint::GetMP() {
 		std::unique_lock<std::mutex> lockMP(mMutexCP);
 		return mpMapPoint;
 	}
-	void CandidatePoint::SetMapPoint(MapPoint* pMP, int id) {
+	void CandidatePoint::SetMapPoint(MapPoint* pMP) {
 		std::unique_lock<std::mutex> lockMP(mMutexCP);
 		bCreated = true;
-		mnFirstMapPointID = id;
 		mpMapPoint = pMP;
-	}
-	void CandidatePoint::DeleteMapPoint() {
-		//std::unique_lock<std::mutex> lockMP(mMutexCP);
-		mpMapPoint->Delete();
 	}
 	void CandidatePoint::ResetMapPoint() {
 		std::unique_lock<std::mutex> lockMP(mMutexCP);
 		bCreated = false;
 		mpMapPoint = nullptr;
-		mnFail = 0;
+
+		/*mnFail = 0;
 		mnSuccess = 0;
 		mnTotal = 0;
 
 		mbOptimized = false;
-		mbLowQuality = true;
+		mbLowQuality = true;*/
 
 		/*mnFirstMapPointID = -1;
 		mnVisibleFrameID;

@@ -133,6 +133,30 @@ namespace UVR_SLAM {
 		std::mutex mMutexLabel;
 		int label;
 	////label
+
+	///////////////////
+	////¸ÅÄª Ä÷¸®Æ¼ °ü·Ã
+	public:
+		int mnLastVisibleFrameID;
+		int mnLastMatchingFrameID;
+		void AddFail(int n = 1);
+		int GetFail();
+		void AddSuccess(int n = 1);
+		int GetSuccess();
+		void SetLastSuccessFrame(int id);
+		int GetLastSuccessFrame();
+		void SetLastVisibleFrame(int id);
+		int GetLastVisibleFrame();
+		void ComputeQuality();
+		bool GetQuality();
+		void SetOptimization(bool b);
+		bool isOptimized();
+	private:
+		bool mbOptimized;
+		int mnFail, mnSuccess, mnTotal;
+		bool mbLowQuality;
+		////¸ÅÄª Ä÷¸®Æ¼ °ü·Ã
+		///////////////////
 	};
 }
 

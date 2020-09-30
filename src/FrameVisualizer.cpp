@@ -43,7 +43,7 @@ namespace UVR_SLAM {
 				for (int i = 0; i < nCP; i++) {
 					auto pCPi = pF->mpMatchInfo->mvpMatchingCPs[i];
 					auto pMPi = pCPi->GetMP();
-					if (!pMPi || pMPi->isDeleted() || !pCPi->GetQuality())
+					if (!pMPi || pMPi->isDeleted() || !pMPi->GetQuality() || !pMPi->isOptimized())
 						continue;
 					
 					cv::Point2f p2D;

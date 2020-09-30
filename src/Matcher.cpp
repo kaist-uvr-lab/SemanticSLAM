@@ -883,7 +883,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		if (prevPts.size() == 500)
 			break;
 		auto pMPi = pCPi->GetMP();
-		if (pMPi && pCPi->GetQuality() && pCPi->isOptimized()) {
+		if (pMPi && pMPi->GetQuality() && pMPi->isOptimized()) {
 			if (pMPi->isDeleted())
 				continue;
 			prevPts.push_back(prev->mpMatchInfo->mvMatchingPts[i]);

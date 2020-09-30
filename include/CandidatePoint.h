@@ -53,41 +53,19 @@ namespace UVR_SLAM {
 	////////////////////////
 	////////MP包府
 	public:
-		void DeleteMapPoint();
 		void ResetMapPoint();
-		void SetMapPoint(MapPoint* pMP, int id);
+		void SetMapPoint(MapPoint* pMP);
 		MapPoint* GetMP();
 	private:
 		bool bCreated;
 		MapPoint* mpMapPoint;
+
+		int mnLastVisibleFrameID;
+		int mnLastMatchingFrameID;
 	////////MP包府
 	////////////////////////
 
-	///////////////////
-	////概莫 镊府萍 包访
-	public:
-		int mnVisibleFrameID;
-		float GetRatio();
-		void AddFail(int n = 1);
-		int GetFail();
-		void AddSuccess(int n = 1);
-		int GetSuccess();
-		void SetLastSuccessFrame(int id);
-		int GetLastSuccessFrame();
-		void SetLastVisibleFrame(int id);
-		int GetLastVisibleFrame();
-		void ComputeQuality();
-		bool GetQuality();
-		void SetOptimization(bool b);
-		bool isOptimized();
-	private:
-		bool mbOptimized;
-		int mnFail, mnSuccess, mnTotal;
-		int mnLastFrameID;
-		int mnFirstMapPointID;
-		bool mbLowQuality;
-	////概莫 镊府萍 包访
-	///////////////////
+	
 	};
 
 

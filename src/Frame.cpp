@@ -1095,17 +1095,16 @@ bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 		N = mvpMatchingCPs.size();
 	}
 	int nMP = 0;
-	int nTest = 0;
 	for (int i = 0; i < N; i++) {
 		auto pCPi = mvpMatchingCPs[i];
-		if (!pCPi->GetQuality()) {
-			pCPi->DeleteMapPoint();
-		}
+		
 		auto pMPi = pCPi->GetMP();
 		if (pMPi && !pMPi->isDeleted()){
-			nMP++;
-			if (pMPi->GetNumConnectedFrames() > 2)
-				nTest++;
+			pMPi->ComputeQuality();
+			if (!pMPi->GetQuality()){
+				pMPi->Delete();
+			}else
+				nMP++;
 		}
 	}
 	bool b1 = mfLowQualityRatio > 0.4;
@@ -1128,9 +1127,7 @@ int UVR_SLAM::MatchInfo::GetMatchingPtsTracking(std::vector<UVR_SLAM::CandidateP
 		if (vPTs.size() == nMaxMP)
 			break;
 		auto pMPi = pCPi->GetMP();
-		if (pMPi && pCPi->GetQuality() && pCPi->isOptimized()) {
-			if (pMPi->isDeleted())
-				continue;
+		if (pMPi && !pMPi->isDeleted() && pMPi->GetQuality() && pMPi->isOptimized()) {
 			vPTs.push_back(mvMatchingPts[i]);
 			vpCPs.push_back(pCPi);
 			vpMPs.push_back(pMPi);
@@ -1150,9 +1147,7 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLA
 		auto pCPi = mvpMatchingCPs[i];
 		
 		auto pMPi = pCPi->GetMP();
-		if (pMPi && pCPi->GetQuality()) {
-			if (pMPi->isDeleted())
-				continue;
+		if (pMPi && !pMPi->isDeleted() && pMPi->GetQuality() && pMPi->isOptimized()) {
 			res.push_back(mvMatchingPts[i]);
 			vpMPs.push_back(pMPi);
 		}
@@ -1170,16 +1165,10 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsOptimization(std::ve
 		auto pCPi = mvpMatchingCPs[i];
 
 		auto pMPi = pCPi->GetMP();
-		if (pMPi && pCPi->GetQuality()) {
-			if (pMPi->isDeleted())
-				continue;
+		if (pMPi && !pMPi->isDeleted() && pMPi->GetQuality() && pMPi->isOptimized()) {
 			res.push_back(mvMatchingPts[i]);
 			vpMPs.push_back(pMPi);
 			vpCPs.push_back(pCPi);
-		}
-		if (!pCPi->GetQuality()){
-			//std::cout << "GetMatchingPtsOptimization::Quality error" << std::endl;
-			pCPi->DeleteMapPoint();
 		}
 	}
 	return res;

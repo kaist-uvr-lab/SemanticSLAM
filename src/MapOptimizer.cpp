@@ -107,7 +107,6 @@ void UVR_SLAM::MapOptimizer::Run() {
 			//std::cout << "BA::preprocessing::start" << std::endl;
 			std::chrono::high_resolution_clock::time_point temp_1 = std::chrono::high_resolution_clock::now();
 			std::vector<UVR_SLAM::MapPoint*> vpMPs;// , vpMPs2;
-			std::vector<UVR_SLAM::CandidatePoint*> vpCPs;
 			std::vector<UVR_SLAM::Frame*> vpKFs;
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
 			
@@ -144,7 +143,6 @@ void UVR_SLAM::MapOptimizer::Run() {
 					auto pCPi = mvpMatchingCPs[i];
 					pMPi->mnLocalBAID = nTargetID;
 					vpMPs.push_back(pMPi);
-					vpCPs.push_back(pCPi);
 				}
 			}
 
@@ -166,9 +164,9 @@ void UVR_SLAM::MapOptimizer::Run() {
 				PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpMPs, vpKFs, vpFixedKFs);
 			}
 
-			for (int i = 0; i < vpCPs.size(); i++)
+			for (int i = 0; i < vpMPs.size(); i++)
 			{
-				vpCPs[i]->SetOptimization(true);
+				vpMPs[i]->SetOptimization(true);
 			}
 
 			///////KF 이미지 시각화
@@ -202,7 +200,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 						auto pCPi = pMatch->mvpMatchingCPs[j];
 						auto pt = pMatch->mvMatchingPts[j];
 						auto pMPi = pCPi->GetMP();
-						if (!pMPi || pMPi->isDeleted() || !pCPi->GetQuality())
+						if (!pMPi || pMPi->isDeleted() || !pMPi->GetQuality())
 							continue;
 						cv::Point2f pt3;
 						pMPi->Projection(pt3, pKFi, mnWidth, mnHeight);
