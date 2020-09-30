@@ -1079,7 +1079,7 @@ void UVR_SLAM::MatchInfo::DisconnectAll() {
 		auto pCPi = mvpMatchingCPs[i];
 		if (!pCPi)
 			continue;
-		pCPi->DisconnectFrame(this);
+		//pCPi->DisconnectFrame(this);
 		auto pMPi = pCPi->GetMP();
 		if (!pMPi || pMPi->isDeleted())
 			continue;

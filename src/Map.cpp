@@ -32,11 +32,18 @@ namespace UVR_SLAM{
 			if (pKF->GetKeyFrameID() % 2 == 0) {
 				mQueueFrameWindows2.push_back(pKF);
 			}
+			else {
+				pKF->mpMatchInfo->DisconnectAll();
+			}
 			mQueueFrameWindows1.pop_front();
 			if (mQueueFrameWindows2.size() > mnHalfConnectedKFs) {
 				auto pKF = mQueueFrameWindows2.front();
 				if (pKF->GetKeyFrameID() % 4 == 0) {
 					mQueueFrameWindows3.push_back(pKF);
+					res = pKF;
+				}
+				else {
+					pKF->mpMatchInfo->DisconnectAll();
 				}
 				mQueueFrameWindows2.pop_front();
 			}
@@ -44,6 +51,9 @@ namespace UVR_SLAM{
 				auto pKF = mQueueFrameWindows3.front();
 				if (pKF->GetKeyFrameID() % 8 == 0) {
 					mspGraphFrames.insert(pKF);
+				}
+				else {
+					pKF->mpMatchInfo->DisconnectAll();
 				}
 				mQueueFrameWindows3.pop_front();
 			}

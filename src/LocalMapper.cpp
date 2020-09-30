@@ -125,7 +125,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			
 			ProcessNewKeyFrame();
 			mpTargetFrame->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
-
+			std::cout << "Local Mapping :: ID = " << mpTargetFrame->GetFrameID() << "::Start::"<<mpTargetFrame->mpMatchInfo->GetNumCPs() <<"::"<<mpTargetFrame->mpMatchInfo->mfLowQualityRatio<< std::endl;
 			int nTargetID = mpTargetFrame->GetFrameID();
 			mpTargetFrame->mpMatchInfo->ConnectAll();
 			mpPrevKeyFrame->mpMatchInfo->SetMatchingPoints();
@@ -143,6 +143,107 @@ void UVR_SLAM::LocalMapper::Run() {
 			/////프레임 퀄리티 계산
 			/////////KF-KF 매칭
 			int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vMatchPrevPts, vMatchCurrPts, vMatchPrevCPs, mK, mInvK, time1, debugMatch);
+			
+			////////////New Map Point Creation Test
+			//{
+			//	auto lastKF = mpMap->GetReverseWindowFrame(0);
+			//	auto llastKF = mpMap->GetReverseWindowFrame(1);
+			//	auto lastMatch = lastKF->mpMatchInfo;
+			//	auto llastMatch = llastKF->mpMatchInfo;
+
+			//	cv::Mat Rpprev, Tpprev,Rprev, Tprev, Rcurr, Tcurr;
+			//	mpTargetFrame->GetPose(Rcurr, Tcurr);
+			//	lastKF->GetPose(Rprev, Tprev);
+			//	llastKF->GetPose(Rpprev, Tpprev);
+
+			//	cv::Mat Pcurr, Pprev, Ppprev;
+			//	cv::hconcat(Rcurr, Tcurr, Pcurr);
+			//	cv::hconcat(Rprev, Tprev, Pprev);
+			//	cv::hconcat(Rpprev, Tpprev, Ppprev);
+			//	
+			//	std::vector<cv::Point2f> vTempPTs1, vTempPTs2, vTempPTs3; //curr, prev, pprev
+			//	std::vector<CandidatePoint*> vTempCPs;
+			//	for (int i = 0; i < vMatchPrevCPs.size(); i++) {
+			//		auto pCPi = vMatchPrevCPs[i];
+			//		int pidx = pCPi->GetPointIndexInFrame(lastMatch);
+			//		int ppidx = pCPi->GetPointIndexInFrame(llastMatch);
+			//		if (ppidx < 0 || pidx < 0){
+			//			continue;
+			//		}
+			//		if (!pCPi->GetQuality())
+			//			pCPi->ResetMapPoint();
+			//		auto pMPi = pCPi->GetMP();
+			//		if (pMPi)
+			//			continue;
+
+			//		auto pt1 = vMatchCurrPts[i];
+			//		auto pt2 = lastMatch->GetPt(pidx);
+			//		auto pt3 = llastMatch->GetPt(ppidx);
+			//		vTempCPs.push_back(pCPi);
+			//		vTempPTs1.push_back(pt1);
+			//		vTempPTs2.push_back(pt2);
+			//		vTempPTs3.push_back(pt3);
+			//	}
+			//	if (vTempCPs.size() > 20) {
+			//		cv::Mat Map;
+			//		cv::triangulatePoints(mK*Ppprev, mK*Pcurr, vTempPTs3, vTempPTs1, Map);
+
+			//		std::vector<cv::Point2f> vMapPTs1, vMapPTs2, vMapPTs3; //curr, prev, pprev
+			//		std::vector<CandidatePoint*> vMapCPs;
+			//		std::vector<cv::Mat> vMaps;
+
+			//		for (int i = 0; i < Map.cols; i++) {
+
+			//			cv::Mat X3D = Map.col(i);
+			//			auto currPt = vTempPTs1[i];
+			//			auto prevPt = vTempPTs3[i];
+			//			if (abs(X3D.at<float>(3)) < 0.0001) {
+			//				continue;
+			//			}
+			//			X3D /= X3D.at<float>(3);
+			//			X3D = X3D.rowRange(0, 3);
+
+			//			cv::Mat proj1 = Rcurr*X3D + Tcurr;
+			//			cv::Mat proj2 = Rpprev*X3D + Tpprev;
+
+			//			//depth test
+			//			if (proj1.at<float>(2) < 0.0 || proj2.at<float>(2) < 0.0) {
+			//				continue;
+			//			}
+			//			//depth test
+			//			vMapPTs1.push_back(vTempPTs1[i]);
+			//			vMapPTs2.push_back(vTempPTs2[i]);
+			//			vMapPTs3.push_back(vTempPTs3[i]);
+			//			vMapCPs.push_back(vTempCPs[i]);
+			//			vMaps.push_back(X3D);
+			//		}
+			//		//이부분 수정 필요
+			//		UVR_SLAM::Optimization::PoseRecoveryOptimization(mpTargetFrame, lastKF, llastKF, vMapPTs1, vMapPTs2, vMapPTs3, vMaps);
+
+			//		mpMap->ClearReinit();
+			//		auto spWindowKFs = mpMap->GetWindowFramesSet(1);
+			//		/////시각화 확인
+			//		for (int i = 0; i < vMaps.size(); i++) {
+			//			cv::Mat X3D = vMaps[i];
+			//			mpMap->AddReinit(X3D);
+			//			auto pCPi = vMapCPs[i];
+			//			int label = pCPi->GetLabel();
+			//			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, pCPi, X3D, cv::Mat(), label, pCPi->octave);
+			//			auto mmpFrames = pCPi->GetFrames();
+			//			for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
+			//				auto pMatch = iter->first;
+			//				int idx = iter->second;
+			//				auto pKF = pMatch->mpRefFrame;
+			//				if (spWindowKFs.find(pKF) != spWindowKFs.end()) {
+			//					pMatch->AddMP();
+			//					pMP->ConnectFrame(pMatch, idx);
+			//				}
+			//			}
+			//		}
+			//	}
+			//}
+			////////////New Map Point Creation Test
+			
 			//////Pose Recovery
 			//if (bLowQualityFrame) {
 			//	auto llastKF = mpMap->GetReverseWindowFrame(1);
@@ -716,7 +817,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 	//set kf 제거 필요함
 
 	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-
+	auto spWindowKFs = mpMap->GetWindowFramesSet(2);
 	int N = vMatchCurrPts.size();
 	int nRes = 0;
 	for (int i = 0; i < N; i++) {
@@ -737,9 +838,12 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 				auto mmpFrames = pCPi->GetFrames();
 				for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
 					auto pMatch = iter->first;
-					int idx = iter->second;
-					pMatch->AddMP();
-					pMP->ConnectFrame(pMatch, idx);
+					auto pKF = pMatch->mpRefFrame;
+					if (spWindowKFs.find(pKF) != spWindowKFs.end()) {
+						int idx = iter->second;
+						pMatch->AddMP();
+						pMP->ConnectFrame(pMatch, idx);
+					}
 				}
 				nRes++;
 				cv::circle(debugMatch, currPt+ptBottom, 3, cv::Scalar(0, 255, 255));

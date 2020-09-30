@@ -102,6 +102,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			////preprocessing
 			//std::cout << "ba::processing::start" << std::endl;
 			int nTargetID = mpTargetFrame->GetFrameID();
+			int nTargetKeyID = mpTargetFrame->GetKeyFrameID();
 			mpTargetFrame->mnLocalBAID = nTargetID;
 			//std::cout << "BA::preprocessing::start" << std::endl;
 			std::chrono::high_resolution_clock::time_point temp_1 = std::chrono::high_resolution_clock::now();
@@ -183,10 +184,18 @@ void UVR_SLAM::MapOptimizer::Run() {
 				auto lastMatch = lastKF->mpMatchInfo;
 				//std::vector<MapPoint*> vpMPs;
 				//auto vPTs = lastKF->mpMatchInfo->GetMatchingPts(vpMPs);
+
+				cv::Scalar color1(0, 0, 255);
+				cv::Scalar color2(0, 255, 0);
+				cv::Scalar color3(255, 0, 0);
+
 				for (int i = 0; i < nKF; i++) {
 					auto pKFi = vpKFs[i];
 					auto pMatch = pKFi->mpMatchInfo;
 					cv::Mat img = pKFi->GetOriginalImage();
+
+					cv::Mat R, t;
+					pKFi->GetPose(R, t);
 
 					int nCP = pMatch->GetNumCPs();
 					for (int j = 0; j < nCP; j++) {
@@ -195,11 +204,17 @@ void UVR_SLAM::MapOptimizer::Run() {
 						auto pMPi = pCPi->GetMP();
 						if (!pMPi || pMPi->isDeleted() || !pCPi->GetQuality())
 							continue;
+						cv::Point2f pt3;
+						pMPi->Projection(pt3, pKFi, mnWidth, mnHeight);
+						if(pMPi->mnFirstKeyFrameID == nTargetKeyID)
+							cv::circle(img, pt, 4, color3, 2);
 						if (pMPi->isInFrame(lastMatch)) {
-							cv::circle(img, pt, 2, cv::Scalar(0, 0, 255), -1);
+							cv::circle(img, pt, 2, color1, -1);
+							cv::line(img, pt, pt3, color1, 2);
 						}
 						else {
-							cv::circle(img, pt, 2, cv::Scalar(0, 255,0), -1);
+							cv::circle(img, pt, 2, color2, -1);
+							cv::line(img, pt, pt3, color2, 2);
 						}
 					}
 					/*for (int j = 0; j < vpMPs.size(); j++) {

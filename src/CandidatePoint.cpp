@@ -267,7 +267,7 @@ namespace  UVR_SLAM{
 		float ratio = ((float)nS) / nTotal;
 		bool bRatio = ratio < 0.6;
 		//std::cout << nS <<", "<< ratio << ", " << nVisible << ", " << nLastFrame << std::endl;
-		if (bFrame && bRatio)
+		if (bFrame || bRatio)
 			b = false;
 		
 		{
