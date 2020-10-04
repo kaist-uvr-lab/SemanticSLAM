@@ -984,8 +984,12 @@ void UVR_SLAM::MatchInfo::SetLabel() {
 
 //새로운 맵포인트를 생성하기 위한 키포인트를 생성.
 void UVR_SLAM::MatchInfo::SetMatchingPoints() {
+
+	/*int N = this->GetNumCPs.size();
+	if (N > 1000)
+		return;*/
 	int radius = 5;
-	int nMax = 300; //둘다 하면 500
+	int nMax = 100; //둘다 하면 500
 	int nIncEdge = mpRefFrame->mvEdgePts.size() / nMax;
 	int nIncORB = mpRefFrame->mvPts.size() / nMax;
 
@@ -993,10 +997,6 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		nIncEdge = 1;
 	if (nIncORB == 0)
 		nIncORB = 1;
-
-	//이게 변경이 되어야 함. 이미 추가가 되어 있다고 가정.
-	//mvTempPts = GetMatchingPts(mvTempOctaves);
-	nPrevNumCPs = GetNumCPs();
 
 	for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += nIncEdge) {
 		auto pt = mpRefFrame->mvEdgePts[i];
@@ -1058,15 +1058,17 @@ void UVR_SLAM::MatchInfo::ConnectAll() {
 		std::unique_lock<std::mutex>(mMutexCPs);
 		N = mvpMatchingCPs.size();
 	}
-	
+	int nCurrID = this->mpRefFrame->GetKeyFrameID();
 	for (int i = 0; i < N; i++) {
 		auto pCPi = mvpMatchingCPs[i];
 		pCPi->ConnectFrame(this, i);
 		auto pMPi = pCPi->GetMP();
-		if (!pMPi)
+		if (!pMPi || !pMPi->GetQuality() || pMPi->isDeleted())
 			continue;
 		this->AddMP();
 		pMPi->ConnectFrame(this, i);
+		pMPi->SetLastVisibleFrame(std::move(nCurrID));
+		pMPi->SetLastSuccessFrame(std::move(nCurrID));
 	}
 }
 void UVR_SLAM::MatchInfo::DisconnectAll() {
@@ -1095,6 +1097,7 @@ bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 		N = mvpMatchingCPs.size();
 	}
 	int nMP = 0;
+	int nLow = 0;
 	for (int i = 0; i < N; i++) {
 		auto pCPi = mvpMatchingCPs[i];
 		
@@ -1103,13 +1106,22 @@ bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 			pMPi->ComputeQuality();
 			if (!pMPi->GetQuality()){
 				pMPi->Delete();
+				nLow++;
 			}else
 				nMP++;
 		}
 	}
-	bool b1 = mfLowQualityRatio > 0.4;
+	bool b1 = false;//mfLowQualityRatio > 0.4;
 	bool b2 = nMP < 200;
+	/*if(nMP < 100){
+		std::cout <<"ID = "<<this->mpRefFrame->GetKeyFrameID()<< "FrameQuality = " << nMP << "+" << nLow << "=" << N << std::endl;
+		cv::Mat img = this->mpRefFrame->GetOriginalImage();
+		cv::imshow("low quality", img);
+		waitKey(1);
+	}*/
+	//b3은 이전 프레임과 비교시 차이가 갑자기 클 때로
 	//전체 MP 수, quality가 안좋은 애들은 이미 여기에 존재하지를 못함. 
+	//std::cout << "FrameQuality = " << nMP << "+" <<nLow<<"="<< N << std::endl;
 	return b1 || b2;
 }
 
@@ -1147,28 +1159,9 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLA
 		auto pCPi = mvpMatchingCPs[i];
 		
 		auto pMPi = pCPi->GetMP();
-		if (pMPi && !pMPi->isDeleted() && pMPi->GetQuality() && pMPi->isOptimized()) {
+		if (pMPi && !pMPi->isDeleted() && pMPi->GetQuality()) {
 			res.push_back(mvMatchingPts[i]);
 			vpMPs.push_back(pMPi);
-		}
-	}
-	return res;
-}
-std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsOptimization(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs) {
-	int N;
-	{
-		std::unique_lock<std::mutex>(mMutexCPs);
-		N = mvpMatchingCPs.size();
-	}
-	std::vector<cv::Point2f> res;
-	for (int i = 0; i < N; i++) {
-		auto pCPi = mvpMatchingCPs[i];
-
-		auto pMPi = pCPi->GetMP();
-		if (pMPi && !pMPi->isDeleted() && pMPi->GetQuality() && pMPi->isOptimized()) {
-			res.push_back(mvMatchingPts[i]);
-			vpMPs.push_back(pMPi);
-			vpCPs.push_back(pCPi);
 		}
 	}
 	return res;
@@ -1200,14 +1193,4 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts() {
 	}
 	return res;
 }
-
-UVR_SLAM::CandidatePoint* UVR_SLAM::MatchInfo::GetCP(int idx) {
-	std::unique_lock<std::mutex>(mMutexCPs);
-	return mvpMatchingCPs[idx];
-}
-cv::Point2f UVR_SLAM::MatchInfo::GetPt(int idx) {
-	std::unique_lock<std::mutex>(mMutexCPs);
-	return mvMatchingPts[idx];
-}
-
 //////////////matchinfo

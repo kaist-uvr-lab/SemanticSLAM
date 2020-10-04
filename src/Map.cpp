@@ -3,10 +3,11 @@
 #include "Frame.h"
 #include "MapPoint.h"
 #include "Plane.h"
+#include "System.h"
 
 namespace UVR_SLAM{
 	Map::Map():mnMaxConnectedKFs(8), mnHalfConnectedKFs(4), mnQuarterConnectedKFs(2), mnMaxCandidateKFs(4), mnHalfCandidate(2), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2){}
-	Map::Map(int nConnected, int nCandiate) :mnMaxConnectedKFs(nConnected), mnHalfConnectedKFs(nConnected/2), mnQuarterConnectedKFs(nConnected/4), mnMaxCandidateKFs(nCandiate), mnHalfCandidate(nCandiate/2), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2) {
+	Map::Map(System* pSystem, int nConnected, int nCandiate) :mpSystem(pSystem), mnMaxConnectedKFs(nConnected), mnHalfConnectedKFs(nConnected/2), mnQuarterConnectedKFs(nConnected/4), mnMaxCandidateKFs(nCandiate), mnHalfCandidate(nCandiate/2), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2) {
 		std::cout << "MAP::" << mnMaxConnectedKFs << ", " << mnMaxCandidateKFs << std::endl;
 	}
 	Map::~Map() {}
@@ -31,9 +32,10 @@ namespace UVR_SLAM{
 			auto pKF = mQueueFrameWindows1.front();
 			if (pKF->GetKeyFrameID() % 2 == 0) {
 				mQueueFrameWindows2.push_back(pKF);
+				pKF->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
 			}
 			else {
-				pKF->mpMatchInfo->DisconnectAll();
+				//pKF->mpMatchInfo->DisconnectAll();
 			}
 			mQueueFrameWindows1.pop_front();
 			if (mQueueFrameWindows2.size() > mnHalfConnectedKFs) {
@@ -43,7 +45,7 @@ namespace UVR_SLAM{
 					res = pKF;
 				}
 				else {
-					pKF->mpMatchInfo->DisconnectAll();
+					//pKF->mpMatchInfo->DisconnectAll();
 				}
 				mQueueFrameWindows2.pop_front();
 			}
@@ -53,7 +55,7 @@ namespace UVR_SLAM{
 					mspGraphFrames.insert(pKF);
 				}
 				else {
-					pKF->mpMatchInfo->DisconnectAll();
+					//pKF->mpMatchInfo->DisconnectAll();
 				}
 				mQueueFrameWindows3.pop_front();
 			}

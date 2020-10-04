@@ -198,7 +198,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			//std::cout << vTempPts1[idx] << ", " << mpInitFrame1->mpMatchInfo->GetCPPt(idx2) <<"::"<< vTempMatchPts1[i] << std::endl;
 
 			res3++;
-			auto pCP = mpInitFrame1->mpMatchInfo->GetCP(idx2);
+			auto pCP = mpInitFrame1->mpMatchInfo->mvpMatchingCPs[idx2];
 			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
 			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpInitFrame2, pCP, X3D, cv::Mat(), label1);
 			pMP->SetOptimization(true);

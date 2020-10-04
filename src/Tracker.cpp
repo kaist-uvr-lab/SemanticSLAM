@@ -255,15 +255,15 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 		auto pCP = vpCPs[i];
 		auto pMP = vpMPs[i];
 		if (!vbInliers[i]){
-			pMP->AddFail();
+			//pMP->AddFail();
 			nFail++;
 			continue;
 		}
 		int prevIdx = vnIDXs[i];
 		auto pt = vpPts[i];
 		if (pMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, pt) < 0) {
-			pMP->AddSuccess();
-			pMP->SetLastSuccessFrame(pCurr->GetFrameID());
+			//pMP->AddSuccess();
+			//pMP->SetLastSuccessFrame(pCurr->GetFrameID());
 			pMatchInfo->AddCP(pCP, pt);
 			nres++;
 		}

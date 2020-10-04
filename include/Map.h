@@ -9,6 +9,7 @@
 
 namespace UVR_SLAM {
 	class Frame;
+	class System;
 	class MapPoint;
 	class WallPlane;
 	class PlaneInformation;
@@ -31,7 +32,7 @@ namespace UVR_SLAM {
 		//벽을 가져야 한다.
 		//바닥과 벽의 초기화 여부를 알아야 한다.
 		Map();
-		Map(int nConnected = 8, int nCandiate = 4);
+		Map(System* pSystem, int nConnected = 8, int nCandiate = 4);
 		virtual ~Map();
 	public:
 		void AddFrame(Frame* pF);
@@ -58,6 +59,7 @@ namespace UVR_SLAM {
 		std::list<Frame*> mQueueFrameWindows1, mQueueFrameWindows2, mQueueFrameWindows3;
 		std::list<Frame*> mQueueCandidateGraphFrames;
 		std::set<Frame*> mspGraphFrames;
+		System* mpSystem;
 ////////////////////////////////
 ////Dense Flow 관리
 	public:

@@ -139,10 +139,10 @@ namespace UVR_SLAM {
 	public:
 		int mnLastVisibleFrameID;
 		int mnLastMatchingFrameID;
-		void AddFail(int n = 1);
-		int GetFail();
-		void AddSuccess(int n = 1);
-		int GetSuccess();
+		/*void AddFail(float n = 1.0);
+		float GetFail();
+		void AddSuccess(float n = 1.0);
+		float GetSuccess();*/
 		void SetLastSuccessFrame(int id);
 		int GetLastSuccessFrame();
 		void SetLastVisibleFrame(int id);
@@ -153,7 +153,8 @@ namespace UVR_SLAM {
 		bool isOptimized();
 	private:
 		bool mbOptimized;
-		int mnFail, mnSuccess, mnTotal;
+		int mnTotal;
+		float mnSuccess;
 		bool mbLowQuality;
 		////¸ÅÄª Ä÷¸®Æ¼ °ü·Ã
 		///////////////////

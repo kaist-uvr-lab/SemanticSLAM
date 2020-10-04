@@ -10,16 +10,16 @@ namespace UVR_SLAM {
 	MapPoint::MapPoint()
 		:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
 		, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(0)
-		, mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnFail(0), mnSuccess(0), mnTotal(0)
+		, mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0)
 	{}
 	MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP,cv::Mat _p3D, cv::Mat _desc, int alabel, int octave)
 	: mpMap(pMap), mpRefKF(pRefKF),p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
 	, mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(octave)
-	, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnFail(0), mnSuccess(0), mnTotal(0)
+	, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0)
 	{
 		alabel = label;
 		mnFirstKeyFrameID = mpRefKF->GetKeyFrameID();
-		mnLastVisibleFrameID = mnFirstKeyFrameID;
+		mnLastMatchingFrameID = mnLastVisibleFrameID = mnFirstKeyFrameID;
 		//CP처리
 		mpCP = pCP;
 		mpCP->SetMapPoint(this);
@@ -29,11 +29,11 @@ namespace UVR_SLAM {
 	MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int alabel, int octave)
 	: mpMap(pMap), mpRefKF(pRefKF), p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
 	, mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(octave)
-	, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnFail(0), mnSuccess(0), mnTotal(0)
+	, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0)
 	{
 		alabel = label;
 		mnFirstKeyFrameID = mpRefKF->GetKeyFrameID();
-		mnLastVisibleFrameID = mnFirstKeyFrameID;
+		mnLastMatchingFrameID = mnLastVisibleFrameID = mnFirstKeyFrameID;
 		//CP처리
 		mpCP = pCP;
 		mpCP->SetMapPoint(this);
@@ -55,6 +55,7 @@ namespace UVR_SLAM {
 		std::unique_lock<std::mutex> lockMP(mMutexRecentLocalMapID);
 		mnLocalMapID = nLocalMapID;
 	}
+	////트래킹 시 중복 체크하는 용도
 	int MapPoint::GetRecentTrackingFrameID() {
 		std::unique_lock<std::mutex> lockMP(mMutexRecentTrackedFrameID);
 		return mnTrackedFrameID;
@@ -390,7 +391,7 @@ namespace UVR_SLAM {
 
 	//////////////////////////////
 	/////매칭 퀄리티
-	void MapPoint::AddFail(int n) {
+	/*void MapPoint::AddFail(int n) {
 		std::unique_lock<std::mutex> lockMP(mMutexMP);
 		mnFail += n;
 		mnTotal += n;
@@ -407,10 +408,11 @@ namespace UVR_SLAM {
 	int MapPoint::GetSuccess() {
 		std::unique_lock<std::mutex> lockMP(mMutexMP);
 		return mnSuccess;
-	}
+	}*/
 	void MapPoint::SetLastSuccessFrame(int id) {
 		std::unique_lock<std::mutex> lockMP(mMutexMP);
 		mnLastMatchingFrameID = id;
+		mnSuccess++;
 	}
 	int MapPoint::GetLastSuccessFrame() {
 		std::unique_lock<std::mutex> lockMP(mMutexMP);
@@ -419,6 +421,7 @@ namespace UVR_SLAM {
 	void MapPoint::SetLastVisibleFrame(int id) {
 		std::unique_lock<std::mutex> lockMP(mMutexMP);
 		mnLastVisibleFrameID = id;
+		mnTotal++;
 	}
 	int MapPoint::GetLastVisibleFrame() {
 		std::unique_lock<std::mutex> lockMP(mMutexMP);
@@ -426,28 +429,43 @@ namespace UVR_SLAM {
 	}
 	void MapPoint::ComputeQuality() {
 
-		int nS, nF, nMatchFrame, nVisibleFrame, nTotal;
+		float nS;
+		int nMatchFrame, nVisibleFrame, nTotal;
+		std::map<UVR_SLAM::MatchInfo*, int> tempFrames;
 		{
 			std::unique_lock<std::mutex> lockMP(mMutexMP);
 			if (!mbOptimized)
 				return;
 			nS = mnSuccess;
-			nF = mnFail;
 			nMatchFrame = mnLastMatchingFrameID;
 			nVisibleFrame = mnLastVisibleFrameID;
 			nTotal = mnTotal;
+			tempFrames = mmpFrames;
 		}
-
-		/*int nDiffFrame = nVisibleFrame - mnFirstKeyFrameID;
-		if (nDiffFrame < 10)
-			return;*/
+		int nWidth = mpRefKF->mpMatchInfo->mnWidth;
+		int nHeight = mpRefKF->mpMatchInfo->mnHeight;
+		//projection test
+		/*for (auto iter = tempFrames.begin(); iter != tempFrames.end(); iter++) {
+			auto pKF = iter->first;
+			auto idx = iter->second;
+			auto pt = pKF->mvMatchingPts[idx];
+			cv::Point2f pt2;
+			this->Projection(pt2, pKF->mpRefFrame, nWidth, nHeight);
+			cv::Point2f diffPt = pt2 - pt;
+			float dist = diffPt.dot(diffPt);
+			if (dist > 9.0) {
+				this->DisconnectFrame(pKF);
+			}
+		}*/
+		//projection test
 
 		bool b = true;
-		bool bFrame = (nMatchFrame + 10) < nVisibleFrame;
-		float ratio = ((float)nS) / nTotal;
-		bool bRatio = ratio < 0.6;
+		bool bFrame = (nMatchFrame + 2) < nVisibleFrame;
+		float ratio = nS / nTotal;
+		bool bRatio = false;//ratio < 0.3;
+		bool bConnect = false;//;GetNumConnectedFrames() < 3;
 		//std::cout << nS <<", "<< ratio << ", " << nVisible << ", " << nLastFrame << std::endl;
-		if (bFrame || bRatio)
+		if (bFrame || bRatio || bConnect)
 			b = false;
 
 		{

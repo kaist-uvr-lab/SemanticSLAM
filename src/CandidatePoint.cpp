@@ -150,7 +150,7 @@ namespace  UVR_SLAM{
 		pTargetKF->GetPose(R, t);
 		cv::hconcat(R, t, P);
 		Rt = R.t();
-		auto ptFirst = pFirst->GetPt(idx);
+		auto ptFirst = pFirst->mvMatchingPts[idx];
 		float val = CalcParallax(Rt, Rcurr.t(), ptFirst, ptCurr, invK);
 
 		if (val >= 0.9998) {
@@ -225,6 +225,22 @@ namespace  UVR_SLAM{
 		mnVisibleFrameID;
 		mnLastFrameID;*/
 
+	}
+	void CandidatePoint::SetLastSuccessFrame(int id) {
+		std::unique_lock<std::mutex> lockMP(mMutexCP);
+		mnLastMatchingFrameID = id;
+	}
+	int CandidatePoint::GetLastSuccessFrame() {
+		std::unique_lock<std::mutex> lockMP(mMutexCP);
+		return mnLastMatchingFrameID;
+	}
+	void CandidatePoint::SetLastVisibleFrame(int id) {
+		std::unique_lock<std::mutex> lockMP(mMutexCP);
+		mnLastVisibleFrameID = id;
+	}
+	int CandidatePoint::GetLastVisibleFrame() {
+		std::unique_lock<std::mutex> lockMP(mMutexCP);
+		return mnLastVisibleFrameID;
 	}
 	////MP °ü¸®
 	/////////////////////////////

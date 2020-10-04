@@ -64,12 +64,8 @@ namespace UVR_SLAM {
 		int GetNumCPs();
 		std::vector<cv::Point2f> GetMatchingPts();
 		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::MapPoint*>& vpMPs);
-		std::vector<cv::Point2f> GetMatchingPtsOptimization(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs);
 		std::vector<cv::Point2f> GetMatchingPtsMapping(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs);
 		int GetMatchingPtsTracking(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vPTs);
-		
-		UVR_SLAM::CandidatePoint* GetCP(int idx);
-		cv::Point2f GetPt(int idx);
 		
 		int CheckOpticalPointOverlap(int radius, int margin, cv::Point2f pt); //확인 후 삭제.
 		bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt); //확인 후 삭제.

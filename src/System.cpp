@@ -147,7 +147,7 @@ void UVR_SLAM::System::Init() {
 	mpORBExtractor = mpInitORBExtractor;
 
 	//Map
-	mpMap = new UVR_SLAM::Map(mnMaxConnectedKFs, mnMaxCandidateKFs);
+	mpMap = new UVR_SLAM::Map(this, mnMaxConnectedKFs, mnMaxCandidateKFs);
 
 	//FrameWindow
 	mpFrameWindow = new UVR_SLAM::FrameWindow(15);

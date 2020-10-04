@@ -117,30 +117,19 @@ void UVR_SLAM::MapOptimizer::Run() {
 				vpKFs.push_back(pKF);
 			}
 
-			//auto tempKFs1 = mpTargetFrame->GetConnectedKFs();
-			////auto tempKFs2 = mpTargetFrame->GetConnectedKFs();
-			//vpKFs.push_back(mpTargetFrame);
-			//
-			//for (int i = 0; i < tempKFs1.size(); i++){
-			//	tempKFs1[i]->mnLocalBAID = nTargetID;
-			//	vpKFs.push_back(tempKFs1[i]);
-			//}
-			
 			for (int k = 0; k < vpKFs.size(); k++){
 				auto pKFi = vpKFs[k];
 				auto matchInfo = pKFi->mpMatchInfo;
 				std::vector<MapPoint*> mvpMatchingMPs;
-				std::vector<CandidatePoint*> mvpMatchingCPs;
-				auto mvpMatchingPTs = matchInfo->GetMatchingPtsOptimization(mvpMatchingCPs, mvpMatchingMPs);
+				auto mvpMatchingPTs = matchInfo->GetMatchingPts(mvpMatchingMPs);
 				for (int i = 0; i < mvpMatchingMPs.size(); i++) {
 					auto pMPi = mvpMatchingMPs[i];
-					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID) {
+					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID || !pMPi->GetQuality() || pMPi->GetNumConnectedFrames() < 3) {
 						continue;
 					}
-					if (pMPi->GetNumConnectedFrames() < 3) {
-						continue;
-					}
-					auto pCPi = mvpMatchingCPs[i];
+					/*pMPi->ComputeQuality();
+					if (!pMPi->GetQuality())
+						continue;*/
 					pMPi->mnLocalBAID = nTargetID;
 					vpMPs.push_back(pMPi);
 				}
@@ -186,6 +175,9 @@ void UVR_SLAM::MapOptimizer::Run() {
 				cv::Scalar color1(0, 0, 255);
 				cv::Scalar color2(0, 255, 0);
 				cv::Scalar color3(255, 0, 0);
+				cv::Scalar color4(255, 255, 0);
+				cv::Scalar color5(0, 255, 255);
+				cv::Scalar color6(255, 0, 255);
 
 				for (int i = 0; i < nKF; i++) {
 					auto pKFi = vpKFs[i];
@@ -204,15 +196,20 @@ void UVR_SLAM::MapOptimizer::Run() {
 							continue;
 						cv::Point2f pt3;
 						pMPi->Projection(pt3, pKFi, mnWidth, mnHeight);
+						cv::Point2f diffPt = pt3 - pt;
+						float dist = diffPt.dot(diffPt);
+						if (dist > 9.0) {
+							cv::circle(img, pt, 6, color6, 1);
+						}
 						if(pMPi->mnFirstKeyFrameID == nTargetKeyID)
 							cv::circle(img, pt, 4, color3, 2);
 						if (pMPi->isInFrame(lastMatch)) {
-							cv::circle(img, pt, 2, color1, -1);
 							cv::line(img, pt, pt3, color1, 2);
+							cv::circle(img, pt, 3, color4, -1);
 						}
 						else {
-							cv::circle(img, pt, 2, color2, -1);
 							cv::line(img, pt, pt3, color2, 2);
+							cv::circle(img, pt, 3, color5, -1);
 						}
 					}
 					/*for (int j = 0; j < vpMPs.size(); j++) {

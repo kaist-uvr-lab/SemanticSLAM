@@ -883,16 +883,13 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		if (prevPts.size() == 500)
 			break;
 		auto pMPi = pCPi->GetMP();
-		if (pMPi && pMPi->GetQuality() && pMPi->isOptimized()) {
-			if (pMPi->isDeleted())
-				continue;
+		if (pMPi && !pMPi->isDeleted() && pMPi->GetQuality() && pMPi->isOptimized()) {
 			prevPts.push_back(prev->mpMatchInfo->mvMatchingPts[i]);
 			vpTempCPs.push_back(pCPi);
 			vpTempMPs.push_back(pMPi);
 		}
 	}
-	//prev->mpMatchInfo->GetMatchingPtsTracking(vpTempCPs, vpTempMPs, prevPts);//prev->mvMatchingPts;
-	//std::cout << "Matcher::Tracking::" << vpTempCPs.size() << std::endl;
+	
 	int maxLvl = 3;
 	int searchSize = 21;
 	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
@@ -925,9 +922,10 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		//if (diffX > 25) {
 		//	continue;
 		//}
-		
+		if (vpTempCPs[i]->mnTrackingFrameID == nCurrFrameID)
+			continue;
+		vpTempCPs[i]->mnTrackingFrameID = (nCurrFrameID);
 		UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
-
 		if (pMPi && !pMPi->isDeleted() && pMPi->GetRecentTrackingFrameID() != nCurrFrameID && curr->isInFrustum(pMPi, 0.6f)) {
 			pMPi->SetRecentTrackingFrameID(nCurrFrameID);
 			vpMPs.push_back(pMPi);
@@ -959,18 +957,13 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 	////debug
 	cv::Mat prevImg = pPrevKF->GetOriginalImage();
 	cv::Mat currImg = pCurrKF->GetOriginalImage();
-	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
-	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
-	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
-	debugging = cv::Mat::zeros(prevImg.rows*2, prevImg.cols, prevImg.type());
-	prevImg.copyTo(debugging(mergeRect1));
-	currImg.copyTo(debugging(mergeRect2));
 	///////////
 
 	std::vector<cv::Point2f> prevPts,currPts;
 	std::vector<int> vnOctaves;
 	std::vector<CandidatePoint*> vpCPs;
-	
+
+	int nCurrKeyFrameID = pCurrKF->GetKeyFrameID();
 	int nCP = pPrevKF->mpMatchInfo->GetNumCPs();
 	vpCPs = pPrevKF->mpMatchInfo->mvpMatchingCPs;
 	prevPts = pPrevKF->mpMatchInfo->mvMatchingPts;//pPrevKF->mpMatchInfo->GetMatchingPtsMapping(vpCPs);
@@ -993,140 +986,34 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 		if (status[i] == 0) {
 			continue;
 		}
+	
 		auto pCPi = vpCPs[i];
+		if (pCPi->GetLastVisibleFrame() == nCurrKeyFrameID)
+			continue;
 		bool b1 = pCurrMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, currPts[i]) >= 0;
 		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(usedPrev, Frame::mnRadius, 10, prevPts[i]);
 		bool b4 = pPrevMatchInfo->CheckOpticalPointOverlap(usedCurr, Frame::mnRadius, 10, currPts[i]);
-		if (b1 || !b3 || !b4) {
+		if (b1) {
+			pCPi->SetLastSuccessFrame(nCurrKeyFrameID);
 			continue;
 		}
+		if (!b3 || !b4) {
+			continue;
+		}
+		pCPi->SetLastVisibleFrame(nCurrKeyFrameID);
+		
 		cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
 		cv::circle(usedCurr, currPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
 		
-		vTempPrevPts.push_back(prevPts[i]);
-		vTempCurrPts.push_back(currPts[i]);
-		vTempIDXs.push_back(i);
-
-	}
-	if (vTempPrevPts.size() < 10) {
-		std::cout << "LM::Matching::error" << std::endl;
-	}
-
-	///////////////////projection based matching
-	cv::Mat Rprev, Tprev, Rcurr, Tcurr;
-	pCurrKF->GetPose(Rcurr, Tcurr);
-	pPrevKF->GetPose(Rprev, Tprev);
-
-	cv::Mat Pcurr, Pprev;
-	cv::hconcat(Rcurr, Tcurr, Pcurr);
-	cv::hconcat(Rprev, Tprev, Pprev);
-	cv::Mat Map;
-	cv::triangulatePoints(K*Pprev, K*Pcurr, vTempPrevPts, vTempCurrPts, Map);
-
-	///////데이터 전처리
-	cv::Mat Rcfromc = Rcurr.t();
-	cv::Mat Rpfromc = Rprev.t();
-	
-	int nRes = 0;
-	int nTargetID = pPrevKF->GetFrameID();
-	for (int i = 0; i < Map.cols; i++) {
-
-		cv::Mat X3D = Map.col(i);
-		auto currPt = vTempCurrPts[i];
-		auto prevPt = vTempPrevPts[i];
-		if (abs(X3D.at<float>(3)) < 0.0001) {
-			continue;
-		}
-		X3D /= X3D.at<float>(3);
-		X3D = X3D.rowRange(0, 3);
-
-		cv::Mat proj1 = Rcurr*X3D + Tcurr;
-		cv::Mat proj2 = Rprev*X3D + Tprev;
-
-		////depth test
-		//if (proj1.at<float>(2) < 0.0 || proj2.at<float>(2) < 0.0) {
-		//	cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(0, 255, 0), -1);
-		//	cv::circle(debugging, prevPt, 2, cv::Scalar(0, 255, 0), -1);
-		//	/*if (proj1.at<float>(0) < 0 && proj1.at<float>(1) < 0 && proj1.at<float>(2) < 0) {
-		//	cv::circle(debugMatch, pt1 + ptBottom, 2, cv::Scalar(255, 0, 0), -1);
-		//	cv::circle(debugMatch, pt2, 2, cv::Scalar(255, 0, 0), -1);
-		//	}*/
-		//	continue;
-		//}
-		////depth test
-
-		////reprojection error
-		proj1 = K*proj1;
-		proj2 = K*proj2;
-		cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
-		cv::Point2f projected2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
-
-		auto diffPt1 = projected1 - currPt;
-		auto diffPt2 = projected2 - prevPt;
-		float err1 = (diffPt1.dot(diffPt1));
-		float err2 = (diffPt2.dot(diffPt2));
-		if (err1 > 9.0 || err2 > 9.0) {
-			cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(255, 0, 0), -1);
-			cv::circle(debugging, prevPt, 2, cv::Scalar(255, 0, 0), -1);
-			continue;
-		}
-		////reprojection error
-
-		////CP 연결하기
-		vMatchedCurrPts.push_back(vTempCurrPts[i]);
-		vMatchedPrevPts.push_back(vTempPrevPts[i]);
-		int nCPidx = vTempIDXs[i];
-		auto pCPi = vpCPs[nCPidx];
-		int idxi = pCurrKF->mpMatchInfo->AddCP(pCPi, currPt);
-		pCPi->ConnectFrame(pCurrKF->mpMatchInfo, idxi);
-		auto pMPi = pCPi->GetMP();
-		if (pMPi && !pMPi->isDeleted()) {
-			pMPi->ConnectFrame(pCurrKF->mpMatchInfo, idxi);
-		}
-
-		////시각화
-		if (pCPi->mnFirstID == nTargetID) {
-			cv::circle(debugging, prevPt, 2, cv::Scalar(0, 0, 255), -1);
-			cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(0, 0, 255), -1);
-		}
-		else {
-			cv::circle(debugging, prevPt, 2, cv::Scalar(255, 255, 0), -1);
-			cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(255, 255, 0), -1);
-		}
-		if (pCPi->GetMP()) {
-
-			cv::circle(debugging, projected1 + ptBottom, 2, cv::Scalar(0, 255, 0), -1);
-			cv::circle(debugging, projected2, 2, cv::Scalar(0, 255, 0), -1);
-			cv::line(debugging, currPt + ptBottom, projected1 + ptBottom, cv::Scalar(0, 255, 255), 2);
-			cv::line(debugging, prevPt, projected2, cv::Scalar(0, 255, 255), 2);
-
-			cv::circle(debugging, prevPt, 3, cv::Scalar(0, 255, 255));
-			cv::circle(debugging, currPt + ptBottom, 3, cv::Scalar(0, 255, 255));
-		}
-		//else {
-		//	////MP 생성 확인
-		//	int label = pCPi->GetLabel();
-		//	auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCPi, X3D, cv::Mat(), label, pCPi->octave);
-		//	////MP 생성 확인
-		//}
-		
-		
+		vMatchedPrevPts.push_back(prevPts[i]);
+		vMatchedCurrPts.push_back(currPts[i]);
 		vMatchedCPs.push_back(pCPi);
 
-		nRes++;
 	}
-
-	///////////////////projection based matching
-
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 	dtime = duration / 1000.0;
-	return nRes;
-	//fuse time text 
-	/*std::stringstream ss;
-	ss << "Optical flow Mapping2= " << pCurrKF->GetFrameID() << ", " << pPrevKF->GetFrameID() << ", " << "::" << tttt << "::" << nRes;
-	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
-	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));*/
+	return vMatchedCurrPts.size();
 }
 
 int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Map* pMap, Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Point2f>& vMatchedPrevPts, std::vector<cv::Point2f>& vMatchedCurrPts, std::vector<CandidatePoint*>& vMatchedCPs, cv::Mat K, cv::Mat InvK, double& dtime, cv::Mat& debugging) {

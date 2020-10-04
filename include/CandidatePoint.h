@@ -55,6 +55,14 @@ namespace UVR_SLAM {
 	public:
 		void ResetMapPoint();
 		void SetMapPoint(MapPoint* pMP);
+		//매핑에서만
+		void SetLastVisibleFrame(int id);
+		int GetLastVisibleFrame(); 
+		void SetLastSuccessFrame(int id);
+		int GetLastSuccessFrame();
+		//매핑에서만
+		//트래킹에서
+		int mnTrackingFrameID;
 		MapPoint* GetMP();
 	private:
 		bool bCreated;
