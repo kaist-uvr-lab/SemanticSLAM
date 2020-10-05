@@ -729,7 +729,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 }
 ////Opticalflow 버전용
 
-void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs) {
+void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers) {
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
 
@@ -766,6 +766,8 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::v
 	}
 
 	std::vector<g2o::EdgeSE3ProjectXYZ*> vpEdgesMono;
+	std::vector<int> vnVertexIDXs;
+	std::vector<int> vnConnected;
 	const float thHuberMono = sqrt(5.991);
 
 	////새로 추가된 맵포인트 설정
@@ -783,6 +785,7 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::v
 
 		const auto observations = pCPi->GetFrames();
 		int octave = pCPi->octave;
+		int numEdges = 0;
 		//Set edges
 		for (std::map<UVR_SLAM::MatchInfo*, int>::const_iterator mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
 		{
@@ -816,14 +819,33 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::v
 
 			optimizer.addEdge(e);
 			vpEdgesMono.push_back(e);
-			
+			vnVertexIDXs.push_back(i);
+			numEdges++;
 		}
-
+		vnConnected.push_back(numEdges);
 	}
 	////새로 추가된 맵포인트 설정
 
 	optimizer.initializeOptimization();
 	optimizer.optimize(10);
+
+	////체크
+	for (int i = 0; i < vpEdgesMono.size(); i++) {
+
+	}
+	// Check inlier observations       
+	for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
+	{
+		g2o::EdgeSE3ProjectXYZ* e = vpEdgesMono[i];
+		int vIdx = vnVertexIDXs[i];
+
+		if (e->chi2()>5.991 || !e->isDepthPositive())
+		{
+			vnConnected[vIdx]--;
+			if (vnConnected[vIdx] < 3)
+				vbInliers[vIdx] = false;
+		}
+	}
 
 	//Curr KF 포즈 수정
 	{

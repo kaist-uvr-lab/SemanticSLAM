@@ -153,7 +153,8 @@ void UVR_SLAM::LocalMapper::Run() {
 			////이미지 생성
 			std::vector<cv::Point2f> vOpticalMatchPPrevPts, vOpticalMatchPrevPts, vOpticalMatchCurrPts;
 			std::vector<CandidatePoint*> vOpticalMatchCPs;
-			int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
+			//int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
+			int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vOpticalMatchPPrevPts, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
 			
 			std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
 			std::vector<CandidatePoint*> vMappingCPs;
@@ -332,7 +333,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			float t_test2 = du_test2 / 1000.0;
 			
 			std::stringstream ssa;
-			ssa << "LocalMapping : " << mpTargetFrame->GetKeyFrameID() << "::" << t_test1 << "::" << "::" << t_test2+time1+time2 <<", "<< time1 << ", " << time2 << std::endl;;// << ", " << nMinKF << ", " << nMaxKF;
+			ssa << "LocalMapping : " << mpTargetFrame->GetKeyFrameID() << "::" << t_test1 << "::" << "::" << nMapping <<", "<< time1 << ", " << time2 << std::endl;;// << ", " << nMinKF << ", " << nMaxKF;
 			mpSystem->SetLocalMapperString(ssa.str());
 
 			//std::cout << "lm::end::" <<mpTargetFrame->GetFrameID()<<"::"<<nCreated<< std::endl;
@@ -901,7 +902,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		auto diffPt2 = projected2 - prevPt;
 		float err1 = (diffPt1.dot(diffPt1));
 		float err2 = (diffPt2.dot(diffPt2));
-		if (err1 > 9.0 || err2 > 9.0) {
+		if (err1 > 25.0 || err2 > 25.0) {
 			continue;
 		}
 		////reprojection error
@@ -917,7 +918,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		}
 		//else {
 		if(pCPi->GetNumSize() > 2){
-			nRes++;
+			//nRes++;
 			vMappingCurrPts.push_back(std::move(currPt));
 			vMappingPrevPts.push_back(std::move(prevPt));
 			vMappingCPs.push_back(std::move(pCPi));
@@ -949,13 +950,17 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	////////////////////////////////////////최적화 진행
 	if (vX3Ds.size() < 20)
 		return -1;
-	Optimization::LocalOptimization(mpMap, pCurrKF, vX3Ds, vMappingCPs);
+	std::vector<bool> vbInliers(vX3Ds.size(), true);
+	Optimization::LocalOptimization(mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers);
 
 	///////////////////New Mp Creation
 	mpMap->ClearReinit();
 	auto spWindowKFs = mpMap->GetWindowFramesSet(3);
 	/////시각화 확인
 	for (int i = 0; i < vMappingCPs.size(); i++) {
+		if (!vbInliers[i])
+			continue;
+		nRes++;
 		cv::Mat X3D = std::move(vX3Ds[i]);
 		mpMap->AddReinit(X3D);
 		auto pCPi = std::move(vMappingCPs[i]);

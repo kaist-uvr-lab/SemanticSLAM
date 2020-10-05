@@ -10,7 +10,7 @@
 #include <ORBextractor.h>
 #include <Plane.h>
 int UVR_SLAM::MatchInfo::nMaxMP = 500;
-int UVR_SLAM::Frame::mnRadius = 3;
+int UVR_SLAM::Frame::mnRadius = 7;
 bool UVR_SLAM::Frame::mbInitialComputations = true;
 float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
 float UVR_SLAM::Frame::mnMinX, UVR_SLAM::Frame::mnMinY, UVR_SLAM::Frame::mnMaxX, UVR_SLAM::Frame::mnMaxY;

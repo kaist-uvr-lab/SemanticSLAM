@@ -194,15 +194,20 @@ void UVR_SLAM::MapOptimizer::Run() {
 						auto pMPi = pCPi->GetMP();
 						if (!pMPi || pMPi->isDeleted() || !pMPi->GetQuality())
 							continue;
+						if (!pMPi->isInFrame(pMatch)) {
+							continue;
+						}
 						cv::Point2f pt3;
 						pMPi->Projection(pt3, pKFi, mnWidth, mnHeight);
 						cv::Point2f diffPt = pt3 - pt;
 						float dist = diffPt.dot(diffPt);
 						if (dist > 9.0) {
 							cv::circle(img, pt, 6, color6, 1);
+							pMPi->DisconnectFrame(pMatch);
 						}
 						if(pMPi->mnFirstKeyFrameID == nTargetKeyID)
 							cv::circle(img, pt, 4, color3, 2);
+						
 						if (pMPi->isInFrame(lastMatch)) {
 							cv::line(img, pt, pt3, color1, 2);
 							cv::circle(img, pt, 3, color4, -1);

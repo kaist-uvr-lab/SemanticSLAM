@@ -16,7 +16,7 @@ namespace UVR_SLAM {
 	class PlaneProcessInformation;
 	class MapGrid;
 	class Map {
-///////////
+		///////////
 	public:
 		std::vector<cv::Mat> GetReinit();
 		void ClearReinit();
@@ -24,7 +24,7 @@ namespace UVR_SLAM {
 	private:
 		std::mutex mMutexReinit;
 		std::vector<cv::Mat> mvReinit;
-/////////
+		/////////
 	public:
 		//keyframes
 		//전체 맵포인트
@@ -35,12 +35,6 @@ namespace UVR_SLAM {
 		Map(System* pSystem, int nConnected = 8, int nCandiate = 4);
 		virtual ~Map();
 	public:
-		void AddFrame(Frame* pF);
-		std::vector<Frame*> GetFrames();
-		void SetCurrFrame(Frame* pF);
-		Frame* GetCurrFrame();
-		void ClearFrames();
-
 		Frame* GetLastWindowFrame();
 		Frame* GetReverseWindowFrame(int idx);
 		Frame* AddWindowFrame(Frame* pF);
@@ -51,17 +45,15 @@ namespace UVR_SLAM {
 		int mnMaxConnectedKFs, mnHalfConnectedKFs, mnQuarterConnectedKFs;
 		int mnMaxCandidateKFs;
 	private:
-		std::mutex mMutexGlobalFrames;
-		std::vector<Frame*> mvpGlobalFrames;
 		int mnHalfCandidate;
-		
+
 		std::mutex mMutexWindowFrames;
 		std::list<Frame*> mQueueFrameWindows1, mQueueFrameWindows2, mQueueFrameWindows3;
 		std::list<Frame*> mQueueCandidateGraphFrames;
 		std::set<Frame*> mspGraphFrames;
 		System* mpSystem;
-////////////////////////////////
-////Dense Flow 관리
+		////////////////////////////////
+		////Dense Flow 관리
 	public:
 		void AddFlow(int nFrameID, cv::Mat flow);
 		cv::Mat GetFlow(int nFrameID);
@@ -69,9 +61,9 @@ namespace UVR_SLAM {
 	private:
 		std::mutex mMutexFlows;
 		std::map<int, cv::Mat> mmFlows;
-////Dense Flow 관리
+		////Dense Flow 관리
 
-////맵포인트 관리
+		////맵포인트 관리
 	public:
 		void AddMap(MapPoint* pMP, int label);
 		void RemoveMap(MapPoint* pMP);
@@ -86,8 +78,8 @@ namespace UVR_SLAM {
 		std::set<MapPoint*> mspDeleteMPs;
 		std::queue<int> mQueueNumDelete;
 		int mnDeleteMPs;
-////맵포인트 관리
-////구역별 맵 저장
+		////맵포인트 관리
+		////구역별 맵 저장
 		struct Point2fLess
 		{
 			bool operator()(cv::Point2f const&lhs, cv::Point2f const& rhs) const
@@ -131,13 +123,13 @@ namespace UVR_SLAM {
 	private:
 		std::mutex mMutexPlaneInfo;
 		std::vector<PlaneProcessInformation*> mvpPlaneInfos;
-////평면 관리
-////////////////////////////
+		////평면 관리
+		////////////////////////////
 
-////////////////////////////////
-////평면 관리
-//벽평면은 여러개 있을 수 있음
-//바닥 평면은 오직 한개임.
+		////////////////////////////////
+		////평면 관리
+		//벽평면은 여러개 있을 수 있음
+		//바닥 평면은 오직 한개임.
 	public:
 		bool isFloorPlaneInitialized();
 		void SetFloorPlaneInitialization(bool b);
@@ -156,24 +148,12 @@ namespace UVR_SLAM {
 		std::mutex mMutexWallPlanes;
 		std::vector<WallPlane*> mvpWallPlanes;
 
-		Frame* mpCurrFrame;
-		std::mutex mMutexCurrFrame;
 	public:
 		Frame* mpFirstKeyFrame;
 		UVR_SLAM::PlaneInformation* mpFloorPlane;
-////평면 관리
-////////////////////////////////
-////////////////////////////////
-/////Loop를 위한 것 일단 보류
-	public:
-		std::vector<UVR_SLAM::Frame*> GetLoopFrames();
-	private:
-		std::vector<Frame*> mvpLoopFrames;
-		std::mutex mMutexLoopFrames;
+		////평면 관리
+		////////////////////////////////
 	};
-/////Loop를 위한 것 일단 보류
-////////////////////////////////
-	
 }
 #endif
 

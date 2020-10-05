@@ -106,7 +106,10 @@ bool UVR_SLAM::System::LoadVocabulary() {
 
 void UVR_SLAM::System::SaveTrajectory() {
 	//auto vpKFs = mpMap->GetAllTrajectoryFrames();
-	auto vpKFs = mpMap->GetFrames();
+	auto vpKFs = mpMap->GetWindowFramesVector(3);
+	auto vpGraphKFs = mpMap->GetGraphFrames();
+	for (int i = 0; i < vpGraphKFs.size(); i++)
+		vpKFs.push_back(vpGraphKFs[i]);
 	std::string base = GetDirPath(0)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ;
 	std::stringstream ssdir, ssfile;
 	/*std::s  tringstream ssDirPath;
@@ -278,9 +281,7 @@ void UVR_SLAM::System::Reset() {
 	mpFrameWindow->ClearLocalMapFrames();
 	mpPlaneEstimator->Reset();
 	mpLocalMapper->Reset();
-	mpMap->ClearFrames();
 	mpMap->ClearWalls();
-	mpMap->SetCurrFrame(nullptr);
 	mlpNewMPs.clear();
 	//mpLocalMapper->mlpNewMPs.clear();
 	nKeyFrameID = 1;

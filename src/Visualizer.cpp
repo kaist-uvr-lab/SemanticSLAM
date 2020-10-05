@@ -289,7 +289,7 @@ void UVR_SLAM::Visualizer::Run() {
 	while (1) {
 		
 		if (bSaveMap) {
-			auto frames = mpMap->GetFrames();
+			auto frames = mpMap->GetGraphFrames();
 			int nFrame = frames.size();
 			auto frame = frames[nFrame - 1];
 			std::stringstream sss;
@@ -537,8 +537,9 @@ void UVR_SLAM::Visualizer::Run() {
 			//cv::putText(tempVis, ss.str(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
 			//fuse time text
 			
-			tempVis.copyTo(mOutputImage(mvRects[2]));
-			
+			//tempVis.copyTo(mOutputImage(mvRects[2]));
+			SetOutputImage(tempVis, 2);
+
 			//time 
 			cv::Mat imgTime = cv::Mat::zeros(500, 500, CV_8UC1);
 			cv::putText(imgTime, mpSystem->GetTrackerString(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
@@ -557,6 +558,10 @@ void UVR_SLAM::Visualizer::Run() {
 		if (isOutputTypeChanged(1)) {
 			cv::Mat mWinImg = GetOutputImage(1);
 			mWinImg.copyTo(mOutputImage(mvRects[1]));
+		}
+		if (isOutputTypeChanged(2)) {
+			cv::Mat mMapImg = GetOutputImage(2);
+			mMapImg.copyTo(mOutputImage(mvRects[2]));
 		}
 		if (isOutputTypeChanged(3)) {
 			cv::Mat mMappingImg = GetOutputImage(3);

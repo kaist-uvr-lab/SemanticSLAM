@@ -6,8 +6,8 @@
 #include "System.h"
 
 namespace UVR_SLAM{
-	Map::Map():mnMaxConnectedKFs(8), mnHalfConnectedKFs(4), mnQuarterConnectedKFs(2), mnMaxCandidateKFs(4), mnHalfCandidate(2), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2){}
-	Map::Map(System* pSystem, int nConnected, int nCandiate) :mpSystem(pSystem), mnMaxConnectedKFs(nConnected), mnHalfConnectedKFs(nConnected/2), mnQuarterConnectedKFs(nConnected/4), mnMaxCandidateKFs(nCandiate), mnHalfCandidate(nCandiate/2), mbInitFloorPlane(false), mbInitWallPlane(false), mpCurrFrame(nullptr), mfMapGridSize(0.2) {
+	Map::Map():mnMaxConnectedKFs(8), mnHalfConnectedKFs(4), mnQuarterConnectedKFs(2), mnMaxCandidateKFs(4), mnHalfCandidate(2), mbInitFloorPlane(false), mbInitWallPlane(false), mfMapGridSize(0.2){}
+	Map::Map(System* pSystem, int nConnected, int nCandiate) :mpSystem(pSystem), mnMaxConnectedKFs(nConnected), mnHalfConnectedKFs(nConnected/2), mnQuarterConnectedKFs(nConnected/4), mnMaxCandidateKFs(nCandiate), mnHalfCandidate(nCandiate/2), mbInitFloorPlane(false), mbInitWallPlane(false), mfMapGridSize(0.2) {
 		std::cout << "MAP::" << mnMaxConnectedKFs << ", " << mnMaxCandidateKFs << std::endl;
 	}
 	Map::~Map() {}
@@ -40,23 +40,26 @@ namespace UVR_SLAM{
 			mQueueFrameWindows1.pop_front();
 			if (mQueueFrameWindows2.size() > mnHalfConnectedKFs) {
 				auto pKF = mQueueFrameWindows2.front();
-				if (pKF->GetKeyFrameID() % 4 == 0) {
-					mQueueFrameWindows3.push_back(pKF);
-					res = pKF;
-				}
-				else {
-					//pKF->mpMatchInfo->DisconnectAll();
-				}
+				//if (pKF->GetKeyFrameID() % 4 == 0) {
+				//	mQueueFrameWindows3.push_back(pKF);
+				//	res = pKF;
+				//}
+				//else {
+				//	//pKF->mpMatchInfo->DisconnectAll();
+				//}
+				mQueueFrameWindows3.push_back(pKF);
+				res = pKF;
 				mQueueFrameWindows2.pop_front();
 			}
 			if (mQueueFrameWindows3.size() > mnQuarterConnectedKFs) {
 				auto pKF = mQueueFrameWindows3.front();
-				if (pKF->GetKeyFrameID() % 8 == 0) {
-					mspGraphFrames.insert(pKF);
-				}
-				else {
-					//pKF->mpMatchInfo->DisconnectAll();
-				}
+				//if (pKF->GetKeyFrameID() % 8 == 0) {
+				//	mspGraphFrames.insert(pKF);
+				//}
+				//else {
+				//	//pKF->mpMatchInfo->DisconnectAll();
+				//}
+				mspGraphFrames.insert(pKF);
 				mQueueFrameWindows3.pop_front();
 			}
 		}
@@ -196,37 +199,6 @@ std::vector<cv::Mat> UVR_SLAM::Map::GetFlows(int nStartID, int nEndID) {
 }
 /////敲肺快 包府
 ////////////////////////////////////////////
-
-
-void UVR_SLAM::Map::SetCurrFrame(Frame* pF) {
-	std::unique_lock<std::mutex> lock(mMutexCurrFrame);
-	mpCurrFrame = pF;
-}
-UVR_SLAM::Frame* UVR_SLAM::Map::GetCurrFrame() {
-	std::unique_lock<std::mutex> lock(mMutexCurrFrame);
-	return mpCurrFrame;
-}
-
-void UVR_SLAM::Map::AddFrame(Frame* pF) {
-	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
-	mvpGlobalFrames.push_back(pF);
-	if (mvpGlobalFrames.size() % 5 == 0) {
-		mvpLoopFrames.push_back(pF);
-	}
-}
-std::vector<UVR_SLAM::Frame*> UVR_SLAM::Map::GetFrames() {
-	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
-	return std::vector<UVR_SLAM::Frame*>(mvpGlobalFrames.begin(), mvpGlobalFrames.end());
-}
-std::vector<UVR_SLAM::Frame*> UVR_SLAM::Map::GetLoopFrames() {
-	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
-	return std::vector<UVR_SLAM::Frame*>(mvpLoopFrames.begin(), mvpLoopFrames.end());
-}
-void UVR_SLAM::Map::ClearFrames() {
-	std::unique_lock<std::mutex> lock(mMutexGlobalFrames);
-	mvpGlobalFrames.clear();
-	mvpLoopFrames.clear();
-}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////乞搁 包府
