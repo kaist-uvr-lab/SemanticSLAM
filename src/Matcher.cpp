@@ -1033,6 +1033,19 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 		cv::circle(testImg, currPts[i]+ptBottom, 3, cv::Scalar(255, 0, 255));
 	}
 
+	/////MP교환 테스트
+	for (int i = 0; i < vMatchedCPs.size(); i++) {
+		auto pCPi = vMatchedCPs[i];
+		int currIDX = pCurrMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, vMatchedCurrPts[i]);
+		
+		if (currIDX >= 0) {
+			auto pCP2 = pCurrMatchInfo->mvpMatchingCPs[currIDX];
+			if(pCP2->mnCandidatePointID != pCPi->mnCandidatePointID){
+				pCurrMatchInfo->mvpMatchingCPs[currIDX] = pCPi;
+			}
+		}
+	}
+
 	//for (int i = 0; i < prevPts.size(); i++) {
 	//	if (statusCurr[i] == 0 || statusPPrev[i] == 0) {
 	//		continue;

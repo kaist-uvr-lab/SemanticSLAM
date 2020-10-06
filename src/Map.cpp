@@ -40,15 +40,15 @@ namespace UVR_SLAM{
 			mQueueFrameWindows1.pop_front();
 			if (mQueueFrameWindows2.size() > mnHalfConnectedKFs) {
 				auto pKF = mQueueFrameWindows2.front();
-				//if (pKF->GetKeyFrameID() % 4 == 0) {
-				//	mQueueFrameWindows3.push_back(pKF);
-				//	res = pKF;
-				//}
-				//else {
-				//	//pKF->mpMatchInfo->DisconnectAll();
-				//}
-				mQueueFrameWindows3.push_back(pKF);
-				res = pKF;
+				if (pKF->GetKeyFrameID() % 4 == 0) {
+					mQueueFrameWindows3.push_back(pKF);
+					res = pKF;
+				}
+				else {
+					//pKF->mpMatchInfo->DisconnectAll();
+				}
+				/*mQueueFrameWindows3.push_back(pKF);
+				res = pKF;*/
 				mQueueFrameWindows2.pop_front();
 			}
 			if (mQueueFrameWindows3.size() > mnQuarterConnectedKFs) {

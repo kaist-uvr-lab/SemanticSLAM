@@ -127,9 +127,13 @@ void UVR_SLAM::MapOptimizer::Run() {
 					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID || !pMPi->GetQuality() || pMPi->GetNumConnectedFrames() < 3) {
 						continue;
 					}
-					/*pMPi->ComputeQuality();
-					if (!pMPi->GetQuality())
-						continue;*/
+					////镊府萍 眉农
+					pMPi->ComputeQuality();
+					if (!pMPi->GetQuality()){
+						pMPi->Delete();
+						continue;
+					}
+					////镊府萍 眉农
 					pMPi->mnLocalBAID = nTargetID;
 					vpMPs.push_back(pMPi);
 				}

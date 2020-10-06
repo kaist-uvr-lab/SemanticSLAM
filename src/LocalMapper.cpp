@@ -136,7 +136,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			double time3 = 0.0;
 
 			/////프레임 퀄리티 계산
-			//bool bLowQualityFrame = mpTargetFrame->mpMatchInfo->UpdateFrameQuality();
+			bool bLowQualityFrame = mpTargetFrame->mpMatchInfo->UpdateFrameQuality();
 			std::chrono::high_resolution_clock::time_point lm_temp1 = std::chrono::high_resolution_clock::now();
 
 			/////프레임 퀄리티 계산
