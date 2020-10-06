@@ -126,7 +126,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			ProcessNewKeyFrame();
 			//std::cout << "Local Mapping :: ID = " << mpTargetFrame->GetFrameID() << "::Start::"<<mpTargetFrame->mpMatchInfo->GetNumCPs() <<"::"<<mpTargetFrame->mpMatchInfo->mfLowQualityRatio<< std::endl;
 			int nTargetID = mpTargetFrame->GetFrameID();
-			mpTargetFrame->mpMatchInfo->ConnectAll();
+			
 			mpPrevKeyFrame->mpMatchInfo->SetMatchingPoints();
 			int nCreated = 0;
 			////////New Matching & Create & Delayed CP test
@@ -136,7 +136,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			double time3 = 0.0;
 
 			/////프레임 퀄리티 계산
-			bool bLowQualityFrame = mpTargetFrame->mpMatchInfo->UpdateFrameQuality();
+			//bool bLowQualityFrame = mpTargetFrame->mpMatchInfo->UpdateFrameQuality();
 			std::chrono::high_resolution_clock::time_point lm_temp1 = std::chrono::high_resolution_clock::now();
 
 			/////프레임 퀄리티 계산
@@ -155,7 +155,8 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::vector<CandidatePoint*> vOpticalMatchCPs;
 			//int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
 			int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vOpticalMatchPPrevPts, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
-			
+			mpTargetFrame->mpMatchInfo->ConnectAll();
+
 			std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
 			std::vector<CandidatePoint*> vMappingCPs;
 			int nMapping = MappingProcess(mpMap, mpTargetFrame, mpPrevKeyFrame, vMappingPrevPts, vMappingCurrPts, vMappingCPs, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, time2, debugMatch);
@@ -907,16 +908,22 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		}
 		////reprojection error
 
+		//////////////////////////////////
+		////이미 CP에 연결된 것들은 연결하지 않음.
 		////현재 프레임에 CP 연결하기
-		int idxi = pCurrKF->mpMatchInfo->AddCP(pCPi, currPt);
-		pCPi->ConnectFrame(pCurrKF->mpMatchInfo, idxi);
-		////현재 프레임에 CP 연결하기
-		if (bMP) {
-			pMPi->SetLastSuccessFrame(nCurrKeyFrameID);
-			pMPi->ConnectFrame(pCurrKF->mpMatchInfo, idxi);
-			
+		int idxa = pCPi->GetPointIndexInFrame(pCurrKF->mpMatchInfo);
+		if(idxa == -1){
+			int idxi = pCurrKF->mpMatchInfo->AddCP(pCPi, currPt);
+			pCPi->ConnectFrame(pCurrKF->mpMatchInfo, idxi);
+			////현재 프레임에 MP 연결하기
+			if (bMP) {
+				pMPi->SetLastSuccessFrame(nCurrKeyFrameID);
+				pMPi->ConnectFrame(pCurrKF->mpMatchInfo, idxi);
+			}
 		}
-		//else {
+		//////////////////////////////////
+
+		////커넥트가 최소 3개인 CP들은 전부 참여
 		if(pCPi->GetNumSize() > 2){
 			//nRes++;
 			vMappingCurrPts.push_back(std::move(currPt));
@@ -924,7 +931,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 			vMappingCPs.push_back(std::move(pCPi));
 			vX3Ds.push_back(std::move(X3D));
 		}
-		//}
+		////커넥트가 최소 3개인 CP들은 전부 참여
 
 		//////시각화
 		if (pCPi->mnFirstID == nTargetID) {
@@ -944,7 +951,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 			cv::circle(debugging, prevPt, 3, cv::Scalar(0, 255, 255));
 			cv::circle(debugging, currPt + ptBottom, 3, cv::Scalar(0, 255, 255));
 		}
-
+		//////시각화
 		//nRes++;
 	}
 	////////////////////////////////////////최적화 진행
@@ -954,6 +961,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	Optimization::LocalOptimization(mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers);
 
 	///////////////////New Mp Creation
+	////기존 MP도 여기 결과에 따라서 커넥션이 가능해야 할 듯함.
 	mpMap->ClearReinit();
 	auto spWindowKFs = mpMap->GetWindowFramesSet(3);
 	/////시각화 확인

@@ -1049,7 +1049,7 @@ int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
 ////이것은 사용이 안될 수도 있음.
 void UVR_SLAM::MatchInfo::RemoveCP(int idx){
 	std::unique_lock<std::mutex>(mMutexCPs);
-	cv::circle(mMapCP, mvMatchingPts[idx], Frame::mnRadius, cv::Scalar(0), -1);
+	cv::circle(mMapCP, mvMatchingPts[idx], Frame::mnRadius, cv::Scalar(-1), -1);
 	mvpMatchingCPs[idx] = nullptr;	
 }
 void UVR_SLAM::MatchInfo::ConnectAll() {
