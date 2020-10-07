@@ -221,7 +221,7 @@ namespace UVR_SLAM {
 			mnConnectedFrames++;
 		}
 		else {
-			std::cout << "MapPoint::AddFrame::Error" << std::endl;
+			std::cout << "MapPoint::AddFrame::Error::" <<mpCP->mnCandidatePointID<< std::endl;
 		}
 	}
 	void MapPoint::DisconnectFrame(UVR_SLAM::MatchInfo* pF){

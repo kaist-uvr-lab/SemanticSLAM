@@ -1060,13 +1060,19 @@ void UVR_SLAM::MatchInfo::ConnectAll() {
 	}
 	int nCurrID = this->mpRefFrame->GetKeyFrameID();
 	for (int i = 0; i < N; i++) {
+		
 		auto pCPi = mvpMatchingCPs[i];
+		int idx = pCPi->GetPointIndexInFrame(this);
+		if (idx != -1)
+			continue;
 		pCPi->ConnectFrame(this, i);
 		auto pMPi = pCPi->GetMP();
 		if (!pMPi || !pMPi->GetQuality() || pMPi->isDeleted())
 			continue;
 		this->AddMP();
 		pMPi->ConnectFrame(this, i);
+		pMPi->IncreaseVisible();
+		pMPi->IncreaseFound();
 		pMPi->SetLastVisibleFrame(std::move(nCurrID));
 		pMPi->SetLastSuccessFrame(std::move(nCurrID));
 	}

@@ -55,6 +55,9 @@ namespace  UVR_SLAM{
 			mmpFrames.insert(std::pair<UVR_SLAM::MatchInfo*, int>(pF, idx));
 			mnConnectedFrames++;
 		}
+		else {
+			std::cout << "cp::connect::error::" << mnCandidatePointID << std::endl;
+		}
 	}
 	
 	void CandidatePoint::DisconnectFrame(UVR_SLAM::MatchInfo* pKF)

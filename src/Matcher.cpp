@@ -889,9 +889,9 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			vpTempMPs.push_back(pMPi);
 		}
 	}
-	
 	int maxLvl = 3;
 	int searchSize = 21;
+	//int searchSize = 21 + 10*(curr->GetFrameID() - prev->GetFrameID()-1);
 	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
 	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
 	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
@@ -922,9 +922,11 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		//if (diffX > 25) {
 		//	continue;
 		//}
-		if (vpTempCPs[i]->mnTrackingFrameID == nCurrFrameID)
+		if (vpTempCPs[i]->mnTrackingFrameID == nCurrFrameID){
+			std::cout << "tracking::" <<vpTempCPs[i]->mnCandidatePointID<<", "<<nCurrFrameID<< std::endl;
 			continue;
-		vpTempCPs[i]->mnTrackingFrameID = (nCurrFrameID);
+		}
+		vpTempCPs[i]->mnTrackingFrameID = nCurrFrameID;
 		UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
 		if (pMPi && !pMPi->isDeleted() && pMPi->GetRecentTrackingFrameID() != nCurrFrameID && curr->isInFrustum(pMPi, 0.6f)) {
 			pMPi->SetRecentTrackingFrameID(nCurrFrameID);
@@ -988,9 +990,9 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 	int searchSize = 21;//21
 	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
 	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
-	maxLvl = cv::buildOpticalFlowPyramid(pprevImg, pprevPyr, cv::Size(searchSize, searchSize), maxLvl);
+	//maxLvl = cv::buildOpticalFlowPyramid(pprevImg, pprevPyr, cv::Size(searchSize, searchSize), maxLvl);
 	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, statusCurr, errCurr, cv::Size(searchSize, searchSize), maxLvl);
-	cv::calcOpticalFlowPyrLK(prevPyr, pprevPyr, prevPts, pprevPts, statusPPrev, errPPrev, cv::Size(searchSize, searchSize), maxLvl);
+	//cv::calcOpticalFlowPyrLK(prevPyr, pprevPyr, prevPts, pprevPts, statusPPrev, errPPrev, cv::Size(searchSize, searchSize), maxLvl);
 
 	////옵티컬 플로우 매칭 저장
 	std::vector<cv::Point2f> vTempPrevPts, vTempCurrPts;
@@ -1008,13 +1010,13 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 
 		auto pCPi = vpCPs[i];
 		if (pCPi->GetLastVisibleFrame() == nCurrKeyFrameID) {
-			std::cout << "???????????" << std::endl;
+			std::cout << "???????????::" <<pCPi->mnCandidatePointID<< std::endl;
 			continue;
 		}
 
 		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(usedPrev, Frame::mnRadius, 10, prevPts[i]);
 		bool b4 = pPrevMatchInfo->CheckOpticalPointOverlap(usedCurr, Frame::mnRadius, 10, currPts[i]);
-		bool b5 = pPrevMatchInfo->CheckOpticalPointOverlap(usedPPrev, Frame::mnRadius, 10, pprevPts[i]);
+		bool b5 = true;//pPrevMatchInfo->CheckOpticalPointOverlap(usedPPrev, Frame::mnRadius, 10, pprevPts[i]);
 		
 		if (!b3 || !b4 || !b5) {
 			continue;
@@ -1022,10 +1024,10 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 		pCPi->SetLastVisibleFrame(nCurrKeyFrameID);
 
 		cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
-		cv::circle(usedPPrev, pprevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
+		//cv::circle(usedPPrev, pprevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
 		cv::circle(usedCurr, currPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
 
-		vMatchedPPrevPts.push_back(pprevPts[i]);
+		//vMatchedPPrevPts.push_back(pprevPts[i]);
 		vMatchedPrevPts.push_back(prevPts[i]);
 		vMatchedCurrPts.push_back(currPts[i]);
 		vMatchedCPs.push_back(pCPi);
@@ -1036,14 +1038,58 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 	/////MP교환 테스트
 	for (int i = 0; i < vMatchedCPs.size(); i++) {
 		auto pCPi = vMatchedCPs[i];
+		int cidx = pCPi->GetPointIndexInFrame(pCurrMatchInfo);
 		int currIDX = pCurrMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, vMatchedCurrPts[i]);
-		
 		if (currIDX >= 0) {
+			if (cidx >= 0)
+				std::cout << "a;sldjf;alskdfa" << std::endl;
 			auto pCP2 = pCurrMatchInfo->mvpMatchingCPs[currIDX];
 			if(pCP2->mnCandidatePointID != pCPi->mnCandidatePointID){
 				pCurrMatchInfo->mvpMatchingCPs[currIDX] = pCPi;
 			}
 		}
+		//////prev & pprev
+		//bool bConnectPPrevKF = false;
+		//int pidx = pCPi->GetPointIndexInFrame(pPPrevMatchInfo);
+		//int pprevIDX = pPPrevMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, vMatchedPPrevPts[i]);
+		//if (pprevIDX >= 0) {
+		//	auto pCP2 = pPPrevMatchInfo->mvpMatchingCPs[pprevIDX];
+		//	if (pCP2->mnCandidatePointID != pCPi->mnCandidatePointID) {
+		//		if (pidx > -1) {
+		//			pCPi->DisconnectFrame(pPPrevMatchInfo);
+		//			auto pMPi = pCPi->GetMP();
+		//			if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
+		//				pMPi->DisconnectFrame(pPPrevMatchInfo);
+		//			}
+		//		}
+		//		pCP2->DisconnectFrame(pPPrevMatchInfo);
+		//		auto pMPi = pCP2->GetMP();
+		//		if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
+		//			pMPi->DisconnectFrame(pPPrevMatchInfo);
+		//		}
+		//		bConnectPPrevKF = true;
+		//		pPPrevMatchInfo->mvpMatchingCPs[pprevIDX] = pCPi;
+		//	}
+		//}
+		//else if (pprevIDX == -1) {
+		//	if (pidx > -1) {
+		//		pCPi->DisconnectFrame(pPPrevMatchInfo);
+		//		auto pMPi = pCPi->GetMP();
+		//		if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
+		//			pMPi->DisconnectFrame(pPPrevMatchInfo);
+		//		}
+		//	}
+		//	bConnectPPrevKF = true;
+		//	pprevIDX = pPPrevMatchInfo->AddCP(pCPi, vMatchedPPrevPts[i]);
+		//}
+		//if (bConnectPPrevKF) {
+		//	pCPi->ConnectFrame(pPPrevMatchInfo, pprevIDX);
+		//	auto pMPi = pCPi->GetMP();
+		//	if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
+		//		pMPi->ConnectFrame(pPPrevMatchInfo, pprevIDX);
+		//	}
+		//}
+		//////prev & pprev
 	}
 
 	//for (int i = 0; i < prevPts.size(); i++) {

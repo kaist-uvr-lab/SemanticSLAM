@@ -156,6 +156,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			//int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
 			int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vOpticalMatchPPrevPts, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
 			mpTargetFrame->mpMatchInfo->ConnectAll();
+			NewMapPointMarginalization();
 
 			std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
 			std::vector<CandidatePoint*> vMappingCPs;
@@ -854,6 +855,8 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	cv::Mat currImg = pCurrKF->GetOriginalImage();
 	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
 
+	float thresh = 5.0*5.0;
+
 	int nRes = 0;
 	int nTargetID = pPrevKF->GetFrameID();
 	for (int i = 0; i < TempMap.cols; i++) {
@@ -903,7 +906,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		auto diffPt2 = projected2 - prevPt;
 		float err1 = (diffPt1.dot(diffPt1));
 		float err2 = (diffPt2.dot(diffPt2));
-		if (err1 > 25.0 || err2 > 25.0) {
+		if (err1 > thresh || err2 > thresh) {
 			continue;
 		}
 		////reprojection error
@@ -924,7 +927,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		//////////////////////////////////
 
 		////커넥트가 최소 3개인 CP들은 전부 참여
-		if(pCPi->GetNumSize() > 2){
+		if(pCPi->GetNumSize() > 1){
 			//nRes++;
 			vMappingCurrPts.push_back(std::move(currPt));
 			vMappingPrevPts.push_back(std::move(prevPt));
@@ -966,17 +969,19 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	auto spWindowKFs = mpMap->GetWindowFramesSet(3);
 	/////시각화 확인
 	for (int i = 0; i < vMappingCPs.size(); i++) {
-		if (!vbInliers[i])
+		if (!vbInliers[i]){
 			continue;
+		}
 		nRes++;
 		cv::Mat X3D = std::move(vX3Ds[i]);
-		mpMap->AddReinit(X3D);
+		
 		auto pCPi = std::move(vMappingCPs[i]);
 		auto pMPi = pCPi->GetMP();
 		if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()){
 			pMPi->SetWorldPos(std::move(X3D));
 			continue;
 		}
+		mpMap->AddReinit(X3D);
 		int label = pCPi->GetLabel();
 		auto pMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, pCPi, X3D, cv::Mat(), label, pCPi->octave);
 		auto mmpFrames = pCPi->GetFrames();
@@ -987,9 +992,12 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 			if (spWindowKFs.find(pKF) != spWindowKFs.end()) {
 				pMatch->AddMP();
 				pMP->ConnectFrame(pMatch, idx);
+				pMP->IncreaseVisible();
+				pMP->IncreaseFound();
 			}
 		}
 		pMP->SetOptimization(true);
+		mpSystem->mlpNewMPs.push_back(pMP);
 	}
 
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
