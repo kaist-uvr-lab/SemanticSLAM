@@ -827,7 +827,7 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::v
 	////새로 추가된 맵포인트 설정
 
 	optimizer.initializeOptimization();
-	optimizer.optimize(10);
+	optimizer.optimize(5);
 
 	////체크
 	for (int i = 0; i < vpEdgesMono.size(); i++) {
@@ -842,7 +842,7 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::v
 		if (e->chi2()>5.991 || !e->isDepthPositive())
 		{
 			vnConnected[vIdx]--;
-			if (vnConnected[vIdx] < 3)
+			if (vnConnected[vIdx] < 1)
 				vbInliers[vIdx] = false;
 		}
 	}

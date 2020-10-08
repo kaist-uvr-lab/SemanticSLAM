@@ -868,6 +868,8 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		cv::Mat X3D;
 		bool bMP = false;
 		if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
+			//MP가 존재하면 얘를 이용함.
+			//여기서 스케일을 다시 계산하자.
 			X3D = std::move(pMPi->GetWorldPos());
 			pMPi->SetLastVisibleFrame(nCurrKeyFrameID);
 			bMP = true;
@@ -942,17 +944,17 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 			cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(0, 0, 255), -1);
 		}
 		else {
-			cv::circle(debugging, prevPt, 2, cv::Scalar(255, 255, 0), -1);
-			cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(255, 255, 0), -1);
+			cv::circle(debugging, prevPt, 2, cv::Scalar(255, 0, 0), -1);
+			cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(255, 0, 0), -1);
 		}
 		if (pCPi->GetMP()) {
 						
-			cv::line(debugging, currPt + ptBottom, projected1 + ptBottom, cv::Scalar(0, 255, 255), 1);
-			cv::line(debugging, prevPt, projected2, cv::Scalar(0, 255, 255), 1);
-			cv::circle(debugging, projected1 + ptBottom, 2, cv::Scalar(0, 255, 0), -1);
-			cv::circle(debugging, projected2, 2, cv::Scalar(0, 255, 0), -1);
-			cv::circle(debugging, prevPt, 3, cv::Scalar(0, 255, 255));
-			cv::circle(debugging, currPt + ptBottom, 3, cv::Scalar(0, 255, 255));
+			cv::line(debugging, currPt + ptBottom, projected1 + ptBottom, cv::Scalar(0, 255, 0), 1);
+			cv::line(debugging, prevPt, projected2, cv::Scalar(0, 255, 0), 1);
+			/*cv::circle(debugging, projected1 + ptBottom, 2, cv::Scalar(0, 255, 0), -1);
+			cv::circle(debugging, projected2, 2, cv::Scalar(0, 255, 0), -1);*/
+			cv::circle(debugging, prevPt, 3, cv::Scalar(0, 255, 0));
+			cv::circle(debugging, currPt + ptBottom, 3, cv::Scalar(0, 255, 0));
 		}
 		//////시각화
 		//nRes++;
@@ -974,14 +976,14 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		}
 		nRes++;
 		cv::Mat X3D = std::move(vX3Ds[i]);
-		
+		mpMap->AddReinit(X3D);
 		auto pCPi = std::move(vMappingCPs[i]);
 		auto pMPi = pCPi->GetMP();
 		if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()){
 			pMPi->SetWorldPos(std::move(X3D));
 			continue;
 		}
-		mpMap->AddReinit(X3D);
+		
 		int label = pCPi->GetLabel();
 		auto pMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, pCPi, X3D, cv::Mat(), label, pCPi->octave);
 		auto mmpFrames = pCPi->GetFrames();

@@ -1031,8 +1031,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 		vMatchedPrevPts.push_back(prevPts[i]);
 		vMatchedCurrPts.push_back(currPts[i]);
 		vMatchedCPs.push_back(pCPi);
-		cv::circle(testImg, prevPts[i], 2, cv::Scalar(255, 255, 0));
-		cv::circle(testImg, currPts[i]+ptBottom, 3, cv::Scalar(255, 0, 255));
+		cv::circle(debugging, prevPts[i], 4, cv::Scalar(0, 255, 255));
+		cv::circle(debugging, currPts[i]+ptBottom, 4, cv::Scalar(0, 255, 255));
 	}
 
 	/////MP교환 테스트
