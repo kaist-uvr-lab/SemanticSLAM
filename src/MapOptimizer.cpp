@@ -190,11 +190,13 @@ void UVR_SLAM::MapOptimizer::Run() {
 
 					cv::Mat R, t;
 					pKFi->GetPose(R, t);
-
+					std::vector<cv::Point2f> vTempPTs;
+					std::vector<CandidatePoint*> vTempCPs;
+					
 					int nCP = pMatch->GetNumCPs();
 					for (int j = 0; j < nCP; j++) {
-						auto pCPi = pMatch->mvpMatchingCPs[j];
-						auto pt = pMatch->mvMatchingPts[j];
+						auto pCPi = pMatch->GetCP(j);
+						auto pt = pMatch->GetPt(j);
 						auto pMPi = pCPi->GetMP();
 						if (!pMPi || pMPi->isDeleted() || !pMPi->GetQuality())
 							continue;

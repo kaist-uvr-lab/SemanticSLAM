@@ -1011,7 +1011,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 
 int UVR_SLAM::LocalMapper::CreateMapPoints(std::vector<cv::Point2f> vMatchCurrPts, std::vector<CandidatePoint*> vMatchCPs, double& ftime, cv::Mat& debugMatch) {
 	
-	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+	/*std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 	
 	auto spWindowKFs = mpMap->GetWindowFramesSet(2);
 	auto pTargetKF = mpMap->GetReverseWindowFrame(1);
@@ -1038,9 +1038,7 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(std::vector<cv::Point2f> vMatchCurrPt
 		vNewPrevPTs.push_back(pt);
 		vNewCurrPTs.push_back(vMatchCurrPts[i]);
 		vNewCPs.push_back(pCPi);
-	}
-
-
+	}*/
 
 }
 

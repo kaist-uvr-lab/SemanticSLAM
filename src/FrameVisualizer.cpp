@@ -41,7 +41,7 @@ namespace UVR_SLAM {
 				int nMatch = 0;
 				int nCP = pF->mpMatchInfo->GetNumCPs();
 				for (int i = 0; i < nCP; i++) {
-					auto pCPi = pF->mpMatchInfo->mvpMatchingCPs[i];
+					auto pCPi = pF->mpMatchInfo->GetCP(i);
 					auto pMPi = pCPi->GetMP();
 					if (!pMPi || pMPi->isDeleted() || !pMPi->GetQuality())
 						continue;
@@ -49,7 +49,7 @@ namespace UVR_SLAM {
 					cv::Point2f p2D;
 					cv::Mat pCam;
 					bool b = pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
-					auto pt = pF->mpMatchInfo->mvMatchingPts[i];
+					auto pt = pF->mpMatchInfo->GetPt(i);
 					nMatch++;
 					cv::circle(vis, p2D, 3, color1, -1);
 					cv::line(vis, p2D, pt, color2, 2);

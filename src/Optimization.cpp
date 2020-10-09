@@ -263,7 +263,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 			/*if (pKFi->GetKeyFrameID() > maxKFid)
 				continue;*/
 			int idx = mit->second;
-			auto pt = pMatch->mvMatchingPts[idx];
+			auto pt = pMatch->GetPt(idx);
 			Eigen::Matrix<double, 2, 1> obs;
 			obs << pt.x, pt.y;
 
@@ -795,7 +795,7 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::v
 				continue;
 			
 			int idx = mit->second;
-			auto pt = pMatch->mvMatchingPts[idx];
+			auto pt = pMatch->GetPt(idx);
 			Eigen::Matrix<double, 2, 1> obs;
 			obs << pt.x, pt.y;
 

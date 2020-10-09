@@ -153,7 +153,7 @@ namespace  UVR_SLAM{
 		pTargetKF->GetPose(R, t);
 		cv::hconcat(R, t, P);
 		Rt = R.t();
-		auto ptFirst = pFirst->mvMatchingPts[idx];
+		auto ptFirst = pFirst->GetPt(idx);
 		float val = CalcParallax(Rt, Rcurr.t(), ptFirst, ptCurr, invK);
 
 		if (val >= 0.9998) {

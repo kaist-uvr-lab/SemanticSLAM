@@ -877,18 +877,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	std::vector<MapPoint*> vpTempMPs;
 	std::vector<UVR_SLAM::CandidatePoint*> vpTempCPs;
 
-	int Ncp = prev->mpMatchInfo->GetNumCPs();
-	for (int i = 0; i < Ncp; i++) {
-		auto pCPi = prev->mpMatchInfo->mvpMatchingCPs[i];
-		if (prevPts.size() == 500)
-			break;
-		auto pMPi = pCPi->GetMP();
-		if (pMPi && !pMPi->isDeleted() && pMPi->GetQuality() && pMPi->isOptimized()) {
-			prevPts.push_back(prev->mpMatchInfo->mvMatchingPts[i]);
-			vpTempCPs.push_back(pCPi);
-			vpTempMPs.push_back(pMPi);
-		}
-	}
+	prev->mpMatchInfo->GetMatchingPtsTracking(vpTempCPs, vpTempMPs, prevPts);
+	
 	int maxLvl = 3;
 	int searchSize = 21;
 	//int searchSize = 21 + 10*(curr->GetFrameID() - prev->GetFrameID()-1);
@@ -979,9 +969,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 	std::vector<CandidatePoint*> vpCPs;
 
 	int nCurrKeyFrameID = pCurrKF->GetKeyFrameID();
-	int nCP = pPrevKF->mpMatchInfo->GetNumCPs();
-	vpCPs = pPrevKF->mpMatchInfo->mvpMatchingCPs;
-	prevPts = pPrevKF->mpMatchInfo->mvMatchingPts;//pPrevKF->mpMatchInfo->GetMatchingPtsMapping(vpCPs);
+	prevPts = pPrevKF->mpMatchInfo->GetMatchingPtsMapping(vpCPs);
 	auto pPPrevMatchInfo = pPPrevKF->mpMatchInfo;
 	auto pPrevMatchInfo = pPrevKF->mpMatchInfo;
 	auto pCurrMatchInfo = pCurrKF->mpMatchInfo;
@@ -1043,9 +1031,9 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 		if (currIDX >= 0) {
 			if (cidx >= 0)
 				std::cout << "a;sldjf;alskdfa" << std::endl;
-			auto pCP2 = pCurrMatchInfo->mvpMatchingCPs[currIDX];
-			if(pCP2->mnCandidatePointID != pCPi->mnCandidatePointID){
-				pCurrMatchInfo->mvpMatchingCPs[currIDX] = pCPi;
+			auto pCP2 = pCurrMatchInfo->GetCP(currIDX);
+			if (pCP2 && pCP2->mnCandidatePointID != pCPi->mnCandidatePointID) {
+				pCurrMatchInfo->ReplaceCP(pCPi, currIDX);
 			}
 		}
 		//////prev & pprev
@@ -1208,9 +1196,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 	std::vector<CandidatePoint*> vpCPs;
 
 	int nCurrKeyFrameID = pCurrKF->GetKeyFrameID();
-	int nCP = pPrevKF->mpMatchInfo->GetNumCPs();
-	vpCPs = pPrevKF->mpMatchInfo->mvpMatchingCPs;
-	prevPts = pPrevKF->mpMatchInfo->mvMatchingPts;//pPrevKF->mpMatchInfo->GetMatchingPtsMapping(vpCPs);
+	pPrevKF->mpMatchInfo->GetMatchingPtsMapping(vpCPs);
 	auto pPrevMatchInfo = pPrevKF->mpMatchInfo;
 	auto pCurrMatchInfo = pCurrKF->mpMatchInfo;
 	
@@ -1283,9 +1269,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Map* pMap, Frame* pCurrKF, Fra
 	std::vector<int> vnOctaves;
 	std::vector<CandidatePoint*> vpCPs;
 
-	int nCP = pPrevKF->mpMatchInfo->GetNumCPs();
-	vpCPs = pPrevKF->mpMatchInfo->mvpMatchingCPs;
-	prevPts = pPrevKF->mpMatchInfo->mvMatchingPts;//pPrevKF->mpMatchInfo->GetMatchingPtsMapping(vpCPs);
+	pPrevKF->mpMatchInfo->GetMatchingPtsMapping(vpCPs);
 	auto pPrevMatchInfo = pPrevKF->mpMatchInfo;
 	auto pCurrMatchInfo = pCurrKF->mpMatchInfo;
 

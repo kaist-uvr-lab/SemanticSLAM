@@ -1052,6 +1052,19 @@ void UVR_SLAM::MatchInfo::RemoveCP(int idx){
 	cv::circle(mMapCP, mvMatchingPts[idx], Frame::mnRadius, cv::Scalar(-1), -1);
 	mvpMatchingCPs[idx] = nullptr;	
 }
+void UVR_SLAM::MatchInfo::ReplaceCP(CandidatePoint* pCP, int idx) {
+	std::unique_lock<std::mutex>(mMutexCPs);
+	mvpMatchingCPs[idx] = pCP;
+}
+UVR_SLAM::CandidatePoint* UVR_SLAM::MatchInfo::GetCP(int idx){
+	std::unique_lock<std::mutex>(mMutexCPs);
+	return mvpMatchingCPs[idx];
+}
+cv::Point2f UVR_SLAM::MatchInfo::GetPt(int idx) {
+	std::unique_lock<std::mutex>(mMutexCPs);
+	return mvMatchingPts[idx];
+}
+
 void UVR_SLAM::MatchInfo::ConnectAll() {
 	int N;
 	{
@@ -1139,27 +1152,34 @@ int UVR_SLAM::MatchInfo::GetMatchingPtsTracking(std::vector<UVR_SLAM::CandidateP
 	{
 		std::unique_lock<std::mutex>(mMutexCPs);
 		nres = mvpMatchingCPs.size();
-	}
-	for (int i = 0; i < nres; i++) {
-		auto pCPi = mvpMatchingCPs[i];
-		if (vPTs.size() == nMaxMP)
-			break;
-		auto pMPi = pCPi->GetMP();
-		if (pMPi && !pMPi->isDeleted() && pMPi->GetQuality() && pMPi->isOptimized()) {
-			vPTs.push_back(mvMatchingPts[i]);
-			vpCPs.push_back(pCPi);
-			vpMPs.push_back(pMPi);
+
+		for (int i = 0; i < nres; i++) {
+			auto pCPi = mvpMatchingCPs[i];
+			if (vPTs.size() == nMaxMP)
+				break;
+			auto pMPi = pCPi->GetMP();
+			if (pMPi && !pMPi->isDeleted() && pMPi->GetQuality() && pMPi->isOptimized()) {
+				vPTs.push_back(mvMatchingPts[i]);
+				vpCPs.push_back(pCPi);
+				vpMPs.push_back(pMPi);
+			}
 		}
+
 	}
+	
+	
 	return nres;
 }
 
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLAM::MapPoint*>& vpMPs) {
 	int N;
 	{
-		std::unique_lock<std::mutex>(mMutexCPs);
-		N = mvpMatchingCPs.size();
+		
 	}
+
+	std::unique_lock<std::mutex>(mMutexCPs);
+	N = mvpMatchingCPs.size();
+
 	std::vector<cv::Point2f> res;
 	for (int i = 0; i < N; i++) {
 		auto pCPi = mvpMatchingCPs[i];
@@ -1176,9 +1196,12 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts(std::vector<UVR_SLA
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsMapping(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs){
 	int N;
 	{
-		std::unique_lock<std::mutex>(mMutexCPs);
-		N = mvpMatchingCPs.size();
+		
 	}
+
+	std::unique_lock<std::mutex>(mMutexCPs);
+	N = mvpMatchingCPs.size();
+
 	std::vector<cv::Point2f> res;
 	for (int i = 0; i < N; i++) {
 		res.push_back(mvMatchingPts[i]);
@@ -1190,9 +1213,12 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsMapping(std::vector<
 std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts() {
 	int N;
 	{
-		std::unique_lock<std::mutex>(mMutexCPs);
-		N = mvpMatchingCPs.size();
+		
 	}
+
+	std::unique_lock<std::mutex>(mMutexCPs);
+	N = mvpMatchingCPs.size();
+
 	std::vector<cv::Point2f> res;
 	for (int i = 0; i < N; i++) {
 		res.push_back(mvMatchingPts[i]);
