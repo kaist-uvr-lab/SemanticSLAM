@@ -209,7 +209,7 @@ void UVR_SLAM::PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLA
 			if (pKFi->mnLocalBAID != nTargetID)
 				continue;
 			int idx = mit->second;
-			auto pt = pMatch->mvMatchingPts[idx];
+			auto pt = pMatch->GetPt(idx);
 			Eigen::Matrix<double, 2, 1> obs;
 			obs << pt.x, pt.y;
 			if (bPlanarMP) {
