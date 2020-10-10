@@ -263,7 +263,7 @@ bool UVR_SLAM::Visualizer::isDoingProcess() {
 }
 void UVR_SLAM::Visualizer::SetOutputImage(cv::Mat out, int type) {
 	std::unique_lock<std::mutex> lockTemp(mMutexOutput);
-	mvOutputImgs[type] = out.clone();
+	mvOutputImgs[type] = std::move(out);
 	mvOutputChanged[type] = true;
 }
 cv::Mat UVR_SLAM::Visualizer::GetOutputImage(int type){

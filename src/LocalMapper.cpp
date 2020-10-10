@@ -156,8 +156,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			//int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
 			int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vOpticalMatchPPrevPts, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
 			mpTargetFrame->mpMatchInfo->ConnectAll();
-			NewMapPointMarginalization();
-
+			
 			std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
 			std::vector<CandidatePoint*> vMappingCPs;
 			int nMapping = MappingProcess(mpMap, mpTargetFrame, mpPrevKeyFrame, vMappingPrevPts, vMappingCurrPts, vMappingCPs, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, time2, debugMatch);
@@ -929,7 +928,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		//////////////////////////////////
 
 		////커넥트가 최소 3개인 CP들은 전부 참여
-		if(pCPi->GetNumSize() > 1){
+		if(pCPi->GetNumSize() >= 3){ //N-1
 			//nRes++;
 			vMappingCurrPts.push_back(std::move(currPt));
 			vMappingPrevPts.push_back(std::move(prevPt));
@@ -994,12 +993,12 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 			if (spWindowKFs.find(pKF) != spWindowKFs.end()) {
 				pMatch->AddMP();
 				pMP->ConnectFrame(pMatch, idx);
-				pMP->IncreaseVisible();
-				pMP->IncreaseFound();
+				/*pMP->IncreaseVisible();
+				pMP->IncreaseFound();*/
 			}
 		}
 		pMP->SetOptimization(true);
-		mpSystem->mlpNewMPs.push_back(pMP);
+		//mpSystem->mlpNewMPs.push_back(pMP);
 	}
 
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
