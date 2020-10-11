@@ -156,7 +156,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			//int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
 			int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vOpticalMatchPPrevPts, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
 			mpTargetFrame->mpMatchInfo->ConnectAll();
-			NewMapPointMarginalization();
+			//NewMapPointMarginalization();
 
 			std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
 			std::vector<CandidatePoint*> vMappingCPs;
@@ -929,7 +929,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		//////////////////////////////////
 
 		////커넥트가 최소 3개인 CP들은 전부 참여
-		if(pCPi->GetNumSize() > 1){
+		if(pCPi->GetNumSize() >= 3){
 			//nRes++;
 			vMappingCurrPts.push_back(std::move(currPt));
 			vMappingPrevPts.push_back(std::move(prevPt));
@@ -962,12 +962,13 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	////////////////////////////////////////최적화 진행
 	if (vX3Ds.size() < 20)
 		return -1;
+	mpMap->ClearReinit();
 	std::vector<bool> vbInliers(vX3Ds.size(), true);
 	Optimization::LocalOptimization(mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers);
 
 	///////////////////New Mp Creation
 	////기존 MP도 여기 결과에 따라서 커넥션이 가능해야 할 듯함.
-	mpMap->ClearReinit();
+	
 	auto spWindowKFs = mpMap->GetWindowFramesSet(3);
 	/////시각화 확인
 	for (int i = 0; i < vMappingCPs.size(); i++) {
@@ -975,7 +976,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 			continue;
 		}
 		nRes++;
-		cv::Mat X3D = std::move(vX3Ds[i]);
+		/*cv::Mat X3D = std::move(vX3Ds[i]);
 		mpMap->AddReinit(X3D);
 		auto pCPi = std::move(vMappingCPs[i]);
 		auto pMPi = pCPi->GetMP();
@@ -1000,6 +1001,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		}
 		pMP->SetOptimization(true);
 		mpSystem->mlpNewMPs.push_back(pMP);
+		*/
 	}
 
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();

@@ -766,8 +766,10 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::v
 	}
 
 	std::vector<g2o::EdgeSE3ProjectXYZ*> vpEdgesMono;
+	std::vector<UVR_SLAM::MatchInfo*> vpEdgeKFMono;
 	std::vector<int> vnVertexIDXs;
 	std::vector<int> vnConnected;
+	std::vector<int> vnEdgeConnectedIDXs;
 	const float thHuberMono = sqrt(5.991);
 
 	////새로 추가된 맵포인트 설정
@@ -820,6 +822,8 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::v
 			optimizer.addEdge(e);
 			vpEdgesMono.push_back(e);
 			vnVertexIDXs.push_back(i);
+			vpEdgeKFMono.push_back(pMatch);
+			vnEdgeConnectedIDXs.push_back(idx);
 			numEdges++;
 		}
 		vnConnected.push_back(numEdges);
@@ -830,10 +834,6 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::v
 	optimizer.optimize(5);
 
 	////체크
-	for (int i = 0; i < vpEdgesMono.size(); i++) {
-
-	}
-	// Check inlier observations       
 	for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
 	{
 		g2o::EdgeSE3ProjectXYZ* e = vpEdgesMono[i];
@@ -842,11 +842,11 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::v
 		if (e->chi2()>5.991 || !e->isDepthPositive())
 		{
 			vnConnected[vIdx]--;
-			if (vnConnected[vIdx] < 1)
+			if (vnConnected[vIdx] < 3)
 				vbInliers[vIdx] = false;
 		}
 	}
-
+	
 	//Curr KF 포즈 수정
 	{
 		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pCurrKF->GetKeyFrameID()));
@@ -862,6 +862,39 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::v
 	{
 		g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(i + maxKFid + 1));
 		vX3Ds[i] = Converter::toCvMat(vPoint->estimate()).clone();
+		if (vbInliers[i]) {
+			pMap->AddReinit(vX3Ds[i]);
+			auto pCPi = vpCPs[i];
+			auto pMPi = pCPi->GetMP();
+			if (!pMPi) {
+				//new mp
+				int label = pCPi->GetLabel();
+				auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCPi, vX3Ds[i], cv::Mat(), label, pCPi->octave);
+				pMP->SetOptimization(true);
+			}
+			else if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
+				pMPi->SetWorldPos(std::move(vX3Ds[i]));
+			}
+		}
+	}
+
+	for (int i = 0; i < vpEdgesMono.size(); i++) {
+		g2o::EdgeSE3ProjectXYZ* e = vpEdgesMono[i];
+		int vIdx = vnVertexIDXs[i];
+		if (vbInliers[vIdx]) {
+			auto pCPi = vpCPs[vIdx];
+			auto pMPi = pCPi->GetMP();
+			if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
+				auto pMatch = vpEdgeKFMono[i];
+				if (e->chi2() > 5.991 || !e->isDepthPositive()){
+					pMPi->DisconnectFrame(pMatch);
+					continue;
+				}
+				//connect
+				auto cIdx = vnEdgeConnectedIDXs[i];
+				pMPi->ConnectFrame(pMatch, cIdx);
+			}
+		}
 	}
 
 }

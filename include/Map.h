@@ -35,10 +35,12 @@ namespace UVR_SLAM {
 		Map(System* pSystem, int nConnected = 8, int nCandiate = 4);
 		virtual ~Map();
 	public:
+
 		Frame* GetLastWindowFrame();
 		Frame* GetReverseWindowFrame(int idx);
 		Frame* AddWindowFrame(Frame* pF);
 		//level = 1이면 첫번째 레벨의큐, 2이면 두번째 레벨의 큐 접근, 3이면 세번째 레벨 큐 접근
+		std::vector<Frame*> GetTrajectoryFrames();
 		std::vector<Frame*> GetWindowFramesVector(int level = 3);
 		std::set<Frame*> GetWindowFramesSet(int level = 3);
 		std::vector<Frame*> GetGraphFrames();
@@ -51,6 +53,7 @@ namespace UVR_SLAM {
 		std::list<Frame*> mQueueFrameWindows1, mQueueFrameWindows2, mQueueFrameWindows3;
 		std::list<Frame*> mQueueCandidateGraphFrames;
 		std::set<Frame*> mspGraphFrames;
+		std::vector<Frame*> mvpTrajectoryKFs;
 		System* mpSystem;
 		////////////////////////////////
 		////Dense Flow 관리

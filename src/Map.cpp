@@ -31,6 +31,7 @@ namespace UVR_SLAM{
 		if (mQueueFrameWindows1.size() == mnMaxConnectedKFs) {
 			auto pKF = mQueueFrameWindows1.front();
 			if (pKF->GetKeyFrameID() % 2 == 0) {
+				mvpTrajectoryKFs.push_back(pKF);
 				mQueueFrameWindows2.push_back(pKF);
 				pKF->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
 			}
@@ -64,8 +65,14 @@ namespace UVR_SLAM{
 			}
 		}
 		mQueueFrameWindows1.push_back(pF);
+		
 		return res;
 	}
+
+	std::vector<Frame*> Map::GetTrajectoryFrames() {
+		return mvpTrajectoryKFs;
+	}
+
 	//level = 1이면 첫번째 레벨의큐, 2이면 두번째 레벨의 큐 접근, 3이면 세번째 레벨 큐 접근
 	std::vector<Frame*> Map::GetWindowFramesVector(int level){
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);

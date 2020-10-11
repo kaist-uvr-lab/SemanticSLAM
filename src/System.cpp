@@ -105,11 +105,12 @@ bool UVR_SLAM::System::LoadVocabulary() {
 }
 
 void UVR_SLAM::System::SaveTrajectory() {
-	//auto vpKFs = mpMap->GetAllTrajectoryFrames();
-	auto vpKFs = mpMap->GetWindowFramesVector(3);
+	auto vpKFs = mpMap->GetTrajectoryFrames();
+	/*auto vpKFs = mpMap->GetWindowFramesVector(3);
 	auto vpGraphKFs = mpMap->GetGraphFrames();
 	for (int i = 0; i < vpGraphKFs.size(); i++)
-		vpKFs.push_back(vpGraphKFs[i]);
+		vpKFs.push_back(vpGraphKFs[i]);*/
+
 	std::string base = GetDirPath(0)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ;
 	std::stringstream ssdir, ssfile;
 	/*std::s  tringstream ssDirPath;
@@ -122,8 +123,7 @@ void UVR_SLAM::System::SaveTrajectory() {
 	f << std::fixed;
 	for (int i = 0; i < vpKFs.size(); i++) {
 		auto pKF = vpKFs[i];
-		if (pKF->GetKeyFrameID() % 3 != 0)
-			continue;
+		
 		cv::Mat R, t;     
 		pKF->GetPose(R, t);
 		R = R.t(); //inverse
