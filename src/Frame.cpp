@@ -1040,7 +1040,16 @@ int UVR_SLAM::MatchInfo::GetNumCPs() {
 
 int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
 	std::unique_lock<std::mutex>(mMutexCPs);
+	auto findres1 = this->mmpTrackingInfos2.find(pCP);
+	if (findres1 != mmpTrackingInfos2.end()) {
+		auto idx = findres1->second;
+		if(idx > -1)
+			std::cout << "AddCP::error" << pCP->mnCandidatePointID << std::endl;
+	}
+
 	int res = mvpMatchingCPs.size();
+	mmpTrackingInfos2[pCP] = res;
+	
 	mvpMatchingCPs.push_back(pCP);
 	mvMatchingPts.push_back(pt);
 	cv::circle(mMapCP, pt, Frame::mnRadius, cv::Scalar(res+1), -1);

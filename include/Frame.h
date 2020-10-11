@@ -36,10 +36,17 @@ namespace UVR_SLAM {
 	class PlaneProcessInformation;
 	class Line;
 	class MapGrid;
+
+	struct Point2fLess
+	{
+		bool operator()(cv::Point2f const&lhs, cv::Point2f const& rhs) const
+		{
+			return lhs.x == rhs.x ? lhs.y < rhs.y : lhs.x < rhs.x;
+		}
+	};
+
 	class MatchInfo {
 	public:
-		
-		
 		
 		MatchInfo();
 		MatchInfo(Frame* pRef, Frame* pTarget, int w, int h);
@@ -75,7 +82,17 @@ namespace UVR_SLAM {
 	private:
 		std::mutex mMutexCPs;
 		cv::Mat mMapCP; //현재 이미지 내에 CP의 포인트 위치 & 인덱스, ushort, 16US1
-		
+
+///////////////Tracking 관련
+	public:
+		void UpdateTrackingInfos();
+		int AddTrackingCP(CandidatePoint* pCP, cv::Point2f pt);
+		std::vector<cv::Point2f> mvTrackingPTs;
+		std::vector<CandidatePoint*> mvpTrackingCPs;
+		std::map<CandidatePoint*, cv::Point2f> mmpTrackingInfos;
+		std::map<CandidatePoint*, int> mmpTrackingInfos2;
+	private:
+///////////////Tracking 관련
 		
 
 //////////////////

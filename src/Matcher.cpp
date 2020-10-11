@@ -1045,6 +1045,12 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 				std::cout << "a;sldjf;alskdfa" << std::endl;
 			auto pCP2 = pCurrMatchInfo->mvpMatchingCPs[currIDX];
 			if(pCP2->mnCandidatePointID != pCPi->mnCandidatePointID){
+				auto findres = pCurrMatchInfo->mmpTrackingInfos2.find(pCPi);
+				if (findres != pCurrMatchInfo->mmpTrackingInfos2.end()) {
+					std::cout << "errerrerr" << std::endl;
+				}
+				pCurrMatchInfo->mmpTrackingInfos2[pCPi] = currIDX;
+				pCurrMatchInfo->mmpTrackingInfos2[pCP2] = -1;
 				pCurrMatchInfo->mvpMatchingCPs[currIDX] = pCPi;
 			}
 		}
