@@ -889,6 +889,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			vpTempMPs.push_back(pMPi);
 		}
 	}
+
 	int maxLvl = 3;
 	int searchSize = 21;
 	//int searchSize = 21 + 10*(curr->GetFrameID() - prev->GetFrameID()-1);
@@ -923,7 +924,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		//	continue;
 		//}
 		if (vpTempCPs[i]->mnTrackingFrameID == nCurrFrameID){
-			std::cout << "tracking::" <<vpTempCPs[i]->mnCandidatePointID<<", "<<nCurrFrameID<< std::endl;
+			std::cout << "tracking::" << prev->mpMatchInfo->mvpTrackingCPs[i]->mnCandidatePointID<<", "<<nCurrFrameID<< std::endl;
 			continue;
 		}
 		vpTempCPs[i]->mnTrackingFrameID = nCurrFrameID;
@@ -935,12 +936,13 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			vnIDXs.push_back(i);
 			vpPts.push_back(currPts[i]);
 			vbInliers.push_back(true);
+			res++;
 		}
 		/*else {
 			cv::circle(debugging, prevPts[i], 1, cv::Scalar(255, 0, 255), -1);
 			cv::circle(debugging, currPts[i] + ptBottom, 1, cv::Scalar(255, 0, 255), -1);
 		}*/
-		res++;
+		
 	}
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
@@ -1010,7 +1012,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 
 		auto pCPi = vpCPs[i];
 		if (pCPi->GetLastVisibleFrame() == nCurrKeyFrameID) {
-			std::cout << "???????????::" <<pCPi->mnCandidatePointID<< std::endl;
+			std::cout << "OpticalMatchingForMapping::CP중복    ::" <<pCPi->mnCandidatePointID<< std::endl;
 			continue;
 		}
 
@@ -1036,6 +1038,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 	}
 
 	/////MP교환 테스트
+	//pCPi는 매칭으로 바꾸려는 것, pCP2는 트래킹 과정에 있던 것.
+	//pCPi를 추가하고 pCP2를 삭제함.
 	for (int i = 0; i < vMatchedCPs.size(); i++) {
 		auto pCPi = vMatchedCPs[i];
 		int cidx = pCPi->GetPointIndexInFrame(pCurrMatchInfo);
@@ -1045,6 +1049,9 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 				std::cout << "a;sldjf;alskdfa" << std::endl;
 			auto pCP2 = pCurrMatchInfo->mvpMatchingCPs[currIDX];
 			if(pCP2->mnCandidatePointID != pCPi->mnCandidatePointID){
+				auto findres = pCurrMatchInfo->mmpTrackingInfos.find(pCPi);
+				if(findres != pCurrMatchInfo->mmpTrackingInfos.end())
+					std::cout << "aaaaaaaaaaaa" << std::endl;
 				pCurrMatchInfo->mvpMatchingCPs[currIDX] = pCPi;
 			}
 		}

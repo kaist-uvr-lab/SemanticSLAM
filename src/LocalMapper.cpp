@@ -122,11 +122,13 @@ void UVR_SLAM::LocalMapper::Run() {
 		if (CheckNewKeyFrames()) {
 			SetDoingProcess(true);
 			std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
-			
 			ProcessNewKeyFrame();
 			//std::cout << "Local Mapping :: ID = " << mpTargetFrame->GetFrameID() << "::Start::"<<mpTargetFrame->mpMatchInfo->GetNumCPs() <<"::"<<mpTargetFrame->mpMatchInfo->mfLowQualityRatio<< std::endl;
 			int nTargetID = mpTargetFrame->GetFrameID();
 			
+			std::cout << "LM::" << mpTargetFrame->GetKeyFrameID() << "::" << mpTargetFrame->mpMatchInfo->mmpTrackingInfos.size() << std::endl;
+
+
 			mpPrevKeyFrame->mpMatchInfo->SetMatchingPoints();
 			int nCreated = 0;
 			////////New Matching & Create & Delayed CP test
@@ -155,6 +157,21 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::vector<CandidatePoint*> vOpticalMatchCPs;
 			//int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
 			int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vOpticalMatchPPrevPts, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
+			
+			////lock
+			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
+			mpSystem->mbLocalMappingEnd = false;
+			////lock
+
+			//update tracking informations
+			mpTargetFrame->mpMatchInfo->UpdateTrackingInfos();
+			
+			////unlock
+			mpSystem->mbLocalMappingEnd = true;
+			lock.unlock();
+			mpSystem->cvUseLocalMapping.notify_one();
+			////unlock
+
 			mpTargetFrame->mpMatchInfo->ConnectAll();
 			NewMapPointMarginalization();
 
@@ -970,6 +987,10 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	mpMap->ClearReinit();
 	auto spWindowKFs = mpMap->GetWindowFramesSet(3);
 	/////시각화 확인
+
+	std::vector<CandidatePoint*> vpCPsforNewMPs;
+	std::vector<cv::Point2f> vPTsforNewMPs;
+
 	for (int i = 0; i < vMappingCPs.size(); i++) {
 		if (!vbInliers[i]){
 			continue;
@@ -979,6 +1000,23 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		mpMap->AddReinit(X3D);
 		auto pCPi = std::move(vMappingCPs[i]);
 		auto pMPi = pCPi->GetMP();
+		auto pt = vMappingCurrPts[i];
+
+		auto findres = mpTargetFrame->mpMatchInfo->mmpTrackingInfos.find(pCPi);
+		if (findres == mpTargetFrame->mpMatchInfo->mmpTrackingInfos.end()) {
+			vpCPsforNewMPs.push_back(pCPi);
+			vPTsforNewMPs.push_back(pt);
+			mpTargetFrame->mpMatchInfo->mmpTrackingInfos[pCPi] = pt;
+		}
+		else {
+			auto pt2 = findres->second;
+			if (pt2 == cv::Point2f(-1, -1)) {
+				vpCPsforNewMPs.push_back(pCPi);
+				vPTsforNewMPs.push_back(pt);
+				mpTargetFrame->mpMatchInfo->mmpTrackingInfos[pCPi] = pt;
+			}
+		}
+
 		if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()){
 			pMPi->SetWorldPos(std::move(X3D));
 			continue;
@@ -1000,7 +1038,28 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		}
 		pMP->SetOptimization(true);
 		mpSystem->mlpNewMPs.push_back(pMP);
+		
 	}
+
+	//////////Add new mp to tracking informations
+	{
+		std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
+		mpSystem->mbLocalMappingEnd = false;
+		int N = 500 - mpTargetFrame->mpMatchInfo->mvTrackingPTs.size();
+		int N2 = vpCPsforNewMPs.size();
+		for (int i = 0; i < N && i < N2; i++) {
+			//mpTargetFrame->mpMatchInfo->mmpTrackingInfos
+			mpTargetFrame->mpMatchInfo->mvTrackingPTs.push_back(vPTsforNewMPs[i]);
+			mpTargetFrame->mpMatchInfo->mvpTrackingCPs.push_back(vpCPsforNewMPs[i]);
+		}
+
+		////unlock
+		mpSystem->mbLocalMappingEnd = true;
+		lock.unlock();
+		mpSystem->cvUseLocalMapping.notify_one();
+	}
+	////unlock
+	//////////Add new mp to tracking informations
 
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();

@@ -161,6 +161,13 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 	}
 	else {
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+		
+		std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMap);
+		while (!mpSystem->mbLocalMapUpdateEnd) {
+			mpSystem->cvUseLocalMap.wait(lock);
+		}
+		mpSystem->mbTrackingEnd = false;
+		
 		//std::cout << "tracker::start::" <<pCurr->GetFrameID()<< std::endl;
 		//std::cout << mpMap->mpFirstKeyFrame->mpPlaneInformation->GetFloorPlane()->GetParam() << std::endl << std::endl << std::endl;
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -190,6 +197,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat debugImg;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->GetOriginalImage().size(), CV_8UC1);
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempCPs, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, overlap); //pCurr
+		
 
 		//mpSystem->mbTrackingEnd = true;
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
@@ -198,6 +206,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);
 		int nMP = UpdateMatchingInfo(mpRefKF, pCurr, vpTempCPs,vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
 		
+		lock.unlock();
+		mpSystem->cvUseLocalMap.notify_one();
+
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크
 		auto pNewKF = CheckNeedKeyFrame(pCurr, pPrev);
@@ -264,10 +275,11 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 		if (pMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, pt) < 0) {
 			//pMP->AddSuccess();
 			//pMP->SetLastSuccessFrame(pCurr->GetFrameID());
-			pMatchInfo->AddCP(pCP, pt);
+			pMatchInfo->AddTrackingCP(pCP, pt);
 			nres++;
 		}
 	}
+
 	pMatchInfo->mfLowQualityRatio = ((float)nFail)/ vpPts.size();
 	//std::cout << "Tracking::ID=" << pPrev->GetKeyFrameID() <<", "<< nCurrID << " matching = " << nres <<", Quality = "<< pMatchInfo->mfLowQualityRatio << std::endl;
 	return nres;

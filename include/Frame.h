@@ -39,8 +39,6 @@ namespace UVR_SLAM {
 	class MatchInfo {
 	public:
 		
-		
-		
 		MatchInfo();
 		MatchInfo(Frame* pRef, Frame* pTarget, int w, int h);
 		virtual ~MatchInfo();
@@ -59,7 +57,7 @@ namespace UVR_SLAM {
 		int mnMatch;
 //////////////////
 	public:
-		int AddCP(CandidatePoint* pMP, cv::Point2f pt);
+		int AddCP(CandidatePoint* pCP, cv::Point2f pt);
 		int nPrevNumCPs;
 		int GetNumCPs();
 		std::vector<cv::Point2f> GetMatchingPts();
@@ -76,7 +74,15 @@ namespace UVR_SLAM {
 		std::mutex mMutexCPs;
 		cv::Mat mMapCP; //현재 이미지 내에 CP의 포인트 위치 & 인덱스, ushort, 16US1
 		
-		
+///////////////Tracking 관련
+	public:
+		void UpdateTrackingInfos();
+		int AddTrackingCP(CandidatePoint* pCP, cv::Point2f pt);
+		std::vector<cv::Point2f> mvTrackingPTs;
+		std::vector<CandidatePoint*> mvpTrackingCPs;
+		std::map<CandidatePoint*, cv::Point2f> mmpTrackingInfos;
+	private:
+///////////////Tracking 관련
 
 //////////////////
 	public:

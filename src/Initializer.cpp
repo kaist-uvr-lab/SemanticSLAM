@@ -208,7 +208,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			vTempMappedIDXs.push_back(i);//vTempMatchIDXs[i]
 			
 			//Initframe1에는 이미 등록이 되어 있음.
-			int idx3 = mpInitFrame2->mpMatchInfo->AddCP(pCP, vTempMatchPts2[i]);
+			int idx3 = mpInitFrame2->mpMatchInfo->AddTrackingCP(pCP, vTempMatchPts2[i]);
 			pCP->ConnectFrame(mpInitFrame2->mpMatchInfo, idx3);
 			//MP 등록
 			pMP->ConnectFrame(mpInitFrame1->mpMatchInfo, idx2);

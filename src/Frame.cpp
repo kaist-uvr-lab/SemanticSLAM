@@ -1038,6 +1038,49 @@ int UVR_SLAM::MatchInfo::GetNumCPs() {
 	return mvpMatchingCPs.size();
 }
 
+void UVR_SLAM::MatchInfo::UpdateTrackingInfos() {
+	std::unique_lock<std::mutex>(mMutexCPs);
+	mvpTrackingCPs.clear();
+	mvTrackingPTs.clear();
+	
+	//mvMatchingPts.clear();
+
+
+	//여기까지는 트래킹 정보가 기존의 cp vector, pt vector의 정보와 일치하기 때문에 가능함.
+	//원래 vector도 변경이 되어야 함.null값을 반영해야 할 듯..
+	//모든 CP traverse는 null check가 필요
+	//이 함수가 동작시점에 호출되는 프레임은 최적화에 포함되지 않음.
+	for (auto iter = mmpTrackingInfos.begin(); iter != mmpTrackingInfos.end(); iter++) {
+		auto pCP = iter->first;
+		auto pt = iter->second;
+
+		if (pt == cv::Point2f(-1,-1)){
+			continue;
+		}
+
+		mvpTrackingCPs.push_back(pCP);
+		mvTrackingPTs.push_back(pt);
+	}
+
+}
+
+int UVR_SLAM::MatchInfo::AddTrackingCP(CandidatePoint* pCP, cv::Point2f pt) {
+	std::unique_lock<std::mutex>(mMutexCPs);
+	int res = mvpMatchingCPs.size();
+	mvpMatchingCPs.push_back(pCP);
+	mvMatchingPts.push_back(pt);
+
+	mvTrackingPTs.push_back(pt);
+	mvpTrackingCPs.push_back(pCP);
+	if (mmpTrackingInfos.find(pCP) != mmpTrackingInfos.end()) {
+		std::cout << "tracking cp error" << std::endl;
+	}
+	mmpTrackingInfos.insert(std::make_pair(pCP, pt));
+
+	cv::circle(mMapCP, pt, Frame::mnRadius, cv::Scalar(res + 1), -1);
+	return res;
+}
+
 int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
 	std::unique_lock<std::mutex>(mMutexCPs);
 	int res = mvpMatchingCPs.size();
