@@ -859,6 +859,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 
 	int nRes = 0;
 	int nTargetID = pPrevKF->GetFrameID();
+	std::vector<float> vfScales;
 	for (int i = 0; i < TempMap.cols; i++) {
 
 		auto currPt = std::move(vMatchedCurrPts[i]);
@@ -867,27 +868,40 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		auto pMPi = pCPi->GetMP();
 		cv::Mat X3D;
 		bool bMP = false;
+
+		//New MP 조정
+		X3D = std::move(TempMap.col(i));
+		if (abs(X3D.at<float>(3)) < 0.0001) {
+			continue;
+		}
+		X3D /= X3D.at<float>(3);
+		X3D = X3D.rowRange(0, 3);
+		//New MP 조정
+
+		cv::Mat proj1 = Rcurr*X3D + Tcurr;
+		cv::Mat proj2 = Rprev*X3D + Tprev;
+
+		float depth1 = proj1.at<float>(2);
+		float depth2 = proj2.at<float>(2);
+
 		if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
 			//MP가 존재하면 얘를 이용함.
 			//여기서 스케일을 다시 계산하자.
 			X3D = std::move(pMPi->GetWorldPos());
 			pMPi->SetLastVisibleFrame(nCurrKeyFrameID);
+
+			////scale
+			cv::Mat proj3 = Rprev*X3D + Tprev;
+			float depth3  = proj3.at<float>(2);
+			float scale = depth3 / depth2;
+			vfScales.push_back(scale);
+			////scale
 			bMP = true;
-		}
-		else {
-			X3D = std::move(TempMap.col(i));
-			if (abs(X3D.at<float>(3)) < 0.0001) {
-				continue;
-			}
-			X3D /= X3D.at<float>(3);
-			X3D = X3D.rowRange(0, 3);
-		}
 
-		cv::Mat proj1 = Rcurr*X3D + Tcurr;
-		cv::Mat proj2 = Rprev*X3D + Tprev;
-
+		}
+		
 		////depth test
-		if (proj1.at<float>(2) < 0.0 || proj2.at<float>(2) < 0.0) {
+		if ( depth1  < 0.0 || depth2 < 0.0) {
 			//cv::circle(debugging, currPt + ptBottom, 2, cv::Scalar(0, 255, 0), -1);
 			//cv::circle(debugging, prevPt, 2, cv::Scalar(0, 255, 0), -1);
 			/*if (proj1.at<float>(0) < 0 && proj1.at<float>(1) < 0 && proj1.at<float>(2) < 0) {
@@ -959,12 +973,19 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		//////시각화
 		//nRes++;
 	}
+
 	////////////////////////////////////////최적화 진행
 	if (vX3Ds.size() < 20)
 		return -1;
+
+	/////////Scale 계산
+	std::nth_element(vfScales.begin(), vfScales.begin() + vfScales.size() / 2, vfScales.end());
+	float medianPrevScale = vfScales[vfScales.size() / 2];
+	/////////Scale 계산
+
 	mpMap->ClearReinit();
 	std::vector<bool> vbInliers(vX3Ds.size(), true);
-	Optimization::LocalOptimization(mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers);
+	Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers, medianPrevScale);
 
 	///////////////////New Mp Creation
 	////기존 MP도 여기 결과에 따라서 커넥션이 가능해야 할 듯함.
