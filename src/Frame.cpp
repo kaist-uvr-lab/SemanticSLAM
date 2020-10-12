@@ -552,6 +552,38 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 	mK = _k.clone();
 	mDistCoef = _d.clone();
 
+	
+
+	//에러나면 풀어야 함
+	//AssignFeaturesToGrid();
+
+	//임시로 키포인트 복사
+	
+	//mvpMPs 초기화
+	//cv::undistort(matOri, undistorted, mK, mDistCoef);
+	
+	//////////canny
+	//edge는 setkeyframe에서 추가.
+	//canny는 이전에 돌리고 엣지 포인트만 여기서 추가하기.(0704)
+	//cv::Mat filtered;
+	//GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
+	//cv::Canny(filtered, mEdgeImg, 50, 200);//150
+	
+	//////////canny
+
+	/*mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
+	mvbMPInliers = std::vector<bool>(mvKeyPoints.size(), false);
+	mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);*/
+
+	//mvMapObjects = std::vector<std::multimap<ObjectType, int, std::greater<int>>>(mvKeyPoints.size());
+	//파트별 매칭을 위한 것.
+	/*mWallDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
+	mObjectDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
+	mPlaneDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
+	mLabelStatus = cv::Mat::zeros(mvKeyPoints.size(), 1, CV_8UC1);*/
+}
+
+void UVR_SLAM::Frame::DetectFeature() {
 	//tempDesc와 tempKPs는 이미지에서 겹치는 키포인트를 제거하기 위함.
 	//ExtractORB(matFrame, mvKeyPoints, matDescriptor);
 	//////여기에서 중복되는 키포인트들 제거하기
@@ -560,7 +592,7 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 		ExtractORB(matFrame, mvTempKPs, tempDesc);
 		matDescriptor = cv::Mat::zeros(0, tempDesc.cols, tempDesc.type());
 	}
-
+	
 	cv::Mat overlap = cv::Mat::zeros(matFrame.size(), CV_8UC1);
 	for (int i = 0; i < mvTempKPs.size(); i++) {
 
@@ -597,34 +629,7 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 		mbInitialComputations = false;
 	}
 	UndistortKeyPoints();
-
-	//에러나면 풀어야 함
-	//AssignFeaturesToGrid();
-
-	//임시로 키포인트 복사
 	mvKeyPoints = mvKeyPointsUn;
-	//mvpMPs 초기화
-	//cv::undistort(matOri, undistorted, mK, mDistCoef);
-	
-	//////////canny
-	//edge는 setkeyframe에서 추가.
-	//canny는 이전에 돌리고 엣지 포인트만 여기서 추가하기.(0704)
-	//cv::Mat filtered;
-	//GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
-	//cv::Canny(filtered, mEdgeImg, 50, 200);//150
-	DetectEdge();
-	//////////canny
-
-	/*mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
-	mvbMPInliers = std::vector<bool>(mvKeyPoints.size(), false);
-	mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);*/
-
-	//mvMapObjects = std::vector<std::multimap<ObjectType, int, std::greater<int>>>(mvKeyPoints.size());
-	//파트별 매칭을 위한 것.
-	/*mWallDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
-	mObjectDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
-	mPlaneDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
-	mLabelStatus = cv::Mat::zeros(mvKeyPoints.size(), 1, CV_8UC1);*/
 }
 
 void UVR_SLAM::Frame::DetectEdge() {
@@ -984,12 +989,15 @@ void UVR_SLAM::MatchInfo::SetLabel() {
 
 //새로운 맵포인트를 생성하기 위한 키포인트를 생성.
 void UVR_SLAM::MatchInfo::SetMatchingPoints() {
+	/*int N = this->GetNumCPs();
+	if (N > 600){
+		return;
+	}
+	mpRefFrame->DetectFeature();
+	mpRefFrame->SetBowVec(mpSystem->fvoc);
+	mpRefFrame->DetectEdge();*/
 
-	/*int N = this->GetNumCPs.size();
-	if (N > 1000)
-		return;*/
-	int radius = 5;
-	int nMax = 100; //둘다 하면 500
+	int nMax = 150; //둘다 하면 500
 	int nIncEdge = mpRefFrame->mvEdgePts.size() / nMax;
 	int nIncORB = mpRefFrame->mvPts.size() / nMax;
 
@@ -1016,7 +1024,6 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		int idx = this->AddCP(pCP, pt);
 		pCP->ConnectFrame(this, idx);
 	}
-	
 }
 
 void UVR_SLAM::MatchInfo::AddMP() {
@@ -1096,7 +1103,6 @@ void UVR_SLAM::MatchInfo::DisconnectAll() {
 	}
 }
 bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
-
 	int N;
 	{
 		std::unique_lock<std::mutex>(mMutexCPs);
@@ -1128,6 +1134,7 @@ bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 	//b3은 이전 프레임과 비교시 차이가 갑자기 클 때로
 	//전체 MP 수, quality가 안좋은 애들은 이미 여기에 존재하지를 못함. 
 	//std::cout << "FrameQuality = " << nMP << "+" <<nLow<<"="<< N << std::endl;
+
 	return b1 || b2;
 }
 

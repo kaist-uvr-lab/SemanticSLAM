@@ -78,6 +78,9 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame1 = pFrame;
 		mpTempFrame = mpInitFrame1;
 		mpInitFrame1->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
+		mpInitFrame1->DetectFeature();
+		mpInitFrame1->SetBowVec(mpSystem->fvoc);
+		mpInitFrame1->DetectEdge();
 		mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo(mpInitFrame1, nullptr, mnWidth, mnHeight);
 		mpInitFrame1->mpMatchInfo->SetMatchingPoints();
 		mpSegmentator->InsertKeyFrame(mpInitFrame1);

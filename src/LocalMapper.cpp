@@ -84,6 +84,14 @@ void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
 		mbStopBA = false;
 	}
 	mpTargetFrame->Init(mpSystem->mpORBExtractor, mpSystem->mK, mpSystem->mD);
+
+	if (mpPrevKeyFrame->mpMatchInfo->GetNumCPs() < 600) {
+		double time5 = 0.0;
+		mpPrevKeyFrame->DetectFeature();
+		mpPrevKeyFrame->DetectEdge();
+		mpPrevKeyFrame->mpMatchInfo->SetMatchingPoints();
+		mpPrevKeyFrame->SetBowVec(mpSystem->fvoc);
+	}
 }
 
 bool  UVR_SLAM::LocalMapper::isStopLocalMapping(){
@@ -123,22 +131,22 @@ void UVR_SLAM::LocalMapper::Run() {
 			SetDoingProcess(true);
 			std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
 			
+			double time1 = 0.0;
+			double time2 = 0.0;
+
 			ProcessNewKeyFrame();
+			
 			//std::cout << "Local Mapping :: ID = " << mpTargetFrame->GetFrameID() << "::Start::"<<mpTargetFrame->mpMatchInfo->GetNumCPs() <<"::"<<mpTargetFrame->mpMatchInfo->mfLowQualityRatio<< std::endl;
 			int nTargetID = mpTargetFrame->GetFrameID();
 			
-			mpPrevKeyFrame->mpMatchInfo->SetMatchingPoints();
 			int nCreated = 0;
 			////////New Matching & Create & Delayed CP test
 			cv::Mat debugMatch;
-			double time1 = 0.0;
-			double time2 = 0.0;
-			double time3 = 0.0;
-
+			
 			/////프레임 퀄리티 계산
+			
 			bool bLowQualityFrame = mpTargetFrame->mpMatchInfo->UpdateFrameQuality();
-			std::chrono::high_resolution_clock::time_point lm_temp1 = std::chrono::high_resolution_clock::now();
-
+			
 			/////프레임 퀄리티 계산
 			/////////KF-KF 매칭
 			////이미지 생성
@@ -161,7 +169,6 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
 			std::vector<CandidatePoint*> vMappingCPs;
 			int nMapping = MappingProcess(mpMap, mpTargetFrame, mpPrevKeyFrame, vMappingPrevPts, vMappingCurrPts, vMappingCPs, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, time2, debugMatch);
-			
 			////////////New Map Point Creation Test
 			//{
 			//	auto lastKF = mpMap->GetReverseWindowFrame(0);
@@ -331,12 +338,12 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::chrono::high_resolution_clock::time_point lm_end = std::chrono::high_resolution_clock::now();
 			auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(lm_end - lm_start).count();
 			float t_test1 = du_test1 / 1000.0;
-			auto du_test2 = std::chrono::duration_cast<std::chrono::milliseconds>(lm_temp1 - lm_start).count();
-			float t_test2 = du_test2 / 1000.0;
 			
 			std::stringstream ssa;
 			ssa << "LocalMapping : " << mpTargetFrame->GetKeyFrameID() << "::" << t_test1 << "::" << "::" << nMapping <<", "<< time1 << ", " << time2 << std::endl;;// << ", " << nMinKF << ", " << nMaxKF;
 			mpSystem->SetLocalMapperString(ssa.str());
+
+			//std::cout << "lm::end::" << mpPrevKeyFrame->mpMatchInfo->GetNumCPs()<<"::"<< t_test1 <<"="<<time0<<", "<< time1 << "||" << time2 << "||" << time3 << "||" << time4 <<", "<<time5<< std::endl;
 
 			//std::cout << "lm::end::" <<mpTargetFrame->GetFrameID()<<"::"<<nCreated<< std::endl;
 			SetDoingProcess(false);
