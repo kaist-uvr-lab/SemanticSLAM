@@ -13,6 +13,7 @@
 #include <PlaneBA.h>
 #include <PlaneEstimator.h>
 #include <Plane.h>
+#include <System.h>
 #include <Map.h>
 #include <MapOptimizer.h>
 
@@ -729,7 +730,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 }
 ////Opticalflow ¹öÀü¿ë
 
-void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers) {
+void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame* pCurrKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers, float scale) {
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
 
@@ -778,7 +779,10 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::v
 		auto pCPi = std::move(vpCPs[i]);
 		auto pMPi = pCPi->GetMP();
 		g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
-		vPoint->setEstimate(Converter::toVector3d(vX3Ds[i]));
+		cv::Mat X3D = std::move(vX3Ds[i]);
+		if (!pMPi)
+			X3D *= scale;
+		vPoint->setEstimate(Converter::toVector3d(X3D));
 		const int id = i + maxKFid + 1;
 		vPoint->setId(id);
 		vPoint->setMarginalized(true);
