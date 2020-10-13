@@ -60,13 +60,13 @@ namespace UVR_SLAM {
 				cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
 				cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 
-				cv::Mat res = cv::Mat::zeros(mnHeight * 2, mnWidth, CV_8UC3);
+				/*cv::Mat res = cv::Mat::zeros(mnHeight * 2, mnWidth, CV_8UC3);
 				cv::Rect rect1 = cv::Rect(0, 0, mnWidth, mnHeight);
 				cv::Rect rect2 = cv::Rect(0, mnHeight, mnWidth, mnHeight);
 				vis.copyTo(res(rect1));
-				kfImg.copyTo(res(rect2));
+				kfImg.copyTo(res(rect2));*/
 				cv::Mat resized;
-				cv::resize(res, resized, cv::Size(res.cols/2, res.rows/2));
+				cv::resize(vis, resized, cv::Size(vis.cols/2, vis.rows/2));
 				mpVisualizer->SetOutputImage(resized, 0);
 				SetBoolVisualize(false);
 			}//visualize

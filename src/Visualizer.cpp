@@ -141,7 +141,7 @@ void UVR_SLAM::Visualizer::Init() {
 	mVisPrevPt = mVisMidPt;
 
 	//tracking
-	cv::Mat img1 = cv::Mat::zeros((mnHeight/2) * 2, mnWidth/2, CV_8UC3);
+	cv::Mat img1 = cv::Mat::zeros(mnHeight/2, mnWidth/2, CV_8UC3);
 	//sliding window
 	mnWindowImgRows = 4;
 	int nWindowSize = mpMap->mnMaxConnectedKFs + mpMap->mnHalfConnectedKFs + mpMap->mnQuarterConnectedKFs;
@@ -149,13 +149,18 @@ void UVR_SLAM::Visualizer::Init() {
 	if (nWindowSize % 4 != 0)
 		mnWindowImgCols++;
 	cv::Mat img2 = cv::Mat::zeros(mnWindowImgRows*mnHeight / 2, mnWindowImgCols * mnWidth / 2, CV_8UC3);
+	//맵
 	cv::Mat img3 = cv::Mat::zeros(mnHeight * 2, mnWidth * 2, CV_8UC3);
+	//매핑 과정에서 키프레임 매칭
 	cv::Mat img4 = cv::Mat::zeros((mnHeight / 2) * 2, mnWidth / 2, CV_8UC3);
+	//세그멘테이션 정보
+	cv::Mat img5 = cv::Mat::ones(mnHeight / 2, mnWidth / 2, CV_8UC3)*255;
 
 	mvOutputImgs.push_back((img1));
 	mvOutputImgs.push_back((img2));
 	mvOutputImgs.push_back((img3));
 	mvOutputImgs.push_back((img4));
+	mvOutputImgs.push_back((img5));
 
 	cv::Rect r1(0, 0, img1.cols, img1.rows);
 	mvRects.push_back(r1);
@@ -166,13 +171,13 @@ void UVR_SLAM::Visualizer::Init() {
 	cv::Rect r3(img1.cols, 0, img3.cols, img3.rows);
 	mvRects.push_back(r3);
 	
-	cv::Rect r4(0, img1.rows, img1.cols, img1.rows);
+	cv::Rect r4(0, img1.rows*2, img4.cols, img4.rows);
 	mvRects.push_back(r4);
 
-	mvOutputChanged.push_back(false);
-	mvOutputChanged.push_back(false);
-	mvOutputChanged.push_back(false);
-	mvOutputChanged.push_back(false);
+	cv::Rect r5(0, img1.rows, img5.cols, img5.rows);
+	mvRects.push_back(r5);
+
+	mvOutputChanged = std::vector<bool>(mvRects.size(), false);
 	//map
 	
 	rectPt = cv::Point2f(r3.x, r3.y);
@@ -566,6 +571,10 @@ void UVR_SLAM::Visualizer::Run() {
 		if (isOutputTypeChanged(3)) {
 			cv::Mat mMappingImg = GetOutputImage(3);
 			mMappingImg.copyTo(mOutputImage(mvRects[3]));
+		}
+		if (isOutputTypeChanged(4)) {
+			cv::Mat mMappingImg = GetOutputImage(4);
+			mMappingImg.copyTo(mOutputImage(mvRects[4]));
 		}
 		imshow("Output::Display", mOutputImage);
 		cv::waitKey(1);

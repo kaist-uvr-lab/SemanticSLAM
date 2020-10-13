@@ -850,9 +850,13 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	ss << "Optical flow init= " << vpPts1.size() << ", " << tttt;
 	cv::rectangle(debugging, cv::Point2f(0, 0), cv::Point2f(debugging.cols, 30), cv::Scalar::all(0), -1);
 	cv::putText(debugging, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
+	
 	cv::Mat resized;
 	cv::resize(debugging, resized, cv::Size(debugging.cols / 2, debugging.rows / 2));
-	mpVisualizer->SetOutputImage(resized,0);
+	cv::Rect rect1(0, 0, resized.cols, resized.rows/2);
+	cv::Rect rect2(0, resized.rows / 2, resized.cols, resized.rows / 2);
+	mpVisualizer->SetOutputImage(resized(rect1), 0);
+	mpVisualizer->SetOutputImage(resized(rect2), 4);
 	///////////////////////////
 
 	return vpPts2.size();
