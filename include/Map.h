@@ -18,12 +18,15 @@ namespace UVR_SLAM {
 	class Map {
 		///////////
 	public:
-		std::vector<cv::Mat> GetReinit();
 		void ClearReinit();
-		void AddReinit(cv::Mat m);
+		std::vector<MapPoint*> GetReinit();
+		void AddReinit(MapPoint* pMP);
+		std::vector<cv::Mat> GetReinitParallax();
+		void AddReinitParallax(cv::Mat m);
 	private:
 		std::mutex mMutexReinit;
-		std::vector<cv::Mat> mvReinit;
+		std::vector<cv::Mat> mvReinitParallax;
+		std::vector<MapPoint*> mvReinit;
 		/////////
 	public:
 		//keyframes

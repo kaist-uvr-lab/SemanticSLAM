@@ -729,7 +729,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 }
 ////Opticalflow 버전용
 
-void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers) {
+void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers) {
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
 
@@ -858,23 +858,38 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, std::v
 		pCurrKF->SetPose(R, t);
 	}
 	////포인트 복원
+	cv::Mat Ccurr = pCurrKF->GetCameraCenter();
+	cv::Mat Cprev = pPrevKF->GetCameraCenter();
 	for (size_t i = 0; i<vX3Ds.size(); i++)
 	{
 		g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(i + maxKFid + 1));
 		vX3Ds[i] = Converter::toCvMat(vPoint->estimate()).clone();
 		if (vbInliers[i]) {
-			pMap->AddReinit(vX3Ds[i]);
+			cv::Mat X3D = std::move(vX3Ds[i]);
+			
 			auto pCPi = vpCPs[i];
 			auto pMPi = pCPi->GetMP();
 			if (!pMPi) {
 				//new mp
 				int label = pCPi->GetLabel();
-				auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCPi, vX3Ds[i], cv::Mat(), label, pCPi->octave);
-				pMP->SetOptimization(true);
+				pMPi = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCPi, X3D, cv::Mat(), label, pCPi->octave);
+				pMPi->SetOptimization(true);
 			}
 			else if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
-				pMPi->SetWorldPos(std::move(vX3Ds[i]));
+				pMPi->SetWorldPos(X3D);
 			}
+			pMap->AddReinit(pMPi);
+			////Check Parallax
+			//cv::Mat RayCurr = X3D - Ccurr;
+			//cv::Mat RayPrev = X3D - Cprev;
+			//float dist1 = cv::norm(RayCurr);
+			//float dist2 = cv::norm(RayPrev);
+			//float angle = RayCurr.dot(RayPrev) / (dist1*dist2);
+			//
+			//if (angle > 0.99999) {
+			//	pMap->AddReinitParallax(std::move(X3D));
+			//}
+			////Check Parallax
 		}
 	}
 

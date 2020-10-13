@@ -517,12 +517,36 @@ void UVR_SLAM::Visualizer::Run() {
 
 			/////pose recovery test
 			auto vReinit = mpMap->GetReinit();
+			cv::Scalar color11 = cv::Scalar(154, 250, 000);
+			cv::Scalar color12 = cv::Scalar(180, 105, 255);
 			for (int i = 0; i < vReinit.size(); i++) {
-				cv::Mat x3D = vReinit[i];
+				auto pMPi = vReinit[i];
+				cv::Mat x3D = pMPi->GetWorldPos();
 				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
 				tpt += mVisMidPt;
-				cv::Scalar color = cv::Scalar(154,250,000);
-				cv::circle(tempVis, tpt, 2, color, -1);
+				
+				cv::circle(tempVis, tpt, 3, color11, -1);
+
+				if (i % 10 != 0)
+					continue;
+				////ray
+				auto connections = pMPi->GetConnedtedFrames();
+				for (auto iter = connections.begin(); iter != connections.end(); iter++) {
+					auto pMatch = iter->first;
+					auto pKF = pMatch->mpRefFrame;
+					cv::Mat Pc = pKF->GetCameraCenter();
+					cv::Point2f Pc2D = cv::Point2f(Pc.at<float>(mnAxis1) * mnVisScale, Pc.at<float>(mnAxis2) * mnVisScale);
+					Pc2D += mVisMidPt;
+					cv::line(tempVis, tpt, Pc2D, color12);
+				}
+			}
+			auto vReinitParallax = mpMap->GetReinitParallax();
+			for (int i = 0; i < vReinitParallax.size(); i++) {
+				cv::Mat x3D = vReinitParallax[i];
+				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
+				tpt += mVisMidPt;
+				
+				cv::circle(tempVis, tpt, 2, color12, -1);
 			}
 			/////pose recovery test
 			///////////////////////////////////////////////////////////////////////////////

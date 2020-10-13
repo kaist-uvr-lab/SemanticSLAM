@@ -366,15 +366,23 @@ void UVR_SLAM::Map::UpdateMapPoint(UVR_SLAM::MapPoint* pMP, UVR_SLAM::MapGrid* p
 ////////////////////////////////////////
 
 //////////Reinit test code
-std::vector<cv::Mat> UVR_SLAM::Map::GetReinit(){
-	std::unique_lock<std::mutex> lock(mMutexReinit);
-	return std::vector<cv::Mat>(mvReinit.begin(), mvReinit.end());
-}
-void UVR_SLAM::Map::ClearReinit(){
+void UVR_SLAM::Map::ClearReinit() {
 	std::unique_lock<std::mutex> lock(mMutexReinit);
 	mvReinit.clear();
+	mvReinitParallax.clear();
 }
-void UVR_SLAM::Map::AddReinit(cv::Mat m){
-	mvReinit.push_back(m);
+std::vector<UVR_SLAM::MapPoint*> UVR_SLAM::Map::GetReinit(){
+	std::unique_lock<std::mutex> lock(mMutexReinit);
+	return std::vector<UVR_SLAM::MapPoint*>(mvReinit.begin(), mvReinit.end());
+}
+void UVR_SLAM::Map::AddReinit(MapPoint* pMP){
+	mvReinit.push_back(pMP);
+}
+std::vector<cv::Mat> UVR_SLAM::Map::GetReinitParallax() {
+	std::unique_lock<std::mutex> lock(mMutexReinit);
+	return std::vector<cv::Mat>(mvReinitParallax.begin(), mvReinitParallax.end());
+}
+void UVR_SLAM::Map::AddReinitParallax(cv::Mat m) {
+	mvReinitParallax.push_back(m);
 }
 //////////Reinit test code

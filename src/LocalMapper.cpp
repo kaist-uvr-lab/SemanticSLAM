@@ -714,8 +714,7 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pP
 	/////시각화 확인
 	for (int i = 0; i < vX3Ds.size(); i++) {
 		cv::Mat X3D = vX3Ds[i];
-		mpMap->AddReinit(X3D);
-
+		
 		////////시각화
 		cv::Mat newProj1 = Rcurr*X3D + Tcurr;
 		newProj1 = mK*newProj1;
@@ -792,6 +791,8 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pP
 			}
 		}
 		////////시각화
+		mpMap->AddReinit(pMPi);
+
 	}
 
 	/*if (vPrevScales.size() < 10)
@@ -971,7 +972,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		return -1;
 	mpMap->ClearReinit();
 	std::vector<bool> vbInliers(vX3Ds.size(), true);
-	Optimization::LocalOptimization(mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers);
+	Optimization::LocalOptimization(mpMap, pCurrKF, pPrevKF, vX3Ds, vMappingCPs, vbInliers);
 
 	///////////////////New Mp Creation
 	////기존 MP도 여기 결과에 따라서 커넥션이 가능해야 할 듯함.
