@@ -51,7 +51,8 @@ namespace UVR_SLAM {
 					bool b = pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
 					auto pt = pF->mpMatchInfo->mvMatchingPts[i];
 					nMatch++;
-					cv::circle(vis, p2D, 3, color1, -1);
+					int label = pMPi->GetLabel();
+					cv::circle(vis, p2D, 3, ObjectColors::mvObjectLabelColors[label], -1);
 					cv::line(vis, p2D, pt, color2, 2);
 				}
 				

@@ -983,7 +983,7 @@ void UVR_SLAM::MatchInfo::SetLabel() {
 		pCPi->SetLabel(label);
 		auto pMPi = pCPi->GetMP();
 		if (pMPi)
-			pMPi->SetLabel(label);
+			pMPi->SetLabel(pCPi->GetLabel());
 	}
 }
 

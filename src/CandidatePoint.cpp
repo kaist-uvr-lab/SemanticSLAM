@@ -29,8 +29,22 @@ namespace  UVR_SLAM{
 		return label;
 	}
 	void CandidatePoint::SetLabel(int a){
-		std::unique_lock<std::mutex> lockMP(mMutexLabel);
-		label = a;
+		
+		mmnObjectLabelHistory[a]++;
+		int maxVal = 0;
+		int maxLabel;
+		for (auto iter = mmnObjectLabelHistory.begin(), eiter = mmnObjectLabelHistory.end(); iter != eiter; iter++) {
+			if (iter->second > maxVal) {
+				maxVal = iter->second;
+				maxLabel = iter->first;
+				//std::cout << this->mnCandidatePointID << "::" << maxLabel << "=" << maxVal << "::" << iter->first << ", " << iter->second << std::endl;
+			}
+		}
+		{
+			std::unique_lock<std::mutex> lockMP(mMutexLabel);
+			label = maxLabel;
+		}
+		
 	}
 
 	int CandidatePoint::GetNumSize() {

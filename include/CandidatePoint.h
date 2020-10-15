@@ -48,6 +48,7 @@ namespace UVR_SLAM {
 		void SetLabel(int a);
 	private:
 		std::mutex mMutexLabel;
+		std::map<int, int> mmnObjectLabelHistory;
 		int label;
 
 	////////////////////////
