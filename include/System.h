@@ -65,6 +65,7 @@ namespace UVR_SLAM {
 	class FrameVisualizer;
 	class MapOptimizer;
 	class Map;
+	class KeyframeDatabase;
 	class System {
 	public:
 
@@ -88,7 +89,7 @@ namespace UVR_SLAM {
 		PlaneEstimator* mpPlaneEstimator;
 		Visualizer* mpVisualizer;
 		FrameVisualizer* mpFrameVisualizer;
-
+		KeyframeDatabase* mpKeyframeDatabase;
 	public:
 		void SaveTrajectory();
 		void SetBoolInit(bool b);
@@ -140,8 +141,9 @@ namespace UVR_SLAM {
 		ConcurrentList<UVR_SLAM::MapPoint*> mlpNewMPs;
 		std::string strVOCPath;
 		fbow::Vocabulary* fvoc;
+		cv::Mat mBowWords;
 		FrameWindow* mpFrameWindow;
-		cv::Mat mK, mKforPL, mD;
+		cv::Mat mK, mInvK, mKforPL, mD;
 		bool mbInitialized;
 		int mnPatchSize;
 		int mnHalfWindowSize;
@@ -197,6 +199,9 @@ namespace UVR_SLAM {
 		void SetLocalMapperString(std::string str);
 		std::string GetLocalMapperString();
 
+		void SetLoopCloserString(std::string str);
+		std::string GetLoopCloserString();
+
 		void SetSegmentationString(std::string str);
 		std::string GetSegmentationString();
 
@@ -212,6 +217,8 @@ namespace UVR_SLAM {
 		std::string mStrSegmentationString;
 		std::mutex mMutexLocalMapperString;
 		std::string mStrLocalMapperString;
+		std::mutex mMutexLoopCloserString;
+		std::string mStrLoopCloserString;
 		std::mutex mMutexMapOptimizer;
 		std::string mStrMapOptimizer;
 	////////////////////////////////////////////////////////////////////////

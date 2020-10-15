@@ -167,6 +167,7 @@ namespace UVR_SLAM {
 		void RemoveKF(UVR_SLAM::Frame* pKF, int weight);
 		//std::vector<UVR_SLAM::Frame*> GetConnectedKFs();
 		std::vector<UVR_SLAM::Frame*> GetConnectedKFs(int n = 0);
+		std::set<UVR_SLAM::Frame*> GetConnectedKFsSet(int n = 0);
 		std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> GetConnectedKFsWithWeight();
 ////////////////
 	public:
@@ -206,7 +207,13 @@ namespace UVR_SLAM {
 		cv::Mat matDescriptor;
 		cv::Mat undistorted;
 		fbow::fBow mBowVec;
+		fbow::fBow2 mFeatureVec;
 		int mnFrameID;  //프레임 아이디로 저장
+
+		////loop closing
+		int mnLoopClosingID;
+		int mnLoopBowWords;
+		float mfLoopScore;
 	public:
 		//objectype
 		std::set<MapPoint*> mspFloorMPs, mspCeilMPs, mspWallMPs;

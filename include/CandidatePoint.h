@@ -63,6 +63,8 @@ namespace UVR_SLAM {
 		//매핑에서만
 		//트래킹에서
 		int mnTrackingFrameID;
+		//루프 클로징에서
+		int mnLoopClosingID;
 		MapPoint* GetMP();
 	private:
 		bool bCreated;

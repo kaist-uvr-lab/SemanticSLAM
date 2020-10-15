@@ -162,7 +162,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			std::vector<cv::Point2f> vOpticalMatchPPrevPts, vOpticalMatchPrevPts, vOpticalMatchCurrPts;
 			std::vector<CandidatePoint*> vOpticalMatchCPs;
 			//int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
-			int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vOpticalMatchPPrevPts, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
+			int nMatch = mpMatcher->OpticalMatchingForMapping(mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vOpticalMatchPPrevPts, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
 			mpTargetFrame->mpMatchInfo->ConnectAll();
 			//NewMapPointMarginalization();
 
@@ -322,11 +322,12 @@ void UVR_SLAM::LocalMapper::Run() {
 			mpVisualizer->SetOutputImage(resized, 3);
 			/////Create Map Points
 			/////////KF-KF 매칭
+
+			mpLoopCloser->InsertKeyFrame(mpPrevKeyFrame);
 			auto pTarget = mpMap->AddWindowFrame(mpTargetFrame);
 			if (pTarget) {
 				mpSegmentator->InsertKeyFrame(pTarget);
 				mpPlaneEstimator->InsertKeyFrame(pTarget);
-				//mpLoopCloser->InsertKeyFrame(pTarget);
 			}
 			if (mpMapOptimizer->isDoingProcess()) {
 				//std::cout << "lm::ba::busy" << std::endl;
@@ -1265,9 +1266,6 @@ int UVR_SLAM::LocalMapper::CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point
 //}
 ///////////////////Fuse Map Points
 ////200512
-
-
-
 
 //window에 포함되는 KF를 설정하기.
 //너무 많은 KF가 포함안되었으면 하고, 

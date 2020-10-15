@@ -547,11 +547,14 @@ void UVR_SLAM::Visualizer::Run() {
 
 			//time 
 			cv::Mat imgTime = cv::Mat::zeros(500, 500, CV_8UC1);
-			cv::putText(imgTime, mpSystem->GetTrackerString(), cv::Point2f(0, 20), mnFontFace, mfFontScale, cv::Scalar::all(255));
-			cv::putText(imgTime, mpSystem->GetSegmentationString(), cv::Point2f(0, 50), mnFontFace, mfFontScale, cv::Scalar::all(255));
-			cv::putText(imgTime, mpSystem->GetLocalMapperString(), cv::Point2f(0, 80), mnFontFace, mfFontScale, cv::Scalar::all(255));
-			cv::putText(imgTime, mpSystem->GetMapOptimizerString(), cv::Point2f(0, 110), mnFontFace, mfFontScale, cv::Scalar::all(255));
-			cv::putText(imgTime, mpSystem->GetPlaneString(), cv::Point2f(0, 140), mnFontFace, mfFontScale, cv::Scalar::all(255));
+			int nInc = 30;
+			int nRow = 20;
+			cv::putText(imgTime, mpSystem->GetTrackerString(), cv::Point2f(0, nRow), mnFontFace, mfFontScale, cv::Scalar::all(255)); nRow += nInc;
+			cv::putText(imgTime, mpSystem->GetSegmentationString(), cv::Point2f(0, nRow), mnFontFace, mfFontScale, cv::Scalar::all(255)); nRow += nInc;
+			cv::putText(imgTime, mpSystem->GetLocalMapperString(), cv::Point2f(0, nRow), mnFontFace, mfFontScale, cv::Scalar::all(255)); nRow += nInc;
+			cv::putText(imgTime, mpSystem->GetMapOptimizerString(), cv::Point2f(0, nRow), mnFontFace, mfFontScale, cv::Scalar::all(255)); nRow += nInc;
+			cv::putText(imgTime, mpSystem->GetLoopCloserString(), cv::Point2f(0, nRow), mnFontFace, mfFontScale, cv::Scalar::all(255)); nRow += nInc;
+			cv::putText(imgTime, mpSystem->GetPlaneString(), cv::Point2f(0, nRow), mnFontFace, mfFontScale, cv::Scalar::all(255)); nRow += nInc;
 			cv::imshow("Output::Time", imgTime);
 
 			SetBoolDoingProcess(false);

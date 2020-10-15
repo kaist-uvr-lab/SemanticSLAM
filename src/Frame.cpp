@@ -498,6 +498,17 @@ std::vector<UVR_SLAM::Frame*> UVR_SLAM::Frame::GetConnectedKFs(int n){
 	}
 	return std::vector<UVR_SLAM::Frame*>(tempKFs.begin(), tempKFs.begin() + n);
 }
+std::set<UVR_SLAM::Frame*> UVR_SLAM::Frame::GetConnectedKFsSet(int n) {
+	std::vector<UVR_SLAM::Frame*> tempKFs;
+	for (std::multimap<int, UVR_SLAM::Frame*, std::greater<int>>::iterator iter = mmpConnectedKFs.begin(); iter != mmpConnectedKFs.end(); iter++) {
+		UVR_SLAM::Frame* pKFi = iter->second;
+		tempKFs.push_back(pKFi);
+	}
+	if (n == 0 || tempKFs.size() < n) {
+		return std::set<UVR_SLAM::Frame*>(tempKFs.begin(), tempKFs.end());
+	}
+	return std::set<UVR_SLAM::Frame*>(tempKFs.begin(), tempKFs.begin() + n);
+}
 
 std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> UVR_SLAM::Frame::GetConnectedKFsWithWeight() {
 	/*std::multimap<int, UVR_SLAM::Frame*> tempKFs;
@@ -528,11 +539,11 @@ fbow::fBow UVR_SLAM::Frame::GetBowVec() {
 	return mBowVec;
 }
 void UVR_SLAM::Frame::SetBowVec(fbow::Vocabulary* pfvoc) {
-	mBowVec = pfvoc->transform(matDescriptor);
+	pfvoc->transform(matDescriptor, 4, mBowVec, mFeatureVec);
 }
 
 double UVR_SLAM::Frame::Score(UVR_SLAM::Frame* pF) {
-	return fbow::fBow::score(mBowVec, pF->GetBowVec());
+	return fbow::fBow::score(this->mBowVec, pF->GetBowVec());
 }
 
 

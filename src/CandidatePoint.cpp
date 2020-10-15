@@ -7,12 +7,12 @@ static int nCandidatePointID = 0;
 
 namespace  UVR_SLAM{
 	CandidatePoint::CandidatePoint():octave(0), bCreated(false), mbDelete(false),
-		mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mnCandidatePointID(++nCandidatePointID)		
+		mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mnLoopClosingID(-1), mnCandidatePointID(++nCandidatePointID)
 	{
 		mpMapPoint = nullptr;
 	}
 	CandidatePoint::CandidatePoint(MatchInfo* pRefKF, int alabel, int aoct):mpRefKF(pRefKF), label(alabel), octave(aoct), bCreated(false), mbDelete(false),
-		mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mnCandidatePointID(++nCandidatePointID)
+		mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mnLoopClosingID(-1), mnCandidatePointID(++nCandidatePointID)
 	{
 		mpMapPoint = nullptr;
 		mnFirstID = pRefKF->mpRefFrame->GetFrameID();

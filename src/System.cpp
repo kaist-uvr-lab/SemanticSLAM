@@ -9,6 +9,7 @@
 #include <Visualizer.h>
 #include <FrameVisualizer.h>
 #include <MapOptimizer.h>
+#include <KeyframeDatabase.h>
 #include <direct.h>
 #include <Converter.h>
 
@@ -16,7 +17,7 @@ int UVR_SLAM::System::nKeyFrameID = 0;
 
 UVR_SLAM::System::System(){}
 UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapUpdateEnd(true), mbSegmentationEnd(false), mbLocalMappingEnd(false), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false), 
-mStrSegmentationString("Segmentation"), mStrPlaneString("PE"){
+mStrSegmentationString("Segmentation"), mStrPlaneString("PE"), mStrLoopCloserString("LC"){
 	LoadParameter(strFilePath);
 	LoadVocabulary();
 	Init();
@@ -43,6 +44,7 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	mK.at<float>(1, 1) = fy;
 	mK.at<float>(0, 2) = cx;
 	mK.at<float>(1, 2) = cy;
+	mInvK = mK.inv();
 
 	cv::Mat DistCoef(4, 1, CV_32F);
 	DistCoef.at<float>(0) = fs["Camera.k1"];
@@ -91,15 +93,16 @@ bool UVR_SLAM::System::LoadVocabulary() {
 	fvoc = new fbow::Vocabulary();
 	
 	fvoc->readFromFile(strVOCPath);
+
 	std::string desc_name = fvoc->getDescName();
-	auto voc_words = fbow::VocabularyCreator::getVocabularyLeafNodes(*fvoc);
+	mBowWords = fbow::VocabularyCreator::getVocabularyLeafNodes(*fvoc);
 	
-	if (voc_words.type() != fvoc->getDescType()) {
+	if (mBowWords.type() != fvoc->getDescType()) {
 		std::cerr << "Invalid types for features according to the voc" << std::endl;
 		return false;
 	}
 	std::cout << "voc desc name=" << desc_name << std::endl;
-	std::cout << "number of words=" << voc_words.rows << std::endl;
+	std::cout << "number of words=" << mBowWords.rows <<", "<<fvoc->size()<<", "<<fvoc->getDescSize()<< std::endl;
 	return true;
 	
 }
@@ -196,8 +199,7 @@ void UVR_SLAM::System::Init() {
 	mpInitializer->SetPlaneEstimator(mpPlaneEstimator);
 	
 	//loop closing thread
-	mpLoopCloser = new UVR_SLAM::LoopCloser(mnWidth, mnHeight, mK, mpMap);
-	mpLoopCloser->SetSystem(this);
+	mpLoopCloser = new UVR_SLAM::LoopCloser(this, mnWidth, mnHeight, mK);
 
 	//map optimizer
 	mpMapOptimizer = new UVR_SLAM::MapOptimizer(mstrFilePath, this);
@@ -222,9 +224,13 @@ void UVR_SLAM::System::Init() {
 	mpPlaneEstimator->SetVisualizer(mpVisualizer);
 	mpInitializer->SetVisualizer(mpVisualizer);
 
+	mpKeyframeDatabase = new UVR_SLAM::KeyframeDatabase(this, fvoc, mBowWords);
+
 	/////초기화
 	mpSegmentator->Init();
 	mpLocalMapper->Init();
+	mpLoopCloser->Init();
+	mpKeyframeDatabase->Init();
 	mpMapOptimizer->Init();
 
 	////쓰레드
@@ -278,6 +284,7 @@ void UVR_SLAM::System::Reset() {
 	mpFrameWindow->ClearLocalMapFrames();
 	mpPlaneEstimator->Reset();
 	mpLocalMapper->Reset();
+	mpKeyframeDatabase->Reset();
 	mpMap->ClearWalls();
 	mlpNewMPs.clear();
 	//mpLocalMapper->mlpNewMPs.clear();
@@ -374,6 +381,14 @@ void UVR_SLAM::System::SetLocalMapperString(std::string str) {
 std::string UVR_SLAM::System::GetLocalMapperString() {
 	std::unique_lock<std::mutex> lock(mMutexLocalMapperString);
 	return mStrLocalMapperString;
+}
+void UVR_SLAM::System::SetLoopCloserString(std::string str) {
+	std::unique_lock<std::mutex> lock(mMutexLoopCloserString);
+	mStrLoopCloserString = str;
+}
+std::string UVR_SLAM::System::GetLoopCloserString() {
+	std::unique_lock<std::mutex> lock(mMutexLoopCloserString);
+	return mStrLoopCloserString;
 }
 void UVR_SLAM::System::SetSegmentationString(std::string str) {
 	std::unique_lock<std::mutex> lock(mMutexSegmentationString);
