@@ -103,13 +103,6 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			colorimg.convertTo(colorimg, CV_8UC3);
 			cv::resize(colorimg, resized_color, cv::Size(mnWidth/2, mnHeight/2));
 			//cv::resize(colorimg, resized_color, cv::Size(160, 90));
-
-			///////////////////////////////////////////
-			///////////세그멘테이션이 시작하는 것을 알림.
-			//lock
-			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseSegmentation);
-			mpSystem->mbSegmentationEnd = false;
-			/////////////////////////////////////////
 			
 			//request post
 			//리사이즈 안하면 칼라이미지로
@@ -123,33 +116,116 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			mpTargetFrame->matLabeled = segmented.clone();
 			mpTargetFrame->matSegmented = segmented.clone();
 			mpTargetFrame->SetBoolSegmented(true);
-			////////////////////////////////////////////////////////
-			///////////세그멘테이션이 끝난 것을 알림.
-			//unlock & notify
-			mpSystem->mbSegmentationEnd = true;
-			lock.unlock();
-			mpSystem->cvUseSegmentation.notify_all();
-			//unlock & notify
-			////////////////////////////////////////////////////////
+			mpTargetFrame->mpMatchInfo->SetLabel();
 
 			////세그멘테이션 칼라 전달
+			mmLabelAcc.clear();
+			mmLabelMasks.clear();
+			int nMaxLabel;
+			int nMaxLabelCount = 0;
 			cv::Mat seg_color = cv::Mat::zeros(segmented.size(), CV_8UC3);
 			for (int y = 0; y < seg_color.rows; y++) {
 				for (int x = 0; x < seg_color.cols; x++) {
 					int label = segmented.at<uchar>(y, x);
 					seg_color.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
+
+					if (!mmLabelMasks.count(label)) {
+						mmLabelMasks[label] = cv::Mat::zeros(segmented.size(), CV_8UC1);
+					}
+					else {
+						mmLabelAcc[label]++;
+						if (mmLabelAcc[label] > nMaxLabelCount)
+						{
+							nMaxLabel = label;
+							nMaxLabelCount = mmLabelAcc[label];
+						}
+						mmLabelMasks[label].at<uchar>(y, x) = 255;
+					}
+
 				}
 			}
-			cv::Mat res;
-			//cv::resize(seg_color, res, colorimg.size()/2);
-			//cv::resize(seg_color, seg_color, cv::Size(segmented.cols / 2, segmented.rows / 2));
-			mpVisualizer->SetOutputImage(seg_color, 4);
+			
+			///////////CCL TEST
+			cv::Mat ccl_res = seg_color.clone();
+			for (auto iter = mmLabelMasks.begin(), eiter = mmLabelMasks.end(); iter != eiter; iter++) {
+				Mat img_labels, stats, centroids;
+				int label = iter->first;
+				cv::Mat mask = iter->second;
+				
+				int numOfLables = connectedComponentsWithStats(mask, img_labels, stats, centroids, 8, CV_32S);
+				if (numOfLables > 0) {
+					int maxArea = 0;
+					int maxIdx = 0;
+					////라벨링 된 이미지에 각각 직사각형으로 둘러싸기 
+					//for (int j = 0; j < numOfLables; j++) {
+					//	int area = stats.at<int>(j, CC_STAT_AREA);
+					//	
+					//	//std::cout << area << std::endl;
+					//	if (area > maxArea) {
+					//		maxArea = area;
+					//		maxIdx = j;
+					//	}
+					//}
+					for (int j = 0; j < numOfLables; j++) {
+						/*if (j == maxIdx)
+						continue;*/
+						int area = stats.at<int>(j, CC_STAT_AREA);
+						if (area < 200)
+							continue;
+						int left = stats.at<int>(j, CC_STAT_LEFT);
+						int top = stats.at<int>(j, CC_STAT_TOP);
+						int width = stats.at<int>(j, CC_STAT_WIDTH);
+						int height = stats.at<int>(j, CC_STAT_HEIGHT);
+						cv::Rect rect(Point(left, top), Point(left + width, top + height));
+						mmLabelRects.insert(std::make_pair(label, rect));
+						rectangle(ccl_res, rect, Scalar(255, 255, 255), 2);
+						//rectangle(ccl_res, Point(left, top), Point(left + width, top + height), Scalar(255, 255, 255), 2);
+					}
+					/*imshow("seg mask", maskA);
+					*/
+				}
+			}
+			//imshow("aaabbb", ccl_res); cv::waitKey(1);
 
+			mpVisualizer->SetOutputImage(ccl_res, 4);
 			////시간체크
 			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
 			auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float tttt = duration / 1000.0;
 			////시간체크
+
+			//if (mmLabelMasks.size() > 0) {
+			//	Mat img_labels, stats, centroids;
+			//	cv::Mat maskA = mmLabelMasks[nMaxLabel];
+			//	cv::Mat ccl_res = seg_color.clone();
+			//	int numOfLables = connectedComponentsWithStats(maskA, img_labels, stats, centroids, 8, CV_32S);
+			//	if (numOfLables > 0) {
+			//		int maxArea = 0;
+			//		int maxIdx = 0;
+			//		//라벨링 된 이미지에 각각 직사각형으로 둘러싸기 
+			//		for (int j = 0; j < numOfLables; j++) {
+			//			int area = stats.at<int>(j, CC_STAT_AREA);
+			//			if (area > maxArea) {
+			//				maxArea = area;
+			//				maxIdx = j;
+			//			}
+			//		}
+			//		for (int j = 0; j < numOfLables; j++) {
+			//			/*if (j == maxIdx)
+			//			continue;*/
+			//			int area = stats.at<int>(j, CC_STAT_AREA);
+			//			int left = stats.at<int>(j, CC_STAT_LEFT);
+			//			int top = stats.at<int>(j, CC_STAT_TOP);
+			//			int width = stats.at<int>(j, CC_STAT_WIDTH);
+			//			int height = stats.at<int>(j, CC_STAT_HEIGHT);
+
+			//			rectangle(ccl_res, Point(left, top), Point(left + width, top + height), Scalar(255, 255, 255), 2);
+			//		}
+			//		imshow("seg mask", maskA);
+			//		imshow("aaabbb", ccl_res); cv::waitKey(1);
+			//	}
+			//}
+			///////////CCL TEST
 		
 			//////////////////////////////////////////////
 			//////디버깅 값 전달
@@ -159,7 +235,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//////디버깅 값 전달
 			//////////////////////////////////////////////
 
-			mpTargetFrame->mpMatchInfo->SetLabel();
+			
 			SetBoolDoingProcess(false);
 		}
 	}
@@ -218,28 +294,5 @@ void UVR_SLAM::SemanticSegmentator::ImageLabeling(cv::Mat segmented, cv::Mat& la
 			}
 		}
 	}
-
 }
-
-//참조하고 있는 오브젝트 클래스 별로 마스크 이미지를 생성하고 픽셀 단위로 마스킹함.
-void UVR_SLAM::SemanticSegmentator::SetSegmentationMask(cv::Mat segmented) {
-	mVecLabelMasks.clear();
-	for (int i = 0; i < ObjectColors::mvObjectLabelColors.size()-1; i++) {
-		cv::Mat temp = cv::Mat::zeros(segmented.size(), CV_8UC1);
-		mVecLabelMasks.push_back(temp.clone());
-	}
-	for (int y = 0; y < segmented.rows; y++) {
-		for (int x = 0; x < segmented.cols; x++) {
-			cv::Vec3b tempColor = segmented.at<Vec3b>(y, x);
-			for (int i = 0; i < ObjectColors::mvObjectLabelColors.size()-1; i++) {
-				if (tempColor == ObjectColors::mvObjectLabelColors[i]) {
-					mVecLabelMasks[i].at<uchar>(y, x) = 255;
-				}
-			}
-		}
-	}
-}
-
-
-
 

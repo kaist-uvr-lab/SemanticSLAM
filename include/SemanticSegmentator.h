@@ -37,10 +37,11 @@ namespace UVR_SLAM {
 	public:
 		//바닥과 벽에서 노이즈를 조금 걸러내보기 위함.
 		void ImageLabeling(cv::Mat masked, cv::Mat& labeld);
-		void SetSegmentationMask(cv::Mat segmented);
 	private:
 		//std::vector<cv::Vec3b> mVecLabelColors;
-		std::vector<cv::Mat> mVecLabelMasks;
+		std::map<int, int> mmLabelAcc; //std::list<cv::Point2f>
+		std::map<int, cv::Mat> mmLabelMasks; //마스크 이미지
+		std::multimap<int, cv::Rect> mmLabelRects; //동일 물체에 여러개가 나올 수 있기 때문에 멀티맵으로
 		int mnWidth, mnHeight;
 		float cx, cy;
 	private:
