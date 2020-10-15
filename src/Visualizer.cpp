@@ -519,6 +519,7 @@ void UVR_SLAM::Visualizer::Run() {
 			auto vReinit = mpMap->GetReinit();
 			cv::Scalar color11 = cv::Scalar(154, 250, 000);
 			cv::Scalar color12 = cv::Scalar(180, 105, 255);
+			cv::Scalar color13 = cv::Scalar(  0, 215, 255);
 			for (int i = 0; i < vReinit.size(); i++) {
 				auto pMPi = vReinit[i];
 				cv::Mat x3D = pMPi->GetWorldPos();
@@ -546,7 +547,7 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
 				tpt += mVisMidPt;
 				
-				cv::circle(tempVis, tpt, 2, color12, -1);
+				cv::circle(tempVis, tpt, 2, color13, -1);
 			}
 			/////pose recovery test
 			///////////////////////////////////////////////////////////////////////////////

@@ -972,7 +972,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		return -1;
 	mpMap->ClearReinit();
 	std::vector<bool> vbInliers(vX3Ds.size(), true);
-	Optimization::LocalOptimization(mpMap, pCurrKF, pPrevKF, vX3Ds, vMappingCPs, vbInliers);
+	Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, pPrevKF, vX3Ds, vMappingCPs, vbInliers);
 
 	///////////////////New Mp Creation
 	////기존 MP도 여기 결과에 따라서 커넥션이 가능해야 할 듯함.

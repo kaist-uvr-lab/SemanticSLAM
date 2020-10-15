@@ -7,6 +7,7 @@
 //#include <Edge.h>
 //#include <Optimizer.h>
 //#include <PlaneBastedOptimization.h>
+#include <System.h>
 #include <PoseGraphOptimization.h>
 #include <MatrixOperator.h>
 #include <CandidatePoint.h>
@@ -729,7 +730,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 }
 ////Opticalflow 버전용
 
-void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers) {
+void UVR_SLAM::Optimization::LocalOptimization(System* pSys, Map* pMap, Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers) {
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
 
@@ -860,6 +861,16 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, Frame*
 	////포인트 복원
 	cv::Mat Ccurr = pCurrKF->GetCameraCenter();
 	cv::Mat Cprev = pPrevKF->GetCameraCenter();
+
+	auto pCurrMatch = pCurrKF->mpMatchInfo;
+	auto pPrevMatch = pPrevKF->mpMatchInfo;
+	cv::Mat Rcurr, Tcurr, Rprev, Tprev, RTcurr, RTprev;
+	pCurrKF->GetPose(Rcurr, Tcurr);
+	pPrevKF->GetPose(Rprev, Tprev);
+	RTcurr = Rcurr.t();
+	RTprev = Rprev.t();
+
+	cv::Mat invK = pSys->mK.inv();
 	for (size_t i = 0; i<vX3Ds.size(); i++)
 	{
 		g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(i + maxKFid + 1));
@@ -879,17 +890,22 @@ void UVR_SLAM::Optimization::LocalOptimization(Map* pMap, Frame* pCurrKF, Frame*
 				pMPi->SetWorldPos(X3D);
 			}
 			pMap->AddReinit(pMPi);
-			////Check Parallax
-			//cv::Mat RayCurr = X3D - Ccurr;
-			//cv::Mat RayPrev = X3D - Cprev;
-			//float dist1 = cv::norm(RayCurr);
-			//float dist2 = cv::norm(RayPrev);
-			//float angle = RayCurr.dot(RayPrev) / (dist1*dist2);
-			//
-			//if (angle > 0.99999) {
-			//	pMap->AddReinitParallax(std::move(X3D));
+			//Check Parallax
+			//int idx1 = pCPi->GetPointIndexInFrame(pCurrMatch);
+			//int idx2 = pCPi->GetPointIndexInFrame(pPrevMatch);
+			//if (idx1 > -1 && idx2 > -1) {
+			//	auto pt1 = pCurrMatch->mvMatchingPts[idx1];
+			//	auto pt2 = pPrevMatch->mvMatchingPts[idx2];
+			//	cv::Mat xn1 = (cv::Mat_<float>(3, 1) << pt1.x, pt1.y, 1.0);
+			//	cv::Mat xn2 = (cv::Mat_<float>(3, 1) << pt2.x, pt2.y, 1.0);
+			//	cv::Mat ray1 = RTcurr*invK*xn1;
+			//	cv::Mat ray2 = RTprev*invK*xn2;
+			//	float cosParallaxRays = ray1.dot(ray2) / (cv::norm(ray1)*cv::norm(ray2));
+			//	/*if (cosParallaxRays > 0.99999) {
+			//		pMap->AddReinitParallax(std::move(X3D));
+			//	}*/
 			//}
-			////Check Parallax
+			//Check Parallax
 		}
 	}
 
