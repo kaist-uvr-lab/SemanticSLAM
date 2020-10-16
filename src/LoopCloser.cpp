@@ -10,7 +10,7 @@
 
 namespace UVR_SLAM {
 	LoopCloser::LoopCloser() {}
-	LoopCloser::LoopCloser(System* pSys, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mbProcessing(false), mnThreshConsistency(3){
+	LoopCloser::LoopCloser(System* pSys, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mbProcessing(false), mnThreshConsistency(3), mnLastLoopClosingID(0){
 		mpSystem = pSys;
 	}
 	LoopCloser::~LoopCloser() {}
@@ -19,30 +19,46 @@ namespace UVR_SLAM {
 		while (1) {
 			if (CheckNewKeyFrames()) {
 				SetBoolProcessing(true);
+				std::chrono::high_resolution_clock::time_point loop_start = std::chrono::high_resolution_clock::now();
 				//std::cout << "LC::0" << std::endl;
 				ProcessNewKeyFrame();
 				
 				if (mpMap->isAddedGraph()) {
 					mpMap->UpdateGraphConnection();
 				}
-				/*if (mpMap->isAddedGraph()) {
-					std::chrono::high_resolution_clock::time_point s1 = std::chrono::high_resolution_clock::now();
-					mpMap->UpdateGraphConnection();
-					std::chrono::high_resolution_clock::time_point s2 = std::chrono::high_resolution_clock::now();
-					auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s2 - s1).count();
-					float tttt = duration / 1000.0;
-					std::cout << "connection::time::" << tttt << std::endl;
-				}*/
+				double time_matching = 0.0;
+				int nTargetID = mpTargetFrame->GetKeyFrameID();
+				if (nTargetID < mnLastLoopClosingID + 15) {
+
+					//////Local Loop Closing
+					//auto vpKFs = mpMap->GetWindowFramesVector();
+					//std::vector<cv::Point2f> vOpticalMatchPrevPts, vOpticalMatchCurrPts;
+					//std::vector<CandidatePoint*> vOpticalMatchCPs;
+					//if(vpKFs.size() > 10){
+					//cv::Mat debugMatch;
+					//mpMatcher->OpticalMatchingForLocalLoopClosing(mpTargetFrame, vpKFs[0], vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, 21, time_matching, debugMatch);
+					//}
+					/////Local Loop Closing
+				}else{
+				mnLastLoopClosingID = nTargetID;
+
+					/*if (mpMap->isAddedGraph()) {
+						std::chrono::high_resolution_clock::time_point s1 = std::chrono::high_resolution_clock::now();
+						mpMap->UpdateGraphConnection();
+						std::chrono::high_resolution_clock::time_point s2 = std::chrono::high_resolution_clock::now();
+						auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s2 - s1).count();
+						float tttt = duration / 1000.0;
+						std::cout << "connection::time::" << tttt << std::endl;
+					}*/
 				
-				//std::cout << "LC::1" << std::endl;
+					//std::cout << "LC::1" << std::endl;
 				
-				if (DetectLoopFrame()) {
-					if (ComputeSim3())
-						CorrectLoop();
+					if (DetectLoopFrame()) {
+						if (ComputeSim3())
+							CorrectLoop();
+					}
+				
 				}
-				std::stringstream ss;
-				ss << "Loop Closer::" << mpTargetFrame->GetKeyFrameID();
-				mpSystem->SetLoopCloserString(ss.str());
 				//std::cout << "LC::2" << std::endl;
 				///////////////VoW ¸ÅÄª
 				//auto vpGrahWindows = mpMap->GetGraphFrames();
@@ -62,6 +78,14 @@ namespace UVR_SLAM {
 				mpKeyFrameDatabase->Add(mpTargetFrame);
 				//std::cout << "LC::3" << std::endl;
 				
+				std::chrono::high_resolution_clock::time_point loop_end = std::chrono::high_resolution_clock::now();
+				auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(loop_end - loop_start).count();
+				float time = duration / 1000.0;
+
+				std::stringstream ss;
+				ss << "Loop Closer::" << mpTargetFrame->GetKeyFrameID()<<"::"<<time<<"="<< time_matching;
+				mpSystem->SetLoopCloserString(ss.str());
+
 				SetBoolProcessing(false);
 			}//visualize
 		}
@@ -174,11 +198,13 @@ namespace UVR_SLAM {
 			std::vector<CandidatePoint*> vOpticalMatchCPs;
 			double time1 = 0.0;
 			cv::Mat debugMatch;
-			int nMatch = mpMatcher->OpticalMatchingForLoopClosing(mpTargetFrame, pKF, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, 21, time1, debugMatch);
+			//int nMatch = mpMatcher->OpticalMatchingForLoopClosing(mpTargetFrame, pKF, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, 21, time1, debugMatch);
+			mpMatcher->OpticalMatchingForLocalLoopClosing(mpTargetFrame, pKF, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, 21, time1, debugMatch);
 			if(i == 0){
 				cv::imshow("Loop::Match", debugMatch); cv::waitKey(1);
 				break;
 			}
+
 		}
 
 		return false;

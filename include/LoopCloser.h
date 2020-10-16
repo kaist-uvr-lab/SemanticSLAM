@@ -41,6 +41,7 @@ namespace UVR_SLAM {
 		std::vector<ConsistentGroup> mvConsistentGroups;
 		std::vector<Frame*> mvpEnoughConsistentCandidates;
 		int mnThreshConsistency;
+		int mnLastLoopClosingID;
 	private:
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
 	private:
