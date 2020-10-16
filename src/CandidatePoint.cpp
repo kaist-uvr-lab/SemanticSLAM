@@ -153,6 +153,46 @@ namespace  UVR_SLAM{
 		x3D = x3D.rowRange(0, 3) / x3D.at<float>(3);
 		return x3D.clone();
 	}
+	void CandidatePoint::CreateMapPoint(cv::Mat& X3D, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax) {
+		cv::Point2f ptBottom = cv::Point2f(0, 480);
+		MatchInfo* pFirst;
+		int idx;
+		{
+			std::unique_lock<std::mutex> lockMP(mMutexCP);
+			pFirst = mmpFrames.begin()->first;
+			idx = mmpFrames.begin()->second;
+		}
+		cv::Mat P, R, t, Rt;
+		auto pTargetKF = pFirst->mpRefFrame;
+		pTargetKF->GetPose(R, t);
+		cv::hconcat(R, t, P);
+		Rt = R.t();
+		auto ptFirst = pFirst->mvMatchingPts[idx];
+
+		//////ÆÐ·²·¢½º Ã¼Å©
+		//float val = CalcParallax(Rt, Rcurr.t(), ptFirst, ptCurr, invK);
+		//if (val >= 0.9998) {
+		//	bParallax = false;
+		//	bProjec = false;
+		//	return;
+		//}
+		//////ÆÐ·²·¢½º Ã¼Å©
+
+		bool bRank = true;
+		X3D = Triangulate(ptFirst, ptCurr, K*P, K*Pcurr, bRank);
+
+		bool bd1, bd2;
+		auto pt1 = Projection(X3D, R, t, K, bd1); //first
+		auto pt2 = Projection(X3D, Rcurr, Tcurr, K, bd2); //curr
+
+		if (bRank && bd1 && bd2 && CheckReprojectionError(pt1, ptFirst, 9.0) && CheckReprojectionError(pt2, ptCurr, 9.0)) {
+			bProjec = true;
+		}
+		else {
+			bProjec = false;
+		}
+		return;
+	}
 	void CandidatePoint::CreateMapPoint(cv::Mat& X3D, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax, cv::Mat& debug) {
 		cv::Point2f ptBottom = cv::Point2f(0, 480);
 		MatchInfo* pFirst;
