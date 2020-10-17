@@ -147,6 +147,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			
 			bool bLowQualityFrame = mpTargetFrame->mpMatchInfo->UpdateFrameQuality();
 			
+
 			/////프레임 퀄리티 계산
 			/////////KF-KF 매칭
 			////이미지 생성
@@ -164,7 +165,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			//int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
 			int nMatch = mpMatcher->OpticalMatchingForMapping(mpMap, mpTargetFrame, mpPrevKeyFrame, mpPPrevKeyFrame, vOpticalMatchPPrevPts, vOpticalMatchPrevPts, vOpticalMatchCurrPts, vOpticalMatchCPs, mK, mInvK, time1, debugMatch);
 			mpTargetFrame->mpMatchInfo->ConnectAll();
-			//NewMapPointMarginalization();
+			NewMapPointMarginalization();
 
 			std::vector<cv::Point2f> vMappingPPrevPts, vMappingPrevPts, vMappingCurrPts;
 			std::vector<CandidatePoint*> vMappingCPs;
@@ -360,7 +361,7 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 	//std::cout << "Maginalization::Start" << std::endl;
 	//mvpDeletedMPs.clear();
 	int nMarginalized = 0;
-	int mnMPThresh = 2;
+	int mnMPThresh = 3;
 	float mfRatio = 0.25f;
 
 	std::list<UVR_SLAM::MapPoint*>::iterator lit = mpSystem->mlpNewMPs.begin();
@@ -388,8 +389,9 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}*/
 		//else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= nMPThresh != UVR_SLAM::PLANE_MP)
-		else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= nMPThresh)
+		else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() < nMPThresh)
 		{
+			bBad = true;
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
 		else if (pMP->mnFirstKeyFrameID + 3 <= mpTargetFrame->GetKeyFrameID()){
@@ -993,45 +995,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	mpMap->ClearReinit();
 	std::vector<bool> vbInliers(vX3Ds.size(), true);
 	Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers, medianPrevScale);
-
-	///////////////////New Mp Creation
-	////기존 MP도 여기 결과에 따라서 커넥션이 가능해야 할 듯함.
 	
-	auto spWindowKFs = mpMap->GetWindowFramesSet(3);
-	/////시각화 확인
-	for (int i = 0; i < vMappingCPs.size(); i++) {
-		if (!vbInliers[i]){
-			continue;
-		}
-		nRes++;
-		/*cv::Mat X3D = std::move(vX3Ds[i]);
-		mpMap->AddReinit(X3D);
-		auto pCPi = std::move(vMappingCPs[i]);
-		auto pMPi = pCPi->GetMP();
-		if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()){
-			pMPi->SetWorldPos(std::move(X3D));
-			continue;
-		}
-		
-		int label = pCPi->GetLabel();
-		auto pMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, pCPi, X3D, cv::Mat(), label, pCPi->octave);
-		auto mmpFrames = pCPi->GetFrames();
-		for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
-			auto pMatch = iter->first;
-			int idx = iter->second;
-			auto pKF = pMatch->mpRefFrame;
-			if (spWindowKFs.find(pKF) != spWindowKFs.end()) {
-				pMatch->AddMP();
-				pMP->ConnectFrame(pMatch, idx);
-				pMP->IncreaseVisible();
-				pMP->IncreaseFound();
-			}
-		}
-		pMP->SetOptimization(true);
-		mpSystem->mlpNewMPs.push_back(pMP);
-		*/
-	}
-
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 	dtime = duration / 1000.0;

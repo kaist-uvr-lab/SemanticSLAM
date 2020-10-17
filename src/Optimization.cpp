@@ -875,6 +875,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 				int label = pCPi->GetLabel();
 				auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCPi, vX3Ds[i], cv::Mat(), label, pCPi->octave);
 				pMP->SetOptimization(true);
+				pSystem->mlpNewMPs.push_back(pMP);
 			}
 			else if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
 				pMPi->SetWorldPos(std::move(vX3Ds[i]));
