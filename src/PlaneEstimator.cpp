@@ -15,7 +15,7 @@ static int nPlaneID = 0;
 
 UVR_SLAM::PlaneEstimator::PlaneEstimator() :mbDoingProcess(false), mnProcessType(0), mpLayoutFrame(nullptr){
 }
-UVR_SLAM::PlaneEstimator::PlaneEstimator(Map* pMap,std::string strPath,cv::Mat K, cv::Mat K2, int w, int h) : mK(K), mK2(K2),mbDoingProcess(false), mnWidth(w), mnHeight(h), mnProcessType(0), mpLayoutFrame(nullptr),
+UVR_SLAM::PlaneEstimator::PlaneEstimator(System* pSys, std::string strPath,cv::Mat K, cv::Mat K2, int w, int h) : mpSystem(pSys), mK(K), mK2(K2),mbDoingProcess(false), mnWidth(w), mnHeight(h), mnProcessType(0), mpLayoutFrame(nullptr),
 mpPrevFrame(nullptr), mpPPrevFrame(nullptr), mpTargetFrame(nullptr)
 {
 	cv::FileStorage fSettings(strPath, cv::FileStorage::READ);
@@ -29,8 +29,12 @@ mpPrevFrame(nullptr), mpPPrevFrame(nullptr), mpTargetFrame(nullptr)
 	//mnNeedCeilMPs = fSettings["Layout.nceil"];
 	//mnConnect = fSettings["Layout.nconnect"];
 	fSettings.release();
-
-	mpMap = pMap;
+	}
+void UVR_SLAM::PlaneEstimator::Init() {
+	mpMap = mpSystem->mpMap;
+	mpVisualizer = mpSystem->mpVisualizer;
+	mpMatcher = mpSystem->mpMatcher;
+	mpInitializer = mpSystem->mpInitializer;
 }
 void UVR_SLAM::PlaneInformation::SetParam(cv::Mat m) {
 	std::unique_lock<std::mutex> lockTemp(mMutexParam);
@@ -69,21 +73,6 @@ UVR_SLAM::PlaneEstimator::~PlaneEstimator() {}
 
 ///////////////////////////////////////////////////////////////////////////////
 //기본 함수들
-void UVR_SLAM::PlaneEstimator::SetSystem(System* pSystem) {
-	mpSystem = pSystem;
-}
-
-void UVR_SLAM::PlaneEstimator::SetVisualizer(UVR_SLAM::Visualizer* pVis) {
-	mpVisualizer = pVis;
-}
-
-void UVR_SLAM::PlaneEstimator::SetInitializer(UVR_SLAM::Initializer* pInitializer) {
-	mpInitializer = pInitializer;
-}
-void UVR_SLAM::PlaneEstimator::SetMatcher(UVR_SLAM::Matcher* pMatcher) {
-	mpMatcher = pMatcher;
-}
-
 void UVR_SLAM::PlaneEstimator::SetBoolDoingProcess(bool b, int ptype) {
 	std::unique_lock<std::mutex> lockTemp(mMutexDoingProcess);
 	mbDoingProcess = b;

@@ -2,7 +2,6 @@
 #include <System.h>
 #include <Map.h>
 #include <Plane.h>
-#include <FrameWindow.h>
 #include <Matcher.h>
 #include <Initializer.h>
 #include <LocalMapper.h>
@@ -17,7 +16,7 @@
 
 UVR_SLAM::Tracker::Tracker() {}
 UVR_SLAM::Tracker::Tracker(int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false){}
-UVR_SLAM::Tracker::Tracker(Map* pMap, std::string strPath) : mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false) {
+UVR_SLAM::Tracker::Tracker(System* pSys, std::string strPath) : mpSystem(pSys), mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false) {
 	FileStorage fs(strPath, FileStorage::READ);
 
 	float fx = fs["Camera.fx"];
@@ -52,44 +51,21 @@ UVR_SLAM::Tracker::Tracker(Map* pMap, std::string strPath) : mbInitializing(fals
 	mnHeight = fs["Image.height"];
 	mK2 = (cv::Mat_<float>(3, 3) << fx, 0, 0, 0, fy, 0, -fy*cx, -fx*cy, fx*fy); //line projection
 	fs.release();
-
-	mpMap = pMap;
 }
 UVR_SLAM::Tracker::~Tracker() {}
 
 bool UVR_SLAM::Tracker::isInitialized() {
 	return mbInitilized;
 }
-
-void UVR_SLAM::Tracker::SetSystem(System* pSystem) {
-	mpSystem = pSystem;
-}
-void UVR_SLAM::Tracker::SetMapOptimizer(MapOptimizer* pMapOptimizer) {
-	mpMapOptimizer = pMapOptimizer;
-}
-void UVR_SLAM::Tracker::SetVisualizer(Visualizer* pVis) {
-	mpVisualizer = pVis;
-}
-void UVR_SLAM::Tracker::SetFrameVisualizer(FrameVisualizer* pVis) {
-	mpFrameVisualizer = pVis;
-}
-void UVR_SLAM::Tracker::SetSegmentator(SemanticSegmentator* pSegmentator) {
-	mpSegmentator = pSegmentator;
-}
-void UVR_SLAM::Tracker::SetMatcher(UVR_SLAM::Matcher* pMatcher){	
-	mpMatcher = pMatcher;
-}
-void UVR_SLAM::Tracker::SetInitializer(UVR_SLAM::Initializer* pInitializer){
-	mpInitializer = pInitializer;
-}
-void UVR_SLAM::Tracker::SetFrameWindow(UVR_SLAM::FrameWindow* pWindow) {
-	mpFrameWindow = pWindow;
-}
-void UVR_SLAM::Tracker::SetLocalMapper(UVR_SLAM::LocalMapper* pLocalMapper) {
-	mpLocalMapper = pLocalMapper;
-}
-void UVR_SLAM::Tracker::SetPlaneEstimator(UVR_SLAM::PlaneEstimator* pEstimator) {
-	mpPlaneEstimator = pEstimator;
+void UVR_SLAM::Tracker::Init() {
+	mpMap = mpSystem->mpMap;
+	mpVisualizer = mpSystem->mpVisualizer;
+	mpFrameVisualizer = mpSystem->mpFrameVisualizer;
+	mpMatcher = mpSystem->mpMatcher;
+	mpInitializer = mpSystem->mpInitializer;
+	mpSegmentator = mpSystem->mpSegmentator;
+	mpLocalMapper = mpSystem->mpLocalMapper;
+	mpPlaneEstimator = mpSystem->mpPlaneEstimator;
 }
 
 UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev) {

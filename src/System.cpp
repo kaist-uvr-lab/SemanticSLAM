@@ -153,80 +153,54 @@ void UVR_SLAM::System::Init() {
 	//Map
 	mpMap = new UVR_SLAM::Map(this, mnMaxConnectedKFs, mnMaxCandidateKFs);
 
-	//FrameWindow
-	mpFrameWindow = new UVR_SLAM::FrameWindow(15);
-	mpFrameWindow->SetSystem(this);
+	////FrameWindow
+	//mpFrameWindow = new UVR_SLAM::FrameWindow(15);
+	//mpFrameWindow->SetSystem(this);
 
 	//optmizer
 	mpOptimizer = new UVR_SLAM::Optimization();
 
 	//Visualizer
-	mpVisualizer = new Visualizer(mnWidth, mnHeight, mnVisScale, mpMap);
-	mpVisualizer->Init();
-	mpVisualizer->SetSystem(this);
-	
+	mpVisualizer = new Visualizer(this, mnWidth, mnHeight, mnVisScale);
 
 	//FrameVisualizer
-	mpFrameVisualizer = new FrameVisualizer(mnWidth, mnHeight, mK, mpMap);
-	mpFrameVisualizer->SetSystem(this);
-	mpFrameVisualizer->SetVisualizer(mpVisualizer);
+	mpFrameVisualizer = new FrameVisualizer(this, mnWidth, mnHeight, mK);
 
 	//matcher
-	mpMatcher = new UVR_SLAM::Matcher(DescriptorMatcher::create("BruteForce-Hamming"), mnWidth, mnHeight);
-	mpMatcher->SetVisualizer(mpVisualizer);
+	mpMatcher = new UVR_SLAM::Matcher(this, DescriptorMatcher::create("BruteForce-Hamming"), mnWidth, mnHeight);
 
 	//initializer
 	mpInitializer = new UVR_SLAM::Initializer(this, mpMap, mK, mnWidth, mnHeight);
-	mpInitializer->SetMatcher(mpMatcher);
-	mpInitializer->SetFrameWindow(mpFrameWindow);
 
 	//PlaneEstimator
-	mpPlaneEstimator = new UVR_SLAM::PlaneEstimator(mpMap,mstrFilePath, mK, mKforPL, mnWidth, mnHeight);
-	mpPlaneEstimator->SetSystem(this);
-	mpPlaneEstimator->SetMatcher(mpMatcher);
+	mpPlaneEstimator = new UVR_SLAM::PlaneEstimator(this,mstrFilePath, mK, mKforPL, mnWidth, mnHeight);
 
 	//layout estimating thread
 	mpSegmentator = new UVR_SLAM::SemanticSegmentator(this,mstrFilePath);
 
 	//local mapping thread
 	mpLocalMapper = new UVR_SLAM::LocalMapper(this, mstrFilePath, mnWidth, mnHeight);
-
-	//Initializer 추가 설정
-	mpInitializer->SetLocalMapper(mpLocalMapper);
-	mpInitializer->SetSegmentator(mpSegmentator);
-	mpInitializer->SetPlaneEstimator(mpPlaneEstimator);
 	
 	//loop closing thread
-	mpLoopCloser = new UVR_SLAM::LoopCloser(mnWidth, mnHeight, mK, mpMap);
-	mpLoopCloser->SetSystem(this);
+	mpLoopCloser = new UVR_SLAM::LoopCloser(this, mnWidth, mnHeight, mK);
 
 	//map optimizer
 	mpMapOptimizer = new UVR_SLAM::MapOptimizer(mstrFilePath, this);
 
 	//tracker thread
-	mpTracker = new UVR_SLAM::Tracker(mpMap, mstrFilePath);
-	//mptTracker = new std::thread(&UVR_SLAM::Tracker::Run, mpTracker);
-	mpTracker->SetMatcher(mpMatcher);
-	mpTracker->SetInitializer(mpInitializer);
-	mpTracker->SetFrameWindow(mpFrameWindow);
-	mpTracker->SetLocalMapper(mpLocalMapper);
-	mpTracker->SetPlaneEstimator(mpPlaneEstimator);
-	mpTracker->SetSystem(this);
-
-	mpTracker->SetMapOptimizer(mpMapOptimizer);
+	mpTracker = new UVR_SLAM::Tracker(this, mstrFilePath);
 	
-	//set visualizer
-	mpTracker->SetSegmentator(mpSegmentator);
-	mpTracker->SetVisualizer(mpVisualizer);
-	mpTracker->SetFrameVisualizer(mpFrameVisualizer);
-	mpPlaneEstimator->SetInitializer(mpInitializer);
-	mpPlaneEstimator->SetVisualizer(mpVisualizer);
-	mpInitializer->SetVisualizer(mpVisualizer);
-
 	/////초기화
 	mpSegmentator->Init();
+	mpPlaneEstimator->Init();
 	mpLocalMapper->Init();
+	mpLoopCloser->Init();
 	mpMapOptimizer->Init();
+	mpVisualizer->Init();
+	mpFrameVisualizer->Init();
+	mpInitializer->Init();
+	mpTracker->Init();
+	mpMatcher->Init();
 
 	////쓰레드
 	mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);

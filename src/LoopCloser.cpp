@@ -5,10 +5,12 @@
 
 namespace UVR_SLAM {
 	LoopCloser::LoopCloser() {}
-	LoopCloser::LoopCloser(int w, int h, cv::Mat K, Map* pMap) :mnWidth(w), mnHeight(h), mK(K), mbProcessing(false){
-		mpMap = pMap;
+	LoopCloser::LoopCloser(System* pSys, int w, int h, cv::Mat K):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mbProcessing(false){
 	}
 	LoopCloser::~LoopCloser() {}
+	void LoopCloser::Init() {
+		mpMap = mpSystem->mpMap;
+	}
 	void LoopCloser::Run() {
 
 		while (1) {
@@ -56,9 +58,6 @@ namespace UVR_SLAM {
 	bool LoopCloser::isProcessing() {
 		std::unique_lock<std::mutex> lock(mMutexProcessing);
 		return mbProcessing;
-	}
-	void LoopCloser::SetSystem(UVR_SLAM::System* pSystem) {
-		mpSystem = pSystem;
 	}
 	void LoopCloser::SetBoolProcessing(bool b) {
 		std::unique_lock<std::mutex> lock(mMutexProcessing);

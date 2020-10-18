@@ -88,6 +88,14 @@ namespace UVR_SLAM {
 		PlaneEstimator* mpPlaneEstimator;
 		Visualizer* mpVisualizer;
 		FrameVisualizer* mpFrameVisualizer;
+	public:
+		////parameter 파일 관련
+		std::string mstrFilePath;
+		bool mbSegmentation;
+		bool mbPlaneEstimation;
+		int mnDisplayX;
+		int mnDisplayY;
+
 
 	public:
 		void SaveTrajectory(std::string filename);
@@ -117,7 +125,7 @@ namespace UVR_SLAM {
 		std::thread* mptFrameVisualizer;
 
 		Tracker* mpTracker;
-		std::string mstrFilePath;
+		
 		//management created map points
 		//std::mutex mMutexListMPs;
 		//std::list<UVR_SLAM::MapPoint*> mlpNewMPs;

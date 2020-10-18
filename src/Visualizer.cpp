@@ -8,11 +8,9 @@
 #include <plane.h>
 
 UVR_SLAM::Visualizer::Visualizer() {}
-UVR_SLAM::Visualizer::Visualizer(int w, int h, int scale, Map* pMap) :mnWidth(w), mnHeight(h), mnVisScale(scale), mnFontFace(2), mfFontScale(0.6), mpMatchInfo(nullptr){
-	mpMap = pMap;
+UVR_SLAM::Visualizer::Visualizer(System* pSystem, int w, int h, int scale) :mpSystem(pSystem), mnWidth(w), mnHeight(h), mnVisScale(scale), mnFontFace(2), mfFontScale(0.6), mpMatchInfo(nullptr){
 }
 UVR_SLAM::Visualizer::~Visualizer() {}
-
 void CalcLineEquation(cv::Point2f pt1, cv::Point2f pt2, float& slope, float& dist) {
 	float dx = pt2.x - pt1.x;	//a
 	float dy = pt2.y - pt1.y;   //b
@@ -133,6 +131,10 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 
 void UVR_SLAM::Visualizer::Init() {
 	
+	mpMap = mpSystem->mpMap;
+	mnDisplayX = mpSystem->mnDisplayX;
+	mnDisplayY = mpSystem->mnDisplayY;
+
 	//Visualization
 	mVisPoseGraph = cv::Mat(mnHeight * 2, mnWidth * 2, CV_8UC3, cv::Scalar(255, 255, 255));
 	rectangle(mVisPoseGraph, cv::Rect(0, 0, 50, 50), cv::Scalar(255, 255, 0), -1);
@@ -252,10 +254,6 @@ void UVR_SLAM::Visualizer::Init() {
 	*/
 	cv::setMouseCallback("Output::Display", UVR_SLAM::Visualizer::CallBackFunc, NULL);
 	nScale = mnVisScale;
-}
-
-void UVR_SLAM::Visualizer::SetSystem(UVR_SLAM::System* pSystem) {
-	mpSystem = pSystem;
 }
 
 void UVR_SLAM::Visualizer::SetBoolDoingProcess(bool b) {

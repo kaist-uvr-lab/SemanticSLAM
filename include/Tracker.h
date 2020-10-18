@@ -9,7 +9,6 @@
 #include <Frame.h>
 
 namespace UVR_SLAM {
-	class FrameWindow;
 	class SemanticSegmentator;
 	class PlaneEstimator;
 	class LocalMapper;
@@ -17,29 +16,20 @@ namespace UVR_SLAM {
 	class FrameVisualizer;
 	class System;
 	class Map;
-	class MapOptimizer;
 	class Tracker {
 	public:
 
 		Tracker();
 		Tracker(int w, int h, cv::Mat _K);
-		Tracker(Map* pMap, std::string strPath);
+		Tracker(System* pSys, std::string strPath);
 		virtual ~Tracker();
 	public:
 		//void Run();
 		void Tracking(Frame* pPrev, Frame* pCurr);
 		bool isInitialized();
 	public:
-		void SetSystem(System*);
-		void SetFrameWindow(FrameWindow* pWindow);
-		void SetMatcher(Matcher* pMatcher);
-		void SetSegmentator(SemanticSegmentator* pSegmentator);
-		void SetInitializer(Initializer* pInitializer);
-		void SetLocalMapper(LocalMapper* pLocalMapper);
-		void SetPlaneEstimator(PlaneEstimator* pEstimator);
-		void SetMapOptimizer(MapOptimizer* pMapOptimizer);
-		void SetVisualizer(Visualizer* pVis);
-		void SetFrameVisualizer(FrameVisualizer* pVis);
+		void Init();
+		
 	private:
 		UVR_SLAM::Frame* CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev);
 		int UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs);
@@ -58,8 +48,6 @@ namespace UVR_SLAM {
 		Initializer* mpInitializer;
 		SemanticSegmentator* mpSegmentator;
 		PlaneEstimator* mpPlaneEstimator;
-		MapOptimizer* mpMapOptimizer;
-		FrameWindow* mpFrameWindow;
 		LocalMapper* mpLocalMapper;
 		Visualizer* mpVisualizer;
 		FrameVisualizer* mpFrameVisualizer;

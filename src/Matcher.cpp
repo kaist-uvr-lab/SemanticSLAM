@@ -2,9 +2,9 @@
 #include <omp.h>
 #include <random>
 #include <Frame.h>
+#include <System.h>
 #include <MapPoint.h>
 #include <CandidatePoint.h>
-#include <FrameWindow.h>
 #include <MatrixOperator.h>
 #include <gms_matcher.h>
 #include <PlaneEstimator.h>
@@ -13,8 +13,8 @@
 #include <Map.h>
 
 UVR_SLAM::Matcher::Matcher(){}
-UVR_SLAM::Matcher::Matcher(cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h)
-	:mWidth(w), mHeight(h), TH_HIGH(100), TH_LOW(50), HISTO_LENGTH(30), mfNNratio(0.7), mbCheckOrientation(true), matcher(_matcher)
+UVR_SLAM::Matcher::Matcher(System* pSys, cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h)
+	:mpSystem(pSys), mWidth(w), mHeight(h), TH_HIGH(100), TH_LOW(50), HISTO_LENGTH(30), mfNNratio(0.7), mbCheckOrientation(true), matcher(_matcher)
 {
 	//cv::Ptr<cv::flann::IndexParams> indexParams = cv::makePtr<cv::flann::LshIndexParams>(6, 12, 1);
 	//cv::Ptr<cv::flann::SearchParams> searchParams = cv::makePtr<cv::flann::SearchParams>(50);
@@ -26,8 +26,8 @@ UVR_SLAM::Matcher::Matcher(cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int
 	//cv::FlannBasedMatcher matcher = cv::FlannBasedMatcher(cv::makePtr<cv::flann::LshIndexParams>(12, 20, 2), cv::makePtr<cv::flann::SearchParams>(50));
 }
 UVR_SLAM::Matcher::~Matcher(){}
-void UVR_SLAM::Matcher::SetVisualizer(Visualizer* pVis) {
-	mpVisualizer = pVis;
+void UVR_SLAM::Matcher::Init() {
+	mpVisualizer = mpSystem->mpVisualizer;
 }
 const double nn_match_ratio = 0.7f; // Nearest-neighbour matching ratio
 

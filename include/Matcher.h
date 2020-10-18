@@ -11,16 +11,16 @@ namespace UVR_SLAM {
 	class CandidatePoint;
 	class MapPoint;
 	class Frame;
-	class FrameWindow;
 	class Visualizer;
 	class PlaneInformation;
 	class Map;
+	class System;
 	class Matcher {
 	public:
 		Matcher();
-		Matcher(cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h);
+		Matcher(System* pSys, cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h);
 		virtual ~Matcher();
-		void SetVisualizer(Visualizer* pVis);
+		void Init();
 ///////////////////////////////////////////////////////////
 ////200410 Optical flow 적용 버전
 	public:
@@ -54,6 +54,7 @@ namespace UVR_SLAM {
 		void Normalize(const std::vector<cv::KeyPoint> &vKeys, std::vector<cv::Point2f> &vNormalizedPoints, cv::Mat &T);
 		float CheckFundamental(Frame* pInit, Frame* pCurr, const cv::Mat &F21, std::vector<cv::DMatch> vMatches, std::vector<bool> &vbMatchesInliers, float sigma);
 	private:
+		System* mpSystem;
 		cv::Mat K, D;
 		int mWidth, mHeight;
 		Visualizer* mpVisualizer;
