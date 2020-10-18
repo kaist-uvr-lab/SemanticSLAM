@@ -90,7 +90,7 @@ namespace UVR_SLAM {
 		FrameVisualizer* mpFrameVisualizer;
 
 	public:
-		void SaveTrajectory();
+		void SaveTrajectory(std::string filename);
 		void SetBoolInit(bool b);
 		bool isInitialized();
 		void Reset();

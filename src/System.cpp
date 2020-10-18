@@ -104,7 +104,7 @@ bool UVR_SLAM::System::LoadVocabulary() {
 	
 }
 
-void UVR_SLAM::System::SaveTrajectory() {
+void UVR_SLAM::System::SaveTrajectory(std::string filename) {
 	auto vpKFs = mpMap->GetTrajectoryFrames();
 	/*auto vpKFs = mpMap->GetWindowFramesVector(3);
 	auto vpGraphKFs = mpMap->GetGraphFrames();
@@ -115,9 +115,10 @@ void UVR_SLAM::System::SaveTrajectory() {
 	std::stringstream ssdir, ssfile;
 	/*std::s  tringstream ssDirPath;
 	ssDirPath << "../../bin/SLAM/KeyframeDebugging/"*/
-	ssdir <<base<<"/trajectory";
+	//ssdir <<base<<"/trajectory";
+	ssdir <<"./trajectory";
 	_mkdir(ssdir.str().c_str());
-	ssfile << ssdir.str() << "/our.txt";
+	ssfile << ssdir.str() << "/"<<filename;
 	std::ofstream f;
 	f.open(ssfile.str().c_str());
 	f << std::fixed;
