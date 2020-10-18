@@ -72,6 +72,13 @@ namespace UVR_SLAM {
 
 		std::vector<UVR_SLAM::CandidatePoint*> mvpMatchingCPs; //KF-KF 매칭에서 삼각화시 베이스라인을 충분히 확보하기 위함.
 		std::vector<cv::Point2f> mvMatchingPts; //CPPt에서 변경함
+	public:
+		//오브젝트 관련
+		std::map<int, int> mmLabelAcc; //std::list<cv::Point2f>
+		std::map<int, cv::Mat> mmLabelMasks; //마스크 이미지
+		//std::multimap<int, cv::Rect> mmLabelRects; //동일 물체에 여러개가 나올 수 있기 때문에 멀티맵으로
+		//std::multimap<int, std::list<CandidatePoint*>> mmLabelCPs;
+		std::multimap<int,std::pair<cv::Rect, std::list<CandidatePoint*>>> mmLabelRectCPs;
 	private:
 		std::mutex mMutexCPs;
 		cv::Mat mMapCP; //현재 이미지 내에 CP의 포인트 위치 & 인덱스, ushort, 16US1

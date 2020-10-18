@@ -979,12 +979,26 @@ void UVR_SLAM::MatchInfo::SetLabel() {
 		auto pCPi = vpCPs[i];
 		auto pt = vPTs[i];
 		int label = labelMat.at<uchar>(pt.y / 2, pt.x / 2);
-		//mvObjectLabels[i] = label1;
 		pCPi->SetLabel(label);
 		auto pMPi = pCPi->GetMP();
 		if (pMPi)
 			pMPi->SetLabel(pCPi->GetLabel());
+		////object 멀티맵에 추가
+		for(auto iter = this->mmLabelRectCPs.equal_range(label).first, eiter = this->mmLabelRectCPs.equal_range(label).second; iter != eiter; iter++){
+			auto rect  = iter->second.first;
+			//auto lpCPs = iter->second.second;
+			if (rect.contains(pt/2)) {
+				//std::cout << "add" << std::endl;
+				iter->second.second.push_back(pCPi);
+				break;
+			}
+			//iter->second->second = lpCPs;
+		}
+		////object 멀티맵에 추가
 	}
+
+	//오브젝트 후처리 필요
+	
 }
 
 //새로운 맵포인트를 생성하기 위한 키포인트를 생성.

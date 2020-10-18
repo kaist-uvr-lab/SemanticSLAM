@@ -33,6 +33,7 @@ namespace UVR_SLAM{
 			if (pKF->GetKeyFrameID() % 2 == 0) {
 				mvpTrajectoryKFs.push_back(pKF);
 				mQueueFrameWindows2.push_back(pKF);
+				res = pKF;
 				//pKF->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
 			}
 			else {
@@ -43,7 +44,7 @@ namespace UVR_SLAM{
 				auto pKF = mQueueFrameWindows2.front();
 				if (pKF->GetKeyFrameID() % 4 == 0) {
 					mQueueFrameWindows3.push_back(pKF);
-					res = pKF;
+					//res = pKF;
 				}
 				else {
 					//pKF->mpMatchInfo->DisconnectAll();

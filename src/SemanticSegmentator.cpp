@@ -6,6 +6,7 @@
 #include <Plane.h>
 #include <LocalMapper.h>
 #include <Visualizer.h>
+#include <CandidatePoint.h>
 #include <Map.h>
 
 std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
@@ -16,14 +17,14 @@ UVR_SLAM::SemanticSegmentator::SemanticSegmentator():mbDoingProcess(false){
 	mVecLabelColors.push_back(COLOR_CEILING);
 	mVecLabelColors.push_back(COLOR_NONE);*/
 }
-UVR_SLAM::SemanticSegmentator::SemanticSegmentator(std::string _ip, int _port, int w, int h): ip(_ip), port(_port),mbDoingProcess(false), mnWidth(w), mnHeight(h), mpPrevTargetFrame(nullptr){
+UVR_SLAM::SemanticSegmentator::SemanticSegmentator(std::string _ip, int _port, int w, int h): ip(_ip), port(_port),mbDoingProcess(false), mnWidth(w), mnHeight(h), mpPrevFrame(nullptr){
 	UVR_SLAM::ObjectColors::Init();
 	/*mVecLabelColors.push_back(COLOR_FLOOR);
 	mVecLabelColors.push_back(COLOR_WALL);
 	mVecLabelColors.push_back(COLOR_CEILING);
 	mVecLabelColors.push_back(COLOR_NONE);*/
 }
-UVR_SLAM::SemanticSegmentator::SemanticSegmentator(System* pSys, const std::string & strSettingPath) :mbDoingProcess(false), mpPrevTargetFrame(nullptr) {
+UVR_SLAM::SemanticSegmentator::SemanticSegmentator(System* pSys, const std::string & strSettingPath) :mbDoingProcess(false), mpPrevFrame(nullptr) {
 	UVR_SLAM::ObjectColors::Init();
 	cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
 	mbOn = static_cast<int>(fSettings["Segmentator.on"]) != 0;
@@ -61,7 +62,7 @@ bool UVR_SLAM::SemanticSegmentator::CheckNewKeyFrames()
 void UVR_SLAM::SemanticSegmentator::ProcessNewKeyFrame()
 {
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
-	mpPrevTargetFrame = mpTargetFrame;
+	mpPrevFrame = mpTargetFrame;
 	mpTargetFrame = mKFQueue.front();
 	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
 	
@@ -99,9 +100,9 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			cv::Mat colorimg, resized_color, segmented;
-			cv::cvtColor(mpTargetFrame->GetOriginalImage(), colorimg, CV_RGBA2BGR);
-			colorimg.convertTo(colorimg, CV_8UC3);
-			cv::resize(colorimg, resized_color, cv::Size(mnWidth/2, mnHeight/2));
+			/*cv::cvtColor(mpTargetFrame->GetOriginalImage(), colorimg, CV_RGBA2BGR);
+			colorimg.convertTo(colorimg, CV_8UC3);*/
+			cv::resize(mpTargetFrame->GetOriginalImage(), resized_color, cv::Size(mnWidth/2, mnHeight/2));
 			//cv::resize(colorimg, resized_color, cv::Size(160, 90));
 			
 			//request post
@@ -115,12 +116,8 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//ImageLabeling(segmented, mpTargetFrame->matLabeled);
 			mpTargetFrame->matLabeled = segmented.clone();
 			mpTargetFrame->matSegmented = segmented.clone();
-			mpTargetFrame->SetBoolSegmented(true);
-			mpTargetFrame->mpMatchInfo->SetLabel();
-
+			
 			////세그멘테이션 칼라 전달
-			mmLabelAcc.clear();
-			mmLabelMasks.clear();
 			int nMaxLabel;
 			int nMaxLabelCount = 0;
 			cv::Mat seg_color = cv::Mat::zeros(segmented.size(), CV_8UC3);
@@ -128,26 +125,26 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 				for (int x = 0; x < seg_color.cols; x++) {
 					int label = segmented.at<uchar>(y, x);
 					seg_color.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
-
-					if (!mmLabelMasks.count(label)) {
-						mmLabelMasks[label] = cv::Mat::zeros(segmented.size(), CV_8UC1);
+					
+					if (!mpTargetFrame->mpMatchInfo->mmLabelMasks.count(label)) {
+						mpTargetFrame->mpMatchInfo->mmLabelMasks[label] = cv::Mat::zeros(segmented.size(), CV_8UC1);
 					}
 					else {
-						mmLabelAcc[label]++;
-						if (mmLabelAcc[label] > nMaxLabelCount)
+						mpTargetFrame->mpMatchInfo->mmLabelAcc[label]++;
+						if (mpTargetFrame->mpMatchInfo->mmLabelAcc[label] > nMaxLabelCount)
 						{
 							nMaxLabel = label;
-							nMaxLabelCount = mmLabelAcc[label];
+							nMaxLabelCount = mpTargetFrame->mpMatchInfo->mmLabelAcc[label];
 						}
-						mmLabelMasks[label].at<uchar>(y, x) = 255;
+						mpTargetFrame->mpMatchInfo->mmLabelMasks[label].at<uchar>(y, x) = 255;
 					}
-
 				}
 			}
 			
 			///////////CCL TEST
+			cv::addWeighted(segmented, 0.5, resized_color, 0.5, 0.0, resized_color);
 			cv::Mat ccl_res = seg_color.clone();
-			for (auto iter = mmLabelMasks.begin(), eiter = mmLabelMasks.end(); iter != eiter; iter++) {
+			for (auto iter = mpTargetFrame->mpMatchInfo->mmLabelMasks.begin(), eiter = mpTargetFrame->mpMatchInfo->mmLabelMasks.end(); iter != eiter; iter++) {
 				Mat img_labels, stats, centroids;
 				int label = iter->first;
 				cv::Mat mask = iter->second;
@@ -170,24 +167,42 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 						/*if (j == maxIdx)
 						continue;*/
 						int area = stats.at<int>(j, CC_STAT_AREA);
-						if (area < 200)
+						if (area < 300)
 							continue;
 						int left = stats.at<int>(j, CC_STAT_LEFT);
 						int top = stats.at<int>(j, CC_STAT_TOP);
 						int width = stats.at<int>(j, CC_STAT_WIDTH);
 						int height = stats.at<int>(j, CC_STAT_HEIGHT);
 						cv::Rect rect(Point(left, top), Point(left + width, top + height));
-						mmLabelRects.insert(std::make_pair(label, rect));
-						rectangle(ccl_res, rect, Scalar(255, 255, 255), 2);
+						/*mpTargetFrame->mpMatchInfo->mmLabelRects.insert(std::make_pair(label, rect));
+						mpTargetFrame->mpMatchInfo->mmLabelCPs.insert(std::make_pair(label, std::list<CandidatePoint*>()));*/
+						auto info = std::make_pair(rect, std::list<CandidatePoint*>());
+						mpTargetFrame->mpMatchInfo->mmLabelRectCPs.insert(std::make_pair(label, info));
+						rectangle(resized_color, rect, Scalar(255, 255, 255), 2);
 						//rectangle(ccl_res, Point(left, top), Point(left + width, top + height), Scalar(255, 255, 255), 2);
 					}
-					/*imshow("seg mask", maskA);
-					*/
 				}
 			}
-			//imshow("aaabbb", ccl_res); cv::waitKey(1);
 
-			mpVisualizer->SetOutputImage(ccl_res, 4);
+			mpTargetFrame->SetBoolSegmented(true);
+			mpTargetFrame->mpMatchInfo->SetLabel();
+
+			for (auto iter = mpTargetFrame->mpMatchInfo->mmLabelRectCPs.begin(), eiter = mpTargetFrame->mpMatchInfo->mmLabelRectCPs.end(); iter != eiter; iter++) {
+				auto label = iter->first;
+				auto rect = iter->second.first;
+				auto lpCPs = iter->second.second;
+				for (auto liter = lpCPs.begin(), leiter = lpCPs.end(); liter != leiter; liter++) {
+					auto pCPi = *liter;
+					int idx = pCPi->GetPointIndexInFrame(mpTargetFrame->mpMatchInfo);
+					if (idx > -1) {
+						auto pt = mpTargetFrame->mpMatchInfo->mvMatchingPts[idx] / 2;
+						cv::circle(resized_color, pt, 2, UVR_SLAM::ObjectColors::mvObjectLabelColors[label], -1);
+					}
+				}
+				//std::cout << "Object Info = " << label << ", " << lpCPs.size() << std::endl;
+			}
+
+			mpVisualizer->SetOutputImage(resized_color, 4);
 			////시간체크
 			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
 			auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
@@ -239,6 +254,9 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			SetBoolDoingProcess(false);
 		}
 	}
+}
+void UVR_SLAM::SemanticSegmentator::SetInitialSegFrame(UVR_SLAM::Frame* pKF1) {
+	mpPrevFrame = pKF1;
 }
 void UVR_SLAM::SemanticSegmentator::SetTargetFrame(Frame* pFrame) {
 	mpTargetFrame = pFrame;
