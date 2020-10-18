@@ -142,8 +142,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			}
 			
 			///////////CCL TEST
-			cv::addWeighted(segmented, 0.5, resized_color, 0.5, 0.0, resized_color);
-			cv::Mat ccl_res = seg_color.clone();
+			cv::addWeighted(seg_color, 0.5, resized_color, 0.5, 0.0, resized_color);
 			for (auto iter = mpTargetFrame->mpMatchInfo->mmLabelMasks.begin(), eiter = mpTargetFrame->mpMatchInfo->mmLabelMasks.end(); iter != eiter; iter++) {
 				Mat img_labels, stats, centroids;
 				int label = iter->first;
