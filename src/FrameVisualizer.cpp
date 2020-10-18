@@ -8,16 +8,13 @@
 
 namespace UVR_SLAM {
 	UVR_SLAM::FrameVisualizer::FrameVisualizer(){}
-	UVR_SLAM::FrameVisualizer::FrameVisualizer(int w, int h, cv::Mat K, Map* pMap):mnWidth(w), mnHeight(h), mK(K), mbVisualize(false){
-		mpMap = pMap;
+	UVR_SLAM::FrameVisualizer::FrameVisualizer(System* pSys, int w, int h, cv::Mat K):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mbVisualize(false){
 	}
 	UVR_SLAM::FrameVisualizer::~FrameVisualizer(){}
 
-	void UVR_SLAM::FrameVisualizer::SetSystem(System* pSystem){
-		mpSystem = pSystem;
-	}
-	void UVR_SLAM::FrameVisualizer::SetVisualizer(Visualizer* pVis) {
-		mpVisualizer = pVis;
+	void UVR_SLAM::FrameVisualizer::Init(){
+		mpMap = mpSystem->mpMap;
+		mpVisualizer = mpSystem->mpVisualizer;
 	}
 	void UVR_SLAM::FrameVisualizer::Run(){
 	

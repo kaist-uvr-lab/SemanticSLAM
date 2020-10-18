@@ -14,10 +14,10 @@ namespace UVR_SLAM {
 	class LoopCloser {
 	public:
 		LoopCloser();
-		LoopCloser(int w, int h, cv::Mat K, Map* pMap);
+		LoopCloser(System* pSys, int w, int h, cv::Mat K);
 		virtual ~LoopCloser();
 
-		void SetSystem(System* pSystem);
+		void Init();
 		void SetBoolProcessing(bool b);
 		bool isProcessing();
 		void InsertKeyFrame(UVR_SLAM::Frame *pKF);

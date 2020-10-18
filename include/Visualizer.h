@@ -18,12 +18,11 @@ namespace UVR_SLAM {
 	class Visualizer {
 	public:
 		Visualizer();
-		Visualizer(int w, int h, int scale, Map* pMap);
+		Visualizer(System* pSystem, int w, int h, int scale);
 		virtual ~Visualizer();
 
 	public:
 		void Run();
-		void SetSystem(System* pSystem);
 		void SetBoolDoingProcess(bool b);
 		bool isDoingProcess();
 	private:
@@ -32,6 +31,7 @@ namespace UVR_SLAM {
 		std::mutex mMutexDoingProcess;
 		bool mbDoingProcess;
 		int mnWidth, mnHeight;
+		int mnDisplayX, mnDisplayY;
 //////////////////////
 ////output½Ã°¢È­
 	public:

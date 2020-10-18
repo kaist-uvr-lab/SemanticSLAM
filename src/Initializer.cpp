@@ -1,5 +1,4 @@
 #include <Initializer.h>
-#include <FrameWindow.h>
 #include <LocalMapper.h>
 #include <System.h>
 #include <Map.h>
@@ -31,9 +30,11 @@ UVR_SLAM::Initializer::~Initializer(){
 }
 
 void UVR_SLAM::Initializer::Init() {
-	mpInitFrame1 = nullptr;
-	mpInitFrame2 = nullptr;
-	mbInit = false;
+	mpSegmentator = mpSystem->mpSegmentator;
+	mpLocalMapper = mpSystem->mpLocalMapper;
+	mpPlaneEstimator = mpSystem->mpPlaneEstimator;
+	mpMatcher = mpSystem->mpMatcher;
+	mpVisualizer = mpSystem->mpVisualizer;
 }
 
 void UVR_SLAM::Initializer::Reset() {
@@ -42,32 +43,6 @@ void UVR_SLAM::Initializer::Reset() {
 	mbInit = false;
 
 	mpTempFrame = mpInitFrame1;
-}
-
-
-
-void UVR_SLAM::Initializer::SetLocalMapper(LocalMapper* pMapper) {
-	mpLocalMapper = pMapper;
-}
-
-void UVR_SLAM::Initializer::SetMatcher(UVR_SLAM::Matcher* pMatcher) {
-	mpMatcher = pMatcher;
-}
-
-void UVR_SLAM::Initializer::SetFrameWindow(UVR_SLAM::FrameWindow* pWindow) {
-	mpFrameWindow = pWindow;
-}
-
-void UVR_SLAM::Initializer::SetSegmentator(SemanticSegmentator* pEstimator) {
-	mpSegmentator = pEstimator;
-}
-
-void UVR_SLAM::Initializer::SetPlaneEstimator(PlaneEstimator* pEstimator) {
-	mpPlaneEstimator = pEstimator;
-}
-
-void UVR_SLAM::Initializer::SetVisualizer(Visualizer* pVis) {
-	mpVisualizer = pVis;
 }
 
 bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h) {

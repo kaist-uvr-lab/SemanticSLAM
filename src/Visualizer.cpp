@@ -8,11 +8,9 @@
 #include <plane.h>
 
 UVR_SLAM::Visualizer::Visualizer() {}
-UVR_SLAM::Visualizer::Visualizer(int w, int h, int scale, Map* pMap) :mnWidth(w), mnHeight(h), mnVisScale(scale), mnFontFace(2), mfFontScale(0.6), mpMatchInfo(nullptr){
-	mpMap = pMap;
+UVR_SLAM::Visualizer::Visualizer(System* pSystem, int w, int h, int scale) :mpSystem(pSystem), mnWidth(w), mnHeight(h), mnVisScale(scale), mnFontFace(2), mfFontScale(0.6), mpMatchInfo(nullptr){
 }
 UVR_SLAM::Visualizer::~Visualizer() {}
-
 void CalcLineEquation(cv::Point2f pt1, cv::Point2f pt2, float& slope, float& dist) {
 	float dx = pt2.x - pt1.x;	//a
 	float dy = pt2.y - pt1.y;   //b
@@ -133,6 +131,10 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 
 void UVR_SLAM::Visualizer::Init() {
 	
+	mpMap = mpSystem->mpMap;
+	mnDisplayX = mpSystem->mnDisplayX;
+	mnDisplayY = mpSystem->mnDisplayY;
+
 	//Visualization
 	mVisPoseGraph = cv::Mat(mnHeight * 2, mnWidth * 2, CV_8UC3, cv::Scalar(255, 255, 255));
 	rectangle(mVisPoseGraph, cv::Rect(0, 0, 50, 50), cv::Scalar(255, 255, 0), -1);
@@ -187,75 +189,10 @@ void UVR_SLAM::Visualizer::Init() {
 	std::cout << nDisRows << ", " << nDisCols <<"::"<<img1.cols<<", "<<img2.cols<<", "<<img3.cols<< std::endl;
 	std::cout << r1.x << " " << r2.x << ", " << r3.x << "::" << r1.width << ", " << r2.width << ", " << r3.width << std::endl;
 	//set image
-	int nImageWindowStartX = -1690;
-	int nImageWindowEndX = 1920;
-	int nImageWIndowStartY1 = 20;
-	int nImageWIndowStartY2 = 50;
-
 	cv::namedWindow("Output::Display");
-	cv::moveWindow("Output::Display", nImageWindowStartX, nImageWIndowStartY1);
-
-	/*
-	/////////////////////////////
-	////New 배치
-	cv::namedWindow("Output::PE::PARAM");
-	cv::moveWindow("Output::PE::PARAM", nImageWindowStartX, 0);
-	cv::namedWindow("edge+optical");
-	cv::moveWindow("edge+optical", nImageWindowStartX, 0);
-	////New 배치
-	/////////////////////////////
-	
-
-	///////////////
-	//cv::namedWindow("Output::Matching");
-	cv::moveWindow("Output::Matching", nImageWindowStartX, nImageWIndowStartY1);
-	cv::namedWindow("Output::Segmentation");
-	cv::moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1+2*mnHeight+30);
-	cv::namedWindow("Output::LoopFrame");
-	cv::moveWindow("Output::LoopFrame", nImageWindowStartX+mnWidth/2+15, nImageWIndowStartY1 + 2 * mnHeight + 35);
-	cv::namedWindow("Output::Tracking");
-	cv::moveWindow("Output::Tracking", nImageWindowStartX + mnWidth, nImageWIndowStartY1);
-	cv::namedWindow("Output::Time");
-	cv::moveWindow("Output::Time", nImageWindowStartX + mnWidth, 50 + mnHeight);
-	//cv::namedWindow("Output::PlaneEstimation");
-	//cv::moveWindow("Output::PlaneEstimation", nImageWindowStartX + mnWidth, 50 + mnHeight);
-	//cv::namedWindow("Output::Segmentation");
-	//cv::moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1);
-	//cv::namedWindow("Output::SegmentationMask");
-	//cv::moveWindow("Output::SegmentationMask", nImageWindowStartX, 50 + mnHeight);
-	
-	cv::namedWindow("Output::Trajectory");
-	cv::moveWindow("Output::Trajectory", nImageWindowStartX + mnWidth + mnWidth, 20);
-	
-
-	//cv::namedWindow("Output::Trajectory");
-	//cv::moveWindow("Output::Trajectory", nImageWindowStartX + mnWidth + mnWidth, 20);
-
-	//Output::Segmentation
-
-	//Opencv Image Window
-	int nAdditional1 = 355;
-	namedWindow("Output::Trajectory");
-	moveWindow("Output::Trajectory", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth, 0);
-
-
-	cv::namedWindow("Initialization::Frame::1");
-	cv::moveWindow("Initialization::Frame::1", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 0);
-	cv::namedWindow("Initialization::Frame::2");
-	cv::moveWindow("Initialization::Frame::2", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 30 + mnHeight);
-	cv::namedWindow("LocalMapping::CreateMPs");
-	cv::moveWindow("LocalMapping::CreateMPs", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 0);
-	cv::namedWindow("Output::Matching::SemanticFrame");
-	cv::moveWindow("Output::Matching::SemanticFrame", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth, 30 + mnHeight);
-	cv::namedWindow("Test::Matching::Frame");
-	cv::moveWindow("Test::Matching::Frame", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth*0.7, 30 + mnHeight);
-	*/
+	cv::moveWindow("Output::Display", mnDisplayX, mnDisplayY);
 	cv::setMouseCallback("Output::Display", UVR_SLAM::Visualizer::CallBackFunc, NULL);
 	nScale = mnVisScale;
-}
-
-void UVR_SLAM::Visualizer::SetSystem(UVR_SLAM::System* pSystem) {
-	mpSystem = pSystem;
 }
 
 void UVR_SLAM::Visualizer::SetBoolDoingProcess(bool b) {

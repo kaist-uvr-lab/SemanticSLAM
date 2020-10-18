@@ -111,7 +111,8 @@ namespace UVR_SLAM {
 	class PlaneEstimator {
 	public:
 		PlaneEstimator();
-		PlaneEstimator(Map* pMap,std::string strPath, cv::Mat K, cv::Mat K2,int w, int h);
+		PlaneEstimator(System* pSys, std::string strPath, cv::Mat K, cv::Mat K2,int w, int h);
+		void Init();
 		virtual ~PlaneEstimator();
 	public:
 		void InsertKeyFrame(UVR_SLAM::Frame *pKF);
@@ -122,10 +123,6 @@ namespace UVR_SLAM {
 		void CreateWallMapPoints(std::vector<UVR_SLAM::MapPoint*> mvpMPs, std::vector<UVR_SLAM::ObjectType> mvpOPs, UVR_SLAM::PlaneInformation* pPlane, cv::Mat invT, int wtype,int MinX, int MaxX, bool b1, bool b2);
 		void Reset();
 		void Run();
-		void SetSystem(System* pSystem);
-		void SetVisualizer(Visualizer* pVis);
-		void SetMatcher(Matcher* pMatcher);
-		void SetInitializer(Initializer* pInitializer);
 		void SetBoolDoingProcess(bool b, int ptype);
 		bool isDoingProcess();
 
