@@ -16,7 +16,7 @@ int UVR_SLAM::System::nKeyFrameID = 0;
 
 UVR_SLAM::System::System(){}
 UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapUpdateEnd(true), mbSegmentationEnd(false), mbLocalMappingEnd(false), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false), 
-mStrSegmentationString("Segmentation"), mStrPlaneString("PE"){
+mbSegmentation(false), mbPlaneEstimation(false), mStrSegmentationString("Segmentation"), mStrPlaneString("PE"){
 	LoadParameter(strFilePath);
 	LoadVocabulary();
 	Init();
@@ -37,6 +37,9 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	float fy = fs["Camera.fy"];
 	float cx = fs["Camera.cx"];
 	float cy = fs["Camera.cy"];
+
+	mbSegmentation=fs["Segmentator.on"]=="on";
+	mbPlaneEstimation = fs["PlaneEstimator.on"] == "on";
 
 	mK = cv::Mat::eye(3, 3, CV_32F);
 	mK.at<float>(0, 0) = fx;
@@ -72,7 +75,8 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	mnMaxConnectedKFs = fs["KeyFrame.window"];
 	mnMaxCandidateKFs = fs["KeyFrame.candidate"];
 
-	std::cout << mK << mD <<"::"<<mnWidth<<", "<<mnHeight<< std::endl;
+	mnDisplayX = fs["Display.x"];
+	mnDisplayY = fs["Display.y"];
 
 	fs["VocPath"] >> strVOCPath;
 	fs["nVisScale"] >> mnVisScale;
@@ -206,8 +210,10 @@ void UVR_SLAM::System::Init() {
 	mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);
 	mptMapOptimizer = new std::thread(&UVR_SLAM::MapOptimizer::Run, mpMapOptimizer);
 	mptLoopCloser = new std::thread(&UVR_SLAM::LoopCloser::Run, mpLoopCloser);
-	mptLayoutEstimator = new std::thread(&UVR_SLAM::SemanticSegmentator::Run, mpSegmentator);
-	mptPlaneEstimator = new std::thread(&UVR_SLAM::PlaneEstimator::Run, mpPlaneEstimator);
+	if(mbSegmentation)
+		mptLayoutEstimator = new std::thread(&UVR_SLAM::SemanticSegmentator::Run, mpSegmentator);
+	if(mbPlaneEstimation)
+		mptPlaneEstimator = new std::thread(&UVR_SLAM::PlaneEstimator::Run, mpPlaneEstimator);
 	mptVisualizer = new std::thread(&UVR_SLAM::Visualizer::Run, mpVisualizer);
 	mptFrameVisualizer = new std::thread(&UVR_SLAM::FrameVisualizer::Run, mpFrameVisualizer);
 

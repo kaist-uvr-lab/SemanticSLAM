@@ -189,69 +189,8 @@ void UVR_SLAM::Visualizer::Init() {
 	std::cout << nDisRows << ", " << nDisCols <<"::"<<img1.cols<<", "<<img2.cols<<", "<<img3.cols<< std::endl;
 	std::cout << r1.x << " " << r2.x << ", " << r3.x << "::" << r1.width << ", " << r2.width << ", " << r3.width << std::endl;
 	//set image
-	int nImageWindowStartX = -1690;
-	int nImageWindowEndX = 1920;
-	int nImageWIndowStartY1 = 20;
-	int nImageWIndowStartY2 = 50;
-
 	cv::namedWindow("Output::Display");
-	cv::moveWindow("Output::Display", nImageWindowStartX, nImageWIndowStartY1);
-
-	/*
-	/////////////////////////////
-	////New 배치
-	cv::namedWindow("Output::PE::PARAM");
-	cv::moveWindow("Output::PE::PARAM", nImageWindowStartX, 0);
-	cv::namedWindow("edge+optical");
-	cv::moveWindow("edge+optical", nImageWindowStartX, 0);
-	////New 배치
-	/////////////////////////////
-	
-
-	///////////////
-	//cv::namedWindow("Output::Matching");
-	cv::moveWindow("Output::Matching", nImageWindowStartX, nImageWIndowStartY1);
-	cv::namedWindow("Output::Segmentation");
-	cv::moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1+2*mnHeight+30);
-	cv::namedWindow("Output::LoopFrame");
-	cv::moveWindow("Output::LoopFrame", nImageWindowStartX+mnWidth/2+15, nImageWIndowStartY1 + 2 * mnHeight + 35);
-	cv::namedWindow("Output::Tracking");
-	cv::moveWindow("Output::Tracking", nImageWindowStartX + mnWidth, nImageWIndowStartY1);
-	cv::namedWindow("Output::Time");
-	cv::moveWindow("Output::Time", nImageWindowStartX + mnWidth, 50 + mnHeight);
-	//cv::namedWindow("Output::PlaneEstimation");
-	//cv::moveWindow("Output::PlaneEstimation", nImageWindowStartX + mnWidth, 50 + mnHeight);
-	//cv::namedWindow("Output::Segmentation");
-	//cv::moveWindow("Output::Segmentation", nImageWindowStartX, nImageWIndowStartY1);
-	//cv::namedWindow("Output::SegmentationMask");
-	//cv::moveWindow("Output::SegmentationMask", nImageWindowStartX, 50 + mnHeight);
-	
-	cv::namedWindow("Output::Trajectory");
-	cv::moveWindow("Output::Trajectory", nImageWindowStartX + mnWidth + mnWidth, 20);
-	
-
-	//cv::namedWindow("Output::Trajectory");
-	//cv::moveWindow("Output::Trajectory", nImageWindowStartX + mnWidth + mnWidth, 20);
-
-	//Output::Segmentation
-
-	//Opencv Image Window
-	int nAdditional1 = 355;
-	namedWindow("Output::Trajectory");
-	moveWindow("Output::Trajectory", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth, 0);
-
-
-	cv::namedWindow("Initialization::Frame::1");
-	cv::moveWindow("Initialization::Frame::1", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 0);
-	cv::namedWindow("Initialization::Frame::2");
-	cv::moveWindow("Initialization::Frame::2", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 30 + mnHeight);
-	cv::namedWindow("LocalMapping::CreateMPs");
-	cv::moveWindow("LocalMapping::CreateMPs", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth + mnWidth, 0);
-	cv::namedWindow("Output::Matching::SemanticFrame");
-	cv::moveWindow("Output::Matching::SemanticFrame", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth, 30 + mnHeight);
-	cv::namedWindow("Test::Matching::Frame");
-	cv::moveWindow("Test::Matching::Frame", nImageWindowStartX + nAdditional1 + mnWidth + mnWidth + mnWidth*0.7, 30 + mnHeight);
-	*/
+	cv::moveWindow("Output::Display", mnDisplayX, mnDisplayY);
 	cv::setMouseCallback("Output::Display", UVR_SLAM::Visualizer::CallBackFunc, NULL);
 	nScale = mnVisScale;
 }
