@@ -301,6 +301,7 @@ namespace UVR_SLAM {
 		static float mnMaxY;
 		static bool mbInitialComputations;
 		static int mnRadius;
+		static cv::Point2f mRectPt;
 		
 		int mnScaleLevels;
 		float mfScaleFactor;

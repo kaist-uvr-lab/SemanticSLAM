@@ -658,7 +658,8 @@ bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, cv::Point2f pt) {
 	if (overlap.at<uchar>(pt) > 0) {
 		return false;
 	}
-	circle(overlap, pt, radius, cv::Scalar(255), -1);
+	rectangle(overlap, pt - UVR_SLAM::Frame::mRectPt, pt + UVR_SLAM::Frame::mRectPt, cv::Scalar(255), -1);
+	//circle(overlap, pt, radius, cv::Scalar(255), -1);
 	return true;
 }
 
@@ -815,10 +816,10 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 			continue;
 		}
 		
-		/*if (!CheckOpticalPointOverlap(overlap, 2, currPts[i])) {
+		if (!CheckOpticalPointOverlap(overlap, 2, currPts[i])) {
 			nBad++;
 			continue;
-		}*/
+		}
 
 		/////
 		//¸ÅÄª °á°ú
@@ -1027,9 +1028,10 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 		}
 		pCPi->SetLastVisibleFrame(nCurrKeyFrameID);
 
-		cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
-		//cv::circle(usedPPrev, pprevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
-		cv::circle(usedCurr, currPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(usedPrev, prevPts[i] - Frame::mRectPt, prevPts[i] + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(usedCurr, currPts[i] - Frame::mRectPt, currPts[i] + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
+		//cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
+		//cv::circle(usedCurr, currPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
 
 		//vMatchedPPrevPts.push_back(pprevPts[i]);
 		vMatchedPrevPts.push_back(prevPts[i]);
@@ -1250,8 +1252,10 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 		}
 		pCPi->SetLastVisibleFrame(nCurrKeyFrameID);
 		
-		cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
-		cv::circle(usedCurr, currPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(usedPrev, prevPts[i] - Frame::mRectPt, prevPts[i] + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(usedCurr, currPts[i] - Frame::mRectPt, currPts[i] + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
+		/*cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
+		cv::circle(usedCurr, currPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);*/
 
 		vMatchedPrevPts.push_back(prevPts[i]);
 		vMatchedCurrPts.push_back(currPts[i]);
@@ -1316,8 +1320,10 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Map* pMap, Frame* pCurrKF, Fra
 		if (b1 || !b3 || !b4) {
 			continue;
 		}
-		cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
-		cv::circle(usedCurr, currPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(usedPrev, prevPts[i] - Frame::mRectPt, prevPts[i] + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(usedCurr, currPts[i] - Frame::mRectPt, currPts[i] + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
+		/*cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
+		cv::circle(usedCurr, currPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);*/
 
 		vTempPrevPts.push_back(prevPts[i]);
 		vTempCurrPts.push_back(currPts[i]);

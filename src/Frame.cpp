@@ -11,6 +11,7 @@
 #include <Plane.h>
 int UVR_SLAM::MatchInfo::nMaxMP = 500;
 int UVR_SLAM::Frame::mnRadius = 7;
+cv::Point2f UVR_SLAM::Frame::mRectPt(UVR_SLAM::Frame::mnRadius, UVR_SLAM::Frame::mnRadius);
 bool UVR_SLAM::Frame::mbInitialComputations = true;
 float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
 float UVR_SLAM::Frame::mnMinX, UVR_SLAM::Frame::mnMinY, UVR_SLAM::Frame::mnMaxX, UVR_SLAM::Frame::mnMaxY;
@@ -1020,20 +1021,31 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 	if (nIncORB == 0)
 		nIncORB = 1;
 
+	cv::Mat currMap = cv::Mat::zeros(mnHeight, mnWidth, CV_8UC1);
+	
 	for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += nIncEdge) {
 		auto pt = mpRefFrame->mvEdgePts[i];
-		if (CheckOpticalPointOverlap(1, 10, pt)>-1) {
+		bool b1 = CheckOpticalPointOverlap(1, 10, pt) > -1;
+		bool b2 = !CheckOpticalPointOverlap(currMap, Frame::mnRadius, 10, pt);
+		if (b1 || b2) {
 			continue;
 		}
+		cv::rectangle(currMap, pt - Frame::mRectPt, pt + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
 		auto pCP = new UVR_SLAM::CandidatePoint(this);
 		int idx = this->AddCP(pCP, pt);
 		pCP->ConnectFrame(this, idx);
 	}
 	for (int i = 0; i < mpRefFrame->mvPts.size(); i+= nIncORB) {
 		auto pt = mpRefFrame->mvPts[i];
-		if (CheckOpticalPointOverlap(1, 10, pt)>-1) {
+		/*if (CheckOpticalPointOverlap(1, 10, pt)>-1) {
+			continue;
+		}*/
+		bool b1 = CheckOpticalPointOverlap(1, 10, pt) > -1;
+		bool b2 = !CheckOpticalPointOverlap(currMap, Frame::mnRadius, 10, pt);
+		if (b1 || b2) {
 			continue;
 		}
+		cv::rectangle(currMap, pt - Frame::mRectPt, pt + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
 		auto pCP = new UVR_SLAM::CandidatePoint(this, mpRefFrame->mvnOctaves[i]);
 		int idx = this->AddCP(pCP, pt);
 		pCP->ConnectFrame(this, idx);
@@ -1064,13 +1076,16 @@ int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
 	int res = mvpMatchingCPs.size();
 	mvpMatchingCPs.push_back(pCP);
 	mvMatchingPts.push_back(pt);
-	cv::circle(mMapCP, pt, Frame::mnRadius, cv::Scalar(res+1), -1);
+	cv::rectangle(mMapCP, pt- Frame::mRectPt, pt+ Frame::mRectPt, cv::Scalar(res + 1), -1);
+	//cv::circle(mMapCP, pt, Frame::mnRadius, cv::Scalar(res+1), -1);
 	return res;
 }
 ////이것은 사용이 안될 수도 있음.
 void UVR_SLAM::MatchInfo::RemoveCP(int idx){
 	std::unique_lock<std::mutex>(mMutexCPs);
-	cv::circle(mMapCP, mvMatchingPts[idx], Frame::mnRadius, cv::Scalar(-1), -1);
+	auto pt = mvMatchingPts[idx];
+	cv::rectangle(mMapCP, pt - Frame::mRectPt, pt + Frame::mRectPt, cv::Scalar(-1), -1);
+	//cv::circle(mMapCP, mvMatchingPts[idx], Frame::mnRadius, cv::Scalar(-1), -1);
 	mvpMatchingCPs[idx] = nullptr;	
 }
 void UVR_SLAM::MatchInfo::ConnectAll() {
@@ -1148,7 +1163,6 @@ bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 	//b3은 이전 프레임과 비교시 차이가 갑자기 클 때로
 	//전체 MP 수, quality가 안좋은 애들은 이미 여기에 존재하지를 못함. 
 	//std::cout << "FrameQuality = " << nMP << "+" <<nLow<<"="<< N << std::endl;
-
 	return b1 || b2;
 }
 
