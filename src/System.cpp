@@ -11,8 +11,8 @@
 #include <direct.h>
 #include <Converter.h>
 
-int UVR_SLAM::System::nKeyFrameID = 0;
-int UVR_SLAM::System::nFrameID = 0;
+int UVR_SLAM::System::nKeyFrameID = 1;
+int UVR_SLAM::System::nFrameID = 1;
 
 UVR_SLAM::System::System(){}
 UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapUpdateEnd(true), mbSegmentationEnd(false), mbLocalMappingEnd(false), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false), 

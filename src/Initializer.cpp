@@ -306,7 +306,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//mpInitFrame2->SetPose(R1*Rcw, t1); //두번째 프레임은 median depth로 변경해야 함.
 		//////////카메라 자세 변환 하는 경우
 
-		UVR_SLAM::System::nKeyFrameID = 1;
 		mpInitFrame1->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 		mpInitFrame2->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 		
