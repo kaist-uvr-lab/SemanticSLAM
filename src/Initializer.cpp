@@ -71,7 +71,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		
 		//////매칭 정보 생성
 		bool bSegment = false;
-		int nSegID = mpInitFrame1->GetFrameID();
+		int nSegID = mpInitFrame1->mnFrameID;
 		int nMatchingThresh = 0;//mpInitFrame1->mpMatchInfo->mvTempPts.size()*0.6;
 		std::vector<cv::Point2f> vTempPts1, vTempPts2;
 		std::vector<bool> vTempInliers;
@@ -305,8 +305,10 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//mpInitFrame1->SetPose(cv::Mat::eye(3, 3, CV_32FC1)*Rcw, cv::Mat::zeros(3, 1, CV_32FC1));
 		//mpInitFrame2->SetPose(R1*Rcw, t1); //두번째 프레임은 median depth로 변경해야 함.
 		//////////카메라 자세 변환 하는 경우
-		mpInitFrame1->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME, 0);
-		mpInitFrame2->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+
+		UVR_SLAM::System::nKeyFrameID = 1;
+		mpInitFrame1->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
+		mpInitFrame2->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 		
 		////맵포인트 정보 설정
 		for (int i = 0; i < tempMPs.size(); i++) {
@@ -315,7 +317,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			auto pt2 = vTempMappedPts2[i];
 			int idx2 = vTempMappedIDXs[i];
 			
-			pNewMP->mnFirstKeyFrameID = mpInitFrame2->GetKeyFrameID();
+			pNewMP->mnFirstKeyFrameID = mpInitFrame2->mnKeyFrameID;
 			////이 사이는 이제 이용 안하는데??
 			pNewMP->IncreaseVisible(2);
 			pNewMP->IncreaseFound(2);

@@ -64,18 +64,6 @@ void UVR_SLAM::SemanticSegmentator::ProcessNewKeyFrame()
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
 	mpPrevFrame = mpTargetFrame;
 	mpTargetFrame = mKFQueue.front();
-	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_SEGMENTED_FRAME);
-	
-	//mpSystem->SetDirPath(mpTargetFrame->GetKeyFrameID()); //
-	
-	
-	
-	////이 내용도 pe에서 진행해도 될 거 같음.
-	/*if (mpMap->isFloorPlaneInitialized()) {
-		mpTargetFrame->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpTargetFrame, mpMap->mpFloorPlane);
-		mpTargetFrame->mpPlaneInformation->Calculate();
-	}*/
-	//mpSystem->SetSegFrameID(mpTargetFrame->GetKeyFrameID());	//setsegframeid, getsegframeid는 이용 안하는 듯
 	mKFQueue.pop();
 }
 
@@ -108,7 +96,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//request post
 			//리사이즈 안하면 칼라이미지로
 			int status = 0;
-			JSONConverter::RequestPOST(ip, port, resized_color, segmented, mpTargetFrame->GetFrameID(), status);
+			JSONConverter::RequestPOST(ip, port, resized_color, segmented, mpTargetFrame->mnFrameID, status);
 
 			int nRatio = colorimg.rows / segmented.rows;
 			//ratio 버전이 아닌 다르게
@@ -244,7 +232,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//////////////////////////////////////////////
 			//////디버깅 값 전달
 			std::stringstream ssa;
-			ssa << "Segmentation : " << mpTargetFrame->GetKeyFrameID() <<" : " << tttt << std::endl;
+			ssa << "Segmentation : " << mpTargetFrame->mnKeyFrameID <<" : " << tttt << std::endl;
 			mpSystem->SetSegmentationString(ssa.str());
 			//////디버깅 값 전달
 			//////////////////////////////////////////////

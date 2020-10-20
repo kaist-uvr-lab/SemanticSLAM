@@ -11,7 +11,7 @@ namespace UVR_SLAM {
 	class CandidatePoint {
 		
 	public:
-		int mnCandidatePointID;
+		
 		CandidatePoint();
 		CandidatePoint(MatchInfo* pRefKF, int alabel = 0, int aoct = 0);
 		virtual ~CandidatePoint();
@@ -34,6 +34,7 @@ namespace UVR_SLAM {
 		//아웃라이어 체크(리프로젝션 에러)
 		//뎁스테스트
 	public:
+		int mnCandidatePointID;
 		int mnFirstID; //처음 발견한 프레임
 		int octave;
 	private:

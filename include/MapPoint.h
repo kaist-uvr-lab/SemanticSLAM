@@ -54,7 +54,6 @@ namespace UVR_SLAM {
 
 		void SetPlaneID(int nid);
 		int GetPlaneID();
-		int GetMapPointID();
 		
 		//void SetDelete(bool b);
 		bool isDeleted();

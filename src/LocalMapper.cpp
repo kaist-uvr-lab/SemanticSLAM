@@ -77,6 +77,7 @@ void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
 {
 	mpPPrevKeyFrame = mpPrevKeyFrame;
 	mpPrevKeyFrame = mpTargetFrame;
+	mpTargetFrame->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 	{
 		std::unique_lock<std::mutex> lock(mMutexNewKFs);
 		mpTargetFrame = mKFQueue.front();
@@ -137,7 +138,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			ProcessNewKeyFrame();
 			
 			//std::cout << "Local Mapping :: ID = " << mpTargetFrame->GetFrameID() << "::Start::"<<mpTargetFrame->mpMatchInfo->GetNumCPs() <<"::"<<mpTargetFrame->mpMatchInfo->mfLowQualityRatio<< std::endl;
-			int nTargetID = mpTargetFrame->GetFrameID();
+			int nTargetID = mpTargetFrame->mnFrameID;
 			
 			int nCreated = 0;
 			////////New Matching & Create & Delayed CP test
@@ -340,7 +341,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			float t_test1 = du_test1 / 1000.0;
 			
 			std::stringstream ssa;
-			ssa << "LocalMapping : " << mpTargetFrame->GetKeyFrameID() << "::" << t_test1 << "::" << "::" << nMapping <<", "<< time1 << ", " << time2 << std::endl;;// << ", " << nMinKF << ", " << nMaxKF;
+			ssa << "LocalMapping : " << mpTargetFrame->mnKeyFrameID << "::" << t_test1 << "::" << "::" << nMapping <<", "<< time1 << ", " << time2 << std::endl;;// << ", " << nMinKF << ", " << nMaxKF;
 			mpSystem->SetLocalMapperString(ssa.str());
 
 			//std::cout << "lm::end::" << mpPrevKeyFrame->mpMatchInfo->GetNumCPs()<<"::"<< t_test1 <<"="<<time0<<", "<< time1 << "||" << time2 << "||" << time3 << "||" << time4 <<", "<<time5<< std::endl;
@@ -388,11 +389,11 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}*/
 		//else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= nMPThresh != UVR_SLAM::PLANE_MP)
-		else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= nMPThresh)
+		else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->mnKeyFrameID && pMP->GetNumConnectedFrames() <= nMPThresh)
 		{
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
-		else if (pMP->mnFirstKeyFrameID + 3 <= mpTargetFrame->GetKeyFrameID()){
+		else if (pMP->mnFirstKeyFrameID + 3 <= mpTargetFrame->mnKeyFrameID){
 			lit = mpSystem->mlpNewMPs.erase(lit);
 			pMP->SetNewMP(false);
 		}else
@@ -568,7 +569,7 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 			auto mmpFrames = pCPi->GetFrames();
 			for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
 				auto pMatch = iter->first;
-				if (pMatch->mpRefFrame->GetKeyFrameID() % 3 != 0)
+				if (pMatch->mpRefFrame->mnKeyFrameID % 3 != 0)
 					continue;
 				int idx = iter->second;
 				pMatch->AddMP();
@@ -783,7 +784,7 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pP
 			auto mmpFrames = pCPi->GetFrames();
 			for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
 				auto pMatch = iter->first;
-				if (pMatch->mpRefFrame->GetKeyFrameID() % 3 != 0) {
+				if (pMatch->mpRefFrame->mnKeyFrameID % 3 != 0) {
 					continue;
 				}
 				int idx = iter->second;
@@ -841,7 +842,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		std::cout << "LM::Matching::error" << std::endl;
 		return -1;
 	}
-	int nCurrKeyFrameID = pCurrKF->GetKeyFrameID();
+	int nCurrKeyFrameID = pCurrKF->mnKeyFrameID;
 	///////////////////projection based matching
 	cv::Mat Rprev, Tprev, Rcurr, Tcurr;
 	pCurrKF->GetPose(Rcurr, Tcurr);
@@ -865,7 +866,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	float thresh = 5.0*5.0;
 
 	int nRes = 0;
-	int nTargetID = pPrevKF->GetFrameID();
+	int nTargetID = pPrevKF->mnKeyFrameID;
 	std::vector<float> vfScales;
 	for (int i = 0; i < TempMap.cols; i++) {
 

@@ -12,6 +12,7 @@
 #include <Converter.h>
 
 int UVR_SLAM::System::nKeyFrameID = 0;
+int UVR_SLAM::System::nFrameID = 0;
 
 UVR_SLAM::System::System(){}
 UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapUpdateEnd(true), mbSegmentationEnd(false), mbLocalMappingEnd(false), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false), 
@@ -266,7 +267,6 @@ void UVR_SLAM::System::Reset() {
 	//mpLocalMapper->mlpNewMPs.clear();
 	nKeyFrameID = 1;
 	//frame reset
-
 }
 
 void UVR_SLAM::System::SetBoolInit(bool b) {

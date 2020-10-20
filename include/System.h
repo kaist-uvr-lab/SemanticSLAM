@@ -156,6 +156,7 @@ namespace UVR_SLAM {
 		std::string ip;
 		int port;
 		static int nKeyFrameID;
+		static int nFrameID;
 
 	public:
 		//lock tracking and localmap

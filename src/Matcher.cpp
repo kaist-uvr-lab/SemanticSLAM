@@ -700,7 +700,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	int nEpi = 0;
 	int n3D = 0;
 
-	std::cout << "opti::"<<init->GetFrameID()<<"::" << prevPts.size() << std::endl;
+	std::cout << "opti::"<<init->mnFrameID<<"::" << prevPts.size() << std::endl;
 
 	for (int i = 0; i < prevPts.size(); i++) {
 		if (status[i] == 0) {
@@ -897,7 +897,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
 	//바운더리 에러도 고려해야 함.
 	
-	int nCurrFrameID = curr->GetFrameID();
+	int nCurrFrameID = curr->mnFrameID;
 	int res = 0;
 	int nBad = 0;
 
@@ -979,7 +979,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 	std::vector<int> vnOctaves;
 	std::vector<CandidatePoint*> vpCPs;
 
-	int nCurrKeyFrameID = pCurrKF->GetKeyFrameID();
+	int nCurrKeyFrameID = pCurrKF->mnKeyFrameID;
 	int nCP = pPrevKF->mpMatchInfo->GetNumCPs();
 	vpCPs = pPrevKF->mpMatchInfo->mvpMatchingCPs;
 	prevPts = pPrevKF->mpMatchInfo->mvMatchingPts;//pPrevKF->mpMatchInfo->GetMatchingPtsMapping(vpCPs);
@@ -1209,7 +1209,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 	std::vector<int> vnOctaves;
 	std::vector<CandidatePoint*> vpCPs;
 
-	int nCurrKeyFrameID = pCurrKF->GetKeyFrameID();
+	int nCurrKeyFrameID = pCurrKF->mnKeyFrameID;
 	int nCP = pPrevKF->mpMatchInfo->GetNumCPs();
 	vpCPs = pPrevKF->mpMatchInfo->mvpMatchingCPs;
 	prevPts = pPrevKF->mpMatchInfo->mvMatchingPts;//pPrevKF->mpMatchInfo->GetMatchingPtsMapping(vpCPs);
@@ -1334,7 +1334,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Map* pMap, Frame* pCurrKF, Fra
 	cv::Mat E12 = cv::findEssentialMat(vTempPrevPts, vTempCurrPts, K, cv::FM_RANSAC, 0.999, 1.0, vFInliers);
 
 	int nRes = 0;
-	int nTargetID = pPrevKF->GetFrameID();
+	int nTargetID = pPrevKF->mnFrameID;
 	for (unsigned long i = 0; i < vFInliers.size(); i++) {
 		if (vFInliers[i]) {
 			auto currPt = vTempCurrPts[i];

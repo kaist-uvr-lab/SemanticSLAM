@@ -94,15 +94,15 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
 			//std::cout << "ba::start::" << mpTargetFrame->GetFrameID() << std::endl;
-			mStrPath = mpSystem->GetDirPath(mpTargetFrame->GetKeyFrameID());
+			mStrPath = mpSystem->GetDirPath(mpTargetFrame->mnKeyFrameID);
 			StopBA(false);
 			auto currMatchInfo = mpTargetFrame->mpMatchInfo;
 			auto targetFrame = mpTargetFrame;
 			///////////////////////////////////////////////////////////////
 			////preprocessing
 			//std::cout << "ba::processing::start" << std::endl;
-			int nTargetID = mpTargetFrame->GetFrameID();
-			int nTargetKeyID = mpTargetFrame->GetKeyFrameID();
+			int nTargetID = mpTargetFrame->mnFrameID;
+			int nTargetKeyID = mpTargetFrame->mnKeyFrameID;
 			mpTargetFrame->mnLocalBAID = nTargetID;
 			//std::cout << "BA::preprocessing::start" << std::endl;
 			std::chrono::high_resolution_clock::time_point temp_1 = std::chrono::high_resolution_clock::now();
@@ -252,7 +252,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float letime = leduration / 1000.0;
 			std::stringstream ss;
-			ss << "Map Optimizer::" << mpTargetFrame->GetKeyFrameID() <<", "<<vpKFs[0]->GetKeyFrameID()<<"::"<<letime<<"||"<< vpKFs.size()<<", "<< vpFixedKFs.size()<<", "<<vpMPs.size();
+			ss << "Map Optimizer::" << mpTargetFrame->mnKeyFrameID <<", "<<vpKFs[0]->mnKeyFrameID <<"::"<<letime<<"||"<< vpKFs.size()<<", "<< vpFixedKFs.size()<<", "<<vpMPs.size();
 			mpSystem->SetMapOptimizerString(ss.str());
 			//Á¾·á
 			SetDoingProcess(false);

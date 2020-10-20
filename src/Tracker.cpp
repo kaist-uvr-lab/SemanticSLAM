@@ -78,8 +78,8 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 	//1 : rotation angle
 	bool bDoingMapping = !mpLocalMapper->isDoingProcess();
 	bool bRotation = pCurr->CalcDiffAngleAxis(mpRefKF) > 10.0;
-	bool bMaxFrames = pCurr->GetFrameID() >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
-	bool bMinFrames = pCurr->GetFrameID() < mpRefKF->mnFrameID + mnMinFrames;
+	bool bMaxFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
+	bool bMinFrames = pCurr->mnFrameID < mpRefKF->mnFrameID + mnMinFrames;
 	bool bDoingSegment = !mpSegmentator->isDoingProcess();
 
 	bool bMatchMapPoint = mnMapPointMatching < 200;
@@ -142,7 +142,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		/////////Optical Flow Matching
 		////MatchInfo ¼³Á¤
-		mpRefKF->SetRecentTrackedFrameID(pCurr->GetFrameID());
+		mpRefKF->SetRecentTrackedFrameID(pCurr->mnFrameID);
 		pCurr->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, pCurr, mpRefKF, mnWidth, mnHeight);
 		
 		/*int Ncp = mpRefKF->mpMatchInfo->GetNumCPs();
@@ -179,7 +179,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		auto pNewKF = CheckNeedKeyFrame(pCurr, pPrev);
 		if (pNewKF) {
 			//auto pNewKF = pCurr;
-			pNewKF->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
+			//pNewKF->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
 			mpRefKF = pNewKF;
 			mpLocalMapper->InsertKeyFrame(pNewKF);
 		}
@@ -224,7 +224,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs) {
 	auto pMatchInfo = pCurr->mpMatchInfo;
 	auto pPrevMatchInfo = pPrev->mpMatchInfo;
-	int nCurrID = pCurr->GetFrameID();
+	int nCurrID = pCurr->mnFrameID;
 	int nres = 0;
 	int nFail = 0;
 	for (int i = 0; i < vpPts.size(); i++) {

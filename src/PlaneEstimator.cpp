@@ -101,8 +101,6 @@ void UVR_SLAM::PlaneEstimator::ProcessNewKeyFrame()
 	mpPPrevFrame = mpPrevFrame;
 	mpPrevFrame = mpTargetFrame;
 	mpTargetFrame = mKFQueue.front();
-	mpTargetFrame->TurnOnFlag(UVR_SLAM::FLAG_LAYOUT_FRAME);
-	//mpSystem->SetPlaneFrameID(mpTargetFrame->GetKeyFrameID());
 
 	//임시로 주석 처리
 	/*if (mpMap->isFloorPlaneInitialized()) {
@@ -158,7 +156,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			SetBoolDoingProcess(true,0);
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
-			std::cout << "pe::start::"<<mpTargetFrame->GetKeyFrameID()<< std::endl;
+			std::cout << "pe::start::"<<mpTargetFrame->mnKeyFrameID<< std::endl;
 
 			///////////////////////////////평면 정보 시각화 관련 변수
 			cv::Mat debug = cv::Mat::zeros(1000, 640, CV_8UC1);
@@ -166,7 +164,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			///////////////////////////////평면 정보 시각화 관련 변수
 
 			/////////////////////////////현재 프레임에서 이용할 데이터 정보
-			int nTargetID = mpTargetFrame->GetKeyFrameID();
+			int nTargetID = mpTargetFrame->mnKeyFrameID;
 			auto matchInfo = mpTargetFrame->mpMatchInfo;
 			//이전 프레임
 			auto prevFrame = mpTargetFrame->mpMatchInfo->mpTargetFrame;
@@ -326,7 +324,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			UVR_SLAM::PlaneInformation* pFloor = new UVR_SLAM::PlaneInformation();
 			//vpCurrFloorMPs
 			//vpFloorMPs : 전체 포인트에 대해서 랜덤하게 일부를 뽑아서 평면 찾기
-			bool bFloorRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, vpCurrFloorMPs, mvpOutlierFloorMPs, prevFrame->GetFrameID(), 1500, pidst, 0.1);
+			bool bFloorRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pFloor, vpCurrFloorMPs, mvpOutlierFloorMPs, prevFrame->mnFrameID, 1500, pidst, 0.1);
 			//float orid;
 			if (bFloorRes) {
 				////평균으로 거리를 변환하는 것
@@ -378,7 +376,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			UVR_SLAM::PlaneInformation* pCeil = new UVR_SLAM::PlaneInformation();
 			if (bFloorRes && mvpCeilMPs.size() > 50) {
 				std::cout << vpCeilMPs.size() << std::endl;
-				bCeilRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pCeil, vpCurrCeilMPs, mvpOutlierCeilMPs, prevFrame->GetFrameID(), 1500, pidst, 0.1);
+				bCeilRes = UVR_SLAM::PlaneInformation::PlaneInitialization(pCeil, vpCurrCeilMPs, mvpOutlierCeilMPs, prevFrame->mnFrameID, 1500, pidst, 0.1);
 				std::cout << vpCeilMPs.size() << std::endl;
 				if(bCeilRes){
 					cv::Mat n;
@@ -448,7 +446,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			bool bWallRes1 = false;
 			UVR_SLAM::PlaneInformation* pWall1 = new UVR_SLAM::PlaneInformation();
 			if (bFloorRes && vpCurrWallMPs.size() > 50) {
-				bWallRes1 = UVR_SLAM::PlaneInformation::PlaneInitialization(pWall1, vpCurrWallMPs, vpCurrOutlierWallMPs1, prevFrame->GetFrameID(), nTrial, 0.01, 0.1);
+				bWallRes1 = UVR_SLAM::PlaneInformation::PlaneInitialization(pWall1, vpCurrWallMPs, vpCurrOutlierWallMPs1, prevFrame->mnFrameID, nTrial, 0.01, 0.1);
 			}
 			if (bWallRes1) {
 				pPlaneInfo->AddPlane(pWall1, pWall1->mnPlaneID);
@@ -481,7 +479,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			bool bWallRes2 = false;
 			UVR_SLAM::PlaneInformation* pWall2 = new UVR_SLAM::PlaneInformation();
 			if (bWallRes1 && vpCurrOutlierWallMPs1.size() > 50) {
-				bWallRes2 = UVR_SLAM::PlaneInformation::PlaneInitialization(pWall2, vpCurrOutlierWallMPs1, vpCurrOutlierWallMPs2, prevFrame->GetFrameID(), nTrial, 0.01, 0.1);
+				bWallRes2 = UVR_SLAM::PlaneInformation::PlaneInitialization(pWall2, vpCurrOutlierWallMPs1, vpCurrOutlierWallMPs2, prevFrame->mnFrameID, nTrial, 0.01, 0.1);
 			
 				if (bWallRes2) {
 					float cos_val = pWall1->CalcCosineSimilarity(pWall2);
@@ -536,7 +534,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					auto p = pinfo->GetParam();
 					float cos_val = pFloor->CalcCosineSimilarity(pinfo);
 					float dist_val = pFloor->CalcPlaneDistance(pinfo);
-					ss << "Prev::" <<std::setw(4)<<std::setfill('0')<< pF->GetKeyFrameID() << std::fixed << std::setprecision(3) << "::[" << p.at<float>(0)<<" "<< p.at<float>(1)<<" "<< p.at<float>(2)<<" "<< p.at<float>(3) <<"] "<< cos_val << ", " << dist_val;
+					ss << "Prev::" <<std::setw(4)<<std::setfill('0')<< pF->mnKeyFrameID << std::fixed << std::setprecision(3) << "::[" << p.at<float>(0)<<" "<< p.at<float>(1)<<" "<< p.at<float>(2)<<" "<< p.at<float>(3) <<"] "<< cos_val << ", " << dist_val;
 					cv::putText(debug, ss.str(), cv::Point2f(0, nDebugRows), mnFontFace, mfFontScale, cv::Scalar::all(255));
 					nDebugRows += mnDebugFontSize;
 				}
@@ -573,7 +571,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float letime = leduration / 1000.0;
 			std::stringstream ss;
-			ss << std::fixed << std::setprecision(3) << "Layout:" << mpTargetFrame->GetKeyFrameID() << " t=" << letime;
+			ss << std::fixed << std::setprecision(3) << "Layout:" << mpTargetFrame->mnKeyFrameID << " t=" << letime;
 			mpSystem->SetPlaneString(ss.str());
 			SetBoolDoingProcess(false, 0);
 			continue;
@@ -2916,7 +2914,7 @@ void UVR_SLAM::PlaneInformation::CreatePlanarMapPoints(Frame* pF, System* pSyste
 void UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(std::vector<cv::Mat>& vX3Ds, cv::Mat label_map, Frame* pF, int nPatchSize) {
 	//dense_map = cv::Mat::zeros(pF->mnMaxX, pF->mnMaxY, CV_32FC3);
 	//cv::resize(label_map, label_map, pF->GetOriginalImage().size());
-	int nTargetID = pF->GetFrameID();
+	int nTargetID = pF->mnFrameID;
 	cv::Mat invT, invPfloor, invK;
 	pF->mpPlaneInformation->Calculate();
 	pF->mpPlaneInformation->GetInformation(invPfloor, invT, invK);
@@ -2950,7 +2948,7 @@ void UVR_SLAM::PlaneInformation::CreateDenseWallPlanarMapPoint(std::vector<cv::M
 
 	//dense_map = cv::Mat::zeros(pF->mnMaxX, pF->mnMaxY, CV_32FC3);
 	//cv::resize(label_map, label_map, pF->GetOriginalImage().size());
-	int nTargetID = pF->GetFrameID();
+	int nTargetID = pF->mnFrameID;
 	cv::Mat invT, invPfloor, invK;
 	pF->mpPlaneInformation->Calculate();
 	pF->mpPlaneInformation->GetInformation(invPfloor, invT, invK);
@@ -3004,7 +3002,7 @@ void UVR_SLAM::PlaneInformation::CreateDensePlanarMapPoint(cv::Mat& dense_map, c
 	
 	//dense_map = cv::Mat::zeros(pF->mnMaxX, pF->mnMaxY, CV_32FC3);
 	//cv::resize(label_map, label_map, pF->GetOriginalImage().size());
-	int nTargetID = pF->GetFrameID();
+	int nTargetID = pF->mnFrameID;
 	cv::Mat invT, invPfloor, invK;
 	pF->mpPlaneInformation->Calculate();
 	pF->mpPlaneInformation->GetInformation(invPfloor, invT, invK);

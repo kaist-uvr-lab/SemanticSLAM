@@ -40,8 +40,6 @@ namespace UVR_SLAM {
 	class MatchInfo {
 	public:
 		
-		
-		
 		MatchInfo();
 		MatchInfo(System*  pSys, Frame* pRef, Frame* pTarget, int w, int h);
 		virtual ~MatchInfo();
@@ -121,11 +119,6 @@ namespace UVR_SLAM {
 	public:
 		cv::Mat GetFrame();
 		cv::Mat GetOriginalImage();
-		void SetFrameType(int n);
-		unsigned char GetFrameType();
-		int GetKeyFrameID();
-		void SetKeyFrameID();
-		void SetKeyFrameID(int n);
 		void SetPose(cv::Mat _R, cv::Mat _t);
 		void GetPose(cv::Mat&_R, cv::Mat& _t);
 		cv::Mat GetRotation();
@@ -143,11 +136,7 @@ namespace UVR_SLAM {
 
 		int GetNumInliers();
 		int TrackedMapPoints(int minObservation);
-		void TurnOnFlag(unsigned char opt);
-		void TurnOnFlag(unsigned char opt, int n);
-		void TurnOffFlag(unsigned char opt);
-		bool CheckFrameType(unsigned char opt);
-		int GetFrameID();
+		
 		bool CheckBaseLine(Frame* pTargetKF);
 		bool ComputeSceneMedianDepth(std::vector<UVR_SLAM::MapPoint*> vpMPs, cv::Mat R, cv::Mat t, float& fMedianDepth);
 		
@@ -188,7 +177,6 @@ namespace UVR_SLAM {
 		int mnLocalMapFrameID;
 		int mnLocalBAID, mnFixedBAID;
 		int mnFuseFrameID;
-	
 	public:
 		void SetRecentTrackedFrameID(int id);
 		int GetRecentTrackedFrameID();
@@ -215,6 +203,7 @@ namespace UVR_SLAM {
 		cv::Mat undistorted;
 		fbow::fBow mBowVec;
 		int mnFrameID;  //프레임 아이디로 저장
+		int mnKeyFrameID;
 	public:
 		//objectype
 		std::set<MapPoint*> mspFloorMPs, mspCeilMPs, mspWallMPs;
@@ -232,9 +221,6 @@ namespace UVR_SLAM {
 	private:
 		//void Increase();
 		//void Decrease();
-		void SetFrameID();
-		
-		
 		//object
 	public:
 		void SetObjectType(UVR_SLAM::ObjectType type, int idx);
@@ -249,7 +235,7 @@ namespace UVR_SLAM {
 		bool bSegmented;
 		std::mutex mMutexSegmented;
 	private:
-		int mnKeyFrameID;
+		
 		
 		std::mutex mMutexNumInliers;
 		std::mutex mMutexFrame, mMutexPose;
@@ -261,8 +247,6 @@ namespace UVR_SLAM {
 		cv::Mat R, t;
 		int mnInliers;
 		int mnWidth, mnHeight;
-		unsigned char mnType;
-
 		/*
 		std::mutex mMutexID;
 		std::mutex mMutexMPs, mMutexBoolInliers, mMutexNumInliers, mMutexPose, mMutexType;

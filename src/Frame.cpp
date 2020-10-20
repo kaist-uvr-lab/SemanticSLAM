@@ -15,10 +15,7 @@ float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::F
 float UVR_SLAM::Frame::mnMinX, UVR_SLAM::Frame::mnMinY, UVR_SLAM::Frame::mnMaxX, UVR_SLAM::Frame::mnMaxY;
 float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeightInv;
 
-static int nFrameID = 0;
-
-
-UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h, cv::Mat K, double ts):mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
+UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h, cv::Mat K, double ts):mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
 mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts)
 {
 	matOri = _src.clone();
@@ -37,9 +34,9 @@ mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), md
 	//	}
 	//}
 	////////////canny
-	SetFrameID();
+	mnFrameID = UVR_SLAM::System::nFrameID++;
 }
-UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
+UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
 , mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
@@ -59,10 +56,10 @@ UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), 
 	//	}
 	//}
 	////////////canny
-	SetFrameID();
+	mnFrameID = UVR_SLAM::System::nFrameID++;
 }
 
-UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnType(0), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
+UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
 , mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
@@ -71,7 +68,7 @@ UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, 
 	matFrame.convertTo(matFrame, CV_8UC1);
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
-	SetFrameID();
+	mnFrameID = UVR_SLAM::System::nFrameID++;
 }
 
 UVR_SLAM::Frame::~Frame() {
@@ -85,25 +82,6 @@ void UVR_SLAM::Frame::SetRecentTrackedFrameID(int id) {
 int UVR_SLAM::Frame::GetRecentTrackedFrameID() {
 	std::unique_lock<std::mutex>(mMutexTrackedFrame);
 	return mnRecentTrackedFrameId;
-}
-
-void UVR_SLAM::Frame::SetFrameType(int n) {
-	mnType = n;
-}
-
-void UVR_SLAM::Frame::SetFrameID() {
-	mnFrameID = ++nFrameID;
-}
-
-void UVR_SLAM::Frame::SetKeyFrameID() {
-	mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
-}
-void UVR_SLAM::Frame::SetKeyFrameID(int n) {
-	UVR_SLAM::System::nKeyFrameID = n;
-	mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
-}
-int UVR_SLAM::Frame::GetKeyFrameID() {
-	return mnKeyFrameID;
 }
 
 void UVR_SLAM::Frame::SetInliers(int nInliers){
@@ -194,11 +172,6 @@ bool CheckKeyPointOverlap(cv::Mat& overlap, cv::Point2f pt, int r) {
 	return true;
 }
 /////////////////////////////////
-
-int UVR_SLAM::Frame::GetFrameID() {
-	std::unique_lock<std::mutex> lockMP(mMutexFrame);
-	return mnFrameID;
-}
 cv::Mat UVR_SLAM::Frame::GetFrame() {
 	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	return matFrame.clone();
@@ -207,8 +180,6 @@ cv::Mat UVR_SLAM::Frame::GetOriginalImage() {
 	std::unique_lock<std::mutex> lockMP(mMutexFrame);
 	return matOri.clone();
 }
-
-
 
 std::vector<UVR_SLAM::ObjectType> UVR_SLAM::Frame::GetObjectVector() {
 	std::unique_lock<std::mutex> lockMP(mMutexObjectTypes);
@@ -297,36 +268,6 @@ void UVR_SLAM::Frame::GetDepthRange(float& min, float& max) {
 	std::unique_lock<std::mutex> lock(mMutexDepthRange);
 	min = mfMinDepth;
 	max = mfMaxDepth;
-}
-
-unsigned char UVR_SLAM::Frame::GetFrameType() {
-	std::unique_lock<std::mutex>(mMutexType);
-	return mnType;
-}
-void UVR_SLAM::Frame::TurnOnFlag(unsigned char opt) {
-	std::unique_lock<std::mutex>(mMutexType);
-	if (opt == UVR_SLAM::FLAG_KEY_FRAME) {
-		SetKeyFrameID();
-	}
-	mnType |= opt;
-}
-void UVR_SLAM::Frame::TurnOnFlag(unsigned char opt, int n){
-	std::unique_lock<std::mutex>(mMutexType);
-	if (opt == UVR_SLAM::FLAG_KEY_FRAME) {
-		SetKeyFrameID(n);
-	}
-	mnType |= opt;
-}
-void UVR_SLAM::Frame::TurnOffFlag(unsigned char opt){
-	std::unique_lock<std::mutex>(mMutexType);
-	mnType &= ~opt;
-}
-
-bool UVR_SLAM::Frame::CheckFrameType(unsigned char opt) {
-	std::unique_lock<std::mutex>(mMutexType);
-	unsigned char flag = mnType & opt;
-	//std::cout << "flag=" <<(int)flag <<", "<<(int)mnType<< std::endl<<std::endl<<std::endl<<std::endl;
-	return flag == opt;
 }
 
 int UVR_SLAM::Frame::TrackedMapPoints(int minObservation) {
@@ -1093,7 +1034,7 @@ void UVR_SLAM::MatchInfo::ConnectAll() {
 		std::unique_lock<std::mutex>(mMutexCPs);
 		N = mvpMatchingCPs.size();
 	}
-	int nCurrID = this->mpRefFrame->GetKeyFrameID();
+	int nCurrID = this->mpRefFrame->mnKeyFrameID;
 	for (int i = 0; i < N; i++) {
 		
 		auto pCPi = mvpMatchingCPs[i];

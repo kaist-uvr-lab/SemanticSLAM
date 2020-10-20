@@ -15,7 +15,7 @@ namespace  UVR_SLAM{
 		mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mnCandidatePointID(++nCandidatePointID)
 	{
 		mpMapPoint = nullptr;
-		mnFirstID = pRefKF->mpRefFrame->GetFrameID();
+		mnFirstID = pRefKF->mpRefFrame->mnFrameID;
 	}
 	CandidatePoint::~CandidatePoint(){}
 

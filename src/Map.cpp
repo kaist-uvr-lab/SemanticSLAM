@@ -30,7 +30,7 @@ namespace UVR_SLAM{
 		Frame* res = nullptr;
 		if (mQueueFrameWindows1.size() == mnMaxConnectedKFs) {
 			auto pKF = mQueueFrameWindows1.front();
-			if (pKF->GetKeyFrameID() % 2 == 0) {
+			if (pKF->mnKeyFrameID % 2 == 0) {
 				mvpTrajectoryKFs.push_back(pKF);
 				mQueueFrameWindows2.push_back(pKF);
 				res = pKF;
@@ -42,7 +42,7 @@ namespace UVR_SLAM{
 			mQueueFrameWindows1.pop_front();
 			if (mQueueFrameWindows2.size() > mnHalfConnectedKFs) {
 				auto pKF = mQueueFrameWindows2.front();
-				if (pKF->GetKeyFrameID() % 4 == 0) {
+				if (pKF->mnKeyFrameID % 4 == 0) {
 					mQueueFrameWindows3.push_back(pKF);
 					//res = pKF;
 				}

@@ -48,11 +48,11 @@ void UVR_SLAM::PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLA
 		t.copyTo(Tcw.col(3).rowRange(0, 3));
 
 		vSE3->setEstimate(Converter::toSE3Quat(Tcw));
-		vSE3->setId(pKFi->GetKeyFrameID());
-		vSE3->setFixed(pKFi->GetKeyFrameID() == 0);
+		vSE3->setId(pKFi->mnKeyFrameID);
+		vSE3->setFixed(pKFi->mnKeyFrameID == 0);
 		optimizer.addVertex(vSE3);
-		if (pKFi->GetKeyFrameID()>maxKFid)
-			maxKFid = pKFi->GetKeyFrameID();
+		if (pKFi->mnKeyFrameID>maxKFid)
+			maxKFid = pKFi->mnKeyFrameID;
 	}
 
 	// Set Fixed KeyFrame vertices
@@ -68,11 +68,11 @@ void UVR_SLAM::PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLA
 		t.copyTo(Tcw.col(3).rowRange(0, 3));
 
 		vSE3->setEstimate(Converter::toSE3Quat(Tcw));
-		vSE3->setId(pKFi->GetKeyFrameID());
+		vSE3->setId(pKFi->mnKeyFrameID);
 		vSE3->setFixed(true);
 		optimizer.addVertex(vSE3);
-		if (pKFi->GetKeyFrameID()>maxKFid)
-			maxKFid = pKFi->GetKeyFrameID();
+		if (pKFi->mnKeyFrameID>maxKFid)
+			maxKFid = pKFi->mnKeyFrameID;
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -214,7 +214,7 @@ void UVR_SLAM::PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLA
 			obs << pt.x, pt.y;
 			if (bPlanarMP) {
 				g2o::EdgeSE3ProjectXYZOnlyPose* e = new g2o::EdgeSE3ProjectXYZOnlyPose();
-				e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->GetKeyFrameID())));
+				e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnKeyFrameID)));
 				e->setMeasurement(obs);
 				int octave = pMP->mnOctave;
 				const float invSigma2 = pKFi->mvInvLevelSigma2[octave];
@@ -239,7 +239,7 @@ void UVR_SLAM::PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLA
 			else {
 				g2o::EdgeSE3ProjectXYZ* e = new g2o::EdgeSE3ProjectXYZ();
 				e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
-				e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->GetKeyFrameID())));
+				e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnKeyFrameID)));
 				e->setMeasurement(obs);
 				const float &invSigma2 = pKFi->mvInvLevelSigma2[octave];
 				e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
@@ -450,7 +450,7 @@ void UVR_SLAM::PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(UVR_SLA
 	for (int i = 0; i < vpKFs.size(); i++)
 	{
 		UVR_SLAM::Frame* pKF = vpKFs[i];
-		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pKF->GetKeyFrameID()));
+		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pKF->mnKeyFrameID));
 		g2o::SE3Quat SE3quat = vSE3->estimate();
 
 		cv::Mat R, t;

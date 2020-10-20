@@ -18,7 +18,7 @@ namespace UVR_SLAM {
 	, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0)
 	{
 		alabel = label;
-		mnFirstKeyFrameID = mpRefKF->GetKeyFrameID();
+		mnFirstKeyFrameID = mpRefKF->mnKeyFrameID;
 		mnLastMatchingFrameID = mnLastVisibleFrameID = mnFirstKeyFrameID;
 		//CP贸府
 		mpCP = pCP;
@@ -32,7 +32,7 @@ namespace UVR_SLAM {
 	, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0)
 	{
 		alabel = label;
-		mnFirstKeyFrameID = mpRefKF->GetKeyFrameID();
+		mnFirstKeyFrameID = mpRefKF->mnKeyFrameID;
 		mnLastMatchingFrameID = mnLastVisibleFrameID = mnFirstKeyFrameID;
 		//CP贸府
 		mpCP = pCP;
@@ -41,11 +41,6 @@ namespace UVR_SLAM {
 		mpMap->AddMap(this, label);
 	}
 	MapPoint::~MapPoint(){}
-
-	int MapPoint::GetMapPointID() {
-		std::unique_lock<std::mutex> lockMP(mMutexMP);
-		return mnMapPointID;
-	}
 
 	int MapPoint::GetRecentLocalMapID() {
 		std::unique_lock<std::mutex> lockMP(mMutexRecentLocalMapID);

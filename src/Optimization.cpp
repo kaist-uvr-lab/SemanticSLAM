@@ -40,7 +40,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 	optimizer.setAlgorithm(solver);
 
 	int nInitialCorrespondences = 0;
-	int nTargetID = pFrame->GetFrameID();
+	int nTargetID = pFrame->mnFrameID;
 
 	// Set Frame vertex
 	cv::Mat R, t;
@@ -196,11 +196,11 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 		t.copyTo(Tcw.col(3).rowRange(0, 3));
 
 		vSE3->setEstimate(Converter::toSE3Quat(Tcw));
-		vSE3->setId(pKFi->GetKeyFrameID());
-		vSE3->setFixed(pKFi->GetKeyFrameID() == 0);
+		vSE3->setId(pKFi->mnKeyFrameID);
+		vSE3->setFixed(pKFi->mnKeyFrameID == 0);
 		optimizer.addVertex(vSE3);
-		if (pKFi->GetKeyFrameID()>maxKFid)
-			maxKFid = pKFi->GetKeyFrameID();
+		if (pKFi->mnKeyFrameID>maxKFid)
+			maxKFid = pKFi->mnKeyFrameID;
 	}
 
 	// Set Fixed KeyFrame vertices
@@ -216,11 +216,11 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 		t.copyTo(Tcw.col(3).rowRange(0, 3));
 
 		vSE3->setEstimate(Converter::toSE3Quat(Tcw));
-		vSE3->setId(pKFi->GetKeyFrameID());
+		vSE3->setId(pKFi->mnKeyFrameID);
 		vSE3->setFixed(true);
 		optimizer.addVertex(vSE3);
-		if (pKFi->GetKeyFrameID()>maxKFid)
-			maxKFid = pKFi->GetKeyFrameID();
+		if (pKFi->mnKeyFrameID>maxKFid)
+			maxKFid = pKFi->mnKeyFrameID;
 	}
 	
 	// Set MapPoint vertices
@@ -270,7 +270,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 
 			g2o::EdgeSE3ProjectXYZ* e = new g2o::EdgeSE3ProjectXYZ();
 			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
-			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->GetKeyFrameID())));
+			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnKeyFrameID)));
 			e->setMeasurement(obs);
 
 			const float &invSigma2 = pKFi->mvInvLevelSigma2[octave];
@@ -368,7 +368,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 	for (int i = 0; i < vpKFs.size(); i++)
 	{
 		UVR_SLAM::Frame* pKF = vpKFs[i];
-		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pKF->GetKeyFrameID()));
+		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pKF->mnKeyFrameID));
 		g2o::SE3Quat SE3quat = vSE3->estimate();
 
 		cv::Mat R, t;
@@ -747,7 +747,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 	spKFs.insert(pCurrKF);
 	
 	long unsigned int maxKFid = 0;
-	int nCurrKeyFrameID = pCurrKF->GetKeyFrameID();
+	int nCurrKeyFrameID = pCurrKF->mnKeyFrameID;
 	for (int i = 0; i < vpKFs.size(); i++) {
 		auto pKFi = vpKFs[i];
 		g2o::VertexSE3Expmap * vSE3 = new g2o::VertexSE3Expmap();
@@ -759,11 +759,11 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		t.copyTo(Tcw.col(3).rowRange(0, 3));
 
 		vSE3->setEstimate(Converter::toSE3Quat(Tcw));
-		vSE3->setId(pKFi->GetKeyFrameID());
-		vSE3->setFixed(pKFi->GetKeyFrameID() != nCurrKeyFrameID);
+		vSE3->setId(pKFi->mnKeyFrameID);
+		vSE3->setFixed(pKFi->mnKeyFrameID != nCurrKeyFrameID);
 		optimizer.addVertex(vSE3);
-		if (pKFi->GetKeyFrameID()>maxKFid)
-			maxKFid = pKFi->GetKeyFrameID();
+		if (pKFi->mnKeyFrameID>maxKFid)
+			maxKFid = pKFi->mnKeyFrameID;
 	}
 
 	std::vector<g2o::EdgeSE3ProjectXYZ*> vpEdgesMono;
@@ -807,7 +807,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 
 			g2o::EdgeSE3ProjectXYZ* e = new g2o::EdgeSE3ProjectXYZ();
 			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
-			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->GetKeyFrameID())));
+			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnKeyFrameID)));
 			e->setMeasurement(obs);
 
 			const float &invSigma2 = pKFi->mvInvLevelSigma2[octave];
@@ -853,7 +853,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 	
 	//Curr KF 포즈 수정
 	{
-		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pCurrKF->GetKeyFrameID()));
+		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pCurrKF->mnKeyFrameID));
 		g2o::SE3Quat SE3quat = vSE3->estimate();
 		cv::Mat R, t;
 		cv::Mat Tcw = Converter::toCvMat(SE3quat);
@@ -917,7 +917,7 @@ void UVR_SLAM::Optimization::PoseRecoveryOptimization(Frame* pCurrKF, Frame* pPr
 	g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
 	optimizer.setAlgorithm(solver);
 
-	long unsigned int maxKFid = pCurrKF->GetFrameID();
+	long unsigned int maxKFid = pCurrKF->mnFrameID;
 
 	///////KF Curr추가
 	cv::Mat Rcurr, Tcurr;
@@ -927,7 +927,7 @@ void UVR_SLAM::Optimization::PoseRecoveryOptimization(Frame* pCurrKF, Frame* pPr
 	Tcurr.copyTo(TCurrcw.col(3).rowRange(0, 3));
 	g2o::VertexSE3Expmap * vSE3Curr = new g2o::VertexSE3Expmap();
 	vSE3Curr->setEstimate(Converter::toSE3Quat(TCurrcw));
-	vSE3Curr->setId(pCurrKF->GetFrameID());
+	vSE3Curr->setId(pCurrKF->mnFrameID);
 	vSE3Curr->setFixed(false);
 	optimizer.addVertex(vSE3Curr);
 	///////KF Curr추가
@@ -940,7 +940,7 @@ void UVR_SLAM::Optimization::PoseRecoveryOptimization(Frame* pCurrKF, Frame* pPr
 	Tprev.copyTo(TPrevcw.col(3).rowRange(0, 3));
 	g2o::VertexSE3Expmap * vSE3Prev = new g2o::VertexSE3Expmap();
 	vSE3Prev->setEstimate(Converter::toSE3Quat(TPrevcw));
-	vSE3Prev->setId(pPrevKF->GetFrameID());
+	vSE3Prev->setId(pPrevKF->mnFrameID);
 	vSE3Prev->setFixed(true);
 	optimizer.addVertex(vSE3Prev);
 	///////KF Prev추가
@@ -953,7 +953,7 @@ void UVR_SLAM::Optimization::PoseRecoveryOptimization(Frame* pCurrKF, Frame* pPr
 	Tpprev.copyTo(TPprevcw.col(3).rowRange(0, 3));
 	g2o::VertexSE3Expmap * vSE3Pprev = new g2o::VertexSE3Expmap();
 	vSE3Pprev->setEstimate(Converter::toSE3Quat(TPprevcw));
-	vSE3Pprev->setId(pPPrevKF->GetFrameID());
+	vSE3Pprev->setId(pPPrevKF->mnFrameID);
 	vSE3Pprev->setFixed(true);
 	optimizer.addVertex(vSE3Pprev);
 	///////KF PPrev추가
@@ -978,7 +978,7 @@ void UVR_SLAM::Optimization::PoseRecoveryOptimization(Frame* pCurrKF, Frame* pPr
 
 			g2o::EdgeSE3ProjectXYZ* eCurr= new g2o::EdgeSE3ProjectXYZ();
 			eCurr->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
-			eCurr->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pCurrKF->GetFrameID())));
+			eCurr->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pCurrKF->mnFrameID)));
 			eCurr->setMeasurement(obs);
 			eCurr->setInformation(Eigen::Matrix2d::Identity());
 
@@ -1001,7 +1001,7 @@ void UVR_SLAM::Optimization::PoseRecoveryOptimization(Frame* pCurrKF, Frame* pPr
 
 			g2o::EdgeSE3ProjectXYZ* ePrev = new g2o::EdgeSE3ProjectXYZ();
 			ePrev->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
-			ePrev->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pPrevKF->GetFrameID())));
+			ePrev->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pPrevKF->mnFrameID)));
 			ePrev->setMeasurement(obsPrev);
 			ePrev->setInformation(Eigen::Matrix2d::Identity());
 
@@ -1024,7 +1024,7 @@ void UVR_SLAM::Optimization::PoseRecoveryOptimization(Frame* pCurrKF, Frame* pPr
 
 			g2o::EdgeSE3ProjectXYZ* ePprev = new g2o::EdgeSE3ProjectXYZ();
 			ePprev->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
-			ePprev->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pPPrevKF->GetFrameID())));
+			ePprev->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pPPrevKF->mnFrameID)));
 			ePprev->setMeasurement(obsPprev);
 			ePprev->setInformation(Eigen::Matrix2d::Identity());
 
@@ -1049,7 +1049,7 @@ void UVR_SLAM::Optimization::PoseRecoveryOptimization(Frame* pCurrKF, Frame* pPr
 
 	//Curr KF 포즈 수정
 	{
-		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pCurrKF->GetFrameID()));
+		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pCurrKF->mnFrameID));
 		g2o::SE3Quat SE3quat = vSE3->estimate();
 		cv::Mat R, t;
 		cv::Mat Tcw = Converter::toCvMat(SE3quat);

@@ -235,7 +235,7 @@ void UVR_SLAM::Visualizer::Run() {
 			int nFrame = frames.size();
 			auto frame = frames[nFrame - 1];
 			std::stringstream sss;
-			sss << mpSystem->GetDirPath(0) << "/map/map_"<< frame->GetKeyFrameID()<<".txt";
+			sss << mpSystem->GetDirPath(0) << "/map/map_"<< frame->mnKeyFrameID<<".txt";
 			std::ofstream f;
 			f.open(sss.str().c_str());
 			auto mmpMap = mpMap->GetMap();
