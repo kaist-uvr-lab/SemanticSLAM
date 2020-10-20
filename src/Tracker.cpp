@@ -137,7 +137,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 	}
 	else {
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
-		//std::cout << "tracker::start::" <<pCurr->mnFrameID<< std::endl;
+		std::cout << "tracker::start::" <<pCurr->mnFrameID<< std::endl;
 		//std::cout << mpMap->mpFirstKeyFrame->mpPlaneInformation->GetFloorPlane()->GetParam() << std::endl << std::endl << std::endl;
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		/////////Optical Flow Matching
@@ -164,16 +164,22 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::vector<bool> vbTempInliers;// = std::vector<bool>(pPrev->mvpMatchingMPs.size(), false);
 		std::vector<int> vnIDXs, vnMPIDXs;
 		cv::Mat debugImg;
-		cv::Mat overlap = cv::Mat::zeros(pCurr->GetOriginalImage().size(), CV_8UC1);
-		mnPointMatching = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempCPs, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, overlap); //pCurr
-
+		cv::Mat overlap = cv::Mat::zeros(pCurr->mnHeight, pCurr->mnWidth, CV_8UC1);
+		//mnPointMatching = mpMatcher->OpticalMatchingForTracking(mpRefKF, pCurr, vpTempCPs, vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, overlap); //pCurr
+		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempCPs, vpTempPts); //pCurr
+		std::cout << "Tracking::" << pCurr->mnFrameID << " Match=" << mnPointMatching << std::endl;
 		//mpSystem->mbTrackingEnd = true;
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
 
-		//graph-based0.
-		mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);
-		int nMP = UpdateMatchingInfo(mpRefKF, pCurr, vpTempCPs,vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
-		
+		//graph-based
+		{
+			std::unique_lock<std::mutex> lock(mpMap->mMutexMapUdpate);
+			//mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempMPs, vpTempPts, vbTempInliers, vnMPIDXs);
+			mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempCPs, vpTempPts);
+			std::cout << "Tracking::" << pCurr->mnFrameID << " PoseOpt=" << mnMapPointMatching << std::endl;
+			//int nMP = UpdateMatchingInfo(mpRefKF, pCurr, vpTempCPs,vpTempMPs, vpTempPts, vbTempInliers, vnIDXs, vnMPIDXs);
+			int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vpTempPts);
+		}
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크
 		auto pNewKF = CheckNeedKeyFrame(pCurr, pPrev);
@@ -221,12 +227,27 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 ////MP와 PT가 대응함.
 ////pPrev가 mpRefKF가 됨
 //매칭정보에 비율을 아예 추가하기
+int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<cv::Point2f> vpPts) {
+	
+	auto pMatchInfo = pCurr->mpMatchInfo;
+	
+	for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
+		auto pCP = vpCPs[i];
+		auto pt = vpPts[i];
+		if (pMatchInfo->CheckOpticalPointOverlap(mpSystem->mnRadius, mpSystem->mnRadius, pt) < 0) {
+			pMatchInfo->AddCP(pCP, pt);
+		}
+	}
+	return 0;
+}
+
 int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs) {
 	auto pMatchInfo = pCurr->mpMatchInfo;
 	auto pPrevMatchInfo = pPrev->mpMatchInfo;
 	int nCurrID = pCurr->mnFrameID;
 	int nres = 0;
 	int nFail = 0;
+
 	for (int i = 0; i < vpPts.size(); i++) {
 		auto pCP = vpCPs[i];
 		auto pMP = vpMPs[i];
@@ -244,6 +265,7 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 			nres++;
 		}
 	}
+
 	pMatchInfo->mfLowQualityRatio = ((float)nFail)/ vpPts.size();
 	//std::cout << "Tracking::ID=" << pPrev->GetKeyFrameID() <<", "<< nCurrID << " matching = " << nres <<", Quality = "<< pMatchInfo->mfLowQualityRatio << std::endl;
 	return nres;

@@ -28,8 +28,8 @@ namespace UVR_SLAM {
 				Frame* pKF = mpKeyFrame;
 				Frame* pF = mpFrame;
 
-				cv::Mat vis = pF->GetOriginalImage();
-				cv::Mat kfImg = pKF->GetOriginalImage();
+				cv::Mat vis = pF->GetOriginalImage().clone();
+				cv::Mat kfImg = pKF->GetOriginalImage().clone();
 				auto pKFMatch = pKF->mpMatchInfo;
 				//vis.convertTo(vis, CV_8UC3);
 				cv::Mat R = pF->GetRotation();

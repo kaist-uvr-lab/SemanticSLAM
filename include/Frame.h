@@ -187,6 +187,7 @@ namespace UVR_SLAM {
 	public:
 		///////////////////////////////
 		////200526
+		int mnWidth, mnHeight;
 		cv::Mat mEdgeImg;
 		std::vector<cv::Point2f> mvEdgePts;
 		////200423
@@ -246,7 +247,7 @@ namespace UVR_SLAM {
 		cv::Mat matFrame, matOri;
 		cv::Mat R, t;
 		int mnInliers;
-		int mnWidth, mnHeight;
+		
 		/*
 		std::mutex mMutexID;
 		std::mutex mMutexMPs, mMutexBoolInliers, mMutexNumInliers, mMutexPose, mMutexType;

@@ -177,8 +177,8 @@ cv::Mat UVR_SLAM::Frame::GetFrame() {
 	return matFrame.clone();
 }
 cv::Mat UVR_SLAM::Frame::GetOriginalImage() {
-	std::unique_lock<std::mutex> lockMP(mMutexFrame);
-	return matOri.clone();
+	//std::unique_lock<std::mutex> lockMP(mMutexFrame);
+	return matOri;
 }
 
 std::vector<UVR_SLAM::ObjectType> UVR_SLAM::Frame::GetObjectVector() {
@@ -1094,12 +1094,7 @@ bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
 	}
 	bool b1 = false;//mfLowQualityRatio > 0.4;
 	bool b2 = nMP < 200;
-	/*if(nMP < 100){
-		std::cout <<"ID = "<<this->mpRefFrame->GetKeyFrameID()<< "FrameQuality = " << nMP << "+" << nLow << "=" << N << std::endl;
-		cv::Mat img = this->mpRefFrame->GetOriginalImage();
-		cv::imshow("low quality", img);
-		waitKey(1);
-	}*/
+	
 	//b3은 이전 프레임과 비교시 차이가 갑자기 클 때로
 	//전체 MP 수, quality가 안좋은 애들은 이미 여기에 존재하지를 못함. 
 	//std::cout << "FrameQuality = " << nMP << "+" <<nLow<<"="<< N << std::endl;

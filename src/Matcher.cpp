@@ -657,7 +657,7 @@ bool Projection(cv::Point2f& pt, float& depth, cv::Mat R, cv::Mat T, cv::Mat K, 
 
 int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr, std::vector<std::pair<cv::Point2f, cv::Point2f>>& resMatches) {
 
-	cv::Mat overlap = cv::Mat::zeros(init->GetOriginalImage().size(), CV_8UC1);
+	cv::Mat overlap = cv::Mat::zeros(init->mnHeight, init->mnWidth, CV_8UC1);
 	//////////////////////////
 	////Optical flow
 	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
@@ -756,7 +756,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 
 int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr, std::vector<cv::Point2f>& vpPts1, std::vector<cv::Point2f>& vpPts2, std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, cv::Mat& debugging) {
 
-	cv::Mat overlap = cv::Mat::zeros(init->GetOriginalImage().size(), CV_8UC1);
+	cv::Mat overlap = cv::Mat::zeros(init->mnHeight, init->mnWidth, CV_8UC1);
 	//////////////////////////
 	////Optical flow
 	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
@@ -856,6 +856,57 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	///////////////////////////
 
 	return vpPts2.size();
+}
+int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<cv::Point2f>& vpPts) {
+	std::vector<cv::Mat> currPyr, prevPyr;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	cv::Mat prevImg = prev->GetOriginalImage();
+	cv::Mat currImg = curr->GetOriginalImage();
+
+	int maxLvl = 3;
+	int searchSize = 21;
+	std::vector<cv::Point2f> prevPts, currPts;
+	int N = prev->mpMatchInfo->GetNumCPs();
+	prevPts = prev->mpMatchInfo->mvMatchingPts;
+	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
+	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
+	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	cv::Mat overlap = cv::Mat::zeros(mHeight, mWidth, CV_8UC1);
+
+	int nCurrFrameID = curr->mnFrameID;
+	int res = 0;
+	int nBad = 0;
+
+	for (int i = 0; i < N; i++) {
+		if (status[i] == 0) {
+			continue;
+		}
+		if (!prev->mpMatchInfo->CheckOpticalPointOverlap(overlap, mpSystem->mnRadius, mpSystem->mnRadius, currPts[i])) {
+			nBad++;
+			continue;
+		}
+		auto pCPi = prev->mpMatchInfo->mvpMatchingCPs[i];
+		if (pCPi->mnTrackingFrameID == nCurrFrameID) {
+			std::cout << "tracking::" << pCPi->mnCandidatePointID << ", " << nCurrFrameID << std::endl;
+			continue;
+		}
+		pCPi->mnTrackingFrameID = nCurrFrameID;
+		vpCPs.push_back(pCPi);
+		vpPts.push_back(currPts[i]);
+		cv::rectangle(overlap, currPts[i] - mpSystem->mRectPt, currPts[i] + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
+		//auto pMPi = pCPi->GetMP();
+		//
+		//if (pMPi && !pMPi->isDeleted() && pMPi->GetRecentTrackingFrameID() != nCurrFrameID && curr->isInFrustum(pMPi, 0.6f)) {
+		//	pMPi->SetRecentTrackingFrameID(nCurrFrameID);
+		//	vpMPs.push_back(pMPi);
+		//	vnIDXs.push_back(i); //mpMatchinfo->mvMatchingPt, CPÀÇ index
+		//	vpPts.push_back(currPts[i]);
+		//	vbInliers.push_back(true);
+		//}
+		res++;
+	}
+	return res;
 }
 
 int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vpPts,std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, cv::Mat& overlap) {

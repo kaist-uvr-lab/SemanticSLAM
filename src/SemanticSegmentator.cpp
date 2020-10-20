@@ -90,7 +90,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			cv::Mat colorimg, resized_color, segmented;
 			/*cv::cvtColor(mpTargetFrame->GetOriginalImage(), colorimg, CV_RGBA2BGR);
 			colorimg.convertTo(colorimg, CV_8UC3);*/
-			cv::resize(mpTargetFrame->GetOriginalImage(), resized_color, cv::Size(mnWidth/2, mnHeight/2));
+			cv::resize(mpTargetFrame->GetOriginalImage().clone(), resized_color, cv::Size(mnWidth/2, mnHeight/2));
 			//cv::resize(colorimg, resized_color, cv::Size(160, 90));
 			
 			//request post

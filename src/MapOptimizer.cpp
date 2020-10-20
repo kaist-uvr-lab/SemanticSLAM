@@ -150,7 +150,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			auto vpPlaneInfos = mpMap->GetPlaneInfos();
 			int n = vpPlaneInfos.size() - 1;
 			if(n < 0)
-				Optimization::OpticalLocalBundleAdjustment(this, vpMPs, vpKFs, vpFixedKFs);
+				Optimization::OpticalLocalBundleAdjustment(mpMap, this, vpMPs, vpKFs, vpFixedKFs);
 			else
 			{
 				std::cout << "Plane optimization" << std::endl;
@@ -186,7 +186,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 				for (int i = 0; i < nKF; i++) {
 					auto pKFi = vpKFs[i];
 					auto pMatch = pKFi->mpMatchInfo;
-					cv::Mat img = pKFi->GetOriginalImage();
+					cv::Mat img = pKFi->GetOriginalImage().clone();
 
 					cv::Mat R, t;
 					pKFi->GetPose(R, t);
