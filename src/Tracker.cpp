@@ -143,7 +143,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		/////////Optical Flow Matching
 		////MatchInfo ¼³Á¤
 		mpRefKF->SetRecentTrackedFrameID(pCurr->GetFrameID());
-		pCurr->mpMatchInfo = new UVR_SLAM::MatchInfo(pCurr, mpRefKF, mnWidth, mnHeight);
+		pCurr->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, pCurr, mpRefKF, mnWidth, mnHeight);
 		
 		/*int Ncp = mpRefKF->mpMatchInfo->GetNumCPs();
 		for (int i = 0; i < Ncp; i++) {
@@ -237,7 +237,7 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 		}
 		int prevIdx = vnIDXs[i];
 		auto pt = vpPts[i];
-		if (pMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, pt) < 0) {
+		if (pMatchInfo->CheckOpticalPointOverlap(mpSystem->mnRadius, 10, pt) < 0) {
 			//pMP->AddSuccess();
 			//pMP->SetLastSuccessFrame(pCurr->GetFrameID());
 			pMatchInfo->AddCP(pCP, pt);

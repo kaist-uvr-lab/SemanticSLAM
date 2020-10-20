@@ -56,7 +56,6 @@ namespace fbow {
 
 namespace UVR_SLAM {
 	class Tracker;
-	class FrameWindow;
 	class SemanticSegmentator;
 	class LocalMapper;
 	class PlaneEstimator;
@@ -95,8 +94,10 @@ namespace UVR_SLAM {
 		bool mbPlaneEstimation;
 		int mnDisplayX;
 		int mnDisplayY;
-
-
+		int mnWidth, mnHeight;
+		int mnMaxMP;
+		int mnRadius;
+		cv::Point2f mRectPt;
 	public:
 		void SaveTrajectory(std::string filename);
 		void SetBoolInit(bool b);
@@ -136,7 +137,6 @@ namespace UVR_SLAM {
 		int mnLevels; 
 		int mfIniThFAST;
 		int mfMinThFAST;
-		int mnWidth, mnHeight;
 		int mnMaxConnectedKFs, mnMaxCandidateKFs;
 
 		std::mutex mMutexDirPath;
@@ -148,7 +148,6 @@ namespace UVR_SLAM {
 		ConcurrentList<UVR_SLAM::MapPoint*> mlpNewMPs;
 		std::string strVOCPath;
 		fbow::Vocabulary* fvoc;
-		FrameWindow* mpFrameWindow;
 		cv::Mat mK, mKforPL, mD;
 		bool mbInitialized;
 		int mnPatchSize;

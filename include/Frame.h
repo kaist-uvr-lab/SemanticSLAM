@@ -30,6 +30,7 @@ namespace UVR_SLAM {
 	const unsigned char FLAG_INIT_FRAME = 0x8;
 
 	//class MapPoint;
+	class System;
 	class CandidatePoint;
 	class ORBextractor;
 	class PlaneInformation;
@@ -42,7 +43,7 @@ namespace UVR_SLAM {
 		
 		
 		MatchInfo();
-		MatchInfo(Frame* pRef, Frame* pTarget, int w, int h);
+		MatchInfo(System*  pSys, Frame* pRef, Frame* pTarget, int w, int h);
 		virtual ~MatchInfo();
 		void ConnectAll();
 		void DisconnectAll();
@@ -73,6 +74,7 @@ namespace UVR_SLAM {
 		std::vector<UVR_SLAM::CandidatePoint*> mvpMatchingCPs; //KF-KF 매칭에서 삼각화시 베이스라인을 충분히 확보하기 위함.
 		std::vector<cv::Point2f> mvMatchingPts; //CPPt에서 변경함
 	public:
+		System* mpSystem;
 		//오브젝트 관련
 		std::map<int, int> mmLabelAcc; //std::list<cv::Point2f>
 		std::map<int, cv::Mat> mmLabelMasks; //마스크 이미지
@@ -88,7 +90,6 @@ namespace UVR_SLAM {
 //////////////////
 	public:
 		//현재 매칭된 값을 저장함.
-		static int nMaxMP;
 		float mfLowQualityRatio;
 		int mnWidth, mnHeight;
 		UVR_SLAM::Frame* mpTargetFrame, *mpRefFrame, *mpNextFrame;
@@ -300,8 +301,6 @@ namespace UVR_SLAM {
 		static float mnMinY;
 		static float mnMaxY;
 		static bool mbInitialComputations;
-		static int mnRadius;
-		static cv::Point2f mRectPt;
 		
 		int mnScaleLevels;
 		float mfScaleFactor;

@@ -9,9 +9,7 @@
 #include <System.h>
 #include <ORBextractor.h>
 #include <Plane.h>
-int UVR_SLAM::MatchInfo::nMaxMP = 500;
-int UVR_SLAM::Frame::mnRadius = 7;
-cv::Point2f UVR_SLAM::Frame::mRectPt(UVR_SLAM::Frame::mnRadius, UVR_SLAM::Frame::mnRadius);
+
 bool UVR_SLAM::Frame::mbInitialComputations = true;
 float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
 float UVR_SLAM::Frame::mnMinX, UVR_SLAM::Frame::mnMinY, UVR_SLAM::Frame::mnMaxX, UVR_SLAM::Frame::mnMaxY;
@@ -939,10 +937,11 @@ float UVR_SLAM::Frame::CalcDiffAngleAxis(UVR_SLAM::Frame* pF) {
 
 //////////////matchinfo
 UVR_SLAM::MatchInfo::MatchInfo():mnMatch(0), mfLowQualityRatio(0.0){}
-UVR_SLAM::MatchInfo::MatchInfo(Frame* pRef, Frame* pTarget, int w, int h):mnHeight(h), mnWidth(w), mnMatch(0), mfLowQualityRatio(0.0){
+UVR_SLAM::MatchInfo::MatchInfo(System* pSys, Frame* pRef, Frame* pTarget, int w, int h):mnHeight(h), mnWidth(w), mnMatch(0), mfLowQualityRatio(0.0){
 	mpTargetFrame = pTarget;
 	mpRefFrame = pRef;
 	mMapCP = cv::Mat::zeros(h, w, CV_16SC1);
+	mpSystem = pSys;
 }
 UVR_SLAM::MatchInfo::~MatchInfo(){}
 
@@ -1020,17 +1019,17 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		nIncEdge = 1;
 	if (nIncORB == 0)
 		nIncORB = 1;
-
+	
 	cv::Mat currMap = cv::Mat::zeros(mnHeight, mnWidth, CV_8UC1);
 	
 	for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += nIncEdge) {
 		auto pt = mpRefFrame->mvEdgePts[i];
 		bool b1 = CheckOpticalPointOverlap(1, 10, pt) > -1;
-		bool b2 = !CheckOpticalPointOverlap(currMap, Frame::mnRadius, 10, pt);
+		bool b2 = !CheckOpticalPointOverlap(currMap, mpSystem->mnRadius, 10, pt);
 		if (b1 || b2) {
 			continue;
 		}
-		cv::rectangle(currMap, pt - Frame::mRectPt, pt + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 		auto pCP = new UVR_SLAM::CandidatePoint(this);
 		int idx = this->AddCP(pCP, pt);
 		pCP->ConnectFrame(this, idx);
@@ -1041,11 +1040,11 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 			continue;
 		}*/
 		bool b1 = CheckOpticalPointOverlap(1, 10, pt) > -1;
-		bool b2 = !CheckOpticalPointOverlap(currMap, Frame::mnRadius, 10, pt);
+		bool b2 = !CheckOpticalPointOverlap(currMap, mpSystem->mnRadius, 10, pt);
 		if (b1 || b2) {
 			continue;
 		}
-		cv::rectangle(currMap, pt - Frame::mRectPt, pt + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 		auto pCP = new UVR_SLAM::CandidatePoint(this, mpRefFrame->mvnOctaves[i]);
 		int idx = this->AddCP(pCP, pt);
 		pCP->ConnectFrame(this, idx);
@@ -1076,7 +1075,7 @@ int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
 	int res = mvpMatchingCPs.size();
 	mvpMatchingCPs.push_back(pCP);
 	mvMatchingPts.push_back(pt);
-	cv::rectangle(mMapCP, pt- Frame::mRectPt, pt+ Frame::mRectPt, cv::Scalar(res + 1), -1);
+	cv::rectangle(mMapCP, pt- mpSystem->mRectPt, pt+ mpSystem->mRectPt, cv::Scalar(res + 1), -1);
 	//cv::circle(mMapCP, pt, Frame::mnRadius, cv::Scalar(res+1), -1);
 	return res;
 }
@@ -1084,7 +1083,7 @@ int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
 void UVR_SLAM::MatchInfo::RemoveCP(int idx){
 	std::unique_lock<std::mutex>(mMutexCPs);
 	auto pt = mvMatchingPts[idx];
-	cv::rectangle(mMapCP, pt - Frame::mRectPt, pt + Frame::mRectPt, cv::Scalar(-1), -1);
+	cv::rectangle(mMapCP, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(-1), -1);
 	//cv::circle(mMapCP, mvMatchingPts[idx], Frame::mnRadius, cv::Scalar(-1), -1);
 	mvpMatchingCPs[idx] = nullptr;	
 }
@@ -1177,7 +1176,7 @@ int UVR_SLAM::MatchInfo::GetMatchingPtsTracking(std::vector<UVR_SLAM::CandidateP
 	}
 	for (int i = 0; i < nres; i++) {
 		auto pCPi = mvpMatchingCPs[i];
-		if (vPTs.size() == nMaxMP)
+		if (vPTs.size() == mpSystem->mnMaxMP)
 			break;
 		auto pMPi = pCPi->GetMP();
 		if (pMPi && !pMPi->isDeleted() && pMPi->GetQuality() && pMPi->isOptimized()) {

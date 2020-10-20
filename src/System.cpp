@@ -1,6 +1,5 @@
 #include <System.h>
 #include <Map.h>
-#include <FrameWindow.h>
 #include <Initializer.h>
 #include <SemanticSegmentator.h>
 #include <LocalMapper.h>
@@ -79,7 +78,11 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	mnDisplayY = fs["Display.y"];
 
 	fs["VocPath"] >> strVOCPath;
-	fs["nVisScale"] >> mnVisScale;
+	fs["Display.scale"] >> mnVisScale;
+
+	mnMaxMP = fs["Image.maxmp"];
+	mnRadius = fs["Image.radius"];
+	mRectPt = cv::Point2f(mnRadius, mnRadius);
 	//fs["IP"] >> ip;
 	//fs["port"] >> port;
 	//std::cout << ip << "::" << port << std::endl;
@@ -256,7 +259,6 @@ void UVR_SLAM::System::Track() {
 void UVR_SLAM::System::Reset() {
 	mbInitialized = false;
 	mpInitializer->Reset();
-	mpFrameWindow->ClearLocalMapFrames();
 	mpPlaneEstimator->Reset();
 	mpLocalMapper->Reset();
 	mpMap->ClearWalls();

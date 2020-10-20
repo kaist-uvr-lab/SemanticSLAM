@@ -56,7 +56,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame1->DetectFeature();
 		mpInitFrame1->SetBowVec(mpSystem->fvoc);
 		mpInitFrame1->DetectEdge();
-		mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo(mpInitFrame1, nullptr, mnWidth, mnHeight);
+		mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, mpInitFrame1, nullptr, mnWidth, mnHeight);
 		mpInitFrame1->mpMatchInfo->SetMatchingPoints();
 		mpSegmentator->InsertKeyFrame(mpInitFrame1);
 		return mbInit;
@@ -67,7 +67,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//두번째 키프레임은 초기화가 성공하거나 키프레임을 교체할 때 세그멘테이션을 수행함.
 		mpInitFrame2 = pFrame;
 		//////매칭 정보 생성
-		mpInitFrame2->mpMatchInfo = new UVR_SLAM::MatchInfo(mpInitFrame2, mpInitFrame1, mnWidth, mnHeight);
+		mpInitFrame2->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, mpInitFrame2, mpInitFrame1, mnWidth, mnHeight);
 		
 		//////매칭 정보 생성
 		bool bSegment = false;

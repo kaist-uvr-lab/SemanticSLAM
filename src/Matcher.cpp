@@ -654,14 +654,6 @@ bool Projection(cv::Point2f& pt, float& depth, cv::Mat R, cv::Mat T, cv::Mat K, 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 ////200410 Optical flow
-bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, cv::Point2f pt) {
-	if (overlap.at<uchar>(pt) > 0) {
-		return false;
-	}
-	rectangle(overlap, pt - UVR_SLAM::Frame::mRectPt, pt + UVR_SLAM::Frame::mRectPt, cv::Scalar(255), -1);
-	//circle(overlap, pt, radius, cv::Scalar(255), -1);
-	return true;
-}
 
 int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr, std::vector<std::pair<cv::Point2f, cv::Point2f>>& resMatches) {
 
@@ -716,7 +708,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 			continue;
 		}
 
-		if (!CheckOpticalPointOverlap(overlap, 2, currPts[i])) {
+		if (!curr->mpMatchInfo->CheckOpticalPointOverlap(overlap, mpSystem->mnRadius, mpSystem->mnRadius, currPts[i])) {
 			nBad++;
 			continue;
 		}
@@ -739,8 +731,10 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 			cv::line(debugging, prevPts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0));
 		}
 
-		if (bMatch)
+		if (bMatch){
+			cv::rectangle(overlap, currPts[i] - mpSystem->mRectPt, currPts[i] + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 			resMatches.push_back(std::pair<cv::Point2f, cv::Point2f>(prevPts[i], currPts[i]));
+		}
 		//¸ÅÄª °á°ú
 		////
 
@@ -816,7 +810,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 			continue;
 		}
 		
-		if (!CheckOpticalPointOverlap(overlap, 2, currPts[i])) {
+		if (!curr->mpMatchInfo->CheckOpticalPointOverlap(overlap, mpSystem->mnRadius, mpSystem->mnRadius, currPts[i])) {
 			nBad++;
 			continue;
 		}
@@ -827,6 +821,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 		if (diffX > 90) {
 			continue;
 		}
+		cv::rectangle(overlap, currPts[i] - mpSystem->mRectPt, currPts[i] + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 
 		/*if (!curr->mpMatchInfo->CheckOpticalPointOverlap(curr->mpMatchInfo->used, 1, 10, currPts[i]))
 			continue;*/
@@ -917,7 +912,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		}
 		/*if (curr->mEdgeImg.at<uchar>(currPts[i]) == 0)
 			continue;*/
-		if (!CheckOpticalPointOverlap(overlap, 2, currPts[i])) {
+		if (!curr->mpMatchInfo->CheckOpticalPointOverlap(overlap, mpSystem->mnRadius, mpSystem->mnRadius, currPts[i])) {
 			nBad++;
 			continue;
 		}
@@ -931,6 +926,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			std::cout << "tracking::" <<vpTempCPs[i]->mnCandidatePointID<<", "<<nCurrFrameID<< std::endl;
 			continue;
 		}
+		cv::rectangle(overlap, currPts[i] - mpSystem->mRectPt, currPts[i] + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 		vpTempCPs[i]->mnTrackingFrameID = nCurrFrameID;
 		UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
 		if (pMPi && !pMPi->isDeleted() && pMPi->GetRecentTrackingFrameID() != nCurrFrameID && curr->isInFrustum(pMPi, 0.6f)) {
@@ -1019,8 +1015,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 			continue;
 		}
 
-		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(usedPrev, Frame::mnRadius, 10, prevPts[i]);
-		bool b4 = pPrevMatchInfo->CheckOpticalPointOverlap(usedCurr, Frame::mnRadius, 10, currPts[i]);
+		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(usedPrev, mpSystem->mnRadius, 10, prevPts[i]);
+		bool b4 = pPrevMatchInfo->CheckOpticalPointOverlap(usedCurr, mpSystem->mnRadius, 10, currPts[i]);
 		bool b5 = true;//pPrevMatchInfo->CheckOpticalPointOverlap(usedPPrev, Frame::mnRadius, 10, pprevPts[i]);
 		
 		if (!b3 || !b4 || !b5) {
@@ -1028,8 +1024,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 		}
 		pCPi->SetLastVisibleFrame(nCurrKeyFrameID);
 
-		cv::rectangle(usedPrev, prevPts[i] - Frame::mRectPt, prevPts[i] + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
-		cv::rectangle(usedCurr, currPts[i] - Frame::mRectPt, currPts[i] + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(usedPrev, prevPts[i] - mpSystem->mRectPt, prevPts[i] + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(usedCurr, currPts[i] - mpSystem->mRectPt, currPts[i] + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 		//cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
 		//cv::circle(usedCurr, currPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
 
@@ -1045,7 +1041,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 	for (int i = 0; i < vMatchedCPs.size(); i++) {
 		auto pCPi = vMatchedCPs[i];
 		int cidx = pCPi->GetPointIndexInFrame(pCurrMatchInfo);
-		int currIDX = pCurrMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, vMatchedCurrPts[i]);
+		int currIDX = pCurrMatchInfo->CheckOpticalPointOverlap(mpSystem->mnRadius, 10, vMatchedCurrPts[i]);
 		if (currIDX >= 0) {
 			if (cidx >= 0)
 				std::cout << "a;sldjf;alskdfa" << std::endl;
@@ -1240,9 +1236,9 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 		auto pCPi = vpCPs[i];
 		if (pCPi->GetLastVisibleFrame() == nCurrKeyFrameID)
 			continue;
-		bool b1 = pCurrMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, currPts[i]) >= 0;
-		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(usedPrev, Frame::mnRadius, 10, prevPts[i]);
-		bool b4 = pPrevMatchInfo->CheckOpticalPointOverlap(usedCurr, Frame::mnRadius, 10, currPts[i]);
+		bool b1 = pCurrMatchInfo->CheckOpticalPointOverlap(mpSystem->mnRadius, 10, currPts[i]) >= 0;
+		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(usedPrev, mpSystem->mnRadius, 10, prevPts[i]);
+		bool b4 = pPrevMatchInfo->CheckOpticalPointOverlap(usedCurr, mpSystem->mnRadius, 10, currPts[i]);
 		if (b1) {
 			pCPi->SetLastSuccessFrame(nCurrKeyFrameID);
 			continue;
@@ -1252,8 +1248,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping(Map* pMap, Frame* pCurrKF, Fram
 		}
 		pCPi->SetLastVisibleFrame(nCurrKeyFrameID);
 		
-		cv::rectangle(usedPrev, prevPts[i] - Frame::mRectPt, prevPts[i] + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
-		cv::rectangle(usedCurr, currPts[i] - Frame::mRectPt, currPts[i] + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(usedPrev, prevPts[i] - mpSystem->mRectPt, prevPts[i] + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(usedCurr, currPts[i] - mpSystem->mRectPt, currPts[i] + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 		/*cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
 		cv::circle(usedCurr, currPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);*/
 
@@ -1314,14 +1310,14 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Map* pMap, Frame* pCurrKF, Fra
 			continue;
 		}
 		auto pCPi = vpCPs[i];
-		bool b1 = pCurrMatchInfo->CheckOpticalPointOverlap(Frame::mnRadius, 10, currPts[i]) >= 0;
-		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(usedPrev, Frame::mnRadius, 10, prevPts[i]);
-		bool b4 = pPrevMatchInfo->CheckOpticalPointOverlap(usedCurr, Frame::mnRadius, 10, currPts[i]);
+		bool b1 = pCurrMatchInfo->CheckOpticalPointOverlap(mpSystem->mnRadius, 10, currPts[i]) >= 0;
+		bool b3 = pPrevMatchInfo->CheckOpticalPointOverlap(usedPrev, mpSystem->mnRadius, 10, prevPts[i]);
+		bool b4 = pPrevMatchInfo->CheckOpticalPointOverlap(usedCurr, mpSystem->mnRadius, 10, currPts[i]);
 		if (b1 || !b3 || !b4) {
 			continue;
 		}
-		cv::rectangle(usedPrev, prevPts[i] - Frame::mRectPt, prevPts[i] + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
-		cv::rectangle(usedCurr, currPts[i] - Frame::mRectPt, currPts[i] + Frame::mRectPt, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(usedPrev, prevPts[i] - mpSystem->mRectPt, prevPts[i] + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
+		cv::rectangle(usedCurr, currPts[i] - mpSystem->mRectPt, currPts[i] + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 		/*cv::circle(usedPrev, prevPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);
 		cv::circle(usedCurr, currPts[i], Frame::mnRadius, cv::Scalar(255, 0, 0), -1);*/
 
