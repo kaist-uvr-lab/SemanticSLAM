@@ -43,23 +43,18 @@ namespace UVR_SLAM {
 		MatchInfo();
 		MatchInfo(System*  pSys, Frame* pRef, Frame* pTarget, int w, int h);
 		virtual ~MatchInfo();
-		void ConnectAll();
-		void DisconnectAll();
+		void ConnectAll(); //이거 체크
+		void DisconnectAll(); //이것도 체크
+		void UpdateKeyFrame();
 		bool UpdateFrameQuality();
 		void SetMatchingPoints(); //초기화나 매핑시 포인트 매칭을 위한 포인트 추가 과정.
 		void SetLabel();
-		void RemoveCP(int idx);
-		void AddMP();
-		void RemoveMP(); //삭제 예정
-		int GetNumMapPoints();
-//////////////////
-	private:
-		std::mutex mMutexData;
-		int mnMatch;
-//////////////////
+		
+		
 	public:
-		int AddCP(CandidatePoint* pMP, cv::Point2f pt);
-		int nPrevNumCPs;
+		int AddCP(CandidatePoint* pCP, cv::Point2f pt);
+		void RemoveCP(int idx);
+		int nPrevNumCPs;//체크
 		int GetNumCPs();
 		std::vector<cv::Point2f> GetMatchingPts();
 		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::MapPoint*>& vpMPs);
@@ -70,6 +65,8 @@ namespace UVR_SLAM {
 		bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt); //확인 후 삭제.
 
 		std::vector<UVR_SLAM::CandidatePoint*> mvpMatchingCPs; //KF-KF 매칭에서 삼각화시 베이스라인을 충분히 확보하기 위함.
+		std::vector<bool> mvbMapPointInliers; //프레임 업데이트에만 이용
+		//std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs;
 		std::vector<cv::Point2f> mvMatchingPts; //CPPt에서 변경함
 	public:
 		System* mpSystem;
@@ -82,8 +79,19 @@ namespace UVR_SLAM {
 	private:
 		std::mutex mMutexCPs;
 		cv::Mat mMapCP; //현재 이미지 내에 CP의 포인트 위치 & 인덱스, ushort, 16US1
+	public:
+		int GetNumMPs();
 		
-		
+		void InitMapPointInlierVector(int N);
+		/*
+		void AddMP();
+		void RemoveMP();
+		void AddMP(MapPoint* pMP, int idx);
+		void RemoveMP(int idx);
+		MapPoint* GetMP(int idx);*/
+	private:
+		std::mutex mMutexMPs;
+		int mnNumMapPoint;
 
 //////////////////
 	public:

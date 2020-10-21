@@ -271,6 +271,16 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpSegmentator->InsertKeyFrame(mpInitFrame2);
 		/////////////레이아웃 추정
 
+		////CP 추가
+		if(mpInitFrame2->mpMatchInfo->GetNumCPs() < mpSystem->mnMaxMP){
+			mpInitFrame2->DetectFeature();
+			mpInitFrame2->DetectEdge();
+			mpInitFrame2->mpMatchInfo->SetMatchingPoints();
+			mpInitFrame2->SetBowVec(mpSystem->fvoc);
+			std::cout <<"INITIALIZER::TEST::"<< mpInitFrame2->mpMatchInfo->GetNumCPs() << std::endl;
+		}
+		////CP 추가
+
 		////////////////////시각화에 카메라 포즈를 출력하기 위해
 		///////////이것도 차후 없애야 함.
 		////여기서 무슨일 하는지 정리 후 삭제

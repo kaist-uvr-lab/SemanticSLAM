@@ -877,14 +877,34 @@ float UVR_SLAM::Frame::CalcDiffAngleAxis(UVR_SLAM::Frame* pF) {
 }
 
 //////////////matchinfo
-UVR_SLAM::MatchInfo::MatchInfo():mnMatch(0), mfLowQualityRatio(0.0){}
-UVR_SLAM::MatchInfo::MatchInfo(System* pSys, Frame* pRef, Frame* pTarget, int w, int h):mnHeight(h), mnWidth(w), mnMatch(0), mfLowQualityRatio(0.0){
+UVR_SLAM::MatchInfo::MatchInfo(): mfLowQualityRatio(0.0){}
+UVR_SLAM::MatchInfo::MatchInfo(System* pSys, Frame* pRef, Frame* pTarget, int w, int h):mnHeight(h), mnWidth(w), mfLowQualityRatio(0.0){
 	mpTargetFrame = pTarget;
 	mpRefFrame = pRef;
 	mMapCP = cv::Mat::zeros(h, w, CV_16SC1);
 	mpSystem = pSys;
 }
 UVR_SLAM::MatchInfo::~MatchInfo(){}
+
+void UVR_SLAM::MatchInfo::UpdateKeyFrame() {
+	int N;
+	{
+		std::unique_lock<std::mutex>(mMutexCPs);
+		N = mvpMatchingCPs.size();
+	}
+	int nCurrID = this->mpRefFrame->mnKeyFrameID;
+	for (int i = 0; i < N; i++) {
+		auto pCPi = mvpMatchingCPs[i];
+		pCPi->ConnectFrame(this, i);
+		auto pMPi = pCPi->GetMP();
+		if (!mvbMapPointInliers[i])
+			continue;
+		if (!pMPi || !pMPi->GetQuality() || pMPi->isDeleted())
+			continue;
+		//this->AddMP(pMPi, i);
+		pMPi->ConnectFrame(this, i);
+	}
+}
 
 //트래킹
 int UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(int radius, int margin, cv::Point2f pt) {
@@ -952,7 +972,9 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 	mpRefFrame->SetBowVec(mpSystem->fvoc);
 	mpRefFrame->DetectEdge();*/
 
-	int nMax = 150; //둘다 하면 500
+	int nCP = this->GetNumCPs();
+	//int nMax = (mpSystem->mnMaxMP+100-nCP)/2;//150; //둘다 하면 500
+	int nMax = 150;
 	int nIncEdge = mpRefFrame->mvEdgePts.size() / nMax;
 	int nIncORB = mpRefFrame->mvPts.size() / nMax;
 
@@ -992,20 +1014,31 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 	}
 }
 
-void UVR_SLAM::MatchInfo::AddMP() {
-	std::unique_lock<std::mutex>(mMutexData);
-	mnMatch++;
+void UVR_SLAM::MatchInfo::InitMapPointInlierVector(int N) {
+	//int N = GetNumCPs();
+	std::unique_lock<std::mutex>(mMutexMPs);
+	mnNumMapPoint = 0;
+	mvbMapPointInliers = std::vector<bool>(N, false);
 }
-void UVR_SLAM::MatchInfo::RemoveMP() {
-	std::unique_lock<std::mutex>(mMutexData);
-	mnMatch--;
+//void UVR_SLAM::MatchInfo::AddMP(MapPoint* pMP, int idx) {
+//	std::unique_lock<std::mutex>(mMutexMPs);
+//	mvpMatchingMPs[idx] = pMP;
+//	mnNumMapPoint++;
+//}
+//void UVR_SLAM::MatchInfo::RemoveMP(int idx) {
+//	std::unique_lock<std::mutex>(mMutexMPs);
+//	mvpMatchingMPs[idx] = nullptr;
+//	mnNumMapPoint--;
+//}
+//UVR_SLAM::MapPoint*  UVR_SLAM::MatchInfo::GetMP(int idx) {
+//	std::unique_lock<std::mutex>(mMutexMPs);
+//	return mvpMatchingMPs[idx];
+//}
+int UVR_SLAM::MatchInfo::GetNumMPs() {
+	std::unique_lock<std::mutex>(mMutexMPs);
+	return mnNumMapPoint;
 }
-
 ////////20.09.05 수정 필요
-int UVR_SLAM::MatchInfo::GetNumMapPoints() {
-	std::unique_lock<std::mutex>(mMutexData);
-	return mnMatch;
-}
 int UVR_SLAM::MatchInfo::GetNumCPs() {
 	std::unique_lock<std::mutex>(mMutexCPs);
 	return mvpMatchingCPs.size();
@@ -1045,7 +1078,7 @@ void UVR_SLAM::MatchInfo::ConnectAll() {
 		auto pMPi = pCPi->GetMP();
 		if (!pMPi || !pMPi->GetQuality() || pMPi->isDeleted())
 			continue;
-		this->AddMP();
+		//this->AddMP(pMPi, i);
 		pMPi->ConnectFrame(this, i);
 		pMPi->IncreaseVisible();
 		pMPi->IncreaseFound();
@@ -1067,7 +1100,7 @@ void UVR_SLAM::MatchInfo::DisconnectAll() {
 		auto pMPi = pCPi->GetMP();
 		if (!pMPi || pMPi->isDeleted())
 			continue;
-		this->RemoveMP();
+		//this->RemoveMP(i);
 		pMPi->DisconnectFrame(this);
 	}
 }

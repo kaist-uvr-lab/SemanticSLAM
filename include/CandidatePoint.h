@@ -23,12 +23,12 @@ namespace UVR_SLAM {
 		int GetPointIndexInFrame(MatchInfo* pF);
 		float CalcParallax(cv::Mat Rkf1c, cv::Mat Rkf2c, cv::Point2f pt1, cv::Point2f pt2, cv::Mat invK);
 		cv::Mat Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2, bool& bRank);
-		cv::Point2f Projection(cv::Mat Xw, cv::Mat R, cv::Mat T, cv::Mat K, bool& bDepth);
+		cv::Point2f Projection(cv::Mat Xw, cv::Mat R, cv::Mat T, cv::Mat K, float& fDepth, bool& bDepth);
 		bool CheckDepth(float depth);
 		bool CheckReprojectionError(cv::Mat x3D, cv::Mat K, cv::Point2f pt, float thresh);
 		bool CheckReprojectionError(cv::Point2f pt1, cv::Point2f pt2, float thresh);
 		int GetNumSize();
-		
+		bool CreateMapPoint(cv::Mat& X3D, float& fDepth, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr);
 		void CreateMapPoint(cv::Mat& X3D, cv::Mat K,cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax, cv::Mat& debug);
 		//삼각화
 		//아웃라이어 체크(리프로젝션 에러)

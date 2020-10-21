@@ -27,7 +27,7 @@
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////Opticalflow ¹öÀü¿ë
-int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<cv::Point2f> vpPts)
+int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<cv::Point2f> vpPts, std::vector<bool>& vbInliers)
 {
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
@@ -59,7 +59,6 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 
 	std::vector<g2o::EdgeSE3ProjectXYZOnlyPose*> vpEdgesMono;
 	std::vector<size_t> vnIndexEdgeMono;
-	std::vector < bool> vbInliers;
 	vpEdgesMono.reserve(N);
 	vnIndexEdgeMono.reserve(N);
 
@@ -104,7 +103,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 
 			vpEdgesMono.push_back(e);
 			vnIndexEdgeMono.push_back(i);
-			vbInliers.push_back(true);
+			vbInliers[i] = true;
 		}
 	}
 	if (nInitialCorrespondences<3)
@@ -128,8 +127,8 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 		for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
 		{
 			g2o::EdgeSE3ProjectXYZOnlyPose* e = vpEdgesMono[i];
-
-			if (!vbInliers[i])
+			const size_t idx = vnIndexEdgeMono[i];
+			if (!vbInliers[idx])
 			{
 				e->computeError();
 			}
@@ -138,13 +137,13 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 
 			if (chi2>chi2Mono[it] || !e->isDepthPositive())
 			{
-				vbInliers[i] = false;
+				vbInliers[idx] = false;
 				e->setLevel(1);
 				nBad++;
 			}
 			else
 			{
-				vbInliers[i] = true;
+				vbInliers[idx] = true;
 				e->setLevel(0);
 			}
 			if (it == 2)
@@ -154,6 +153,8 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 		if (optimizer.edges().size()<10)
 			break;
 	}
+
+
 	for (size_t i = 0, iend = vnIndexEdgeMono.size(); i < iend; i++) {
 
 		const size_t idx = vnIndexEdgeMono[i];
@@ -507,7 +508,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 		{
 			auto pMatch = vToErase[i].first;
 			MapPoint* pMPi = vToErase[i].second;
-			pMatch->RemoveMP();
+			//pMatch->RemoveMP();
 			pMPi->DisconnectFrame(pMatch);
 		}
 	}

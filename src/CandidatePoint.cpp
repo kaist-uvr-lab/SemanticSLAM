@@ -70,7 +70,7 @@ namespace  UVR_SLAM{
 			mnConnectedFrames++;
 		}
 		else {
-			std::cout << "cp::connect::error::" << mnCandidatePointID << std::endl;
+			//std::cout << "cp::connect::error::" << mnCandidatePointID << std::endl;
 		}
 	}
 	
@@ -153,6 +153,35 @@ namespace  UVR_SLAM{
 		x3D = x3D.rowRange(0, 3) / x3D.at<float>(3);
 		return x3D.clone();
 	}
+	bool CandidatePoint::CreateMapPoint(cv::Mat& X3D, float& fDepth, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr) {
+		cv::Point2f ptBottom = cv::Point2f(0, 480);
+		MatchInfo* pFirst;
+		int idx;
+		{
+			std::unique_lock<std::mutex> lockMP(mMutexCP);
+			pFirst = mmpFrames.begin()->first;
+			idx = mmpFrames.begin()->second;
+		}
+		cv::Mat P, R, t, Rt;
+		auto pTargetKF = pFirst->mpRefFrame;
+		pTargetKF->GetPose(R, t);
+		cv::hconcat(R, t, P);
+		Rt = R.t();
+		auto ptFirst = pFirst->mvMatchingPts[idx];
+		
+		bool bRank = true;
+		X3D = Triangulate(ptFirst, ptCurr, K*P, K*Pcurr, bRank);
+
+		bool bd1, bd2;
+		float fDepth1;
+		auto pt1 = Projection(X3D, R, t, K, fDepth1, bd1); //first
+		auto pt2 = Projection(X3D, Rcurr, Tcurr, K, fDepth, bd2); //curr
+
+		if (bRank && bd1 && bd2 && CheckReprojectionError(pt1, ptFirst, 9.0) && CheckReprojectionError(pt2, ptCurr, 9.0)) {
+			return true;
+		}
+		return false;
+	}
 	void CandidatePoint::CreateMapPoint(cv::Mat& X3D, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax, cv::Mat& debug) {
 		cv::Point2f ptBottom = cv::Point2f(0, 480);
 		MatchInfo* pFirst;
@@ -179,8 +208,9 @@ namespace  UVR_SLAM{
 		X3D = Triangulate(ptFirst, ptCurr, K*P, K*Pcurr, bRank);
 
 		bool bd1, bd2;
-		auto pt1 = Projection(X3D, R, t, K, bd1); //first
-		auto pt2 = Projection(X3D, Rcurr, Tcurr, K, bd2); //curr
+		float fDepth1, fDepth2;
+		auto pt1 = Projection(X3D, R, t, K, fDepth1, bd1); //first
+		auto pt2 = Projection(X3D, Rcurr, Tcurr, K, fDepth2, bd2); //curr
 
 		cv::line(debug, pt1, ptFirst, cv::Scalar(255, 0, 255), 1);
 		cv::line(debug, pt2+ ptBottom, ptCurr+ ptBottom, cv::Scalar(255, 0, 255), 1);
@@ -207,12 +237,12 @@ namespace  UVR_SLAM{
 		float squareError1 = (reproj1.at<float>(0) - pt.x)*(reproj1.at<float>(0) - pt.x) + (reproj1.at<float>(1) - pt.y)*(reproj1.at<float>(1) - pt.y);
 		return squareError1 < thresh;
 	}
-	cv::Point2f CandidatePoint::Projection(cv::Mat Xw, cv::Mat R, cv::Mat T, cv::Mat K, bool& bDepth) {
+	cv::Point2f CandidatePoint::Projection(cv::Mat Xw, cv::Mat R, cv::Mat T, cv::Mat K, float& fDepth, bool& bDepth) {
 		cv::Mat Xcam = R * Xw + T;
 		cv::Mat Ximg = K*Xcam;
-		float depth = Ximg.at < float>(2);
-		bDepth = depth > 0.0;
-		return cv::Point2f(Ximg.at<float>(0) / Ximg.at < float>(2), Ximg.at<float>(1) / Ximg.at < float>(2));
+		fDepth = Ximg.at < float>(2);
+		bDepth = fDepth > 0.0;
+		return cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
 	}
 
 	/////////////////////////////

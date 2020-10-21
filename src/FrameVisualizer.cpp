@@ -39,6 +39,8 @@ namespace UVR_SLAM {
 				int nCP = pF->mpMatchInfo->GetNumCPs();
 				for (int i = 0; i < nCP; i++) {
 					auto pCPi = pF->mpMatchInfo->mvpMatchingCPs[i];
+					if (!pF->mpMatchInfo->mvbMapPointInliers[i])
+						continue;
 					auto pMPi = pCPi->GetMP();
 					if (!pMPi || pMPi->isDeleted() || !pMPi->GetQuality())
 						continue;

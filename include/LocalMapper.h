@@ -34,7 +34,7 @@ namespace UVR_SLAM {
 		
 		////////////////
 		void SetInitialKeyFrame(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2);
-		void InsertKeyFrame(UVR_SLAM::Frame *pKF);
+		void InsertKeyFrame(UVR_SLAM::Frame *pKF, bool bNeedCP = false, bool bNeedMP = false, bool bNeedPoseHandle = false);
 		//void InterruptLocalMapping();
 		bool CheckNewKeyFrames();
 		void ProcessNewKeyFrame();
@@ -42,6 +42,7 @@ namespace UVR_SLAM {
 		void CalculateKFConnections();
 
 	private:
+		int MappingProcess(Map* pMap, Frame* pCurrKF, double& dtime, cv::Mat& debugging);
 		int CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point2f> vMatchCurrPts, std::vector<CandidatePoint*> vMatchPrevCPs, double& ftime, cv::Mat& debugMatch);
 		int MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPrevKF, 
 			std::vector<cv::Point2f>& vMappingPrevPts, std::vector<cv::Point2f>& vMappingCurrPts, std::vector<CandidatePoint*>& vMappingCPs,
@@ -77,7 +78,7 @@ namespace UVR_SLAM {
 
 		//queue¿Í mvpNewMPs Ãß°¡
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
-		
+		bool mbNeedCP, mbNeedMP, mbNeedPoseHandle;
 		std::mutex mMutexNewKFs, mMutexStopLocalMapping;
 		bool mbStopBA, mbStopLocalMapping;
 		std::mutex mMutexDoingProcess;

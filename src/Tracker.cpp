@@ -47,6 +47,11 @@ UVR_SLAM::Tracker::Tracker(System* pSys, std::string strPath) : mpSystem(pSys), 
 	mnMaxFrames = 5;// 10;//fps;
 	mnMinFrames = 3; //fps / 3;//3
 
+	mnThreshMinCPs	 = fs["Tracker.MinCP"];
+	mnThreshMinMPs	 = fs["Tracker.MinMP"];
+	mnThreshDiff	 = fs["Tracker.MinDiff"];
+	mnThreshDiffPose = fs["Tracker.MinPoseHandle"];
+
 	mnWidth = fs["Image.width"];
 	mnHeight = fs["Image.height"];
 	mK2 = (cv::Mat_<float>(3, 3) << fx, 0, 0, 0, fy, 0, -fy*cx, -fx*cy, fx*fy); //line projection
@@ -67,23 +72,52 @@ void UVR_SLAM::Tracker::Init() {
 	mpLocalMapper = mpSystem->mpLocalMapper;
 	mpPlaneEstimator = mpSystem->mpPlaneEstimator;
 }
+bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, bool &bNeedCP, bool &bNeedMP, bool &bNeedPoseHandle) {
+	///////////////
+	//keyframe process
+	int nDiffCP = abs(mnPointMatching - mnPrevPointMatching);
+	int nDiffMP = abs(mnMapPointMatching - mnPrevMapPointMatching);
+	int nPoseFail = abs(mnPointMatching - mnMapPointMatching);
 
+	bool bDiffCP = nDiffCP > mnThreshDiff;
+	bool bDiffMP = nDiffMP > mnThreshDiff;
+	bool bPoseFail = nPoseFail > mnThreshDiffPose;
+	bool bDoingMapping = !mpLocalMapper->isDoingProcess();
+	bool bMaxFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
+	bool bMinFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMinFrames;
+
+	bool bMatchMP = mnMapPointMatching < mnThreshMinMPs;
+	bool bMatchCP = mnPointMatching < mnThreshMinCPs;
+	bNeedCP = bDiffCP || bMatchCP;
+	bNeedMP = bDiffMP || bMatchMP;
+	bNeedPoseHandle = bPoseFail;
+	if (bMinFrames && bDoingMapping && (bNeedCP || bNeedMP || bNeedPoseHandle)) {
+		return true;
+	}
+	return false;
+}
 UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev) {
 
 	///////////////
 	//keyframe process
-	int nDiff = mnPointMatching - mnMapPointMatching;
-	bool bDiff = nDiff > 50;
+	int nDiffCP = abs(mnPointMatching - mnPrevPointMatching);
+	int nDiffMP = abs(mnMapPointMatching - mnPrevMapPointMatching);
+	int nPoseFail = abs(mnPointMatching - mnMapPointMatching);
+
+	//bool bDiff = nDiff > 50;
+	bool bDiffCP = nDiffCP > 50;
+	bool bDiffMp = nDiffMP > 50;
+	bool bPoseFail = nPoseFail > 100;
 
 	//1 : rotation angle
 	bool bDoingMapping = !mpLocalMapper->isDoingProcess();
 	bool bRotation = pCurr->CalcDiffAngleAxis(mpRefKF) > 10.0;
 	bool bMaxFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
 	bool bMinFrames = pCurr->mnFrameID < mpRefKF->mnFrameID + mnMinFrames;
-	bool bDoingSegment = !mpSegmentator->isDoingProcess();
 
 	bool bMatchMapPoint = mnMapPointMatching < 200;
-	bool bMatchPoint = mnPointMatching < 500;
+	bool bMatchPoint = mnPointMatching < 350;
+	
 
 	//if ((bRotation || bMatchMapPoint || bMatchPoint || bMaxFrames) && bDoingSegment)
 	/*if ((bRotation || bMatchMapPoint || bKF || bAVG || bMaxFrames) && !bMinFrames && bDoingMapping)
@@ -132,7 +166,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			mpRefKF = pCurr;
 			mbInitilized = true;
 			mpSystem->SetBoolInit(true);
-			mnMapPointMatching = pCurr->mpMatchInfo->GetNumMapPoints();
+			mnPrevMapPointMatching = pCurr->mpMatchInfo->GetNumMPs();
+			mnPrevPointMatching = mnPrevMapPointMatching;
 		}
 	}
 	else {
@@ -142,7 +177,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		////MatchInfo 설정
 		mpRefKF->SetRecentTrackedFrameID(pCurr->mnFrameID);
 		pCurr->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, pCurr, mpRefKF, mnWidth, mnHeight);
-		
 		/*int Ncp = mpRefKF->mpMatchInfo->GetNumCPs();
 		for (int i = 0; i < Ncp; i++) {
 			mpRefKF->mpMatchInfo->mvpMatchingCPs[i]->GetFrames();
@@ -151,7 +185,12 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat prevR, prevT;
 		pPrev->GetPose(prevR, prevT);
 		pCurr->SetPose(prevR, prevT);
-		
+		{
+			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
+			while (!mpSystem->mbLocalMapUpdateEnd) {
+				mpSystem->cvUseLocalMap.wait(lock);
+			}
+		}
 		////MatchInfo 설정
 		//초기 매칭 테스트
 		std::vector<UVR_SLAM::MapPoint*> vpTempMPs;
@@ -164,24 +203,30 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat debugImg;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->mnHeight, pCurr->mnWidth, CV_8UC1);
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempCPs, vpTempPts);
-		//mpSystem->mbTrackingEnd = true;
+		pCurr->mpMatchInfo->InitMapPointInlierVector(mnPointMatching);
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
 
 		//graph-based
 		{
 			std::unique_lock<std::mutex> lock(mpMap->mMutexMapUdpate);
-			mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempCPs, vpTempPts);
+			mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempCPs, vpTempPts, pCurr->mpMatchInfo->mvbMapPointInliers);
 			int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vpTempPts);
 		}
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크
-		auto pNewKF = CheckNeedKeyFrame(pCurr, pPrev);
-		if (pNewKF) {
+		bool bNeedCP, bNeedMP, bNeedPoseHandle;
+		auto bNewKF = CheckNeedKeyFrame(pCurr, bNeedCP, bNeedMP, bNeedPoseHandle);
+		if (bNewKF) {
 			//auto pNewKF = pCurr;
 			//pNewKF->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-			mpRefKF = pNewKF;
-			mpLocalMapper->InsertKeyFrame(pNewKF);
+			mpRefKF = pCurr;
+			mpLocalMapper->InsertKeyFrame(pCurr, bNeedCP, bNeedMP, bNeedPoseHandle);
+
+			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
+			mpSystem->mbLocalMappingEnd = false;
 		}
+		mnPrevPointMatching = mnPointMatching;
+		mnPrevMapPointMatching = mnMapPointMatching;
 
 		////////Visualization & 시간 계산
 		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
@@ -228,9 +273,11 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pCurr, std::vector<UV
 		auto pCP = vpCPs[i];
 		auto pt = vpPts[i];
 		if (pMatchInfo->CheckOpticalPointOverlap(mpSystem->mnRadius, mpSystem->mnRadius, pt) < 0) {
-			pMatchInfo->AddCP(pCP, pt);
+			int idx = pMatchInfo->AddCP(pCP, pt);
+			//pCP->ConnectFrame(pMatchInfo, idx);
 		}
 	}
+	
 	return 0;
 }
 

@@ -183,7 +183,7 @@ namespace UVR_SLAM {
 			}
 			else
 			{
-				pKF->RemoveMP();
+				//pKF->RemoveMP();
 			}
 		}
 		pMP->IncreaseFound(nfound);
@@ -246,7 +246,7 @@ namespace UVR_SLAM {
 			for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
 				auto* pF = iter->first;
 				auto idx = iter->second;
-				pF->RemoveMP();
+				//pF->RemoveMP(idx);
 			}
 			mnConnectedFrames = 0;
 			mmpFrames.clear();
