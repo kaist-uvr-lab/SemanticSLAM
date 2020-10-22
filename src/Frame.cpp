@@ -963,14 +963,8 @@ void UVR_SLAM::MatchInfo::SetLabel() {
 }
 
 //새로운 맵포인트를 생성하기 위한 키포인트를 생성.
+//커넥트 프레임X
 void UVR_SLAM::MatchInfo::SetMatchingPoints() {
-	/*int N = this->GetNumCPs();
-	if (N > 600){
-		return;
-	}
-	mpRefFrame->DetectFeature();
-	mpRefFrame->SetBowVec(mpSystem->fvoc);
-	mpRefFrame->DetectEdge();*/
 
 	int nCP = this->GetNumCPs();
 	//int nMax = (mpSystem->mnMaxMP+100-nCP)/2;//150; //둘다 하면 500
@@ -995,13 +989,10 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 		auto pCP = new UVR_SLAM::CandidatePoint(this);
 		int idx = this->AddCP(pCP, pt);
-		pCP->ConnectFrame(this, idx);
+		//pCP->ConnectFrame(this, idx);
 	}
 	for (int i = 0; i < mpRefFrame->mvPts.size(); i+= nIncORB) {
 		auto pt = mpRefFrame->mvPts[i];
-		/*if (CheckOpticalPointOverlap(1, 10, pt)>-1) {
-			continue;
-		}*/
 		bool b1 = CheckOpticalPointOverlap(1, 10, pt) > -1;
 		bool b2 = !CheckOpticalPointOverlap(currMap, mpSystem->mnRadius, 10, pt);
 		if (b1 || b2) {
@@ -1010,14 +1001,16 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 		auto pCP = new UVR_SLAM::CandidatePoint(this, mpRefFrame->mvnOctaves[i]);
 		int idx = this->AddCP(pCP, pt);
-		pCP->ConnectFrame(this, idx);
+		//pCP->ConnectFrame(this, idx);
 	}
 }
 
 void UVR_SLAM::MatchInfo::InitMapPointInlierVector(int N) {
 	//int N = GetNumCPs();
-	std::unique_lock<std::mutex>(mMutexMPs);
-	mnNumMapPoint = 0;
+	{
+		std::unique_lock<std::mutex>(mMutexMPs);
+		mnNumMapPoint = 0;
+	}
 	mvbMapPointInliers = std::vector<bool>(N, false);
 }
 //void UVR_SLAM::MatchInfo::AddMP(MapPoint* pMP, int idx) {
@@ -1096,7 +1089,7 @@ void UVR_SLAM::MatchInfo::DisconnectAll() {
 		auto pCPi = mvpMatchingCPs[i];
 		if (!pCPi)
 			continue;
-		//pCPi->DisconnectFrame(this);
+		pCPi->DisconnectFrame(this);
 		auto pMPi = pCPi->GetMP();
 		if (!pMPi || pMPi->isDeleted())
 			continue;

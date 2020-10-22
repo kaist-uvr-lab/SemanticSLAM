@@ -34,7 +34,7 @@ namespace UVR_SLAM {
 		
 		////////////////
 		void SetInitialKeyFrame(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2);
-		void InsertKeyFrame(UVR_SLAM::Frame *pKF, bool bNeedCP = false, bool bNeedMP = false, bool bNeedPoseHandle = false);
+		void InsertKeyFrame(UVR_SLAM::Frame *pKF, bool bNeedCP = false, bool bNeedMP = false, bool bNeedPoseHandle = false, bool bNeedNewKF = false);
 		//void InterruptLocalMapping();
 		bool CheckNewKeyFrames();
 		void ProcessNewKeyFrame();
@@ -78,7 +78,7 @@ namespace UVR_SLAM {
 
 		//queue¿Í mvpNewMPs Ãß°¡
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
-		bool mbNeedCP, mbNeedMP, mbNeedPoseHandle;
+		bool mbNeedCP, mbNeedMP, mbNeedPoseHandle, mbNeedNewKF;
 		std::mutex mMutexNewKFs, mMutexStopLocalMapping;
 		bool mbStopBA, mbStopLocalMapping;
 		std::mutex mMutexDoingProcess;

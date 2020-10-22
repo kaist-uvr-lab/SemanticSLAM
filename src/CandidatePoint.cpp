@@ -91,9 +91,9 @@ namespace  UVR_SLAM{
 					mbDelete = true;*/
 			}
 		}
-		if (mbDelete) {
+		/*if (mbDelete) {
 			Delete();
-		}
+		}*/
 	}
 
 	void CandidatePoint::Delete() {

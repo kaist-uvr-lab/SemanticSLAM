@@ -72,7 +72,7 @@ void UVR_SLAM::Tracker::Init() {
 	mpLocalMapper = mpSystem->mpLocalMapper;
 	mpPlaneEstimator = mpSystem->mpPlaneEstimator;
 }
-bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, bool &bNeedCP, bool &bNeedMP, bool &bNeedPoseHandle) {
+bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, bool &bNeedCP, bool &bNeedMP, bool &bNeedPoseHandle, bool &bNeedNewKF) {
 	///////////////
 	//keyframe process
 	int nDiffCP = abs(mnPointMatching - mnPrevPointMatching);
@@ -82,6 +82,7 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, bool &bNeedCP, bool &bNe
 	bool bDiffCP = nDiffCP > mnThreshDiff;
 	bool bDiffMP = nDiffMP > mnThreshDiff;
 	bool bPoseFail = nPoseFail > mnThreshDiffPose;
+	
 	bool bDoingMapping = !mpLocalMapper->isDoingProcess();
 	bool bMaxFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
 	bool bMinFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMinFrames;
@@ -91,10 +92,12 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, bool &bNeedCP, bool &bNe
 	bNeedCP = bDiffCP || bMatchCP;
 	bNeedMP = bDiffMP || bMatchMP;
 	bNeedPoseHandle = bPoseFail;
-	if (bMinFrames && bDoingMapping && (bNeedCP || bNeedMP || bNeedPoseHandle)) {
+	bNeedNewKF = bMinFrames;
+	return bDoingMapping && (bNeedCP || bNeedMP || bNeedPoseHandle || bNeedNewKF);
+	/*if (bMinFrames && bDoingMapping && (bNeedCP || bNeedMP || bNeedPoseHandle)) {
 		return true;
 	}
-	return false;
+	return false;*/
 }
 UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev) {
 
@@ -177,19 +180,12 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		////MatchInfo 설정
 		mpRefKF->SetRecentTrackedFrameID(pCurr->mnFrameID);
 		pCurr->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, pCurr, mpRefKF, mnWidth, mnHeight);
-		/*int Ncp = mpRefKF->mpMatchInfo->GetNumCPs();
-		for (int i = 0; i < Ncp; i++) {
-			mpRefKF->mpMatchInfo->mvpMatchingCPs[i]->GetFrames();
-		}*/
-
 		cv::Mat prevR, prevT;
 		pPrev->GetPose(prevR, prevT);
 		pCurr->SetPose(prevR, prevT);
 		{
 			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
-			while (!mpSystem->mbLocalMapUpdateEnd) {
-				mpSystem->cvUseLocalMap.wait(lock);
-			}
+			mpSystem->cvUseLocalMapping.wait(lock, [&] {return mpSystem->mbLocalMappingEnd; });
 		}
 		////MatchInfo 설정
 		//초기 매칭 테스트
@@ -205,29 +201,23 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempCPs, vpTempPts);
 		pCurr->mpMatchInfo->InitMapPointInlierVector(mnPointMatching);
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
-
-		//graph-based
-		{
-			std::unique_lock<std::mutex> lock(mpMap->mMutexMapUdpate);
-			mnMapPointMatching = Optimization::PoseOptimization(pCurr, vpTempCPs, vpTempPts, pCurr->mpMatchInfo->mvbMapPointInliers);
-			int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vpTempPts);
-		}
+		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vpTempPts, pCurr->mpMatchInfo->mvbMapPointInliers);
+		int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vpTempPts);
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크
-		bool bNeedCP, bNeedMP, bNeedPoseHandle;
-		auto bNewKF = CheckNeedKeyFrame(pCurr, bNeedCP, bNeedMP, bNeedPoseHandle);
+		bool bNeedCP, bNeedMP, bNeedPoseHandle, bNeedNewKF;
+		auto bNewKF = CheckNeedKeyFrame(pCurr, bNeedCP, bNeedMP, bNeedPoseHandle, bNeedNewKF);
 		if (bNewKF) {
-			//auto pNewKF = pCurr;
-			//pNewKF->TurnOnFlag(UVR_SLAM::FLAG_KEY_FRAME);
-			mpRefKF = pCurr;
-			mpLocalMapper->InsertKeyFrame(pCurr, bNeedCP, bNeedMP, bNeedPoseHandle);
-
-			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
-			mpSystem->mbLocalMappingEnd = false;
+			if (bNeedCP) {
+				std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
+				mpSystem->mbLocalMappingEnd = false;
+			}
+			if(bNeedNewKF)
+				mpRefKF = pCurr;
+			mpLocalMapper->InsertKeyFrame(pCurr, bNeedCP, bNeedMP, bNeedPoseHandle, bNeedNewKF);
 		}
 		mnPrevPointMatching = mnPointMatching;
 		mnPrevMapPointMatching = mnMapPointMatching;
-
 		////////Visualization & 시간 계산
 		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 		auto duration1 = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_a - tracking_start).count();

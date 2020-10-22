@@ -32,7 +32,7 @@ namespace UVR_SLAM {
 		
 	private:
 		UVR_SLAM::Frame* CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev);
-		bool CheckNeedKeyFrame(Frame* pCurr, bool &bOpt1, bool &bOpt2, bool &bOpt3);
+		bool CheckNeedKeyFrame(Frame* pCurr, bool &bOpt1, bool &bOpt2, bool &bOpt3, bool &bOpt4);
 		int UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers, std::vector<int> vnIDXs, std::vector<int> vnMPIDXs);
 		int UpdateMatchingInfo(UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::CandidatePoint*> vpCPs,  std::vector<cv::Point2f> vpPts);
 	private:

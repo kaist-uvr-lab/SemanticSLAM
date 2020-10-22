@@ -13,7 +13,7 @@ namespace UVR_SLAM {
 	}
 	void LoopCloser::Run() {
 
-		while (1) {
+		while (false) {
 			if (CheckNewKeyFrames()) {
 				SetBoolProcessing(true);
 				ProcessNewKeyFrame();

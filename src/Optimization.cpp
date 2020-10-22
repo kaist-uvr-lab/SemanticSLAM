@@ -27,8 +27,10 @@
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////Opticalflow 버전용
-int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<cv::Point2f> vpPts, std::vector<bool>& vbInliers)
+int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<cv::Point2f> vpPts, std::vector<bool>& vbInliers)
 {
+	std::unique_lock<std::mutex> lock(pMap->mMutexMapUdpate);
+
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
 
@@ -320,6 +322,8 @@ int UVR_SLAM::Optimization::PoseOptimization(Frame *pFrame, std::vector<UVR_SLAM
 
 void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, UVR_SLAM::MapOptimizer* pMapOptimizer, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<UVR_SLAM::Frame*> vpKFs, std::vector<UVR_SLAM::Frame*> vpFixedKFs) {
 
+	//std::unique_lock<std::mutex> lock(pMap->mMutexMapOptimization);
+
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
 
@@ -501,7 +505,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 			vToErase.push_back(std::make_pair(pKFi->mpMatchInfo, pMP));
 		}
 	}
-
+	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
 	if (!vToErase.empty())
 	{
 		for (size_t i = 0; i<vToErase.size(); i++)
@@ -528,7 +532,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 		t = Tcw.rowRange(0, 3).col(3);
 		pKF->SetPose(R, t);
 	}
-	std::unique_lock<std::mutex> lock(pMap->mMutexMapUdpate);
+	
 	for (int i = 0; i < vpMPs.size(); i++)
 	{
 		MapPoint* pMP = vpMPs[i];
@@ -882,6 +886,9 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 ////Opticalflow 버전용
 
 void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame* pCurrKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers, float scale) {
+	
+	//std::unique_lock<std::mutex> lock(pMap->mMutexMapOptimization);
+
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
 
@@ -1012,6 +1019,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		t = Tcw.rowRange(0, 3).col(3);
 		pCurrKF->SetPose(R, t);
 	}
+	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
 	////포인트 복원
 	for (size_t i = 0; i<vX3Ds.size(); i++)
 	{
@@ -1026,6 +1034,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 				int label = pCPi->GetLabel();
 				auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCPi, vX3Ds[i], cv::Mat(), label, pCPi->octave);
 				pMP->SetOptimization(true);
+				pSystem->mlpNewMPs.push_back(pMP);
 			}
 			else if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
 				pMPi->SetWorldPos(std::move(vX3Ds[i]));

@@ -56,7 +56,7 @@ namespace UVR_SLAM {
 				}
 				
 				std::stringstream ss;
-				ss << "Traking = "<<mpKeyFrame->mnKeyFrameID<<", "<<mpFrame->mnFrameID<<", "<< nMatch << "::" <<mfTime<< "::";
+				ss << "Traking = "<<mpKeyFrame->mnKeyFrameID<<", "<<mpFrame->mnFrameID<<"="<<nCP<<"::"<< nMatch << "::" <<mfTime<< "::";
 				cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
 				cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 
