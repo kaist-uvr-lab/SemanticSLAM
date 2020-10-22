@@ -90,7 +90,7 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, bool &bNeedCP, bool &bNe
 	bool bMatchMP = mnMapPointMatching < mnThreshMinMPs;
 	bool bMatchCP = mnPointMatching < mnThreshMinCPs;
 	bNeedCP = bDiffCP || bMatchCP;
-	bNeedMP = bDiffMP || bMatchMP;
+	bNeedMP = (bDiffMP || bMatchMP) && bMinFrames;
 	bNeedPoseHandle = bPoseFail;
 	bNeedNewKF = bMinFrames;
 	return bDoingMapping && (bNeedCP || bNeedMP || bNeedPoseHandle || bNeedNewKF);
@@ -185,7 +185,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		pCurr->SetPose(prevR, prevT);
 		{
 			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
-			mpSystem->cvUseLocalMapping.wait(lock, [&] {return mpSystem->mbLocalMappingEnd; });
+			mpSystem->cvUseLocalMapping.wait(lock, [&] {return mpSystem->mbLocalMappingEnd;});
 		}
 		////MatchInfo 설정
 		//초기 매칭 테스트
@@ -212,7 +212,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
 				mpSystem->mbLocalMappingEnd = false;
 			}
-			if(bNeedNewKF)
+			if(bNeedNewKF || bNeedMP)
 				mpRefKF = pCurr;
 			mpLocalMapper->InsertKeyFrame(pCurr, bNeedCP, bNeedMP, bNeedPoseHandle, bNeedNewKF);
 		}
@@ -232,7 +232,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 		/////////트래킹 결과 이미지 저장
 		//visualizer thread
-		//mpVisualizer->SetMPs(vpTempMPs);
 		if (!mpVisualizer->isDoingProcess()) {
 			mpVisualizer->SetMatchInfo(pCurr->mpMatchInfo);
 			mpVisualizer->SetBoolDoingProcess(true);

@@ -117,22 +117,23 @@ void UVR_SLAM::MapOptimizer::Run() {
 				vpKFs.push_back(pKF);
 			}
 
-			for (int k = 0; k < vpKFs.size(); k++){
+			for (size_t k = 0, kend= vpKFs.size(); k < kend; k++){
 				auto pKFi = vpKFs[k];
 				auto matchInfo = pKFi->mpMatchInfo;
-				std::vector<MapPoint*> mvpMatchingMPs;
-				auto mvpMatchingPTs = matchInfo->GetMatchingPts(mvpMatchingMPs);
-				for (int i = 0; i < mvpMatchingMPs.size(); i++) {
-					auto pMPi = mvpMatchingMPs[i];
+				auto vpCPs = matchInfo->mvpMatchingCPs;
+				auto vPTs = matchInfo->mvMatchingPts;
+				for (size_t i = 0, iend = vpCPs.size(); i < iend; i++){
+					auto pCPi = vpCPs[i];
+					auto pMPi = pCPi->GetMP();
 					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID || !pMPi->GetQuality() || pMPi->GetNumConnectedFrames() < 3) {
 						continue;
 					}
 					////镊府萍 眉农
-					pMPi->ComputeQuality();
+					/*pMPi->ComputeQuality();
 					if (!pMPi->GetQuality()){
 						pMPi->Delete();
 						continue;
-					}
+					}*/
 					////镊府萍 眉农
 					pMPi->mnLocalBAID = nTargetID;
 					vpMPs.push_back(pMPi);
@@ -173,9 +174,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 				int nKF = lpKFs.size();
 				auto lastKF = vpKFs[nKF - 1];
 				auto lastMatch = lastKF->mpMatchInfo;
-				//std::vector<MapPoint*> vpMPs;
-				//auto vPTs = lastKF->mpMatchInfo->GetMatchingPts(vpMPs);
-
+				
 				cv::Scalar color1(0, 0, 255);
 				cv::Scalar color2(0, 255, 0);
 				cv::Scalar color3(255, 0, 0);
@@ -191,8 +190,8 @@ void UVR_SLAM::MapOptimizer::Run() {
 					cv::Mat R, t;
 					pKFi->GetPose(R, t);
 
-					int nCP = pMatch->GetNumCPs();
-					for (int j = 0; j < nCP; j++) {
+					
+					for (size_t j = 0, jend = pMatch->mvpMatchingCPs.size(); j < jend; j++){
 						auto pCPi = pMatch->mvpMatchingCPs[j];
 						auto pt = pMatch->mvMatchingPts[j];
 						auto pMPi = pCPi->GetMP();

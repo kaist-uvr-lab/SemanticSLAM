@@ -54,13 +54,8 @@ namespace UVR_SLAM {
 	public:
 		int AddCP(CandidatePoint* pCP, cv::Point2f pt);
 		void RemoveCP(int idx);
-		int nPrevNumCPs;//체크
-		int GetNumCPs();
 		std::vector<cv::Point2f> GetMatchingPts();
-		std::vector<cv::Point2f> GetMatchingPts(std::vector<UVR_SLAM::MapPoint*>& vpMPs);
 		std::vector<cv::Point2f> GetMatchingPtsMapping(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs);
-		int GetMatchingPtsTracking(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vPTs);
-		
 		int CheckOpticalPointOverlap(int radius, int margin, cv::Point2f pt); //확인 후 삭제.
 		bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt); //확인 후 삭제.
 
@@ -77,7 +72,7 @@ namespace UVR_SLAM {
 		//std::multimap<int, std::list<CandidatePoint*>> mmLabelCPs;
 		std::multimap<int,std::pair<cv::Rect, std::list<CandidatePoint*>>> mmLabelRectCPs;
 	private:
-		std::mutex mMutexCPs;
+		std::mutex mMutexCPs; //cp vector는 이미 완성된 상태임.
 		cv::Mat mMapCP; //현재 이미지 내에 CP의 포인트 위치 & 인덱스, ushort, 16US1
 	public:
 		int GetNumMPs();

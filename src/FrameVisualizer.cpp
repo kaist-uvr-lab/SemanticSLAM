@@ -35,9 +35,14 @@ namespace UVR_SLAM {
 				cv::Mat R = pF->GetRotation();
 				cv::Mat t = pF->GetTranslation();
 				std::vector<MapPoint*> vpMPs;
+
+				{
+					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
+					mpSystem->cvUseLocalMapping.wait(lock, [&] {return mpSystem->mbLocalMappingEnd; });
+				}
+
 				int nMatch = 0;
-				int nCP = pF->mpMatchInfo->GetNumCPs();
-				for (int i = 0; i < nCP; i++) {
+				for (size_t i = 0, iend = pF->mpMatchInfo->mvbMapPointInliers.size(); i < iend; i++){
 					auto pCPi = pF->mpMatchInfo->mvpMatchingCPs[i];
 					if (!pF->mpMatchInfo->mvbMapPointInliers[i])
 						continue;
@@ -56,7 +61,7 @@ namespace UVR_SLAM {
 				}
 				
 				std::stringstream ss;
-				ss << "Traking = "<<mpKeyFrame->mnKeyFrameID<<", "<<mpFrame->mnFrameID<<"="<<nCP<<"::"<< nMatch << "::" <<mfTime<< "::";
+				ss << "Traking = "<<mpKeyFrame->mnKeyFrameID<<", "<<mpFrame->mnFrameID<<"="<< pF->mpMatchInfo->mvpMatchingCPs.size() <<"::"<< nMatch << "::" <<mfTime<< "::";
 				cv::rectangle(vis, cv::Point2f(0, 0), cv::Point2f(vis.cols, 30), cv::Scalar::all(0), -1);
 				cv::putText(vis, ss.str(), cv::Point2f(0, 20), 2, 0.6, cv::Scalar::all(255));
 

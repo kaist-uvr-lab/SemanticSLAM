@@ -192,41 +192,41 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			vpKFs.push_back(mpTargetFrame);
 			for (int i = 0; i < vpKFs.size(); i++)
 			{
-				auto pKFi = vpKFs[i];
-				auto matchInfo = pKFi->mpMatchInfo;
-				int tempFrameID = pKFi->GetRecentTrackedFrameID();
-				std::vector<MapPoint*> mvpMatchingMPs;
-				auto mvMatchingPts = matchInfo->GetMatchingPts(mvpMatchingMPs);
-				for (int k = 0; k < mvpMatchingMPs.size(); k++) {
-					auto pMP = mvpMatchingMPs[k];
-					int label = pMP->GetLabel();
-					//int label = matchInfo->mvObjectLabels[k];
+				//auto pKFi = vpKFs[i];
+				//auto matchInfo = pKFi->mpMatchInfo;
+				//int tempFrameID = pKFi->GetRecentTrackedFrameID();
+				//std::vector<MapPoint*> mvpMatchingMPs;
+				//auto mvMatchingPts = matchInfo->GetMatchingPts(mvpMatchingMPs);
+				//for (int k = 0; k < mvpMatchingMPs.size(); k++) {
+				//	auto pMP = mvpMatchingMPs[k];
+				//	int label = pMP->GetLabel();
+				//	//int label = matchInfo->mvObjectLabels[k];
 
-					//if (!pMP || pMP->isDeleted() || pMP->GetRecentTrackingFrameID() < tempFrameID)
-					if (!pMP || pMP->isDeleted())
-						continue;
-					
-					if (label == 150) {
-						if (pMP->GetRecentLayoutFrameID() != nLayoutFloor && pMP->GetNumConnectedFrames() >= 7) {
-							pMP->SetRecentLayoutFrameID(nLayoutFloor);
-							mvpFloorMPs.push_back(pMP);
-						}
-						pMP->SetPlaneID(1);
-					}
-					else if (label == 255 && pMP->GetRecentLayoutFrameID() != nLayoutWall) {
-						if (pMP->GetNumConnectedFrames()>=7) {
-							pMP->SetRecentLayoutFrameID(nLayoutWall);
-							mvpWallMPs.push_back(pMP);
-						}
-					}
-					else if (label == 100) {
-						if (pMP->GetRecentLayoutFrameID() != nLayoutCeil && pMP->GetNumConnectedFrames() >= 7) {
-							pMP->SetRecentLayoutFrameID(nLayoutCeil);
-							mvpCeilMPs.push_back(pMP);
-						}
-						pMP->SetPlaneID(2);
-					}
-				}
+				//	//if (!pMP || pMP->isDeleted() || pMP->GetRecentTrackingFrameID() < tempFrameID)
+				//	if (!pMP || pMP->isDeleted())
+				//		continue;
+				//	
+				//	if (label == 150) {
+				//		if (pMP->GetRecentLayoutFrameID() != nLayoutFloor && pMP->GetNumConnectedFrames() >= 7) {
+				//			pMP->SetRecentLayoutFrameID(nLayoutFloor);
+				//			mvpFloorMPs.push_back(pMP);
+				//		}
+				//		pMP->SetPlaneID(1);
+				//	}
+				//	else if (label == 255 && pMP->GetRecentLayoutFrameID() != nLayoutWall) {
+				//		if (pMP->GetNumConnectedFrames()>=7) {
+				//			pMP->SetRecentLayoutFrameID(nLayoutWall);
+				//			mvpWallMPs.push_back(pMP);
+				//		}
+				//	}
+				//	else if (label == 100) {
+				//		if (pMP->GetRecentLayoutFrameID() != nLayoutCeil && pMP->GetNumConnectedFrames() >= 7) {
+				//			pMP->SetRecentLayoutFrameID(nLayoutCeil);
+				//			mvpCeilMPs.push_back(pMP);
+				//		}
+				//		pMP->SetPlaneID(2);
+				//	}
+				//}
 			}
 			//랜덤인덱스 설정
 			int nMax = max(mvpFloorMPs.size(), max(mvpWallMPs.size(), mvpCeilMPs.size()));
@@ -261,26 +261,26 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 			////////////////////현재 프레임에서만 후보 포인트 추가
 			std::vector<MapPoint*> pprevMatchingMPs;
-			auto pprevMatchingPTs = prevPrevMatchInfo->GetMatchingPts(pprevMatchingMPs);
 			std::vector<UVR_SLAM::MapPoint*> vpCurrFloorMPs, vpCurrCeilMPs, vpCurrWallMPs;
-			for (int k = 0; k < pprevMatchingMPs.size(); k++) {
-				auto pMP = pprevMatchingMPs[k];
-				int label = pMP->GetLabel();
+			//auto pprevMatchingPTs = prevPrevMatchInfo->GetMatchingPts(pprevMatchingMPs);
+			//for (int k = 0; k < pprevMatchingMPs.size(); k++) {
+			//	auto pMP = pprevMatchingMPs[k];
+			//	int label = pMP->GetLabel();
 
-				if (!pMP || pMP->isDeleted())
-					continue;
-				if (label == 255) {
-					vpCurrWallMPs.push_back(pMP);
-				}
-				if (label == 150) {
-					vpCurrFloorMPs.push_back(pMP);
-					//pMP->SetPlaneID(pF);
-				}
-				if (label == 100) {
-					vpCurrCeilMPs.push_back(pMP);
-					//pMP->SetPlaneID(2);
-				}
-			}
+			//	if (!pMP || pMP->isDeleted())
+			//		continue;
+			//	if (label == 255) {
+			//		vpCurrWallMPs.push_back(pMP);
+			//	}
+			//	if (label == 150) {
+			//		vpCurrFloorMPs.push_back(pMP);
+			//		//pMP->SetPlaneID(pF);
+			//	}
+			//	if (label == 100) {
+			//		vpCurrCeilMPs.push_back(pMP);
+			//		//pMP->SetPlaneID(2);
+			//	}
+			//}
 			////////////////////현재 프레임에서만 후보 포인트 추가
 
 			/////////////////////////////////////////////////////////////////////

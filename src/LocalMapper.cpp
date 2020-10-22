@@ -69,8 +69,8 @@ void UVR_SLAM::LocalMapper::InsertKeyFrame(UVR_SLAM::Frame *pKF, bool bNeedCP, b
 	mbNeedMP = bNeedMP;
 	mbNeedPoseHandle = bNeedPoseHandle;
 	mbNeedNewKF = bNeedNewKF;
-	if (mbNeedPoseHandle)
-		std::cout << "Need Pose Handler!!!" << std::endl;
+	/*if (mbNeedPoseHandle)
+		std::cout << "Need Pose Handler!!!" << std::endl;*/
 }
 
 bool UVR_SLAM::LocalMapper::CheckNewKeyFrames()
@@ -157,9 +157,9 @@ void UVR_SLAM::LocalMapper::Run() {
 					mpTargetFrame->mpMatchInfo->SetMatchingPoints();
 					mpSystem->mbLocalMappingEnd = true;
 					lock.unlock();
-					mpSystem->cvUseLocalMapping.notify_one();
+					mpSystem->cvUseLocalMapping.notify_all();
 				}
-				std::cout << "LM::CP::" << mpTargetFrame->mpMatchInfo->GetNumCPs() << std::endl;
+				std::cout << "LM::CP::" << mpTargetFrame->mnFrameID <<"::"<< mpTargetFrame->mpMatchInfo->mvpMatchingCPs.size() << std::endl;
 			}
 
 			int nCreated = 0;
@@ -179,8 +179,10 @@ void UVR_SLAM::LocalMapper::Run() {
 				mpTargetFrame->mpMatchInfo->UpdateKeyFrame();
 				
 				NewMapPointMarginalization();
-				if (bNeedMP)
+				if (bNeedMP){
 					nCreated = MappingProcess(mpMap, mpTargetFrame, time2, debugMatch);
+					std::cout << "LM::MP::" <<mpTargetFrame->mnFrameID<<"::"<< nCreated << std::endl;
+				}
 				auto pTarget = mpMap->AddWindowFrame(mpTargetFrame);
 				if (pTarget) {
 					mpSegmentator->InsertKeyFrame(pTarget);
@@ -194,7 +196,6 @@ void UVR_SLAM::LocalMapper::Run() {
 				else {
 					mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
 				}
-				std::cout << "LM::MP::" << nCreated << std::endl;
 			}
 			else {
 				mpTargetFrame = mpPrevKeyFrame;
@@ -204,9 +205,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			cv::Mat resized;
 			cv::resize(debugMatch, resized, cv::Size(debugMatch.cols / 2, debugMatch.rows / 2));
 			mpVisualizer->SetOutputImage(resized, 3);
-			if (bNeedNewKF) {
-				
-			}
+			
 			/////프레임 퀄리티 계산
 			//bool bLowQualityFrame = mpTargetFrame->mpMatchInfo->UpdateFrameQuality();
 			//
@@ -790,6 +789,10 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 	}
 
 	/////////Scale 계산
+	if (vfScales.size() < 10){
+		std::cout << "포인트 부족22" << std::endl;
+		return -1;
+	}
 	std::nth_element(vfScales.begin(), vfScales.begin() + vfScales.size() / 2, vfScales.end());
 	float medianPrevScale = vfScales[vfScales.size() / 2];
 	/////////Scale 계산

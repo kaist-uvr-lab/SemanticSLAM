@@ -2,6 +2,7 @@
 #include <Frame.h>
 #include <MapPoint.h>
 #include <System.h>
+#include <CandidatePoint.h>
 #include <PlaneEstimator.h>
 #include <Map.h>
 #include <MapGrid.h>
@@ -228,7 +229,7 @@ void UVR_SLAM::Visualizer::Run() {
 		colors.push_back(cv::Scalar(tempColors[i].val[0], tempColors[i].val[1], tempColors[i].val[2]));
 	}
 	SetAxisMode();
-	while (1) {
+	while (true) {
 		
 		if (bSaveMap) {
 			auto frames = mpMap->GetGraphFrames();
@@ -395,28 +396,32 @@ void UVR_SLAM::Visualizer::Run() {
 
 				////////////////////////////////////////////////////////////
 				/////트래킹 결과 출력
-				if (pMatchInfo) {
-					auto lastBAFrame = pMatchInfo->mpTargetFrame;
-					std::vector<MapPoint*> mvpMatchingMPs;
-					auto mvpMatchingPts = pMatchInfo->GetMatchingPts(mvpMatchingMPs);
-					for (int i = 0; i < mvpMatchingPts.size(); i++) {
-						auto pMPi = mvpMatchingMPs[i];
-						auto label = pMPi->GetLabel();
-						if (!pMPi || pMPi->isDeleted())
-							continue;
-						cv::Mat x3D = pMPi->GetWorldPos();
-						cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
-						tpt += mVisMidPt;
-						/*cv::Scalar color = cv::Scalar(125,125,125);
-						if (label == 255)
-							color = cv::Scalar(255, 0, 0);
-						else if (label == 150)
-							color = cv::Scalar(0, 0, 255);*/
-						cv::circle(tempVis, tpt, 2, UVR_SLAM::ObjectColors::mvObjectLabelColors[label], -1);
-					}
-					
-					////tracking results
-				}
+				//if (pMatchInfo) {
+				//	auto lastBAFrame = pMatchInfo->mpTargetFrame;
+				//	{
+				//		std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
+				//		mpSystem->cvUseLocalMapping.wait(lock, [&] {return mpSystem->mbLocalMappingEnd; });
+				//	}
+				//	auto vpCPs = pMatchInfo->mvpMatchingCPs;
+				//	for(size_t i = 0, iend = vpCPs.size(); i < iend; i++){
+				//		auto pCPi = vpCPs[i];
+				//		auto pMPi = pCPi->GetMP();
+				//		auto label = pMPi->GetLabel();
+				//		if (!pMPi || pMPi->isDeleted())
+				//			continue;
+				//		cv::Mat x3D = pMPi->GetWorldPos();
+				//		cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
+				//		tpt += mVisMidPt;
+				//		/*cv::Scalar color = cv::Scalar(125,125,125);
+				//		if (label == 255)
+				//			color = cv::Scalar(255, 0, 0);
+				//		else if (label == 150)
+				//			color = cv::Scalar(0, 0, 255);*/
+				//		cv::circle(tempVis, tpt, 2, UVR_SLAM::ObjectColors::mvObjectLabelColors[label], -1);
+				//	}
+				//	
+				//	////tracking results
+				//}
 				/////트래킹 결과 출력
 				////////////////////////////////////////////////////////////
 				}

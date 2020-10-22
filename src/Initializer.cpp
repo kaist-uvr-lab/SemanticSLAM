@@ -272,12 +272,12 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		/////////////레이아웃 추정
 
 		////CP 추가
-		if(mpInitFrame2->mpMatchInfo->GetNumCPs() < mpSystem->mnMaxMP){
+		if(mpInitFrame2->mpMatchInfo->mvpMatchingCPs.size() < mpSystem->mnMaxMP){
 			mpInitFrame2->DetectFeature();
 			mpInitFrame2->DetectEdge();
 			mpInitFrame2->mpMatchInfo->SetMatchingPoints();
 			mpInitFrame2->SetBowVec(mpSystem->fvoc);
-			std::cout <<"INITIALIZER::TEST::"<< mpInitFrame2->mpMatchInfo->GetNumCPs() << std::endl;
+			std::cout <<"INITIALIZER::TEST::"<< mpInitFrame2->mpMatchInfo->mvpMatchingCPs.size() << std::endl;
 		}
 		////CP 추가
 
@@ -293,17 +293,17 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//mpInitFrame2->AddKF(mpInitFrame1, tempMPs.size());
 		////////////////////시각화에 카메라 포즈를 출력하기 위해
 		mpMap->mpFirstKeyFrame = mpInitFrame1;
-		mpVisualizer->SetMatchInfo(mpInitFrame2->mpMatchInfo);
+		
 		mbInit = true;
 		mpInitFrame1->mpMatchInfo->mMatchedImage = debugging.clone();
 		std::cout << "Initializer::Success::" << tempMPs .size()<< std::endl << std::endl << std::endl;
 		//////////////////////////키프레임 생성
 		
 		//////////////////////////////시각화 설정
-		//mpVisualizer->SetMPs(tempMPs);
+		/*mpVisualizer->SetMatchInfo(mpInitFrame2->mpMatchInfo);
 		if (!mpVisualizer->isDoingProcess()) {
 			mpVisualizer->SetBoolDoingProcess(true);
-		}
+		}*/
 		//////////////////////////////시각화 설정
 
 		//init초기화가 안되면 이렇게 해야 함
