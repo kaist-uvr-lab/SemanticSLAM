@@ -160,10 +160,10 @@ namespace UVR_SLAM {
 
 	public:
 		//lock tracking and localmap
-		std::mutex mMutexUseLocalMap;
-		std::condition_variable cvUseLocalMap;
+		std::mutex mMutexUseLocalMapOptimization;
+		std::condition_variable cvUseLocalMapOptimization;
 		bool mbTrackingEnd;
-		bool mbLocalMapUpdateEnd;
+		bool mbLocalMapOptimizationEnd;
 
 		std::mutex mMutexUseSegmentation;
 		std::condition_variable cvUseSegmentation;

@@ -54,7 +54,6 @@ namespace UVR_SLAM {
 	public:
 		int AddCP(CandidatePoint* pCP, cv::Point2f pt);
 		void RemoveCP(int idx);
-		std::vector<cv::Point2f> GetMatchingPts();
 		std::vector<cv::Point2f> GetMatchingPtsMapping(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs);
 		int CheckOpticalPointOverlap(int radius, int margin, cv::Point2f pt); //확인 후 삭제.
 		bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt); //확인 후 삭제.

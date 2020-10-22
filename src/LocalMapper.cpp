@@ -89,9 +89,7 @@ void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
 		mKFQueue.pop();
 		mbStopBA = false;
 	}
-	
 	mpTargetFrame->Init(mpSystem->mpORBExtractor, mpSystem->mK, mpSystem->mD);
-	
 }
 
 bool  UVR_SLAM::LocalMapper::isStopLocalMapping(){
@@ -148,7 +146,6 @@ void UVR_SLAM::LocalMapper::Run() {
 			int nTargetID = mpTargetFrame->mnFrameID;
 			
 			if (bNeedCP) {
-				
 				mpTargetFrame->DetectFeature();
 				mpTargetFrame->DetectEdge();
 				mpTargetFrame->SetBowVec(mpSystem->fvoc);
@@ -156,10 +153,10 @@ void UVR_SLAM::LocalMapper::Run() {
 					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
 					mpTargetFrame->mpMatchInfo->SetMatchingPoints();
 					mpSystem->mbLocalMappingEnd = true;
+					std::cout << "LM::CP::" << mpTargetFrame->mnFrameID << "::" << mpTargetFrame->mpMatchInfo->mvpMatchingCPs.size() << std::endl;
 					lock.unlock();
 					mpSystem->cvUseLocalMapping.notify_all();
 				}
-				std::cout << "LM::CP::" << mpTargetFrame->mnFrameID <<"::"<< mpTargetFrame->mpMatchInfo->mvpMatchingCPs.size() << std::endl;
 			}
 
 			int nCreated = 0;

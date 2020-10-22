@@ -93,7 +93,6 @@ void UVR_SLAM::MapOptimizer::Run() {
 			SetDoingProcess(true);
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
-			//std::cout << "ba::start::" << mpTargetFrame->GetFrameID() << std::endl;
 			mStrPath = mpSystem->GetDirPath(mpTargetFrame->mnKeyFrameID);
 			StopBA(false);
 			auto currMatchInfo = mpTargetFrame->mpMatchInfo;
@@ -147,7 +146,6 @@ void UVR_SLAM::MapOptimizer::Run() {
 				pKFi->mnLocalBAID = nTargetID;
 				vpFixedKFs.push_back(pKFi);
 			}
-
 			auto vpPlaneInfos = mpMap->GetPlaneInfos();
 			int n = vpPlaneInfos.size() - 1;
 			if(n < 0)
@@ -157,12 +155,6 @@ void UVR_SLAM::MapOptimizer::Run() {
 				std::cout << "Plane optimization" << std::endl;
 				PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpMPs, vpKFs, vpFixedKFs);
 			}
-
-			for (int i = 0; i < vpMPs.size(); i++)
-			{
-				vpMPs[i]->SetOptimization(true);
-			}
-
 			///////KF 이미지 시각화
 			{
 				
@@ -189,7 +181,6 @@ void UVR_SLAM::MapOptimizer::Run() {
 
 					cv::Mat R, t;
 					pKFi->GetPose(R, t);
-
 					
 					for (size_t j = 0, jend = pMatch->mvpMatchingCPs.size(); j < jend; j++){
 						auto pCPi = pMatch->mvpMatchingCPs[j];
@@ -246,7 +237,6 @@ void UVR_SLAM::MapOptimizer::Run() {
 			/*std::cout << "BA::Delete::Start" << std::endl;
 			mpMap->DeleteMPs();
 			std::cout << "BA::Delete::End" << std::endl;*/
-
 			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
 			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float letime = leduration / 1000.0;

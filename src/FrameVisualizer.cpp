@@ -35,12 +35,10 @@ namespace UVR_SLAM {
 				cv::Mat R = pF->GetRotation();
 				cv::Mat t = pF->GetTranslation();
 				std::vector<MapPoint*> vpMPs;
-
 				{
 					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
 					mpSystem->cvUseLocalMapping.wait(lock, [&] {return mpSystem->mbLocalMappingEnd; });
 				}
-
 				int nMatch = 0;
 				for (size_t i = 0, iend = pF->mpMatchInfo->mvbMapPointInliers.size(); i < iend; i++){
 					auto pCPi = pF->mpMatchInfo->mvpMatchingCPs[i];

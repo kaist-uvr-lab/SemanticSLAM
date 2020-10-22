@@ -1113,12 +1113,4 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsMapping(std::vector<
 	return res;
 }
 
-std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPts() {
-	
-	std::vector<cv::Point2f> res;
-	for (int i = 0, iend = mvpMatchingCPs.size(); i < iend; i++) {
-		res.push_back(mvMatchingPts[i]);
-	}
-	return res;
-}
 //////////////matchinfo

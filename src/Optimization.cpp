@@ -63,7 +63,6 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 	std::vector<size_t> vnIndexEdgeMono;
 	vpEdgesMono.reserve(N);
 	vnIndexEdgeMono.reserve(N);
-
 	const float deltaMono = sqrt(5.991);
 	const float deltaStereo = sqrt(7.815);
 	auto mvInvLevelSigma2 = pFrame->mpMatchInfo->mpTargetFrame->mvInvLevelSigma2;
@@ -116,7 +115,6 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 	const float chi2Mono[4] = { 5.991,5.991,5.991,5.991 };
 	const float chi2Stereo[4] = { 7.815,7.815,7.815, 7.815 };
 	const int its[4] = { 10,10,10,10 };
-
 	int nBad = 0;
 	for (size_t it = 0; it<4; it++)
 	{
@@ -156,19 +154,19 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 			break;
 	}
 
-
 	for (size_t i = 0, iend = vnIndexEdgeMono.size(); i < iend; i++) {
 
 		const size_t idx = vnIndexEdgeMono[i];
 		auto pCPi = vpCPs[idx];
 		auto pMPi = pCPi->GetMP();
+		if (!pMPi || pMPi->isDeleted())
+			continue;
 		pMPi->IncreaseVisible();
 		if (!vbInliers[i]){
 			continue;
 		}
 		pMPi->IncreaseFound();
 	}
-
 	// Recover optimized pose and return number of inliers
 	g2o::VertexSE3Expmap* vSE3_recov = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(0));
 	g2o::SE3Quat SE3quat_recov = vSE3_recov->estimate();

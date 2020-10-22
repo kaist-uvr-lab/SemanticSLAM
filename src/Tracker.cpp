@@ -45,7 +45,7 @@ UVR_SLAM::Tracker::Tracker(System* pSys, std::string strPath) : mpSystem(pSys), 
 
 	float fps = fs["Camera.fps"];
 	mnMaxFrames = 5;// 10;//fps;
-	mnMinFrames = 3; //fps / 3;//3
+	mnMinFrames = 4; //fps / 3;//3
 
 	mnThreshMinCPs	 = fs["Tracker.MinCP"];
 	mnThreshMinMPs	 = fs["Tracker.MinMP"];
