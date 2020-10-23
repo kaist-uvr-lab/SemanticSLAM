@@ -1002,7 +1002,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		if (e->chi2()>5.991 || !e->isDepthPositive())
 		{
 			vnConnected[vIdx]--;
-			if (vnConnected[vIdx] < 3)
+			if (vnConnected[vIdx] < pSystem->mnThreshMinKF)
 				vbInliers[vIdx] = false;
 		}
 	}

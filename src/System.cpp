@@ -83,6 +83,7 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 
 	mnMaxMP = fs["Image.maxmp"];
 	mnRadius = fs["Image.radius"];
+	mnThreshMinKF = fs["Tracker.MinKF"];
 	mRectPt = cv::Point2f(mnRadius, mnRadius);
 	//fs["IP"] >> ip;
 	//fs["port"] >> port;

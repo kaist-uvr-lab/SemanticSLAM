@@ -94,6 +94,7 @@ namespace UVR_SLAM {
 		bool mbPlaneEstimation;
 		int mnDisplayX;
 		int mnDisplayY;
+		int mnThreshMinKF;
 		int mnWidth, mnHeight;
 		int mnMaxMP;
 		int mnRadius;

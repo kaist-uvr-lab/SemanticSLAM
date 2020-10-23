@@ -14,8 +14,6 @@
 #include <MapOptimizer.h>
 #include <SemanticSegmentator.h>
 
-#include <MapGrid.h>
-
 #include <opencv2/core/mat.hpp>
 #include <ctime>
 #include <direct.h>
@@ -40,7 +38,7 @@ UVR_SLAM::LocalMapper::LocalMapper(System* pSystem, std::string strPath, int w, 
 	mK.at<float>(1, 2) = cy;
 
 	mInvK = mK.inv();
-
+	mnThreshMinKF = mpSystem->mnThreshMinKF;
 }
 UVR_SLAM::LocalMapper::~LocalMapper() {}
 
@@ -153,7 +151,7 @@ void UVR_SLAM::LocalMapper::Run() {
 					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
 					mpTargetFrame->mpMatchInfo->SetMatchingPoints();
 					mpSystem->mbLocalMappingEnd = true;
-					std::cout << "LM::CP::" << mpTargetFrame->mnFrameID << "::" << mpTargetFrame->mpMatchInfo->mvpMatchingCPs.size() << std::endl;
+					//std::cout << "LM::CP::" << mpTargetFrame->mnFrameID << "::" << mpTargetFrame->mpMatchInfo->mvpMatchingCPs.size() << std::endl;
 					lock.unlock();
 					mpSystem->cvUseLocalMapping.notify_all();
 				}
@@ -178,7 +176,7 @@ void UVR_SLAM::LocalMapper::Run() {
 				NewMapPointMarginalization();
 				if (bNeedMP){
 					nCreated = MappingProcess(mpMap, mpTargetFrame, time2, debugMatch);
-					std::cout << "LM::MP::" <<mpTargetFrame->mnFrameID<<"::"<< nCreated << std::endl;
+					//std::cout << "LM::MP::" <<mpTargetFrame->mnFrameID<<"::"<< nCreated << std::endl;
 				}
 				auto pTarget = mpMap->AddWindowFrame(mpTargetFrame);
 				if (pTarget) {
@@ -249,51 +247,34 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 	//std::cout << "Maginalization::Start" << std::endl;
 	//mvpDeletedMPs.clear();
 	int nMarginalized = 0;
-	int mnMPThresh = 2;
-	int nNumRequireKF = 5;
+	int nNumRequireKF = 3;
 	float mfRatio = 0.25f;
 
 	std::list<UVR_SLAM::MapPoint*>::iterator lit = mpSystem->mlpNewMPs.begin();
 	while (lit != mpSystem->mlpNewMPs.end()) {
 		UVR_SLAM::MapPoint* pMP = *lit;
 		int nDiffKF = mpTargetFrame->mnKeyFrameID - pMP->mnFirstKeyFrameID;
-		int nMPThresh = mnMPThresh;
 		float fRatio = mfRatio;
-		//if (pMP->GetMapPointType() == UVR_SLAM::PLANE_MP) {
-		//	//nMPThresh = 0;
-		//	fRatio = 0.01;
-		//}
+		
 		bool bBad = false;
 		if (pMP->isDeleted()) {
 			//already deleted
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
-		else if (pMP->GetFVRatio() < fRatio) {
+		/*else if (pMP->GetFVRatio() < fRatio) {
 			bBad = true;
-			lit = mpSystem->mlpNewMPs.erase(lit);
-		}
-		//else if (pMP->mnFir//KeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= nMPThresh && pMP->GetMapPointType() != UVR_SLAM::PLANE_MP) {
-		/*else if (pMP->GetMapPointType() == UVR_SLAM::PLANE_MP && pMP->mnFirstKeyFrameID + 1 > mpTargetFrame->GetKeyFrameID() && pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= 1) {
-			bBad = true;
+			std::cout << "A" << std::endl;
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}*/
-		//else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->GetKeyFrameID() && pMP->GetNumConnectedFrames() <= nMPThresh != UVR_SLAM::PLANE_MP)
-		else if (nDiffKF < nNumRequireKF && pMP->GetNumConnectedFrames() < nDiffKF) {
+		else if (nDiffKF < nNumRequireKF && pMP->GetNumConnectedFrames()+mnThreshMinKF < nDiffKF) {
 			bBad = true;
+			
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
-		else if (nDiffKF <= nNumRequireKF) {
+		else if (nDiffKF >= nNumRequireKF) {
 			lit = mpSystem->mlpNewMPs.erase(lit);
 			pMP->SetNewMP(false);
 		}
-		/*else if (pMP->mnFirstKeyFrameID + 2 <= mpTargetFrame->mnKeyFrameID && pMP->GetNumConnectedFrames() <= nMPThresh)
-		{
-			lit = mpSystem->mlpNewMPs.erase(lit);
-		}*/
-		/*else if (pMP->mnFirstKeyFrameID + 3 <= mpTargetFrame->mnKeyFrameID){
-			lit = mpSystem->mlpNewMPs.erase(lit);
-			pMP->SetNewMP(false);
-		}*/
 		else
 			lit++;
 		if (bBad) {
@@ -733,10 +714,6 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 
 	int N;
 	auto pMatch = pCurrKF->mpMatchInfo;
-	{
-		std::unique_lock<std::mutex>(mMutexCPs);
-		N = pMatch->mvpMatchingCPs.size();
-	}
 	auto vpTempCPs = pMatch->mvpMatchingCPs;
 	auto vpTempPTs = pMatch->mvMatchingPts;
 	cv::Mat Rcurr, Tcurr, Pcurr;
@@ -757,7 +734,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 
 		cv::Mat X3D;
 		float depth;
-		if (pCPi->GetNumSize() < 3)
+		if (pCPi->GetNumSize() < mnThreshMinKF)
 			continue;
 		bool bNewMP = pCPi->CreateMapPoint(X3D, depth, mK, mInvK, Pcurr, Rcurr, Tcurr, currPt);
 		if (!bNewMP)
@@ -780,14 +757,14 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 	}
 
 	////////////////////////////////////////최적화 진행
-	if (vX3Ds.size() < 20) {
-		std::cout << "포인트 부족" << std::endl;
+	if (vX3Ds.size() < 10) {
+		//std::cout << "포인트 부족11" << std::endl;
 		return -1;
 	}
 
 	/////////Scale 계산
 	if (vfScales.size() < 10){
-		std::cout << "포인트 부족22" << std::endl;
+		//std::cout << "포인트 부족22" << std::endl;
 		return -1;
 	}
 	std::nth_element(vfScales.begin(), vfScales.begin() + vfScales.size() / 2, vfScales.end());

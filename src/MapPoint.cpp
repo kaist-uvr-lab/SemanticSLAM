@@ -255,7 +255,6 @@ namespace UVR_SLAM {
 		mpCP->ResetMapPoint();
 		//¸ÊÃ³¸®
 		mpMap->RemoveMap(this);
-		mpMap->DeleteMapPoint(this);
 	}
 	void MapPoint::SetDescriptor(cv::Mat _desc){
 		std::unique_lock<std::mutex> lockMP(mMutexMP);

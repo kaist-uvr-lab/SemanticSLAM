@@ -98,6 +98,7 @@ namespace UVR_SLAM {
 		Matcher* mpMatcher;
 
 		int mnWidth, mnHeight;
+		int mnThreshMinKF;
 		cv::Mat mK, mInvK;
 	};
 }

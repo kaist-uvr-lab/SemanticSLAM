@@ -255,15 +255,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			pNewMP->IncreaseVisible(2);
 			pNewMP->IncreaseFound(2);
 			mpSystem->mlpNewMPs.push_back(pNewMP);
-			////이 사이는 이제 이용 안하는데??
-			auto pt3D = mpMap->ProjectMapPoint(pNewMP, mpMap->mfMapGridSize);
-			/////그리드 관련된 내용은 삭제하던가 따로 빼놓기
-			auto pMG = mpMap->GetGrid(pt3D);
-			if (!pMG) {
-				pMG = mpMap->InsertGrid(pt3D);
-			}
-			mpMap->InsertMapPoint(pNewMP, pMG);
-			/////그리드 관련된 내용은 삭제하던가 따로 빼놓기
 		}
 		////맵포인트 정보 설정
 
