@@ -17,11 +17,11 @@ namespace UVR_SLAM {
 		mpVisualizer = mpSystem->mpVisualizer;
 	}
 	void UVR_SLAM::FrameVisualizer::Run(){
-	
-		while (1) {
 
-			cv::Scalar color1(255, 255, 0);
-			cv::Scalar color2(0, 255, 255);
+		cv::Scalar color1(255, 255, 0);
+		cv::Scalar color2(0, 255, 255);
+		
+		while (1) {
 
 			if (isVisualize()) {
 				//std::cout << "FrameVisualizer::Start" << std::endl;
@@ -42,6 +42,12 @@ namespace UVR_SLAM {
 				int nMatch = 0;
 				for (size_t i = 0, iend = pF->mpMatchInfo->mvbMapPointInliers.size(); i < iend; i++){
 					auto pCPi = pF->mpMatchInfo->mvpMatchingCPs[i];
+					auto pt = pF->mpMatchInfo->mvMatchingPts[i];
+					int nCP = pCPi->GetNumSize();
+					if(nCP > mpSystem->mnThreshMinKF)
+						cv::circle(vis, pt, 3, color2, -1);
+					else
+						cv::circle(vis, pt, 3, color1, -1);
 					if (!pF->mpMatchInfo->mvbMapPointInliers[i])
 						continue;
 					auto pMPi = pCPi->GetMP();
@@ -51,7 +57,6 @@ namespace UVR_SLAM {
 					cv::Point2f p2D;
 					cv::Mat pCam;
 					bool b = pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
-					auto pt = pF->mpMatchInfo->mvMatchingPts[i];
 					nMatch++;
 					int label = pMPi->GetLabel();
 					cv::circle(vis, p2D, 3, ObjectColors::mvObjectLabelColors[label], -1);

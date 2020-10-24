@@ -231,7 +231,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 
 				}
 				cv::resize(ba_img, ba_img, ba_img.size() / 2);
-				mpVisualizer->SetOutputImage(ba_img, 1);
+				mpVisualizer->SetOutputImage(ba_img, 5);
 			}
 			
 			/*std::cout << "BA::Delete::Start" << std::endl;

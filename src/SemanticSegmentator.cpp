@@ -189,7 +189,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 				//std::cout << "Object Info = " << label << ", " << lpCPs.size() << std::endl;
 			}
 
-			mpVisualizer->SetOutputImage(resized_color, 4);
+			mpVisualizer->SetOutputImage(resized_color, 1);
 			////시간체크
 			std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
 			auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();

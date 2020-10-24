@@ -142,52 +142,59 @@ void UVR_SLAM::Visualizer::Init() {
 	mVisMidPt = cv::Point2f(mnHeight, mnWidth);
 	mVisPrevPt = mVisMidPt;
 
-	//tracking
-	cv::Mat img1 = cv::Mat::zeros(mnHeight/2, mnWidth/2, CV_8UC3);
+	////맵 옆의 4개의 이미지
+	//tracking, segmentation, mapping, ??
+	cv::Mat leftImg1 = cv::Mat::zeros(mnHeight / 2, mnWidth / 2, CV_8UC3);
+	cv::Mat leftImg2 = cv::Mat::zeros(mnHeight / 2, mnWidth / 2, CV_8UC3);
+	cv::Mat leftImg3 = cv::Mat::zeros(mnHeight / 2, mnWidth / 2, CV_8UC3);
+	cv::Mat leftImg4 = cv::Mat::zeros(mnHeight / 2, mnWidth / 2, CV_8UC3);
+	
+	//맵
+	cv::Mat mapImage = cv::Mat::zeros(mnHeight * 2, mnWidth * 2, CV_8UC3);
+
 	//sliding window
 	mnWindowImgRows = 4;
 	int nWindowSize = mpMap->mnMaxConnectedKFs + mpMap->mnHalfConnectedKFs + mpMap->mnQuarterConnectedKFs;
 	mnWindowImgCols = nWindowSize / mnWindowImgRows;
 	if (nWindowSize % 4 != 0)
 		mnWindowImgCols++;
-	cv::Mat img2 = cv::Mat::zeros(mnWindowImgRows*mnHeight / 2, mnWindowImgCols * mnWidth / 2, CV_8UC3);
-	//맵
-	cv::Mat img3 = cv::Mat::zeros(mnHeight * 2, mnWidth * 2, CV_8UC3);
-	//매핑 과정에서 키프레임 매칭
-	cv::Mat img4 = cv::Mat::zeros((mnHeight / 2) * 2, mnWidth / 2, CV_8UC3);
-	//세그멘테이션 정보
-	cv::Mat img5 = cv::Mat::ones(mnHeight / 2, mnWidth / 2, CV_8UC3)*255;
-
-	mvOutputImgs.push_back((img1));
-	mvOutputImgs.push_back((img2));
-	mvOutputImgs.push_back((img3));
-	mvOutputImgs.push_back((img4));
-	mvOutputImgs.push_back((img5));
-
-	cv::Rect r1(0, 0, img1.cols, img1.rows);
+	cv::Mat kfWindowImg = cv::Mat::zeros(mnWindowImgRows*mnHeight / 2, mnWindowImgCols * mnWidth / 2, CV_8UC3);
+	
+	//0 1 2 3
+	mvOutputImgs.push_back((leftImg1));
+	cv::Rect r1(0, 0, leftImg1.cols, leftImg1.rows);
 	mvRects.push_back(r1);
-	
-	cv::Rect r2(img1.cols+img3.cols, 0, img2.cols, img2.rows);
+	mvOutputImgs.push_back((leftImg2));
+	cv::Rect r2(0, leftImg1.rows,	leftImg1.cols, leftImg1.rows);
 	mvRects.push_back(r2);
-
-	cv::Rect r3(img1.cols, 0, img3.cols, img3.rows);
+	mvOutputImgs.push_back((leftImg3));
+	cv::Rect r3(0, leftImg1.rows * 2, leftImg1.cols, leftImg1.rows);
 	mvRects.push_back(r3);
-	
-	cv::Rect r4(0, img1.rows*2, img4.cols, img4.rows);
+	mvOutputImgs.push_back((leftImg4));
+	cv::Rect r4(0, leftImg1.rows * 3, leftImg1.cols, leftImg1.rows);
 	mvRects.push_back(r4);
 
-	cv::Rect r5(0, img1.rows, img5.cols, img5.rows);
-	mvRects.push_back(r5);
+	//4
+	mvOutputImgs.push_back((mapImage));
+	cv::Rect rMap(leftImg1.cols, 0, mapImage.cols, mapImage.rows);
+	mvRects.push_back(rMap);
+
+	//5 윈도우이미지
+	mvOutputImgs.push_back((kfWindowImg));
+	cv::Rect rWindow(leftImg1.cols + mapImage.cols, 0, kfWindowImg.cols, kfWindowImg.rows);
+	mvRects.push_back(rWindow);
 
 	mvOutputChanged = std::vector<bool>(mvRects.size(), false);
 	//map
 	
 	rectPt = cv::Point2f(r3.x, r3.y);
 	int nDisRows = mnHeight * 2;
-	int nDisCols = img1.cols + img2.cols + img3.cols;
+	int nDisCols = leftImg1.cols + mapImage.cols + kfWindowImg.cols;
 	mOutputImage = cv::Mat::zeros(nDisRows, nDisCols, CV_8UC3);
-	std::cout << nDisRows << ", " << nDisCols <<"::"<<img1.cols<<", "<<img2.cols<<", "<<img3.cols<< std::endl;
-	std::cout << r1.x << " " << r2.x << ", " << r3.x << "::" << r1.width << ", " << r2.width << ", " << r3.width << std::endl;
+	
+	/*std::cout << nDisRows << ", " << nDisCols <<"::"<<img1.cols<<", "<<img2.cols<<", "<<img3.cols<< std::endl;
+	std::cout << r1.x << " " << r2.x << ", " << r3.x << "::" << r1.width << ", " << r2.width << ", " << r3.width << std::endl;*/
+
 	//set image
 	cv::namedWindow("Output::Display");
 	cv::moveWindow("Output::Display", mnDisplayX, mnDisplayY);
@@ -455,7 +462,7 @@ void UVR_SLAM::Visualizer::Run() {
 			//fuse time text
 			
 			//tempVis.copyTo(mOutputImage(mvRects[2]));
-			SetOutputImage(tempVis, 2);
+			SetOutputImage(tempVis, 4);
 
 			//time 
 			cv::Mat imgTime = cv::Mat::zeros(500, 500, CV_8UC1);
@@ -487,6 +494,10 @@ void UVR_SLAM::Visualizer::Run() {
 		if (isOutputTypeChanged(4)) {
 			cv::Mat mMappingImg = GetOutputImage(4);
 			mMappingImg.copyTo(mOutputImage(mvRects[4]));
+		}
+		if (isOutputTypeChanged(5)) {
+			cv::Mat mMappingImg = GetOutputImage(5);
+			mMappingImg.copyTo(mOutputImage(mvRects[5]));
 		}
 		imshow("Output::Display", mOutputImage);
 		cv::waitKey(1);

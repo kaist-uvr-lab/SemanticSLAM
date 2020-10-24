@@ -161,7 +161,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			////////New Matching & Create & Delayed CP test
 			cv::Mat debugMatch;
 			cv::Mat prevImg = mpPrevKeyFrame->GetOriginalImage();
-			cv::Mat currImg = mpTargetFrame->GetOriginalImage();
+			cv::Mat currImg = mpTargetFrame->GetOriginalImage().clone();
 			cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
 			cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
 			cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
@@ -172,11 +172,13 @@ void UVR_SLAM::LocalMapper::Run() {
 			if (bNeedMP || bNeedNewKF) {
 				mpTargetFrame->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 				mpTargetFrame->mpMatchInfo->UpdateKeyFrame();
-				
 				NewMapPointMarginalization();
 				if (bNeedMP){
-					nCreated = MappingProcess(mpMap, mpTargetFrame, time2, debugMatch);
+					nCreated = MappingProcess(mpMap, mpTargetFrame, time2, currImg);
 					//std::cout << "LM::MP::" <<mpTargetFrame->mnFrameID<<"::"<< nCreated << std::endl;
+					cv::Mat resized;
+					cv::resize(currImg, resized, cv::Size(currImg.cols / 2, currImg.rows / 2));
+					mpVisualizer->SetOutputImage(resized, 2);
 				}
 				auto pTarget = mpMap->AddWindowFrame(mpTargetFrame);
 				if (pTarget) {
@@ -197,9 +199,7 @@ void UVR_SLAM::LocalMapper::Run() {
 				mpPrevKeyFrame = mpPPrevKeyFrame;
 			}
 			
-			cv::Mat resized;
-			cv::resize(debugMatch, resized, cv::Size(debugMatch.cols / 2, debugMatch.rows / 2));
-			mpVisualizer->SetOutputImage(resized, 3);
+			
 			
 			/////프레임 퀄리티 계산
 			//bool bLowQualityFrame = mpTargetFrame->mpMatchInfo->UpdateFrameQuality();

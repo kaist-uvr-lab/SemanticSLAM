@@ -146,7 +146,8 @@ namespace UVR_SLAM {
 
 	public:
 		ORBextractor* mpORBExtractor;
-		ConcurrentList<UVR_SLAM::MapPoint*> mlpNewMPs;
+		//ConcurrentList<UVR_SLAM::MapPoint*> mlpNewMPs;
+		std::list<UVR_SLAM::MapPoint*> mlpNewMPs;
 		std::string strVOCPath;
 		fbow::Vocabulary* fvoc;
 		cv::Mat mK, mKforPL, mD;

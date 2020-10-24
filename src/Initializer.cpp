@@ -205,7 +205,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		cv::Rect rect1(0, 0, mnWidth / 2, mnHeight / 2);
 		cv::Rect rect2(0, mnHeight/2, mnWidth / 2, mnHeight / 2);
 		mpVisualizer->SetOutputImage(debugging(rect1), 0);
-		mpVisualizer->SetOutputImage(debugging(rect2), 4);
+		mpVisualizer->SetOutputImage(debugging(rect2), 1);
 
 		cv::waitKey(1);
 		//////////////////////////////////////

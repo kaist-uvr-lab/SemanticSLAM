@@ -852,7 +852,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	cv::Rect rect1(0, 0, resized.cols, resized.rows/2);
 	cv::Rect rect2(0, resized.rows / 2, resized.cols, resized.rows / 2);
 	mpVisualizer->SetOutputImage(resized(rect1), 0);
-	mpVisualizer->SetOutputImage(resized(rect2), 4);
+	mpVisualizer->SetOutputImage(resized(rect2), 1);
 	///////////////////////////
 
 	return vpPts2.size();
