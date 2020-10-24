@@ -173,7 +173,7 @@ void UVR_SLAM::LocalMapper::Run() {
 				mpTargetFrame->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 				mpTargetFrame->mpMatchInfo->UpdateKeyFrame();
 				NewMapPointMarginalization();
-				if (bNeedMP){
+				if (bNeedMP) {
 					nCreated = MappingProcess(mpMap, mpTargetFrame, time2, currImg);
 					//std::cout << "LM::MP::" <<mpTargetFrame->mnFrameID<<"::"<< nCreated << std::endl;
 					cv::Mat resized;
@@ -193,6 +193,14 @@ void UVR_SLAM::LocalMapper::Run() {
 				else {
 					mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
 				}
+				/*bool bCheckBaseLine = mpPrevKeyFrame->CheckBaseLine(mpTargetFrame);
+				if (bCheckBaseLine) {
+					
+				}
+				else {
+					mpTargetFrame = mpPrevKeyFrame;
+					mpPrevKeyFrame = mpPPrevKeyFrame;
+				}*/
 			}
 			else {
 				mpTargetFrame = mpPrevKeyFrame;
@@ -254,21 +262,17 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 	while (lit != mpSystem->mlpNewMPs.end()) {
 		UVR_SLAM::MapPoint* pMP = *lit;
 		int nDiffKF = mpTargetFrame->mnKeyFrameID - pMP->mnFirstKeyFrameID;
-		float fRatio = mfRatio;
-		
 		bool bBad = false;
 		if (pMP->isDeleted()) {
 			//already deleted
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
-		/*else if (pMP->GetFVRatio() < fRatio) {
+		else if (pMP->GetFVRatio() < mfRatio) {
 			bBad = true;
-			std::cout << "A" << std::endl;
 			lit = mpSystem->mlpNewMPs.erase(lit);
-		}*/
-		else if (nDiffKF < nNumRequireKF && pMP->GetNumConnectedFrames()+mnThreshMinKF < nDiffKF) {
+		}
+		else if (nDiffKF < nNumRequireKF && pMP->GetNumConnectedFrames()-mnThreshMinKF+1 < nDiffKF) {
 			bBad = true;
-			
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
 		else if (nDiffKF >= nNumRequireKF) {
@@ -285,7 +289,6 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 			pMP->Delete();
 		}
 	}
-
 	return;
 }
 int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vector<cv::Point2f> vMatchPrevPts, std::vector<cv::Point2f> vMatchCurrPts, std::vector<CandidatePoint*> vPrevCPs, cv::Mat& R, cv::Mat& T, double& ftime, cv::Mat& prevImg, cv::Mat& currImg) {
@@ -723,8 +726,14 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 	cv::Point2f ptBottom = cv::Point2f(0, debugging.rows/2);
 
 	std::vector<CandidatePoint*> vMappingCPs;
+	std::vector<cv::Point2f> vPTs;
 	std::vector<cv::Mat> vX3Ds;
 	std::vector<float> vfScales;
+
+	cv::Scalar color1(255, 0,   0);
+	cv::Scalar color2(255, 255, 0);
+	cv::Scalar color3(0,  0, 255);
+	cv::Scalar color4(0,255, 255);
 
 	//mpMap->ClearReinit();
 	for (size_t i = 0, iend = vpTempPTs.size(); i < iend; i++) {
@@ -737,15 +746,17 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 		if (pCPi->GetNumSize() < mnThreshMinKF)
 			continue;
 		bool bNewMP = pCPi->CreateMapPoint(X3D, depth, mK, mInvK, Pcurr, Rcurr, Tcurr, currPt);
-		if (!bNewMP)
-			continue;
-
+		if (!bNewMP){
+			cv::circle(debugging, currPt, 3, color1, -1);
+			//continue;
+		}
+		cv::circle(debugging, currPt, 3, color2, -1);
 		if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
 			//MP가 존재하면 얘를 이용함.
 			//여기서 스케일을 다시 계산하자.
 			X3D = std::move(pMPi->GetWorldPos());
 			//pMPi->SetLastVisibleFrame(nCurrKeyFrameID);
-
+			cv::circle(debugging, currPt, 3, color4, -1);
 			////scale
 			cv::Mat proj3 = Rcurr*X3D + Tcurr;
 			float depth2 = proj3.at<float>(2);
@@ -754,6 +765,8 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 		}
 		vMappingCPs.push_back(pCPi);
 		vX3Ds.push_back(X3D);
+		vPTs.push_back(currPt);
+		
 	}
 
 	////////////////////////////////////////최적화 진행
@@ -774,6 +787,13 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 	mpMap->ClearReinit();
 	std::vector<bool> vbInliers(vX3Ds.size(), true);
 	Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers, medianPrevScale);
+
+	for (size_t i = 0, iend = vX3Ds.size(); i < iend; i++) {
+		if (vbInliers[i])
+			continue;
+		cv::circle(debugging, vPTs[i], 3, color3, -1);
+	}
+
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 	dtime = duration / 1000.0;

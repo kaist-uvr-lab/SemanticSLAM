@@ -167,6 +167,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 		}
 		pMPi->IncreaseFound();
 	}
+
 	// Recover optimized pose and return number of inliers
 	g2o::VertexSE3Expmap* vSE3_recov = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(0));
 	g2o::SE3Quat SE3quat_recov = vSE3_recov->estimate();
@@ -991,7 +992,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 	////새로 추가된 맵포인트 설정
 
 	optimizer.initializeOptimization();
-	optimizer.optimize(5);
+	optimizer.optimize(20);
 
 	////체크
 	for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
