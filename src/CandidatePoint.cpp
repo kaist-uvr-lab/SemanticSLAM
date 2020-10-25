@@ -168,7 +168,6 @@ namespace  UVR_SLAM{
 		cv::hconcat(R, t, P);
 		Rt = R.t();
 		auto ptFirst = pFirst->mvMatchingPts[idx];
-		
 		bool bRank = true;
 		X3D = Triangulate(ptFirst, ptCurr, K*P, K*Pcurr, bRank);
 

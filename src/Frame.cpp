@@ -320,7 +320,7 @@ bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pTargetKF) {
 
 	cv::Mat vBaseline = Ow2 - Ow1;
 	float baseline = cv::norm(vBaseline);
-
+	pTargetKF->ComputeSceneMedianDepth();
 	float medianDepthKF2 = pTargetKF->GetSceneMedianDepth();
 	if(medianDepthKF2 < 0.0)
 		return false;
@@ -365,18 +365,18 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(std::vector<UVR_SLAM::MapPoint*> v
 ////20.09.05 수정 필요.
 void UVR_SLAM::Frame::ComputeSceneMedianDepth()
 {
-	/*std::vector<float> vDepths;
+	std::vector<float> vDepths;
 	cv::Mat Rcw2 = R.row(2);
 	Rcw2 = Rcw2.t();
 	float zcw = t.at<float>(2);
-	auto vpMPs = mpMatchInfo->GetMatchingMPs();
-	for (int i = 0; i < vpMPs.size(); i++)
+	for (size_t i = 0, iend = mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++)
 	{
-		UVR_SLAM::MapPoint* pMP = vpMPs[i];
-		if (!pMP || pMP->isDeleted()) {
+		auto pCPi = mpMatchInfo->mvpMatchingCPs[i];
+		auto pMPi = pCPi->GetMP();
+		if (!pMPi || pMPi->isDeleted()) {
 			continue;
 		}
-		cv::Mat x3Dw = pMP->GetWorldPos();
+		cv::Mat x3Dw = pMPi->GetWorldPos();
 		float z = (float)Rcw2.dot(x3Dw) + zcw;
 		vDepths.push_back(z);
 	}
@@ -389,7 +389,7 @@ void UVR_SLAM::Frame::ComputeSceneMedianDepth()
 	{
 		std::unique_lock<std::mutex> lockMP(mMutexMedianDepth);
 		mfMedianDepth = vDepths[nidx];
-	}*/
+	}
 }
 
 float UVR_SLAM::Frame::GetSceneMedianDepth() {

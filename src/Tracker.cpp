@@ -184,8 +184,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		pPrev->GetPose(prevR, prevT);
 		pCurr->SetPose(prevR, prevT);
 		{
-			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
-			mpSystem->cvUseLocalMapping.wait(lock, [&] {return mpSystem->mbLocalMappingEnd;});
+			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
+			mpSystem->cvUseCreateCP.wait(lock, [&] {return mpSystem->mbCreateCP;});
 		}
 		////MatchInfo 설정
 		//초기 매칭 테스트
@@ -201,6 +201,10 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempCPs, vpTempPts);
 		pCurr->mpMatchInfo->InitMapPointInlierVector(mnPointMatching);
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
+		/*{
+			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
+			mpSystem->cvUseCreateMP.wait(lock, [&] {return mpSystem->mbCreateMP; });
+		}*/
 		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vpTempPts, pCurr->mpMatchInfo->mvbMapPointInliers);
 		int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vpTempPts);
 		///////////////////////////////////////////////////////////////////////////////
@@ -209,9 +213,13 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		auto bNewKF = CheckNeedKeyFrame(pCurr, bNeedCP, bNeedMP, bNeedPoseHandle, bNeedNewKF);
 		if (bNewKF) {
 			if (bNeedCP) {
-				std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
-				mpSystem->mbLocalMappingEnd = false;
+				std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
+				mpSystem->mbCreateCP = false;
 			}
+			/*if (bNeedMP) {
+				std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
+				mpSystem->mbCreateMP = false;
+			}*/
 			if(bNeedNewKF || bNeedMP)
 				mpRefKF = pCurr;
 			mpLocalMapper->InsertKeyFrame(pCurr, bNeedCP, bNeedMP, bNeedPoseHandle, bNeedNewKF);

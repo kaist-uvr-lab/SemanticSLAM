@@ -171,9 +171,13 @@ namespace UVR_SLAM {
 		std::condition_variable cvUseSegmentation;
 		bool mbSegmentationEnd;
 
-		std::mutex mMutexUseLocalMapping;
-		std::condition_variable cvUseLocalMapping;
-		bool mbLocalMappingEnd;
+		std::mutex mMutexUseCreateCP;
+		std::condition_variable cvUseCreateCP;
+		bool mbCreateCP;
+
+		std::mutex mMutexUseCreateMP;
+		std::condition_variable cvUseCreateMP;
+		bool mbCreateMP;
 
 		std::mutex mMutexInitialized;
 

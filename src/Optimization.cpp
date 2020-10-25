@@ -884,7 +884,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 }
 ////Opticalflow 버전용
 
-void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame* pCurrKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers, float scale) {
+void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame* pCurrKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers, std::vector<bool>& vbInliers2, float scale) {
 	
 	//std::unique_lock<std::mutex> lock(pMap->mMutexMapOptimization);
 
@@ -937,7 +937,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		auto pMPi = pCPi->GetMP();
 		g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
 		cv::Mat X3D = std::move(vX3Ds[i]);
-		if (!pMPi)
+		if (!pMPi || pMPi->isDeleted())
 			X3D *= scale;
 		vPoint->setEstimate(Converter::toVector3d(X3D));
 		const int id = i + maxKFid + 1;
@@ -1009,38 +1009,99 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 	}
 	
 	//Curr KF 포즈 수정
+	cv::Mat R, t;
 	{
 		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pCurrKF->mnKeyFrameID));
 		g2o::SE3Quat SE3quat = vSE3->estimate();
-		cv::Mat R, t;
 		cv::Mat Tcw = Converter::toCvMat(SE3quat);
 		R = Tcw.rowRange(0, 3).colRange(0, 3);
 		t = Tcw.rowRange(0, 3).col(3);
 		pCurrKF->SetPose(R, t);
 	}
-	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
+	
 	////포인트 복원
-	for (size_t i = 0; i<vX3Ds.size(); i++)
+	//평균 뎁스와 편차 계산
+	std::vector<float> vfDepths;
+	std::vector<int> vnTempIDXs;
+	cv::Mat Rcw2 = R.row(2);
+	Rcw2 = Rcw2.t();
+	float zcw = t.at<float>(2);
+
+	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
+
+	for (size_t i = 0, iend = vX3Ds.size(); i < iend; i++)
 	{
 		g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(i + maxKFid + 1));
 		vX3Ds[i] = Converter::toCvMat(vPoint->estimate()).clone();
 		if (vbInliers[i]) {
-			pMap->AddReinit(vX3Ds[i]);
-			auto pCPi = vpCPs[i];
+			
+			float z = (float)Rcw2.dot(vX3Ds[i]) + zcw;
+			vfDepths.push_back(z);
+			vnTempIDXs.push_back(i);
+			///////여길 아래로
+			//pMap->AddReinit(vX3Ds[i]);
+			//auto pCPi = vpCPs[i];
+			//auto pMPi = pCPi->GetMP();
+			//if (!pMPi || pMPi->isDeleted()) {
+			//	//new mp
+			//	int label = pCPi->GetLabel();
+			//	auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCPi, vX3Ds[i], cv::Mat(), label, pCPi->octave);
+			//	pMP->SetOptimization(true);
+			//	pSystem->mlpNewMPs.push_back(pMP);
+			//}
+			//else if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
+			//	pMPi->SetWorldPos(std::move(vX3Ds[i]));
+			//}
+		}
+	}
+	cv::Mat mMean, mDev;
+	meanStdDev(vfDepths, mMean, mDev);
+	int Nf = sqrt(vfDepths.size());
+	//std::cout << mMean.type() <<"::"<<CV_64FC1<< ", " << mMean << mDev << std::endl;
+	float fMean = (float)mMean.at<double>(0);
+	float fStdDev = (float)mDev.at<double>(0);
+	//float thresh = 1.15;//1.284;// *dStdDev + dMean; //1.654
+	float thresh = 1.15*fStdDev + fMean; //1.654
+	int N = 0;
+	
+	for (size_t i = 0, iend = vnTempIDXs.size(); i < iend; i++)
+	{
+		int idx = vnTempIDXs[i];
+		cv::Mat X3D = std::move(vX3Ds[idx]);
+
+		float depth = std::move(vfDepths[i]);
+		//float zVal = (depth - fMean) / fStdDev;
+
+		if (depth >= thresh){
+			vbInliers2[idx] = false;
+
+			auto pCPi = vpCPs[idx];
 			auto pMPi = pCPi->GetMP();
-			if (!pMPi) {
+			if (pMPi && !pMPi->isDeleted()) {
+				pMPi->Delete();
+			}
+		}
+		if (vbInliers[idx] && depth < thresh) {
+			pMap->AddReinit(X3D);
+			N++;
+			auto pCPi = vpCPs[idx];
+			auto pMPi = pCPi->GetMP();
+			if (!pMPi || pMPi->isDeleted()) {
 				//new mp
 				int label = pCPi->GetLabel();
-				auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCPi, vX3Ds[i], cv::Mat(), label, pCPi->octave);
+				auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCPi, X3D, cv::Mat(), label, pCPi->octave);
 				pMP->SetOptimization(true);
 				pSystem->mlpNewMPs.push_back(pMP);
 			}
 			else if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
-				pMPi->SetWorldPos(std::move(vX3Ds[i]));
+				pMPi->SetWorldPos(std::move(X3D));
 			}
 		}
 	}
+	std::cout << "thresh : " << thresh << ", " << fMean << ", " << vfDepths.size()<<"::"<<N << std::endl;
 
+
+	//커넥션 체크
 	for (int i = 0; i < vpEdgesMono.size(); i++) {
 		g2o::EdgeSE3ProjectXYZ* e = vpEdgesMono[i];
 		int vIdx = vnVertexIDXs[i];

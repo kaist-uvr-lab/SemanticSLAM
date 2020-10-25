@@ -307,6 +307,25 @@ namespace UVR_SLAM {
 		return bres;
 	}
 
+	bool MapPoint::Projection(cv::Point2f& _P2D, cv::Mat& _Pcam, float& fDepth, cv::Mat R, cv::Mat t, cv::Mat K, int w, int h) {
+		std::unique_lock<std::mutex> lockMP(mMutexMP);
+		_Pcam = R*p3D + t;
+		cv::Mat temp = K*_Pcam;
+		_P2D = cv::Point2f(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
+		mfDepth = temp.at<float>(2);
+		fDepth = mfDepth;
+		bool bres = false;
+		if (mfDepth > 0.0f && (_P2D.x >= 0 && _P2D.x < w && _P2D.y >= 0 && _P2D.y < h)) {
+			bres = true;
+		}
+		/*if (mfDepth < 0.0)
+		std::cout <<"depth error  = "<< mfDepth << std::endl;*/
+		/*if (!(_P2D.x >= 0 && _P2D.x < w && _P2D.y >= 0 && _P2D.y < h))
+		std::cout << "as;dlfja;sldjfasl;djfaskl;fjasd" << std::endl;*/
+		mbSeen = bres;
+		return bres;
+	}
+
 	void MapPoint::UpdateNormalAndDepth()
 	{
 		std::map<UVR_SLAM::MatchInfo*, int> observations;

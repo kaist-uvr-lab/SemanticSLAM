@@ -46,6 +46,7 @@ namespace UVR_SLAM {
 		void Fuse(MapPoint* pMP);
 
 		bool Projection(cv::Point2f& _P2D, cv::Mat& _Pcam, cv::Mat R, cv::Mat t, cv::Mat K, int w, int h);
+		bool Projection(cv::Point2f& _P2D, cv::Mat& _Pcam, float& _depth, cv::Mat R, cv::Mat t, cv::Mat K, int w, int h);
 		bool Projection(cv::Point2f& _P2D, Frame* pF, int w, int h);
 		bool isSeen();
 

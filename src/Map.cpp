@@ -29,6 +29,7 @@ namespace UVR_SLAM{
 		Frame* res = nullptr;
 		if (mQueueFrameWindows1.size() == mnMaxConnectedKFs) {
 			auto pKF = mQueueFrameWindows1.front();
+			//mvpTrajectoryKFs.push_back(pKF);
 			if (pKF->mnKeyFrameID % 2 == 0) {
 				mvpTrajectoryKFs.push_back(pKF);
 				mQueueFrameWindows2.push_back(pKF);

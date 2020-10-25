@@ -148,12 +148,12 @@ void UVR_SLAM::LocalMapper::Run() {
 				mpTargetFrame->DetectEdge();
 				mpTargetFrame->SetBowVec(mpSystem->fvoc);
 				{
-					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
+					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
 					mpTargetFrame->mpMatchInfo->SetMatchingPoints();
-					mpSystem->mbLocalMappingEnd = true;
+					mpSystem->mbCreateCP = true;
 					//std::cout << "LM::CP::" << mpTargetFrame->mnFrameID << "::" << mpTargetFrame->mpMatchInfo->mvpMatchingCPs.size() << std::endl;
 					lock.unlock();
-					mpSystem->cvUseLocalMapping.notify_all();
+					mpSystem->cvUseCreateCP.notify_all();
 				}
 			}
 
@@ -170,11 +170,16 @@ void UVR_SLAM::LocalMapper::Run() {
 			currImg.copyTo(debugMatch(mergeRect2));
 			
 			if (bNeedMP || bNeedNewKF) {
+				
 				mpTargetFrame->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 				mpTargetFrame->mpMatchInfo->UpdateKeyFrame();
 				NewMapPointMarginalization();
 				if (bNeedMP) {
+					//std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
 					nCreated = MappingProcess(mpMap, mpTargetFrame, time2, currImg);
+					/*mpSystem->mbCreateMP = true;
+					lock.unlock();
+					mpSystem->cvUseCreateMP.notify_all();*/
 					//std::cout << "LM::MP::" <<mpTargetFrame->mnFrameID<<"::"<< nCreated << std::endl;
 					cv::Mat resized;
 					cv::resize(currImg, resized, cv::Size(currImg.cols / 2, currImg.rows / 2));
@@ -193,7 +198,8 @@ void UVR_SLAM::LocalMapper::Run() {
 				else {
 					mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
 				}
-				/*bool bCheckBaseLine = mpPrevKeyFrame->CheckBaseLine(mpTargetFrame);
+				
+				/*bool bCheckBaseLine = mpTargetFrame->CheckBaseLine(mpPrevKeyFrame);
 				if (bCheckBaseLine) {
 					
 				}
@@ -201,6 +207,7 @@ void UVR_SLAM::LocalMapper::Run() {
 					mpTargetFrame = mpPrevKeyFrame;
 					mpPrevKeyFrame = mpPPrevKeyFrame;
 				}*/
+				
 			}
 			else {
 				mpTargetFrame = mpPrevKeyFrame;
@@ -256,7 +263,7 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 	//mvpDeletedMPs.clear();
 	int nMarginalized = 0;
 	int nNumRequireKF = 3;
-	float mfRatio = 0.25f;
+	float mfRatio = 0.5f;
 
 	std::list<UVR_SLAM::MapPoint*>::iterator lit = mpSystem->mlpNewMPs.begin();
 	while (lit != mpSystem->mlpNewMPs.end()) {
@@ -282,10 +289,6 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 		else
 			lit++;
 		if (bBad) {
-			//mpFrameWindow->SetMapPoint(nullptr, i);
-			//mpFrameWindow->SetBoolInlier(false, i);
-			//frame window와 현재 키프레임에 대해서 삭제될 포인트 처리가 필요할 수 있음.
-			//pMP->SetDelete(true);
 			pMP->Delete();
 		}
 	}
@@ -734,6 +737,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 	cv::Scalar color2(255, 255, 0);
 	cv::Scalar color3(0,  0, 255);
 	cv::Scalar color4(0,255, 255);
+	cv::Scalar color5(0, 255, 0);
 
 	//mpMap->ClearReinit();
 	for (size_t i = 0, iend = vpTempPTs.size(); i < iend; i++) {
@@ -746,23 +750,27 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 		if (pCPi->GetNumSize() < mnThreshMinKF)
 			continue;
 		bool bNewMP = pCPi->CreateMapPoint(X3D, depth, mK, mInvK, Pcurr, Rcurr, Tcurr, currPt);
-		if (!bNewMP){
-			cv::circle(debugging, currPt, 3, color1, -1);
-			//continue;
+		bool bOldMP = pMPi && pMPi->GetQuality() && !pMPi->isDeleted();
+		if (bNewMP){
+			cv::circle(debugging, currPt, 3, color2, -1);
 		}
-		cv::circle(debugging, currPt, 3, color2, -1);
-		if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
+		//cv::circle(debugging, currPt, 3, color2, -1);
+		if (bOldMP) {
 			//MP가 존재하면 얘를 이용함.
 			//여기서 스케일을 다시 계산하자.
 			X3D = std::move(pMPi->GetWorldPos());
 			//pMPi->SetLastVisibleFrame(nCurrKeyFrameID);
 			cv::circle(debugging, currPt, 3, color4, -1);
-			////scale
-			cv::Mat proj3 = Rcurr*X3D + Tcurr;
-			float depth2 = proj3.at<float>(2);
-			float scale = depth2 / depth;
-			vfScales.push_back(scale);
+			if(bNewMP){
+				////scale
+				cv::Mat proj3 = Rcurr*X3D + Tcurr;
+				float depth2 = proj3.at<float>(2);
+				float scale = depth2 / depth;
+				vfScales.push_back(scale);
+			}
 		}
+		if (!bNewMP && !bOldMP)
+			continue;
 		vMappingCPs.push_back(pCPi);
 		vX3Ds.push_back(X3D);
 		vPTs.push_back(currPt);
@@ -786,12 +794,14 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 
 	mpMap->ClearReinit();
 	std::vector<bool> vbInliers(vX3Ds.size(), true);
-	Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers, medianPrevScale);
+	std::vector<bool> vbInliers2(vX3Ds.size(), true);
+	Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers, vbInliers2, medianPrevScale);
 
 	for (size_t i = 0, iend = vX3Ds.size(); i < iend; i++) {
-		if (vbInliers[i])
-			continue;
-		cv::circle(debugging, vPTs[i], 3, color3, -1);
+		if (!vbInliers[i])
+			cv::circle(debugging, vPTs[i], 3, color3, -1);
+		if (!vbInliers2[i])
+			cv::circle(debugging, vPTs[i], 3, color5, -1);
 	}
 
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
@@ -963,7 +973,8 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 
 	mpMap->ClearReinit();
 	std::vector<bool> vbInliers(vX3Ds.size(), true);
-	Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers, medianPrevScale);
+	std::vector<bool> vbInliers2(vX3Ds.size(), true);
+	Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers, vbInliers2, medianPrevScale);
 
 	///////////////////New Mp Creation
 	////기존 MP도 여기 결과에 따라서 커넥션이 가능해야 할 듯함.

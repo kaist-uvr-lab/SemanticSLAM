@@ -16,10 +16,40 @@ namespace UVR_SLAM {
 		mpMap = mpSystem->mpMap;
 		mpVisualizer = mpSystem->mpVisualizer;
 	}
+	float vmin = 0.001;
+	float vmax = 1.0;
+	cv::Scalar ConvertDepthToColor(float v) {
+		float dv;
+
+		if (v < vmin)
+			v = vmin;
+		if (v > vmax)
+			v = vmax;
+		dv = vmax - vmin;
+		float r = 1.0, g = 1.0, b = 1.0;
+		if (v < (vmin + 0.25 * dv)) {
+			r = 0;
+			g = 4 * (v - vmin) / dv;
+		}
+		else if (v < (vmin + 0.5 * dv)) {
+			r = 0;
+			b = 1 + 4 * (vmin + 0.25 * dv - v) / dv;
+		}
+		else if (v < (vmin + 0.75 * dv)) {
+			r = 4 * (v - vmin - 0.5 * dv) / dv;
+			b = 0;
+		}
+		else {
+			g = 1 + 4 * (vmin + 0.75 * dv - v) / dv;
+			b = 0;
+		}
+		return cv::Scalar(r * 255, g * 255, b * 255);
+	}
 	void UVR_SLAM::FrameVisualizer::Run(){
 
 		cv::Scalar color1(255, 255, 0);
-		cv::Scalar color2(0, 255, 255);
+		cv::Scalar color2(255,0,255);
+		cv::Scalar color3(0, 255, 255);
 		
 		while (1) {
 
@@ -29,6 +59,7 @@ namespace UVR_SLAM {
 				Frame* pF = mpFrame;
 
 				cv::Mat vis = pF->GetOriginalImage().clone();
+				cv::Mat vis2 = pF->GetOriginalImage().clone();
 				cv::Mat kfImg = pKF->GetOriginalImage().clone();
 				auto pKFMatch = pKF->mpMatchInfo;
 				//vis.convertTo(vis, CV_8UC3);
@@ -36,18 +67,20 @@ namespace UVR_SLAM {
 				cv::Mat t = pF->GetTranslation();
 				std::vector<MapPoint*> vpMPs;
 				{
-					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseLocalMapping);
-					mpSystem->cvUseLocalMapping.wait(lock, [&] {return mpSystem->mbLocalMappingEnd; });
+					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
+					mpSystem->cvUseCreateCP.wait(lock, [&] {return mpSystem->mbCreateCP; });
 				}
 				int nMatch = 0;
 				for (size_t i = 0, iend = pF->mpMatchInfo->mvbMapPointInliers.size(); i < iend; i++){
 					auto pCPi = pF->mpMatchInfo->mvpMatchingCPs[i];
 					auto pt = pF->mpMatchInfo->mvMatchingPts[i];
 					int nCP = pCPi->GetNumSize();
+
 					if(nCP > mpSystem->mnThreshMinKF)
-						cv::circle(vis, pt, 3, color2, -1);
+						cv::circle(vis2, pt, 3, color2, -1);
 					else
-						cv::circle(vis, pt, 3, color1, -1);
+						cv::circle(vis2, pt, 3, color1, -1);
+
 					if (!pF->mpMatchInfo->mvbMapPointInliers[i])
 						continue;
 					auto pMPi = pCPi->GetMP();
@@ -56,11 +89,14 @@ namespace UVR_SLAM {
 					
 					cv::Point2f p2D;
 					cv::Mat pCam;
-					bool b = pMPi->Projection(p2D, pCam, R, t, mK, mnWidth, mnHeight);
+					float depth;
+					bool b = pMPi->Projection(p2D, pCam, depth,R, t, mK, mnWidth, mnHeight);
 					nMatch++;
 					int label = pMPi->GetLabel();
-					cv::circle(vis, p2D, 3, ObjectColors::mvObjectLabelColors[label], -1);
-					cv::line(vis, p2D, pt, color2, 2);
+					cv::Scalar c = ConvertDepthToColor(depth);
+					cv::circle(vis, p2D, 3, c, -1);//ObjectColors::mvObjectLabelColors[label]
+					cv::circle(vis2, p2D, 3, ObjectColors::mvObjectLabelColors[label], -1);//
+					cv::line(vis2, p2D, pt, color3, 2);
 				}
 				
 				std::stringstream ss;
@@ -76,6 +112,9 @@ namespace UVR_SLAM {
 				cv::Mat resized;
 				cv::resize(vis, resized, cv::Size(vis.cols/2, vis.rows/2));
 				mpVisualizer->SetOutputImage(resized, 0);
+				cv::Mat resized2;
+				cv::resize(vis2, resized2, cv::Size(vis.cols / 2, vis.rows / 2));
+				mpVisualizer->SetOutputImage(resized2, 3);
 				SetBoolVisualize(false);
 			}//visualize
 		}

@@ -15,14 +15,14 @@ int UVR_SLAM::System::nKeyFrameID = 1;
 int UVR_SLAM::System::nFrameID = 1;
 
 UVR_SLAM::System::System(){}
-UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapOptimizationEnd(true), mbSegmentationEnd(false), mbLocalMappingEnd(true), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false),
+UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapOptimizationEnd(true), mbSegmentationEnd(false), mbCreateCP(true), mbCreateMP(true), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false),
 mbSegmentation(false), mbPlaneEstimation(false), mStrSegmentationString("Segmentation"), mStrPlaneString("PE"){
 	LoadParameter(strFilePath);
 	LoadVocabulary();
 	Init();
 }
 UVR_SLAM::System::System(int nWidth, int nHeight, cv::Mat _K, cv::Mat _K2, cv::Mat _D, int _nFeatures, float _fScaleFactor, int _nLevels, int _fIniThFAST, int _fMinThFAST, std::string _strVOCPath):
-	mnWidth(nWidth), mnHeight(nHeight), mK(_K), mKforPL(_K2), mD(_D), mbTrackingEnd(true), mbLocalMapOptimizationEnd(true), mbSegmentationEnd(false), mbLocalMappingEnd(true), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false),
+	mnWidth(nWidth), mnHeight(nHeight), mK(_K), mKforPL(_K2), mD(_D), mbTrackingEnd(true), mbLocalMapOptimizationEnd(true), mbSegmentationEnd(false), mbCreateCP(true), mbCreateMP(true), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false),
 	mnFeatures(_nFeatures), mfScaleFactor(_fScaleFactor), mnLevels(_nLevels), mfIniThFAST(_fIniThFAST), mfMinThFAST(_fMinThFAST), strVOCPath(_strVOCPath)
 {
 	LoadVocabulary();
@@ -266,7 +266,8 @@ void UVR_SLAM::System::Reset() {
 	mpMap->ClearWalls();
 	mlpNewMPs.clear();
 	//mpLocalMapper->mlpNewMPs.clear();
-	mbLocalMappingEnd = true;
+	mbCreateCP = true;
+	mbCreateMP = true;
 	nKeyFrameID = 1;
 	//frame reset
 }
