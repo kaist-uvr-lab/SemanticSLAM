@@ -1098,7 +1098,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 			}
 		}
 	}
-	std::cout << "thresh : " << thresh << "::" << fMean <<", "<<fStdDev<< "::" << vfDepths.size()<<"::"<<N << std::endl;
+	std::cout << "thresh : " << thresh << ", " << fMean << ", " << vfDepths.size()<<"::"<<N << std::endl;
 
 
 	//Ŀ�ؼ� üũ
