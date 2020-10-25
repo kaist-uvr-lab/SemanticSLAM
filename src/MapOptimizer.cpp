@@ -109,8 +109,40 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::vector<UVR_SLAM::Frame*> vpKFs;
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
 			
-			auto lpKFs = mpMap->GetWindowFramesVector();
-			for (auto iter = lpKFs.begin(); iter != lpKFs.end(); iter++) {
+			///////////KF 커넥션으로부터 시작
+			{
+				std::map<UVR_SLAM::Frame*, int> mmpCandidateKFs;
+				int nTargetID = mpTargetFrame->mnKeyFrameID;
+				auto pMatch = mpTargetFrame->mpMatchInfo;
+				for (size_t i = 0, iend = pMatch->mvpMatchingCPs.size(); i < iend; i++) {
+					auto pCPi = pMatch->mvpMatchingCPs[i];
+					auto pMPi = pCPi->GetMP();
+					if (!pMPi || pMPi->isDeleted()) {
+						continue;
+					}
+					auto mmpMP = pMPi->GetConnedtedFrames();
+					for (auto biter = mmpMP.begin(), eiter = mmpMP.end(); biter != eiter; biter++) {
+						UVR_SLAM::Frame* pCandidateKF = biter->first->mpRefFrame;
+						if (nTargetID == pCandidateKF->mnKeyFrameID)
+							continue;
+						mmpCandidateKFs[pCandidateKF]++;
+					}
+				}
+
+				std::vector<std::pair<int, UVR_SLAM::Frame*>> vPairs;
+				for (auto biter = mmpCandidateKFs.begin(), eiter = mmpCandidateKFs.end(); biter != eiter; biter++) {
+					UVR_SLAM::Frame* pKF = biter->first;
+					int nCount = biter->second;
+					if (nCount > 20) {
+						mpTargetFrame->AddKF(pKF, nCount);
+						pKF->AddKF(mpTargetFrame, nCount);
+					}
+				}
+			}
+
+			auto vpConnectedKFs = mpTargetFrame->GetConnectedKFs();
+			vpConnectedKFs.push_back(mpTargetFrame);
+			for (auto iter = vpConnectedKFs.begin(); iter != vpConnectedKFs.end(); iter++) {
 				auto pKF = *iter;
 				pKF->mnLocalBAID = nTargetID;
 				vpKFs.push_back(pKF);
@@ -127,25 +159,72 @@ void UVR_SLAM::MapOptimizer::Run() {
 					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID || !pMPi->GetQuality() || pMPi->GetNumConnectedFrames() < 3) {
 						continue;
 					}
-					////퀄리티 체크
-					/*pMPi->ComputeQuality();
-					if (!pMPi->GetQuality()){
-						pMPi->Delete();
-						continue;
-					}*/
+					
 					////퀄리티 체크
 					pMPi->mnLocalBAID = nTargetID;
 					vpMPs.push_back(pMPi);
 				}
 			}
 
-			auto spGraphKFs = mpMap->GetGraphFrames();
-			for (auto iter = spGraphKFs.begin(); iter != spGraphKFs.end(); iter++) {
-				auto pKFi = *iter;
-				pKFi->mnFixedBAID = nTargetID;
-				pKFi->mnLocalBAID = nTargetID;
-				vpFixedKFs.push_back(pKFi);
+			for (int i = 0; i < vpMPs.size(); i++)
+			{
+				UVR_SLAM::MapPoint* pMP = vpMPs[i];
+				auto observations = pMP->GetConnedtedFrames();
+				for (auto mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
+				{
+					auto pMatch = mit->first;
+					auto pKFi = pMatch->mpRefFrame;
+
+					if (pKFi->mnLocalBAID != nTargetID && pKFi->mnFixedBAID != nTargetID)
+					{
+						pKFi->mnFixedBAID = nTargetID;
+						pKFi->mnLocalBAID = nTargetID;
+						vpFixedKFs.push_back(pKFi);
+					}
+				}
 			}
+			///////////KF 커넥션으로부터 시작
+
+			/////////////////////////////////
+			//auto lpKFs = mpMap->GetWindowFramesVector();
+			//for (auto iter = lpKFs.begin(); iter != lpKFs.end(); iter++) {
+			//	auto pKF = *iter;
+			//	pKF->mnLocalBAID = nTargetID;
+			//	vpKFs.push_back(pKF);
+			//}
+
+			//for (size_t k = 0, kend= vpKFs.size(); k < kend; k++){
+			//	auto pKFi = vpKFs[k];
+			//	auto matchInfo = pKFi->mpMatchInfo;
+			//	auto vpCPs = matchInfo->mvpMatchingCPs;
+			//	auto vPTs = matchInfo->mvMatchingPts;
+			//	for (size_t i = 0, iend = vpCPs.size(); i < iend; i++){
+			//		auto pCPi = vpCPs[i];
+			//		auto pMPi = pCPi->GetMP();
+			//		if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID || !pMPi->GetQuality() || pMPi->GetNumConnectedFrames() < 3) {
+			//			continue;
+			//		}
+			//		////퀄리티 체크
+			//		/*pMPi->ComputeQuality();
+			//		if (!pMPi->GetQuality()){
+			//			pMPi->Delete();
+			//			continue;
+			//		}*/
+			//		////퀄리티 체크
+			//		pMPi->mnLocalBAID = nTargetID;
+			//		vpMPs.push_back(pMPi);
+			//	}
+			//}
+
+			//auto spGraphKFs = mpMap->GetGraphFrames();
+			//for (auto iter = spGraphKFs.begin(); iter != spGraphKFs.end(); iter++) {
+			//	auto pKFi = *iter;
+			//	pKFi->mnFixedBAID = nTargetID;
+			//	pKFi->mnLocalBAID = nTargetID;
+			//	vpFixedKFs.push_back(pKFi);
+			//}
+			/////////////////////////////////
+
 			auto vpPlaneInfos = mpMap->GetPlaneInfos();
 			int n = vpPlaneInfos.size() - 1;
 			if(n < 0)
@@ -156,83 +235,84 @@ void UVR_SLAM::MapOptimizer::Run() {
 				PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpMPs, vpKFs, vpFixedKFs);
 			}
 			///////KF 이미지 시각화
-			{
-				
-				int nRows = mpVisualizer->mnWindowImgRows;
-				int nCols = mpVisualizer->mnWindowImgCols;
-				cv::Mat ba_img = cv::Mat::zeros(mnHeight*nRows, mnWidth*nCols, CV_8UC3);
-				int nidx = 0;
+			//{
+			//	
+			//	int nRows = mpVisualizer->mnWindowImgRows;
+			//	int nCols = mpVisualizer->mnWindowImgCols;
+			//	cv::Mat ba_img = cv::Mat::zeros(mnHeight*nRows, mnWidth*nCols, CV_8UC3);
+			//	int nidx = 0;
 
-				int nKF = lpKFs.size();
-				auto lastKF = vpKFs[nKF - 1];
-				auto lastMatch = lastKF->mpMatchInfo;
-				
-				cv::Scalar color1(0, 0, 255);
-				cv::Scalar color2(0, 255, 0);
-				cv::Scalar color3(255, 0, 0);
-				cv::Scalar color4(255, 255, 0);
-				cv::Scalar color5(0, 255, 255);
-				cv::Scalar color6(255, 0, 255);
+			//	int nKF = lpKFs.size();
+			//	auto lastKF = vpKFs[nKF - 1];
+			//	auto lastMatch = lastKF->mpMatchInfo;
+			//	
+			//	cv::Scalar color1(0, 0, 255);
+			//	cv::Scalar color2(0, 255, 0);
+			//	cv::Scalar color3(255, 0, 0);
+			//	cv::Scalar color4(255, 255, 0);
+			//	cv::Scalar color5(0, 255, 255);
+			//	cv::Scalar color6(255, 0, 255);
 
-				for (int i = 0; i < nKF; i++) {
-					auto pKFi = vpKFs[i];
-					auto pMatch = pKFi->mpMatchInfo;
-					cv::Mat img = pKFi->GetOriginalImage().clone();
+			//	for (int i = 0; i < nKF; i++) {
+			//		auto pKFi = vpKFs[i];
+			//		auto pMatch = pKFi->mpMatchInfo;
+			//		cv::Mat img = pKFi->GetOriginalImage().clone();
 
-					cv::Mat R, t;
-					pKFi->GetPose(R, t);
-					
-					for (size_t j = 0, jend = pMatch->mvpMatchingCPs.size(); j < jend; j++){
-						auto pCPi = pMatch->mvpMatchingCPs[j];
-						auto pt = pMatch->mvMatchingPts[j];
-						auto pMPi = pCPi->GetMP();
-						if (!pMPi || pMPi->isDeleted() || !pMPi->GetQuality())
-							continue;
-						if (!pMPi->isInFrame(pMatch)) {
-							continue;
-						}
-						cv::Point2f pt3;
-						pMPi->Projection(pt3, pKFi, mnWidth, mnHeight);
-						cv::Point2f diffPt = pt3 - pt;
-						float dist = diffPt.dot(diffPt);
-						if (dist > 9.0) {
-							cv::circle(img, pt, 6, color6, 1);
-							pMPi->DisconnectFrame(pMatch);
-						}
-						if(pMPi->mnFirstKeyFrameID == nTargetKeyID)
-							cv::circle(img, pt, 4, color3, 2);
-						
-						if (pMPi->isInFrame(lastMatch)) {
-							cv::line(img, pt, pt3, color1, 2);
-							cv::circle(img, pt, 3, color4, -1);
-						}
-						else {
-							cv::line(img, pt, pt3, color2, 2);
-							cv::circle(img, pt, 3, color5, -1);
-						}
-					}
-					/*for (int j = 0; j < vpMPs.size(); j++) {
-						auto pMPj = vpMPs[j];
-						if (!pMPj || pMPj->isDeleted())
-							continue;
-						int idx = pMPj->GetPointIndexInFrame(pMatch);
-						if (idx < 0)
-							continue;
-						auto pt = pMatch->GetPt(idx);
-						cv::circle(img, pt, 2, cv::Scalar(0, 0, 255), -1);
-					}*/
+			//		cv::Mat R, t;
+			//		pKFi->GetPose(R, t);
+			//		
+			//		for (size_t j = 0, jend = pMatch->mvpMatchingCPs.size(); j < jend; j++){
+			//			auto pCPi = pMatch->mvpMatchingCPs[j];
+			//			auto pt = pMatch->mvMatchingPts[j];
+			//			auto pMPi = pCPi->GetMP();
+			//			if (!pMPi || pMPi->isDeleted() || !pMPi->GetQuality())
+			//				continue;
+			//			if (!pMPi->isInFrame(pMatch)) {
+			//				continue;
+			//			}
+			//			cv::Point2f pt3;
+			//			pMPi->Projection(pt3, pKFi, mnWidth, mnHeight);
+			//			cv::Point2f diffPt = pt3 - pt;
+			//			float dist = diffPt.dot(diffPt);
+			//			if (dist > 9.0) {
+			//				cv::circle(img, pt, 6, color6, 1);
+			//				pMPi->DisconnectFrame(pMatch);
+			//			}
+			//			if(pMPi->mnFirstKeyFrameID == nTargetKeyID)
+			//				cv::circle(img, pt, 4, color3, 2);
+			//			
+			//			if (pMPi->isInFrame(lastMatch)) {
+			//				cv::line(img, pt, pt3, color1, 2);
+			//				cv::circle(img, pt, 3, color4, -1);
+			//			}
+			//			else {
+			//				cv::line(img, pt, pt3, color2, 2);
+			//				cv::circle(img, pt, 3, color5, -1);
+			//			}
+			//		}
+			//		/*for (int j = 0; j < vpMPs.size(); j++) {
+			//			auto pMPj = vpMPs[j];
+			//			if (!pMPj || pMPj->isDeleted())
+			//				continue;
+			//			int idx = pMPj->GetPointIndexInFrame(pMatch);
+			//			if (idx < 0)
+			//				continue;
+			//			auto pt = pMatch->GetPt(idx);
+			//			cv::circle(img, pt, 2, cv::Scalar(0, 0, 255), -1);
+			//		}*/
 
-					int h = nidx / nCols;
-					int w = nidx % nCols;
-					
-					cv::Rect tmpRect(mnWidth*w, mnHeight*h, mnWidth, mnHeight);
-					img.copyTo(ba_img(tmpRect));
-					nidx++;
+			//		int h = nidx / nCols;
+			//		int w = nidx % nCols;
+			//		
+			//		cv::Rect tmpRect(mnWidth*w, mnHeight*h, mnWidth, mnHeight);
+			//		img.copyTo(ba_img(tmpRect));
+			//		nidx++;
 
-				}
-				cv::resize(ba_img, ba_img, ba_img.size() / 2);
-				mpVisualizer->SetOutputImage(ba_img, 5);
-			}
+			//	}
+			//	cv::resize(ba_img, ba_img, ba_img.size() / 2);
+			//	mpVisualizer->SetOutputImage(ba_img, 5);
+			//}
+			///////KF 이미지 시각화
 			
 			/*std::cout << "BA::Delete::Start" << std::endl;
 			mpMap->DeleteMPs();
