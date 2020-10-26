@@ -14,7 +14,6 @@ namespace UVR_SLAM {
 	class WallPlane;
 	class PlaneInformation;
 	class PlaneProcessInformation;
-	class MapGrid;
 	class Map {
 		///////////
 	public:
@@ -98,26 +97,7 @@ namespace UVR_SLAM {
 				return lhs.x == rhs.x ? lhs.y == rhs.y ? lhs.z < rhs.z : lhs.y < rhs.y : lhs.x < rhs.x;
 			}
 		};
-	public: //함수
-		cv::Point3f ProjectMapPoint(UVR_SLAM::MapPoint* pMP, float fSize);
-		//맵포인트는 추가, 삭제, 비교를 위한 
-		void InsertMapPoint(UVR_SLAM::MapPoint* pMP, UVR_SLAM::MapGrid* pMG);
-		void DeleteMapPoint(UVR_SLAM::MapPoint* pMP);
-		void UpdateMapPoint(UVR_SLAM::MapPoint* pMP, UVR_SLAM::MapGrid* pMG);
-
-		bool CheckGrid(cv::Point3f pt);
-		bool CheckGrid(cv::Point3f pt1, cv::Point3f pt2);
-		UVR_SLAM::MapGrid* GetGrid(UVR_SLAM::MapPoint* pMP);
-		UVR_SLAM::MapGrid* GetGrid(cv::Point3f pt);
-		UVR_SLAM::MapGrid* InsertGrid(cv::Point3f pt); //추가된 그리드 인덱스 리턴
-		std::vector<MapGrid*> GetMapGrids();
-	public: //변수
-		float mfMapGridSize;
-	private:
-		std::mutex mMutexMapGrid;
-		std::map<cv::Point3f, UVR_SLAM::MapGrid*, Point3fLess> mmMapGrids;//int1 : subspace idx, int2 : 연결된 vv의 index, 해당 위치에 서브스페이스가 생성되었는지 확인
-		std::map<UVR_SLAM::MapPoint*, UVR_SLAM::MapGrid*> mmMapPointAndMapGrids; //map point가 어떠한 그리드에 포함되어 있는지 미리 확인함.
-		//std::vector<MapGrid*> mvMapGrids; //이 부분은 일단 제거
+	
 ////구역별 맵 저장
 
 ////평면 관리

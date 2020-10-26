@@ -14,8 +14,6 @@
 #include <MapOptimizer.h>
 #include <SemanticSegmentator.h>
 
-#include <MapGrid.h>
-
 #include <opencv2/core/mat.hpp>
 #include <ctime>
 #include <direct.h>

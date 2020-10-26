@@ -4,7 +4,6 @@
 #include <System.h>
 #include <PlaneEstimator.h>
 #include <Map.h>
-#include <MapGrid.h>
 #include <plane.h>
 
 UVR_SLAM::Visualizer::Visualizer() {}
@@ -322,36 +321,7 @@ void UVR_SLAM::Visualizer::Run() {
 			///////////////////////////////////////////////////////////////////////////////
 			////tracking results
 			auto pMatchInfo = GetMatchInfo();
-			////grid 출력
-			//if (pMatchInfo) {
-			//	auto lastBAFrame = pMatchInfo->mpTargetFrame;
-			//	auto mvGrids = mpMap->GetMapGrids();
-			//	int radius = mpMap->mfMapGridSize * mnVisScale;
-			//	for (int i = 0; i < mvGrids.size(); i++) {
-			//		auto pMGi = mvGrids[i];
-			//		int nCount = pMGi->Count();
-			//		if (nCount < 10)
-			//			continue;
-			//		cv::Mat x3D = pMGi->Xw.clone();
-			//		cv::Point2f spt = cv::Point2f((x3D.at<float>(mnAxis1)) * mnVisScale, (-x3D.at<float>(mnAxis2)) * mnVisScale);
-			//		cv::Point2f ept = cv::Point2f((x3D.at<float>(mnAxis1) + mpMap->mfMapGridSize) * mnVisScale, (-x3D.at<float>(mnAxis2) - mpMap->mfMapGridSize) * mnVisScale);
-			//		spt += mVisMidPt;
-			//		ept += mVisMidPt;
-			//		if (lastBAFrame->isInFrustum(pMGi, 0.6f)) {
-			//			cv::rectangle(tempVis, spt, ept, cv::Scalar(150, 150, 150),-1);
-			//		}
-			//		else {
-			//			/*cv::Mat x3D = pMGi->Xw.clone();
-			//			cv::Point2f spt = cv::Point2f((x3D.at<float>(mnAxis1) - mpMap->mfMapGridSize) * mnVisScale, (-x3D.at<float>(mnAxis2) + mpMap->mfMapGridSize) * mnVisScale);
-			//			cv::Point2f ept = cv::Point2f((x3D.at<float>(mnAxis1) + mpMap->mfMapGridSize) * mnVisScale, (-x3D.at<float>(mnAxis2) - mpMap->mfMapGridSize) * mnVisScale);
-			//			spt += mVisMidPt;
-			//			ept += mVisMidPt;*/
-			//			//::rectangle(tempVis, spt, ept, cv::Scalar(50, 50, 50), -1);
-			//		}
-			//	}
-			//}
-			////grid 출력
-
+			
 			//local map
 			if(bShowOnlyTrajectory){
 				//////////////////////////////

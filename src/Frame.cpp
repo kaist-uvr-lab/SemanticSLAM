@@ -4,7 +4,6 @@
 
 #include <Frame.h>
 #include <CandidatePoint.h>
-#include <MapGrid.h>
 #include <MatrixOperator.h>
 #include <System.h>
 #include <ORBextractor.h>
@@ -801,51 +800,6 @@ bool UVR_SLAM::Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit)
 	//pMP->mnTrackScaleLevel = nPredictedLevel;
 	//pMP->mTrackViewCos = viewCos;
 
-	return true;
-}
-
-bool UVR_SLAM::Frame::isInFrustum(MapGrid *pMG, float viewingCosLimit) {
-
-	// 3D in absolute coordinates
-	cv::Mat P = pMG->Xw.clone();
-
-	// 3D in camera coordinates
-	cv::Mat R, t;
-	GetPose(R, t);
-	cv::Mat Ow = GetCameraCenter();
-	const cv::Mat Pc = R*P + t;
-	const float &PcX = Pc.at<float>(0);
-	const float &PcY = Pc.at<float>(1);
-	const float &PcZ = Pc.at<float>(2);
-
-	// Check positive depth
-	if (PcZ<0.0f)
-		return false;
-
-	// Project in image and check it is not outside
-	const float invz = 1.0f / PcZ;
-	const float u = fx*PcX*invz + cx;
-	const float v = fy*PcY*invz + cy;
-
-	if (u<mnMinX || u>mnMaxX)
-		return false;
-	if (v<mnMinY || v>mnMaxY)
-		return false;
-
-	
-	/////////////////Viewing angle
-	//const cv::Mat PO = P - Ow;
-	//const float dist = cv::norm(PO);
-
-	//// Check viewing angle
-	//cv::Mat Pn = pMP->GetNormal();
-
-	//const float viewCos = PO.dot(Pn) / dist;
-
-	//if (viewCos<viewingCosLimit)
-	//	return false;
-	/////////////////Viewing angle
-	
 	return true;
 }
 

@@ -1,13 +1,12 @@
 #include "Map.h"
-#include "MapGrid.h"
 #include "Frame.h"
 #include "MapPoint.h"
 #include "Plane.h"
 #include "System.h"
 
 namespace UVR_SLAM{
-	Map::Map():mnMaxConnectedKFs(8), mnHalfConnectedKFs(4), mnQuarterConnectedKFs(2), mnMaxCandidateKFs(4), mnHalfCandidate(2), mbInitFloorPlane(false), mbInitWallPlane(false), mfMapGridSize(0.2){}
-	Map::Map(System* pSystem, int nConnected, int nCandiate) :mpSystem(pSystem), mnMaxConnectedKFs(nConnected), mnHalfConnectedKFs(nConnected/2), mnQuarterConnectedKFs(nConnected/4), mnMaxCandidateKFs(nCandiate), mnHalfCandidate(nCandiate/2), mbInitFloorPlane(false), mbInitWallPlane(false), mfMapGridSize(0.2) {
+	Map::Map():mnMaxConnectedKFs(8), mnHalfConnectedKFs(4), mnQuarterConnectedKFs(2), mnMaxCandidateKFs(4), mnHalfCandidate(2), mbInitFloorPlane(false), mbInitWallPlane(false){}
+	Map::Map(System* pSystem, int nConnected, int nCandiate) :mpSystem(pSystem), mnMaxConnectedKFs(nConnected), mnHalfConnectedKFs(nConnected/2), mnQuarterConnectedKFs(nConnected/4), mnMaxCandidateKFs(nCandiate), mnHalfCandidate(nCandiate/2), mbInitFloorPlane(false), mbInitWallPlane(false){
 		std::cout << "MAP::" << mnMaxConnectedKFs << ", " << mnMaxCandidateKFs << std::endl;
 	}
 	Map::~Map() {}
@@ -264,107 +263,6 @@ void UVR_SLAM::Map::AddWallPlane(WallPlane* pWall){
 	std::unique_lock<std::mutex> lockTemp(mMutexWallPlanes);
 	mvpWallPlanes.push_back(pWall);
 }
-
-
-////////////////////////////////////////
-/////Map Grid
-cv::Point3f UVR_SLAM::Map::ProjectMapPoint(UVR_SLAM::MapPoint* pMP, float fSize) {
-	cv::Mat x3D = pMP->GetWorldPos();
-	int nx = x3D.at<float>(0) / fSize;
-	int ny = x3D.at<float>(1) / fSize;
-	int nz = x3D.at<float>(2) / fSize;
-	float fx = nx*fSize;
-	float fy = ny*fSize;
-	float fz = nz*fSize;
-	return cv::Point3f(fx, fy, fz);
-	//cv::Point2f tpt = cv::Point2f(x3D.at<float>(0) s* mnViScale, -x3D.at<float>(2) * mnVisScale);
-}
-
-bool UVR_SLAM::Map::CheckGrid(cv::Point3f pt) {
-	std::unique_lock<std::mutex> lock(mMutexMapGrid);
-	auto findres = mmMapGrids.find(pt);
-	if (findres == mmMapGrids.end())
-		return true;
-	return false;
-}
-UVR_SLAM::MapGrid* UVR_SLAM::Map::InsertGrid(cv::Point3f pt) {
-	std::unique_lock<std::mutex> lock(mMutexMapGrid);
-	MapGrid* pMG = new UVR_SLAM::MapGrid(pt, mfMapGridSize);
-	//int idx = mvMapGrids.size();
-	mmMapGrids.insert(std::make_pair(pt, pMG));
-	return pMG;
-	/*mvMapGrids.push_back(pMG);
-	return idx;*/
-}
-std::vector<UVR_SLAM::MapGrid*> UVR_SLAM::Map::GetMapGrids() {
-	
-	std::map<cv::Point3f, UVR_SLAM::MapGrid*, Point3fLess> tempMap;
-	{
-		std::unique_lock<std::mutex> lock(mMutexMapGrid);
-		tempMap = mmMapGrids;
-	}
-	std::vector<UVR_SLAM::MapGrid*> tempVec;
-	for (auto iter = mmMapGrids.begin(); iter != mmMapGrids.end(); iter++) {
-		tempVec.push_back(iter->second);
-	}
-	return std::vector<UVR_SLAM::MapGrid*>(tempVec.begin(), tempVec.end());
-}
-
-//////Map Grid & Map Points
-bool UVR_SLAM::Map::CheckGrid(cv::Point3f pt1, cv::Point3f pt2){
-	std::unique_lock<std::mutex> lock(mMutexMapGrid);
-	if (pt1.x == pt2.x && pt1.y == pt2.y && pt1.z == pt2.z && pt1 != pt2)
-		std::cout << "??????????????? check mp error" << std::endl;
-	return pt1 == pt2;
-}
-UVR_SLAM::MapGrid* UVR_SLAM::Map::GetGrid(UVR_SLAM::MapPoint* pMP){
-	std::unique_lock<std::mutex> lock(mMutexMapGrid);
-	auto findres = mmMapPointAndMapGrids.find(pMP);
-	if (findres == mmMapPointAndMapGrids.end()) {
-		return nullptr;
-	}
-	return findres->second;
-	//return mmMapPointAndMapGrids[pMP];
-}
-UVR_SLAM::MapGrid* UVR_SLAM::Map::GetGrid(cv::Point3f pt) {
-	std::unique_lock<std::mutex> lock(mMutexMapGrid);
-	auto findres = mmMapGrids.find(pt);
-	if (findres == mmMapGrids.end()) {
-		return nullptr;
-	}
-	return findres->second;
-}
-void UVR_SLAM::Map::InsertMapPoint(UVR_SLAM::MapPoint* pMP, UVR_SLAM::MapGrid* pMG){
-	std::unique_lock<std::mutex> lock(mMutexMapGrid);
-	mmMapPointAndMapGrids[pMP] = pMG;
-	pMG->InsertMapPoint(pMP);
-}
-void UVR_SLAM::Map::DeleteMapPoint(UVR_SLAM::MapPoint* pMP){
-	std::unique_lock<std::mutex> lock(mMutexMapGrid);
-	auto findres = mmMapPointAndMapGrids.find(pMP);
-	if (findres != mmMapPointAndMapGrids.end()) {
-		auto pMG2 = findres->second;
-		pMG2->RemoveMapPoint(pMP);
-		mmMapPointAndMapGrids.erase(findres);
-	}
-}
-void UVR_SLAM::Map::UpdateMapPoint(UVR_SLAM::MapPoint* pMP, UVR_SLAM::MapGrid* pMG) {
-	std::unique_lock<std::mutex> lock(mMutexMapGrid);
-	auto findres = mmMapPointAndMapGrids.find(pMP);
-	if (findres != mmMapPointAndMapGrids.end()) {
-		auto pMG2 = findres->second;
-		pMG2->RemoveMapPoint(pMP);
-		mmMapPointAndMapGrids.erase(findres);
-	}
-	mmMapPointAndMapGrids[pMP] = pMG;
-
-}
-
-
-
-//////Map Grid & Map Points
-/////Map Grid
-////////////////////////////////////////
 
 //////////Reinit test code
 std::vector<cv::Mat> UVR_SLAM::Map::GetReinit(){

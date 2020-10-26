@@ -36,7 +36,6 @@ namespace UVR_SLAM {
 	class PlaneInformation;
 	class PlaneProcessInformation;
 	class Line;
-	class MapGrid;
 	class MatchInfo {
 	public:
 		
@@ -146,7 +145,6 @@ namespace UVR_SLAM {
 
 		bool isInImage(float u, float v, float w = 0);
 		bool isInFrustum(MapPoint *pMP, float viewingCosLimit);
-		bool isInFrustum(MapGrid *pMG, float viewingCosLimit);
 		cv::Point2f Projection(cv::Mat w3D);
 
 		//////////////////////////////
