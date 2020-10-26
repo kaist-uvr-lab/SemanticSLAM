@@ -54,8 +54,8 @@ namespace UVR_SLAM {
 		int AddCP(CandidatePoint* pCP, cv::Point2f pt);
 		void RemoveCP(int idx);
 		std::vector<cv::Point2f> GetMatchingPtsMapping(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs);
-		int CheckOpticalPointOverlap(int radius, int margin, cv::Point2f pt); //확인 후 삭제.
-		bool CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt); //확인 후 삭제.
+		int CheckOpticalPointOverlap(cv::Point2f pt, int radius, int margin = 30); //확인 후 삭제.
+		bool CheckOpticalPointOverlap(cv::Mat& overlap, cv::Point2f pt, int radius, int margin = 30); //확인 후 삭제.
 
 		std::vector<UVR_SLAM::CandidatePoint*> mvpMatchingCPs; //KF-KF 매칭에서 삼각화시 베이스라인을 충분히 확보하기 위함.
 		std::vector<bool> mvbMapPointInliers; //프레임 업데이트에만 이용

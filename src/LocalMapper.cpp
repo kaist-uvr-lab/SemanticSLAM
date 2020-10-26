@@ -179,7 +179,7 @@ void UVR_SLAM::LocalMapper::Run() {
 				if (bCheckBaseLine) {
 					if (bNeedMP) {
 						//std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
-						nCreated = MappingProcess(mpMap, mpTargetFrame, mpPrevKeyFrame, time2, currImg);
+						nCreated = MappingProcess(mpMap, mpTargetFrame, mpPPrevKeyFrame, time2, currImg);
 						/*mpSystem->mbCreateMP = true;
 						lock.unlock();
 						mpSystem->cvUseCreateMP.notify_all();*/
@@ -261,7 +261,7 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 	//std::cout << "Maginalization::Start" << std::endl;
 	//mvpDeletedMPs.clear();
 	int nMarginalized = 0;
-	int nNumRequireKF = 3;
+	int nNumRequireKF = mnThreshMinKF;
 	float mfRatio = 0.5f;
 
 	std::list<UVR_SLAM::MapPoint*>::iterator lit = mpSystem->mlpNewMPs.begin();
@@ -427,7 +427,7 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 	float medianPrevScale = vPrevScales[vPrevScales.size() / 2];
 	cv::Mat scaled = R*Tprev+T*medianPrevScale;
 	//Map3D *= medianPrevScale;
-	std::cout << "scale : "  <<"||"<<medianPrevScale<< "::" << scaled.t() << ", " << Tcurr.t() << std::endl;
+	std::cout << "RecoverPose = "<< vpTempCPs .size()<<":: scale : "  <<"||"<<medianPrevScale<< "::" << scaled.t() << ", " << Tcurr.t() << std::endl;
 
 	//포즈 변경
 	R = R*Rprev;
@@ -748,6 +748,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	}
 
 	if (vMatchCPs.size() < 10) {
+		std::cout << "포인트 부족 000" << std::endl;
 		return -1;
 	}
 
@@ -840,8 +841,14 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	}
 
 	////////////////////////////////////////최적화 진행
-	if (vX3Ds.size() < 10) {
-		//std::cout << "포인트 부족11" << std::endl;
+	if (vX3Ds.size() < 30) {
+		std::cout << "포인트 부족11" << std::endl;
+		/*cv::Mat R, t;
+		double time = 0.0;
+		cv::Mat img1 = pCurrKF->GetOriginalImage().clone();
+		cv::Mat img2 = pPrevKF->GetOriginalImage().clone();
+		int a = RecoverPose(pCurrKF, pPrevKF, vMatchPrevPTs, vMatchCurrPTs, pPrevMatch->mvpMatchingCPs, R, t, time, img2, img1);
+		std::cout << "Recover pose : " << a << std::endl;*/
 		return -1;
 	}
 

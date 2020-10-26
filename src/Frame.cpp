@@ -865,7 +865,7 @@ void UVR_SLAM::MatchInfo::UpdateKeyFrame() {
 }
 
 //트래킹
-int UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(int radius, int margin, cv::Point2f pt) {
+int UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(cv::Point2f pt, int radius, int margin) {
 	//range option도 필요할 듯
 	if (pt.x < margin || pt.x >= mnWidth - margin || pt.y < margin || pt.y >= mnHeight - margin) {
 		return -1;
@@ -877,7 +877,7 @@ int UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(int radius, int margin, cv::Po
 	}
 	return true;*/
 }
-bool UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(cv::Mat& overlap, int radius, int margin, cv::Point2f pt) {
+bool UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(cv::Mat& overlap, cv::Point2f pt, int radius, int margin) {
 	//range option도 필요할 듯
 	if (pt.x < margin || pt.x >= mnWidth - margin || pt.y < margin || pt.y >= mnHeight - margin) {
 		return false;
@@ -938,8 +938,8 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 	
 	for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += nIncEdge) {
 		auto pt = mpRefFrame->mvEdgePts[i];
-		bool b1 = CheckOpticalPointOverlap(1, 10, pt) > -1;
-		bool b2 = !CheckOpticalPointOverlap(currMap, mpSystem->mnRadius, 10, pt);
+		bool b1 = CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
+		bool b2 = !CheckOpticalPointOverlap(currMap, pt, mpSystem->mnRadius);
 		if (b1 || b2) {
 			continue;
 		}
@@ -950,8 +950,8 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 	}
 	for (int i = 0; i < mpRefFrame->mvPts.size(); i+= nIncORB) {
 		auto pt = mpRefFrame->mvPts[i];
-		bool b1 = CheckOpticalPointOverlap(1, 10, pt) > -1;
-		bool b2 = !CheckOpticalPointOverlap(currMap, mpSystem->mnRadius, 10, pt);
+		bool b1 = CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
+		bool b2 = !CheckOpticalPointOverlap(currMap, pt, mpSystem->mnRadius);
 		if (b1 || b2) {
 			continue;
 		}

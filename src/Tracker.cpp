@@ -45,7 +45,7 @@ UVR_SLAM::Tracker::Tracker(System* pSys, std::string strPath) : mpSystem(pSys), 
 
 	float fps = fs["Camera.fps"];
 	mnMaxFrames = 5;// 10;//fps;
-	mnMinFrames = 4; //fps / 3;//3
+	mnMinFrames = 3; //fps / 3;//3
 
 	mnThreshMinCPs	 = fs["Tracker.MinCP"];
 	mnThreshMinMPs	 = fs["Tracker.MinMP"];
@@ -90,7 +90,7 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, bool &bNeedCP, bool &bNe
 	bool bMatchMP = mnMapPointMatching < mnThreshMinMPs;
 	bool bMatchCP = mnPointMatching < mnThreshMinCPs;
 	bNeedCP = bDiffCP || bMatchCP;
-	bNeedMP = (bDiffMP || bMatchMP) && bMinFrames;
+	bNeedMP = (bDiffMP || bMatchMP);// && bMinFrames;
 	bNeedPoseHandle = bPoseFail;
 	bNeedNewKF = bMinFrames;
 	return bDoingMapping && (bNeedCP || bNeedMP || bNeedPoseHandle || bNeedNewKF);
@@ -269,10 +269,12 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pCurr, std::vector<UV
 	for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
 		auto pCP = vpCPs[i];
 		auto pt = vpPts[i];
-		if (pMatchInfo->CheckOpticalPointOverlap(mpSystem->mnRadius, mpSystem->mnRadius, pt) < 0) {
+		if (pMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) < 0) {
 			int idx = pMatchInfo->AddCP(pCP, pt);
 			//pCP->ConnectFrame(pMatchInfo, idx);
 		}
+		else
+			std::cout << "UpdateMatchingInfo::???????????????????????????????????????????????" << std::endl;
 	}
 	
 	return 0;
@@ -295,7 +297,7 @@ int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pPrev, UVR_SLAM::Fram
 		}
 		int prevIdx = vnIDXs[i];
 		auto pt = vpPts[i];
-		if (pMatchInfo->CheckOpticalPointOverlap(mpSystem->mnRadius, 10, pt) < 0) {
+		if (pMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) < 0) {
 			//pMP->AddSuccess();
 			//pMP->SetLastSuccessFrame(pCurr->GetFrameID());
 			pMatchInfo->AddCP(pCP, pt);
