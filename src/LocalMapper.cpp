@@ -174,39 +174,38 @@ void UVR_SLAM::LocalMapper::Run() {
 				mpTargetFrame->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 				mpTargetFrame->mpMatchInfo->UpdateKeyFrame();
 				NewMapPointMarginalization();
-				if (bNeedMP) {
-					//std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
-					nCreated = MappingProcess(mpMap, mpTargetFrame, time2, currImg);
-					/*mpSystem->mbCreateMP = true;
-					lock.unlock();
-					mpSystem->cvUseCreateMP.notify_all();*/
-					//std::cout << "LM::MP::" <<mpTargetFrame->mnFrameID<<"::"<< nCreated << std::endl;
-					cv::Mat resized;
-					cv::resize(currImg, resized, cv::Size(currImg.cols / 2, currImg.rows / 2));
-					mpVisualizer->SetOutputImage(resized, 2);
-				}
-				auto pTarget = mpMap->AddWindowFrame(mpTargetFrame);
-				if (pTarget) {
-					mpSegmentator->InsertKeyFrame(pTarget);
-					mpPlaneEstimator->InsertKeyFrame(pTarget);
-					//mpLoopCloser->InsertKeyFrame(pTarget);
-				}
-				if (mpMapOptimizer->isDoingProcess()) {
-					//std::cout << "lm::ba::busy" << std::endl;
-					mpMapOptimizer->StopBA(true);
-				}
-				else {
-					mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
-				}
 				
-				/*bool bCheckBaseLine = mpTargetFrame->CheckBaseLine(mpPrevKeyFrame);
+				bool bCheckBaseLine = mpTargetFrame->CheckBaseLine(mpPrevKeyFrame);
 				if (bCheckBaseLine) {
-					
+					if (bNeedMP) {
+						//std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
+						nCreated = MappingProcess(mpMap, mpTargetFrame, mpPrevKeyFrame, time2, currImg);
+						/*mpSystem->mbCreateMP = true;
+						lock.unlock();
+						mpSystem->cvUseCreateMP.notify_all();*/
+						//std::cout << "LM::MP::" <<mpTargetFrame->mnFrameID<<"::"<< nCreated << std::endl;
+						cv::Mat resized;
+						cv::resize(currImg, resized, cv::Size(currImg.cols / 2, currImg.rows / 2));
+						mpVisualizer->SetOutputImage(resized, 2);
+					}
+					auto pTarget = mpMap->AddWindowFrame(mpTargetFrame);
+					if (pTarget) {
+						mpSegmentator->InsertKeyFrame(pTarget);
+						mpPlaneEstimator->InsertKeyFrame(pTarget);
+						//mpLoopCloser->InsertKeyFrame(pTarget);
+					}
+					if (mpMapOptimizer->isDoingProcess()) {
+						//std::cout << "lm::ba::busy" << std::endl;
+						mpMapOptimizer->StopBA(true);
+					}
+					else {
+						mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
+					}
 				}
 				else {
 					mpTargetFrame = mpPrevKeyFrame;
 					mpPrevKeyFrame = mpPPrevKeyFrame;
-				}*/
+				}
 				
 			}
 			else {
@@ -715,6 +714,164 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pP
 
 }
 ////////////200722 수정 필요
+int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPrevKF, double& dtime, cv::Mat& debugging) {
+	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+	int N;
+	auto pCurrMatch = pCurrKF->mpMatchInfo;
+	auto pPrevMatch = pPrevKF->mpMatchInfo;
+	auto vpTempCPs = pCurrMatch->mvpMatchingCPs;
+	auto vpTempPTsCurr = pCurrMatch->mvMatchingPts;
+	auto vpTempPTsPrev = pPrevKF->mpMatchInfo->mvMatchingPts;
+
+	cv::Mat Rprev, Tprev, Rcurr, Tcurr;
+	pCurrKF->GetPose(Rcurr, Tcurr);
+	pPrevKF->GetPose(Rprev, Tprev);
+
+	cv::Mat Pcurr, Pprev;
+	cv::hconcat(Rcurr, Tcurr, Pcurr);
+	cv::hconcat(Rprev, Tprev, Pprev);
+
+	std::vector<CandidatePoint*> vMatchCPs;
+	std::vector<cv::Point2f> vMatchPrevPTs, vMatchCurrPTs;
+
+	////pt 확보 과정
+	for (size_t i = 0, iend = vpTempPTsCurr.size(); i < iend; i++) {
+		auto pCPi = vpTempCPs[i];
+		int prevIDX = pCPi->GetPointIndexInFrame(pPrevMatch);
+		if (prevIDX == -1)
+			continue;
+		auto currPt = vpTempPTsCurr[i];
+		auto prevPt = vpTempPTsPrev[prevIDX];
+		vMatchPrevPTs.push_back(prevPt);
+		vMatchCurrPTs.push_back(currPt);
+		vMatchCPs.push_back(pCPi);
+	}
+
+	if (vMatchCPs.size() < 10) {
+		return -1;
+	}
+
+	cv::Mat TempMap;
+	cv::triangulatePoints(mK*Pprev, mK*Pcurr, vMatchPrevPTs, vMatchCurrPTs, TempMap);
+
+	cv::Scalar color1(255, 0, 0);
+	cv::Scalar color2(255, 255, 0);
+	cv::Scalar color3(0, 0, 255);
+	cv::Scalar color4(0, 255, 255);
+	cv::Scalar color5(0, 255, 0);
+
+	std::vector<CandidatePoint*> vMappingCPs;
+	std::vector<cv::Point2f> vPTs;
+	std::vector<cv::Mat> vX3Ds;
+	std::vector<float> vfScales;
+	float thresh = 9.0;
+	for (size_t i = 0, iend = TempMap.cols; i < iend; i++) {
+		auto currPt = std::move(vMatchCurrPTs[i]);
+		auto prevPt = std::move(vMatchPrevPTs[i]);
+		auto pCPi = std::move(vMatchCPs[i]);
+		auto pMPi = pCPi->GetMP();
+
+		cv::Mat X3D;
+		float depth;
+		if (pCPi->GetNumSize() < mnThreshMinKF)
+			continue;
+		bool bNewMP = true;
+		float depth1, depth2;
+		{
+			X3D = std::move(TempMap.col(i));
+			if (abs(X3D.at<float>(3)) < 0.0001) {
+				bNewMP = false;
+			}
+			X3D /= X3D.at<float>(3);
+			X3D = X3D.rowRange(0, 3);
+			//New MP 조정
+
+			cv::Mat proj1 = Rcurr*X3D + Tcurr;
+			cv::Mat proj2 = Rprev*X3D + Tprev;
+
+			depth1 = proj1.at<float>(2);
+			depth2 = proj2.at<float>(2);
+
+			if (depth1  < 0.0 || depth2 < 0.0) {
+				bNewMP = false;
+			}
+			////depth test
+
+			////reprojection error
+			proj1 = mK*proj1;
+			proj2 = mK*proj2;
+			cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
+			cv::Point2f projected2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
+
+			auto diffPt1 = projected1 - currPt;
+			auto diffPt2 = projected2 - prevPt;
+			float err1 = (diffPt1.dot(diffPt1));
+			float err2 = (diffPt2.dot(diffPt2));
+			if (err1 > thresh || err2 > thresh) {
+				bNewMP = false;
+			}
+		}
+
+		bool bOldMP = pMPi && pMPi->GetQuality() && !pMPi->isDeleted();
+		if (bNewMP) {
+			cv::circle(debugging, currPt, 3, color2, -1);
+		}
+		if (bOldMP) {
+			//MP가 존재하면 얘를 이용함.
+			//여기서 스케일을 다시 계산하자.
+			X3D = std::move(pMPi->GetWorldPos());
+			//pMPi->SetLastVisibleFrame(nCurrKeyFrameID);
+			cv::circle(debugging, currPt, 3, color4, -1);
+			if (bNewMP) {
+				////scale
+				cv::Mat proj3 = Rprev*X3D + Tprev;
+				float depth3 = proj3.at<float>(2);
+				float scale = depth3 / depth2;
+				vfScales.push_back(scale);
+			}
+		}
+		if (!bNewMP && !bOldMP) {
+			cv::circle(debugging, currPt, 3, color1, -1);
+			continue;
+		}
+		vMappingCPs.push_back(pCPi);
+		vX3Ds.push_back(X3D);
+		vPTs.push_back(currPt);
+	}
+
+	////////////////////////////////////////최적화 진행
+	if (vX3Ds.size() < 10) {
+		//std::cout << "포인트 부족11" << std::endl;
+		return -1;
+	}
+
+	/////////Scale 계산
+	if (vfScales.size() < 10) {
+		//std::cout << "포인트 부족22" << std::endl;
+		return -1;
+	}
+	std::nth_element(vfScales.begin(), vfScales.begin() + vfScales.size() / 2, vfScales.end());
+	float medianPrevScale = vfScales[vfScales.size() / 2];
+	/////////Scale 계산
+
+	mpMap->ClearReinit();
+	std::vector<bool> vbInliers(vX3Ds.size(), true);
+	std::vector<bool> vbInliers2(vX3Ds.size(), true);
+	Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers, vbInliers2, medianPrevScale);
+
+	for (size_t i = 0, iend = vX3Ds.size(); i < iend; i++) {
+		if (!vbInliers[i])
+			cv::circle(debugging, vPTs[i], 3, color3, -1);
+		if (!vbInliers2[i])
+			cv::circle(debugging, vPTs[i], 3, color5, -1);
+	}
+
+	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	dtime = duration / 1000.0;
+	return vX3Ds.size();
+
+}
 int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dtime, cv::Mat& debugging) {
 	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 
@@ -738,7 +895,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 	cv::Scalar color3(0,  0, 255);
 	cv::Scalar color4(0,255, 255);
 	cv::Scalar color5(0, 255, 0);
-
+		
 	//mpMap->ClearReinit();
 	for (size_t i = 0, iend = vpTempPTs.size(); i < iend; i++) {
 		auto pCPi = vpTempCPs[i];
@@ -754,7 +911,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 		if (bNewMP){
 			cv::circle(debugging, currPt, 3, color2, -1);
 		}
-		//cv::circle(debugging, currPt, 3, color2, -1);
+		//
 		if (bOldMP) {
 			//MP가 존재하면 얘를 이용함.
 			//여기서 스케일을 다시 계산하자.
@@ -769,8 +926,10 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dti
 				vfScales.push_back(scale);
 			}
 		}
-		if (!bNewMP && !bOldMP)
+		if (!bNewMP && !bOldMP){
+			cv::circle(debugging, currPt, 3, color1, -1);
 			continue;
+		}
 		vMappingCPs.push_back(pCPi);
 		vX3Ds.push_back(X3D);
 		vPTs.push_back(currPt);

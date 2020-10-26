@@ -50,6 +50,7 @@ namespace UVR_SLAM {
 		cv::Scalar color1(255, 255, 0);
 		cv::Scalar color2(255,0,255);
 		cv::Scalar color3(0, 255, 255);
+		cv::Scalar color4(0, 0, 255);
 		
 		while (1) {
 
@@ -81,22 +82,27 @@ namespace UVR_SLAM {
 					else
 						cv::circle(vis2, pt, 3, color1, -1);
 
-					if (!pF->mpMatchInfo->mvbMapPointInliers[i])
-						continue;
 					auto pMPi = pCPi->GetMP();
-					if (!pMPi || pMPi->isDeleted() || !pMPi->GetQuality())
-						continue;
-					
-					cv::Point2f p2D;
-					cv::Mat pCam;
-					float depth;
-					bool b = pMPi->Projection(p2D, pCam, depth,R, t, mK, mnWidth, mnHeight);
-					nMatch++;
-					int label = pMPi->GetLabel();
-					cv::Scalar c = ConvertDepthToColor(depth);
-					cv::circle(vis, p2D, 3, c, -1);//ObjectColors::mvObjectLabelColors[label]
-					cv::circle(vis2, p2D, 3, ObjectColors::mvObjectLabelColors[label], -1);//
-					cv::line(vis2, p2D, pt, color3, 2);
+					bool bMP = pMPi && !pMPi->isDeleted() && pMPi->GetQuality();
+
+					if(bMP){
+						cv::Point2f p2D;
+						cv::Mat pCam;
+						float depth;
+						bool b = pMPi->Projection(p2D, pCam, depth,R, t, mK, mnWidth, mnHeight);
+						nMatch++;
+						int label = pMPi->GetLabel();
+						if(pF->mpMatchInfo->mvbMapPointInliers[i]){
+							cv::circle(vis2, p2D, 3, ObjectColors::mvObjectLabelColors[label], -1);//
+							cv::line(vis2, p2D, pt, color3, 2);
+						}else{
+							cv::circle(vis2, p2D, 5, color4, -1);//
+						}
+
+						//Depth
+						cv::Scalar c = ConvertDepthToColor(depth);
+						cv::circle(vis, p2D, 3, c, -1);//ObjectColors::mvObjectLabelColors[label]
+					}
 				}
 				
 				std::stringstream ss;

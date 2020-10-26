@@ -322,14 +322,18 @@ bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pTargetKF) {
 	float baseline = cv::norm(vBaseline);
 	pTargetKF->ComputeSceneMedianDepth();
 	float medianDepthKF2 = pTargetKF->GetSceneMedianDepth();
-	if(medianDepthKF2 < 0.0)
+	if(medianDepthKF2 < 0.0){
+		std::cout << "Not enough baseline!!" << std::endl;
 		return false;
-
+	}
+	
 	float ratioBaselineDepth = baseline / medianDepthKF2;
+	std::cout << baseline << ", " << medianDepthKF2 << ":: " << ratioBaselineDepth << std::endl;
 
-	if (ratioBaselineDepth<0.01)
+	if (ratioBaselineDepth<0.01){
+		std::cout << "Not enough baseline!!" << std::endl;
 		return false;
-
+	}
 	return true;
 }
 
@@ -365,10 +369,15 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(std::vector<UVR_SLAM::MapPoint*> v
 ////20.09.05 수정 필요.
 void UVR_SLAM::Frame::ComputeSceneMedianDepth()
 {
+	cv::Mat Rcw2;
+	float zcw;
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexPose);
+		Rcw2 = R.row(2);
+		zcw = t.at<float>(2);
+	}
 	std::vector<float> vDepths;
-	cv::Mat Rcw2 = R.row(2);
 	Rcw2 = Rcw2.t();
-	float zcw = t.at<float>(2);
 	for (size_t i = 0, iend = mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++)
 	{
 		auto pCPi = mpMatchInfo->mvpMatchingCPs[i];

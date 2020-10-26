@@ -43,6 +43,7 @@ namespace UVR_SLAM {
 
 	private:
 		int MappingProcess(Map* pMap, Frame* pCurrKF, double& dtime, cv::Mat& debugging);
+		int MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPrevKF,double& dtime, cv::Mat& debugging);
 		int CreateMapPoints(Frame* pCurrKF, std::vector<cv::Point2f> vMatchCurrPts, std::vector<CandidatePoint*> vMatchPrevCPs, double& ftime, cv::Mat& debugMatch);
 		int MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPrevKF, 
 			std::vector<cv::Point2f>& vMappingPrevPts, std::vector<cv::Point2f>& vMappingCurrPts, std::vector<CandidatePoint*>& vMappingCPs,
