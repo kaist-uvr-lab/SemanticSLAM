@@ -4,9 +4,6 @@
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
-#include <Initializer.h>
-#include <Matcher.h>
-#include <Frame.h>
 
 namespace UVR_SLAM {
 	class SemanticSegmentator;
@@ -14,7 +11,12 @@ namespace UVR_SLAM {
 	class LocalMapper;
 	class Visualizer;
 	class FrameVisualizer;
+	class CandidatePoint;
+	class MapPoint;
 	class System;
+	class Frame;
+	class Matcher;
+	class Initializer;
 	class Map;
 	class Tracker {
 	public:

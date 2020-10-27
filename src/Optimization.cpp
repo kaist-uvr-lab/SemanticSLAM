@@ -2,7 +2,7 @@
 #include <Optimization.h>
 #include <Converter.h>
 #include <map>
-#include <FrameWindow.h>
+#include <Frame.h>
 #include <opencv2/core/eigen.hpp>
 //#include <Edge.h>
 //#include <Optimizer.h>
@@ -15,6 +15,7 @@
 #include <Plane.h>
 #include <System.h>
 #include <Map.h>
+#include <MapPoint.h>
 #include <MapOptimizer.h>
 
 #include "g2o/core/block_solver.h"

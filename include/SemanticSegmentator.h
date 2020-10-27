@@ -5,13 +5,15 @@
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
+#include <opencv2/features2d.hpp>
+#include <opencv2/calib3d.hpp>
 #include <mutex>
-#include <Frame.h>
 #include <JSONConverter.h>
 
 namespace UVR_SLAM {
 
 	class System;
+	class Frame;
 	class FrameWindow;
 	class PlaneEstimator;
 	class LocalMapper;

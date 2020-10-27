@@ -8,6 +8,7 @@
 #define UVR_SLAM_FRAME_H
 #pragma once
 #include <fbow.h> //include windows header.
+#include <System.h>
 #include <map>
 #include <functional>
 #include <mutex>
@@ -16,26 +17,26 @@
 #include <opencv2/features2d.hpp>
 #include <opencv2/calib3d.hpp>
 #include <SegmentationData.h>
-#include <MapPoint.h>
+
 //#include "KeyFrame.h"
 
 namespace UVR_SLAM {
 #define FRAME_GRID_ROWS 24
 #define FRAME_GRID_COLS 32
 
-	
 	const unsigned char FLAG_KEY_FRAME = 0x1;
 	const unsigned char FLAG_SEGMENTED_FRAME = 0x2; 
 	const unsigned char FLAG_LAYOUT_FRAME = 0x4;
 	const unsigned char FLAG_INIT_FRAME = 0x8;
 
 	//class MapPoint;
-	class System;
+	class MapPoint;
 	class CandidatePoint;
 	class ORBextractor;
 	class PlaneInformation;
 	class PlaneProcessInformation;
 	class Line;
+	class FrameGrid;
 	class MatchInfo {
 	public:
 		
@@ -165,6 +166,12 @@ namespace UVR_SLAM {
 		//std::vector<UVR_SLAM::Frame*> GetConnectedKFs();
 		std::vector<UVR_SLAM::Frame*> GetConnectedKFs(int n = 0);
 		std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> GetConnectedKFsWithWeight();
+////////////////
+////FrameGrid
+	public:
+		void SetGrids();
+		std::map<cv::Point2f, FrameGrid*, Point2fLess> mmpFrameGrids;
+////FrameGrid
 ////////////////
 	public:
 		void ComputeSceneMedianDepth();

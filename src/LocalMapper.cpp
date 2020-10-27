@@ -22,7 +22,7 @@ UVR_SLAM::LocalMapper::LocalMapper(){}
 UVR_SLAM::LocalMapper::LocalMapper(System* pSystem, std::string strPath, int w, int h):mnWidth(w), mnHeight(h), mbStopBA(false), mbDoingProcess(false), mbStopLocalMapping(false), mpTargetFrame(nullptr), mpPrevKeyFrame(nullptr), mpPPrevKeyFrame(nullptr){
 	mpSystem = pSystem;
 
-	FileStorage fs(strPath, FileStorage::READ);
+	cv::FileStorage fs(strPath, cv::FileStorage::READ);
 
 	float fx = fs["Camera.fx"];
 	float fy = fs["Camera.fy"];

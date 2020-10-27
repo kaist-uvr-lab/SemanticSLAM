@@ -1,4 +1,5 @@
 #include <System.h>
+#include <Frame.h>
 #include <Map.h>
 #include <Initializer.h>
 #include <SemanticSegmentator.h>
@@ -10,6 +11,11 @@
 #include <MapOptimizer.h>
 #include <direct.h>
 #include <Converter.h>
+#include <ORBextractor.h>
+#include <Optimization.h>
+#include <Matcher.h>
+#include <Tracker.h>
+#include <MapPoint.h>
 
 int UVR_SLAM::System::nKeyFrameID = 1;
 int UVR_SLAM::System::nFrameID = 1;

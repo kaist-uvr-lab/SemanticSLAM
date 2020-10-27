@@ -83,20 +83,7 @@ namespace UVR_SLAM {
 		int mnDeleteMPs;
 		////맵포인트 관리
 		////구역별 맵 저장
-		struct Point2fLess
-		{
-			bool operator()(cv::Point2f const&lhs, cv::Point2f const& rhs) const
-			{
-				return lhs.x == rhs.x ? lhs.y < rhs.y : lhs.x < rhs.x;
-			}
-		};
-		struct Point3fLess
-		{
-			bool operator()(cv::Point3f const&lhs, cv::Point3f const& rhs) const
-			{
-				return lhs.x == rhs.x ? lhs.y == rhs.y ? lhs.z < rhs.z : lhs.y < rhs.y : lhs.x < rhs.x;
-			}
-		};
+		
 ////구역별 맵 저장
 
 ////평면 관리

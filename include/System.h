@@ -14,11 +14,7 @@
 #include <opencv2/features2d.hpp>
 //#include <opencv2/calib3d.hpp>
 
-#include <Frame.h>
-#include <ORBextractor.h>
-#include <Optimization.h>
-#include <Matcher.h>
-#include <Tracker.h>
+
 
 
 namespace fbow {
@@ -55,7 +51,29 @@ namespace fbow {
 }
 
 namespace UVR_SLAM {
+
+	struct Point2fLess
+	{
+		bool operator()(cv::Point2f const&lhs, cv::Point2f const& rhs) const
+		{
+			return lhs.x == rhs.x ? lhs.y < rhs.y : lhs.x < rhs.x;
+		}
+	};
+	struct Point3fLess
+	{
+		bool operator()(cv::Point3f const&lhs, cv::Point3f const& rhs) const
+		{
+			return lhs.x == rhs.x ? lhs.y == rhs.y ? lhs.z < rhs.z : lhs.y < rhs.y : lhs.x < rhs.x;
+		}
+	};
+
+	class Initializer;
+	class Optimization;
 	class Tracker;
+	class Matcher;
+	class ORBextractor;
+	class MapPoint;
+	class Frame;
 	class SemanticSegmentator;
 	class LocalMapper;
 	class PlaneEstimator;

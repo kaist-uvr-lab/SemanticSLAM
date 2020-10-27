@@ -1,13 +1,15 @@
 #ifndef UVR_SLAM_PLANAR_OPTIMIZATION_H
 #define UVR_SLAM_PLANAR_OPTIMIZATION_H
 #pragma once
-#include <Frame.h>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 
 namespace UVR_SLAM {
+	class Frame;
+	class MapPoint;
 	class MapOptimizer;
 	class Map;
+
 	class PlaneProcessInformation;
 	class PlanarOptimization {
 	public:

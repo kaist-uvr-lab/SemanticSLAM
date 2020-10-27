@@ -5,8 +5,9 @@
 #include <Frame.h>
 #include <CandidatePoint.h>
 #include <MatrixOperator.h>
-#include <System.h>
 #include <ORBextractor.h>
+#include <MapPoint.h>
+#include <FrameGrid.h>
 #include <Plane.h>
 
 bool UVR_SLAM::Frame::mbInitialComputations = true;
@@ -328,7 +329,6 @@ bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pTargetKF) {
 	}
 	
 	float ratioBaselineDepth = baseline / medianDepthKF2;
-	std::cout << baseline << ", " << medianDepthKF2 << ":: " << ratioBaselineDepth << std::endl;
 
 	if (ratioBaselineDepth<0.01){
 		std::cout << "Not enough baseline!!" << std::endl;
@@ -1077,3 +1077,8 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsMapping(std::vector<
 }
 
 //////////////matchinfo
+
+////////////////FrameGrid
+void UVR_SLAM::Frame::SetGrids() {
+
+}

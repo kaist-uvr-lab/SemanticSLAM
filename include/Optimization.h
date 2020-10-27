@@ -3,7 +3,7 @@
 #ifndef UVR_SLAM_OPTIMIZATION_H
 #define UVR_SLAM_OPTIMIZATION_H
 #pragma once
-#include <Frame.h>
+
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 //#include <Vertex.h>
@@ -18,7 +18,9 @@ namespace UVR_SLAM {
 	class CandidatePoint;
 	class FrameWindow;
 	class System;
+	class Frame;
 	class Map;
+	class MapPoint;
 	class PlaneProcessInformation;
 	class Optimization {
 	public:

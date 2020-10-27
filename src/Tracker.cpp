@@ -2,6 +2,7 @@
 #include <System.h>
 #include <Map.h>
 #include <Plane.h>
+#include <Frame.h>
 #include <Matcher.h>
 #include <Initializer.h>
 #include <LocalMapper.h>
@@ -11,6 +12,7 @@
 #include <FrameVisualizer.h>
 #include <Visualizer.h>
 #include <CandidatePoint.h>
+#include <MapPoint.h>
 
 //std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
 

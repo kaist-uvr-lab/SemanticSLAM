@@ -2,6 +2,8 @@
 #include <Converter.h>
 #include <map>
 #include <opencv2/core/eigen.hpp>
+#include <Frame.h>
+#include <MapPoint.h>
 #include <PoseGraphOptimization.h>
 #include <MatrixOperator.h>
 #include <PlaneBA.h>

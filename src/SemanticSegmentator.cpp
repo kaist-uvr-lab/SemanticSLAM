@@ -1,5 +1,6 @@
 #include <SemanticSegmentator.h>
 #include <System.h>
+#include <Frame.h>
 #include <SegmentationData.h>
 #include <FrameWindow.h>
 #include <PlaneEstimator.h>
@@ -132,7 +133,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			///////////CCL TEST
 			cv::addWeighted(seg_color, 0.5, resized_color, 0.5, 0.0, resized_color);
 			for (auto iter = mpTargetFrame->mpMatchInfo->mmLabelMasks.begin(), eiter = mpTargetFrame->mpMatchInfo->mmLabelMasks.end(); iter != eiter; iter++) {
-				Mat img_labels, stats, centroids;
+				cv::Mat img_labels, stats, centroids;
 				int label = iter->first;
 				cv::Mat mask = iter->second;
 				
@@ -153,19 +154,19 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 					for (int j = 0; j < numOfLables; j++) {
 						/*if (j == maxIdx)
 						continue;*/
-						int area = stats.at<int>(j, CC_STAT_AREA);
+						int area = stats.at<int>(j, cv::CC_STAT_AREA);
 						if (area < 300)
 							continue;
-						int left = stats.at<int>(j, CC_STAT_LEFT);
-						int top = stats.at<int>(j, CC_STAT_TOP);
-						int width = stats.at<int>(j, CC_STAT_WIDTH);
-						int height = stats.at<int>(j, CC_STAT_HEIGHT);
-						cv::Rect rect(Point(left, top), Point(left + width, top + height));
+						int left = stats.at<int>(j, cv::CC_STAT_LEFT);
+						int top = stats.at<int>(j, cv::CC_STAT_TOP);
+						int width = stats.at<int>(j, cv::CC_STAT_WIDTH);
+						int height = stats.at<int>(j, cv::CC_STAT_HEIGHT);
+						cv::Rect rect(cv::Point(left, top), cv::Point(left + width, top + height));
 						/*mpTargetFrame->mpMatchInfo->mmLabelRects.insert(std::make_pair(label, rect));
 						mpTargetFrame->mpMatchInfo->mmLabelCPs.insert(std::make_pair(label, std::list<CandidatePoint*>()));*/
 						auto info = std::make_pair(rect, std::list<CandidatePoint*>());
 						mpTargetFrame->mpMatchInfo->mmLabelRectCPs.insert(std::make_pair(label, info));
-						rectangle(resized_color, rect, Scalar(255, 255, 255), 2);
+						rectangle(resized_color, rect, cv::Scalar(255, 255, 255), 2);
 						//rectangle(ccl_res, Point(left, top), Point(left + width, top + height), Scalar(255, 255, 255), 2);
 					}
 				}
