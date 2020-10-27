@@ -12,7 +12,11 @@ namespace UVR_SLAM {
 	public:
 		FrameGrid();
 		FrameGrid(cv::Point2f base, cv::Rect r);
+		FrameGrid(cv::Point2f base, int size);
 		virtual ~FrameGrid();
+	public:
+		cv::Mat CalcGradientImage(cv::Mat src);
+		bool CalcActivePoint(cv::Mat src, int gthresh, cv::Point2f& pt);
 	public:
 		int mnLabel;
 		int mnPlane;

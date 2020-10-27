@@ -149,6 +149,7 @@ void UVR_SLAM::LocalMapper::Run() {
 				mpTargetFrame->SetBowVec(mpSystem->fvoc);
 				{
 					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
+					mpTargetFrame->SetGrids();
 					mpTargetFrame->mpMatchInfo->SetMatchingPoints();
 					mpSystem->mbCreateCP = true;
 					//std::cout << "LM::CP::" << mpTargetFrame->mnFrameID << "::" << mpTargetFrame->mpMatchInfo->mvpMatchingCPs.size() << std::endl;

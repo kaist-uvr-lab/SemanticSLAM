@@ -2,6 +2,7 @@
 #include <omp.h>
 #include <random>
 #include <Frame.h>
+#include <FrameGrid.h>
 #include <System.h>
 #include <MapPoint.h>
 #include <CandidatePoint.h>
@@ -876,6 +877,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	int nCurrFrameID = curr->mnFrameID;
 	int res = 0;
 	int nBad = 0;
+	int nGridSize = mpSystem->mnRadius * 2;
 
 	for (size_t i = 0, iend = prevPts.size(); i < iend; i++){
 		if (status[i] == 0) {
@@ -885,11 +887,21 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			nBad++;
 			continue;
 		}
+		auto gridPt = prev->GetGridBasePt(currPts[i], nGridSize);
+		if (curr->mmbFrameGrids[gridPt]) {
+			continue;
+		}
 		auto pCPi = prev->mpMatchInfo->mvpMatchingCPs[i];
 		if (pCPi->mnTrackingFrameID == nCurrFrameID) {
 			std::cout << "tracking::" << pCPi->mnCandidatePointID << ", " << nCurrFrameID << std::endl;
 			continue;
 		}
+		////grid
+		curr->mmbFrameGrids[gridPt] = true;
+		curr->mmpFrameGrids[gridPt] = new FrameGrid(gridPt, nGridSize);
+		curr->mmpFrameGrids[gridPt]->mpCP = pCPi;
+		curr->mmpFrameGrids[gridPt]->pt = currPts[i];
+		////grid
 		pCPi->mnTrackingFrameID = nCurrFrameID;
 		vpCPs.push_back(pCPi);
 		vpPts.push_back(currPts[i]);

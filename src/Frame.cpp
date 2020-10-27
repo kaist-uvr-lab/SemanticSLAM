@@ -15,7 +15,7 @@ float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::F
 float UVR_SLAM::Frame::mnMinX, UVR_SLAM::Frame::mnMinY, UVR_SLAM::Frame::mnMaxX, UVR_SLAM::Frame::mnMaxY;
 float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeightInv;
 
-UVR_SLAM::Frame::Frame(cv::Mat _src, int w, int h, cv::Mat K, double ts):mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
+UVR_SLAM::Frame::Frame(System* pSys, cv::Mat _src, int w, int h, cv::Mat K, double ts):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
 mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts)
 {
 	matOri = _src.clone();
@@ -924,6 +924,9 @@ void UVR_SLAM::MatchInfo::SetLabel() {
 //커넥트 프레임X
 void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 
+	//auto mmpFrameGrids = mpRefFrame->mmpFrameGrids;
+	int nGridSize = mpSystem->mnRadius * 2;
+
 	//int nMax = (mpSystem->mnMaxMP+100-nCP)/2;//150; //둘다 하면 500
 	int nMax = 150;
 	int nIncEdge = mpRefFrame->mvEdgePts.size() / nMax;
@@ -943,10 +946,19 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		if (b1 || b2) {
 			continue;
 		}
+		auto gridPt = mpRefFrame->GetGridBasePt(pt, nGridSize);
+		if (mpRefFrame->mmbFrameGrids[gridPt])
+			continue;
 		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 		auto pCP = new UVR_SLAM::CandidatePoint(this);
 		int idx = this->AddCP(pCP, pt);
 		//pCP->ConnectFrame(this, idx);
+		
+		////grid
+		mpRefFrame->mmbFrameGrids[gridPt] = true;
+		mpRefFrame->mmpFrameGrids[gridPt]->pt = pt;
+		mpRefFrame->mmpFrameGrids[gridPt]->mpCP = pCP;
+		////grid
 	}
 	for (int i = 0; i < mpRefFrame->mvPts.size(); i+= nIncORB) {
 		auto pt = mpRefFrame->mvPts[i];
@@ -955,10 +967,19 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		if (b1 || b2) {
 			continue;
 		}
+		auto gridPt = mpRefFrame->GetGridBasePt(pt, nGridSize);
+		if (mpRefFrame->mmbFrameGrids[gridPt])
+			continue;
 		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 		auto pCP = new UVR_SLAM::CandidatePoint(this, mpRefFrame->mvnOctaves[i]);
 		int idx = this->AddCP(pCP, pt);
 		//pCP->ConnectFrame(this, idx);
+
+		////grid
+		mpRefFrame->mmbFrameGrids[gridPt] = true;
+		mpRefFrame->mmpFrameGrids[gridPt]->pt = pt;
+		mpRefFrame->mmpFrameGrids[gridPt]->mpCP = pCP;
+		////grid
 	}
 }
 
@@ -1080,5 +1101,40 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsMapping(std::vector<
 
 ////////////////FrameGrid
 void UVR_SLAM::Frame::SetGrids() {
+	int nHalf = mpMatchInfo->mpSystem->mnRadius;
+	int nSize = nHalf * 2;
 
+	int thresh = 15;
+
+	for (int x = 0; x < mnWidth; x += nSize) {
+		for (int y = 0; y < mnHeight; y += nSize) {
+			cv::Point2f ptLeft(x, y);
+			if (mmpFrameGrids.count(ptLeft))
+				continue;
+			cv::Point2f ptRight(x + nSize, y + nSize);
+			if (ptRight.x > mnWidth || ptRight.y > mnHeight)
+				continue;
+			auto pGrid = new FrameGrid(std::move(ptLeft), std::move(cv::Rect(ptLeft, ptRight)));
+			bool bGrid = false;
+			//cv::Mat mGra = pGrid->CalcGradientImage(GetOriginalImage());
+			//cv::Point2f pt;
+			//if (pGrid->CalcActivePoint(mGra, thresh, pt)) {
+			//	bGrid = true;
+			//	auto pCP = new UVR_SLAM::CandidatePoint(mpMatchInfo);
+			//	int idx = mpMatchInfo->AddCP(pCP, pt);
+			//	////grid
+			//	pGrid->pt = pt;
+			//	pGrid->mpCP = pCP;
+			//	////grid
+			//}
+			//imshow("gra ", mGra); waitKey();
+			mmpFrameGrids.insert(std::make_pair(ptLeft, pGrid));
+			mmbFrameGrids.insert(std::make_pair(ptLeft, bGrid));
+		}
+	}
+}
+cv::Point2f UVR_SLAM::Frame::GetGridBasePt(cv::Point2f pt, int size) {
+	int a = pt.x / size;
+	int b = pt.y / size;
+	return std::move(cv::Point2f(a*size, b*size));
 }

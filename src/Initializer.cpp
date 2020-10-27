@@ -57,6 +57,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame1->SetBowVec(mpSystem->fvoc);
 		mpInitFrame1->DetectEdge();
 		mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, mpInitFrame1, nullptr, mnWidth, mnHeight);
+		mpInitFrame1->SetGrids();
 		mpInitFrame1->mpMatchInfo->SetMatchingPoints();
 		mpSegmentator->InsertKeyFrame(mpInitFrame1);
 		return mbInit;
@@ -266,6 +267,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		if(mpInitFrame2->mpMatchInfo->mvpMatchingCPs.size() < mpSystem->mnMaxMP){
 			mpInitFrame2->DetectFeature();
 			mpInitFrame2->DetectEdge();
+			mpInitFrame2->SetGrids();
 			mpInitFrame2->mpMatchInfo->SetMatchingPoints();
 			mpInitFrame2->SetBowVec(mpSystem->fvoc);
 			std::cout <<"INITIALIZER::TEST::"<< mpInitFrame2->mpMatchInfo->mvpMatchingCPs.size() << std::endl;

@@ -108,7 +108,7 @@ namespace UVR_SLAM {
 
 	class Frame {
 	public:
-		Frame(cv::Mat _src, int w, int h, cv::Mat mK, double ts);
+		Frame(System* pSys, cv::Mat _src, int w, int h, cv::Mat mK, double ts);
 		Frame(void* ptr, int id, int w, int h, cv::Mat mK);
 		Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat mK);
 		virtual ~Frame();
@@ -170,7 +170,10 @@ namespace UVR_SLAM {
 ////FrameGrid
 	public:
 		void SetGrids();
+		cv::Point2f GetGridBasePt(cv::Point2f pt, int size);
+
 		std::map<cv::Point2f, FrameGrid*, Point2fLess> mmpFrameGrids;
+		std::map<cv::Point2f, bool, Point2fLess> mmbFrameGrids;
 ////FrameGrid
 ////////////////
 	public:
@@ -194,6 +197,7 @@ namespace UVR_SLAM {
 	public:
 		///////////////////////////////
 		////200526
+		System* mpSystem;
 		int mnWidth, mnHeight;
 		cv::Mat mEdgeImg;
 		std::vector<cv::Point2f> mvEdgePts;
