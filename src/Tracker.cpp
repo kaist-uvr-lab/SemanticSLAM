@@ -83,7 +83,7 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, bool &bNeedCP, bool &bNe
 
 	bool bDiffCP = nDiffCP > mnThreshDiff;
 	bool bDiffMP = nDiffMP > mnThreshDiff;
-	bool bPoseFail = nPoseFail > mnThreshDiffPose;
+	bool bPoseFail = mnMapPointMatching < 80;//nPoseFail > mnThreshDiffPose;
 	
 	bool bDoingMapping = !mpLocalMapper->isDoingProcess();
 	bool bMaxFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
@@ -92,7 +92,7 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, bool &bNeedCP, bool &bNe
 	bool bMatchMP = mnMapPointMatching < mnThreshMinMPs;
 	bool bMatchCP = mnPointMatching < mnThreshMinCPs;
 	bNeedCP = bDiffCP || bMatchCP;
-	bNeedMP = (bDiffMP || bMatchMP);// && bMinFrames;
+	bNeedMP = (bDiffMP || bMatchMP) && bMinFrames;
 	bNeedPoseHandle = bPoseFail;
 	bNeedNewKF = bMinFrames;
 	return bDoingMapping && (bNeedCP || bNeedMP || bNeedPoseHandle || bNeedNewKF);
@@ -173,6 +173,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			mpSystem->SetBoolInit(true);
 			mnPrevMapPointMatching = pCurr->mpMatchInfo->GetNumMPs();
 			mnPrevPointMatching = mnPrevMapPointMatching;
+			std::cout << "INIT::" << mnPrevMapPointMatching << ", " << mnPrevPointMatching << std::endl;
 		}
 	}
 	else {
@@ -182,9 +183,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		////MatchInfo ¼³Á¤
 		mpRefKF->SetRecentTrackedFrameID(pCurr->mnFrameID);
 		pCurr->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, pCurr, mpRefKF, mnWidth, mnHeight);
-		cv::Mat prevR, prevT;
-		pPrev->GetPose(prevR, prevT);
-		pCurr->SetPose(prevR, prevT);
+		
 		{
 			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
 			mpSystem->cvUseCreateCP.wait(lock, [&] {return mpSystem->mbCreateCP;});
@@ -203,10 +202,13 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempCPs, vpTempPts);
 		pCurr->mpMatchInfo->InitMapPointInlierVector(mnPointMatching);
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
-		/*{
+		{
 			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
 			mpSystem->cvUseCreateMP.wait(lock, [&] {return mpSystem->mbCreateMP; });
-		}*/
+		}
+		cv::Mat prevR, prevT;
+		pPrev->GetPose(prevR, prevT);
+		pCurr->SetPose(prevR, prevT);
 		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vpTempPts, pCurr->mpMatchInfo->mvbMapPointInliers);
 		int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vpTempPts);
 		///////////////////////////////////////////////////////////////////////////////

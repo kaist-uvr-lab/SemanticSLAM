@@ -59,7 +59,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 
 	// Set MapPoint vertices
 	const int N = vpCPs.size();//vpMPs.size();
-
+	
 	std::vector<g2o::EdgeSE3ProjectXYZOnlyPose*> vpEdgesMono;
 	std::vector<size_t> vnIndexEdgeMono;
 	vpEdgesMono.reserve(N);
@@ -87,7 +87,6 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 			int octave = pMP->mnOctave;
 			const float invSigma2 = mvInvLevelSigma2[octave];
 			e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
-
 			g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
 			e->setRobustKernel(rk);
 			rk->setDelta(deltaMono);
@@ -102,7 +101,6 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 			e->Xw[2] = Xw.at<float>(2);
 
 			optimizer.addEdge(e);
-
 			vpEdgesMono.push_back(e);
 			vnIndexEdgeMono.push_back(i);
 			vbInliers[i] = true;
@@ -150,7 +148,9 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 			if (it == 2)
 				e->setRobustKernel(0);
 		}
-
+		if (nInitialCorrespondences - nBad < 10) {
+			std::cout << "PoseOptimization::Error::" << pFrame->mnFrameID << "::" << nInitialCorrespondences <<"::" << nBad << std::endl;
+		}
 		if (optimizer.edges().size()<10)
 			break;
 	}
@@ -901,8 +901,10 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 
 	auto vpKFs = pMap->GetWindowFramesVector(3);
 	auto spKFs = pMap->GetWindowFramesSet(3);
-	vpKFs.push_back(pCurrKF);
-	spKFs.insert(pCurrKF);
+	if (!spKFs.count(pCurrKF)) {
+		vpKFs.push_back(pCurrKF);
+		spKFs.insert(pCurrKF);
+	}
 	
 	long unsigned int maxKFid = 0;
 	int nCurrKeyFrameID = pCurrKF->mnKeyFrameID;
@@ -1017,7 +1019,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		cv::Mat Tcw = Converter::toCvMat(SE3quat);
 		R = Tcw.rowRange(0, 3).colRange(0, 3);
 		t = Tcw.rowRange(0, 3).col(3);
-		pCurrKF->SetPose(R, t);
+		//pCurrKF->SetPose(R, t);
 	}
 	
 	////포인트 복원

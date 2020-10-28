@@ -31,15 +31,15 @@ namespace UVR_SLAM {
 		mReshaped.copyTo(vecFromMat); // Copy Input Mat to vector vecFromMat
 		//std::cout << "before::" << (int)vecFromMat[vecFromMat.size() / 2] << " " << (int)vecFromMat[vecFromMat.size() - 1] << std::endl;;
 		std::nth_element(vecFromMat.begin(), vecFromMat.begin() + vecFromMat.size() / 2, vecFromMat.end());
-		//std::cout <<"gra::"<< (int)vecFromMat[vecFromMat.size() / 2] << " " << (int)vecFromMat[vecFromMat.size() - 1] << std::endl;;
+		//std::cout <<"gra::"<< (int)vecFromMat[0]<<" "<< (int)vecFromMat[vecFromMat.size() / 2] << " " << (int)vecFromMat[vecFromMat.size() - 1] << std::endl;;
 		
 		double minVal, maxVal;
 		cv::Point maxPt;
 		cv::Point gPt;
 		cv::minMaxLoc(src, &minVal, &maxVal, NULL, &gPt);
 		/*std::cout << "test::" << std::endl;
-		std::cout << "grid::"<< mGrid << std::endl;
-		std::cout << "max::"<<maxVal << std::endl;
+		std::cout << "grid::"<< mGrid << std::endl;*/
+		/*std::cout << "max::"<<maxVal << std::endl;
 		std::cout << "median::" << (int)vecFromMat[vecFromMat.size() / 2] << std::endl;*/
 		int thresh = (int)vecFromMat[vecFromMat.size() / 2] + gthresh;
 		int resVal = (int)maxVal;

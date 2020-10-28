@@ -115,12 +115,14 @@ namespace UVR_SLAM {
 				cv::Rect rect2 = cv::Rect(0, mnHeight, mnWidth, mnHeight);
 				vis.copyTo(res(rect1));
 				kfImg.copyTo(res(rect2));*/
+				
 				cv::Mat resized;
 				cv::resize(vis, resized, cv::Size(vis.cols/2, vis.rows/2));
 				mpVisualizer->SetOutputImage(resized, 0);
-				cv::Mat resized2;
+				
+				/*cv::Mat resized2;
 				cv::resize(vis2, resized2, cv::Size(vis.cols / 2, vis.rows / 2));
-				mpVisualizer->SetOutputImage(resized2, 3);
+				mpVisualizer->SetOutputImage(resized2, 3);*/
 				SetBoolVisualize(false);
 			}//visualize
 		}

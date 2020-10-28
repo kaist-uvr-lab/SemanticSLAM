@@ -1104,7 +1104,7 @@ void UVR_SLAM::Frame::SetGrids() {
 	int nHalf = mpMatchInfo->mpSystem->mnRadius;
 	int nSize = nHalf * 2;
 
-	int thresh = 15;
+	int thresh = 30;
 
 	for (int x = 0; x < mnWidth; x += nSize) {
 		for (int y = 0; y < mnHeight; y += nSize) {
@@ -1116,17 +1116,15 @@ void UVR_SLAM::Frame::SetGrids() {
 				continue;
 			auto pGrid = new FrameGrid(std::move(ptLeft), std::move(cv::Rect(ptLeft, ptRight)));
 			bool bGrid = false;
-			//cv::Mat mGra = pGrid->CalcGradientImage(GetOriginalImage());
-			//cv::Point2f pt;
-			//if (pGrid->CalcActivePoint(mGra, thresh, pt)) {
-			//	bGrid = true;
-			//	auto pCP = new UVR_SLAM::CandidatePoint(mpMatchInfo);
-			//	int idx = mpMatchInfo->AddCP(pCP, pt);
-			//	////grid
-			//	pGrid->pt = pt;
-			//	pGrid->mpCP = pCP;
-			//	////grid
-			//}
+			cv::Mat mGra = pGrid->CalcGradientImage(GetOriginalImage());
+			cv::Point2f pt;
+			if (pGrid->CalcActivePoint(mGra, thresh, pt)) {
+				bGrid = true;
+				auto pCP = new UVR_SLAM::CandidatePoint(mpMatchInfo);
+				int idx = mpMatchInfo->AddCP(pCP, pt);
+				pGrid->pt = pt;
+				pGrid->mpCP = pCP;
+			}
 			//imshow("gra ", mGra); waitKey();
 			mmpFrameGrids.insert(std::make_pair(ptLeft, pGrid));
 			mmbFrameGrids.insert(std::make_pair(ptLeft, bGrid));
