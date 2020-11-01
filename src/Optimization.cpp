@@ -112,7 +112,6 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 	// We perform 4 optimizations, after each optimization we classify observation as inlier/outlier
 	// At the next optimization, outliers are not included, but at the end they can be classified as inliers again.
 	const float chi2Mono[4] = { 5.991,5.991,5.991,5.991 };
-	const float chi2Stereo[4] = { 7.815,7.815,7.815, 7.815 };
 	const int its[4] = { 10,10,10,10 };
 	int nBad = 0;
 	for (size_t it = 0; it<4; it++)
@@ -120,7 +119,9 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 
 		vSE3->setEstimate(Converter::toSE3Quat(Tcw)); //이건가??
 		optimizer.initializeOptimization(0);
-		optimizer.optimize(its[it]);
+		if (!optimizer.optimize(its[it])) {
+			std::cout << "PoseOptimization::error" << std::endl;
+		}
 
 		nBad = 0;
 		for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
@@ -148,11 +149,11 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 			if (it == 2)
 				e->setRobustKernel(0);
 		}
+		
 		if (nInitialCorrespondences - nBad < 10) {
-			std::cout << "PoseOptimization::Error::" << pFrame->mnFrameID << "::" << nInitialCorrespondences <<"::" << nBad << std::endl;
-		}
-		if (optimizer.edges().size()<10)
+			std::cout << "PoseOptimization::Error::" << pFrame->mnFrameID << "::" << it <<"="<< nInitialCorrespondences <<", " << nBad <<"="<< N << std::endl;
 			break;
+		}
 	}
 
 	for (size_t i = 0, iend = vnIndexEdgeMono.size(); i < iend; i++) {
@@ -885,7 +886,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 }
 ////Opticalflow 버전용
 
-void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame* pCurrKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers, std::vector<bool>& vbInliers2, float scale) {
+void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame* pCurrKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers, std::vector<bool>& vbInliers2, float scale, float fMedianDepth, float fMeanDepth, float fStdDev) {
 	
 	//std::unique_lock<std::mutex> lock(pMap->mMutexMapOptimization);
 
@@ -1019,7 +1020,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		cv::Mat Tcw = Converter::toCvMat(SE3quat);
 		R = Tcw.rowRange(0, 3).colRange(0, 3);
 		t = Tcw.rowRange(0, 3).col(3);
-		//pCurrKF->SetPose(R, t);
+		pCurrKF->SetPose(R, t);
 	}
 	
 	////포인트 복원
@@ -1057,15 +1058,23 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 			//}
 		}
 	}
+
+	int N = 0;
+	////NORMAL DISTRIBUTION
 	cv::Mat mMean, mDev;
 	meanStdDev(vfDepths, mMean, mDev);
-	int Nf = sqrt(vfDepths.size());
-	//std::cout << mMean.type() <<"::"<<CV_64FC1<< ", " << mMean << mDev << std::endl;
 	float fMean = (float)mMean.at<double>(0);
-	float fStdDev = (float)mDev.at<double>(0);
-	//float thresh = 1.15;//1.284;// *dStdDev + dMean; //1.654
-	float thresh = 1.15*fStdDev + fMean; //1.654
-	int N = 0;
+	float fstddev = (float)mDev.at<double>(0);
+	float fMaxTh = fMean + 1.15*fstddev; //1.654		//float thresh = 1.15;//1.284;// *dStdDev + dMean; //1.654
+	float fMinTh = fMean - 1.15*fstddev;
+	////NORMAL DISTRIBUTION
+
+	////////median depth
+	//std::vector<float> tempDepths(vfDepths.begin(), vfDepths.end());
+	//std::nth_element(tempDepths.begin(), tempDepths.begin() + tempDepths.size() / 2, tempDepths.end());
+	//float medianDepth = tempDepths[tempDepths.size() / 2];
+	//float thresh = medianDepth*3.f;
+	////////median depth
 	
 	for (size_t i = 0, iend = vnTempIDXs.size(); i < iend; i++)
 	{
@@ -1075,16 +1084,15 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		float depth = std::move(vfDepths[i]);
 		//float zVal = (depth - fMean) / fStdDev;
 
-		if (depth >= thresh){
+		/*if (depth >= fMaxTh){
 			vbInliers2[idx] = false;
-
 			auto pCPi = vpCPs[idx];
 			auto pMPi = pCPi->GetMP();
 			if (pMPi && !pMPi->isDeleted()) {
 				pMPi->Delete();
 			}
-		}
-		if (vbInliers[idx] && depth < thresh) {
+		}*/
+		if (vbInliers[idx] ) {//&& (depth > fMinTh && depth < fMaxTh)
 			pMap->AddReinit(X3D);
 			N++;
 			auto pCPi = vpCPs[idx];

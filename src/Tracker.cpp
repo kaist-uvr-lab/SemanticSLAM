@@ -77,29 +77,39 @@ void UVR_SLAM::Tracker::Init() {
 bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, bool &bNeedCP, bool &bNeedMP, bool &bNeedPoseHandle, bool &bNeedNewKF) {
 	///////////////
 	//keyframe process
-	int nDiffCP = abs(mnPointMatching - mnPrevPointMatching);
-	int nDiffMP = abs(mnMapPointMatching - mnPrevMapPointMatching);
-	int nPoseFail = abs(mnPointMatching - mnMapPointMatching);
 
-	bool bDiffCP = nDiffCP > mnThreshDiff;
-	bool bDiffMP = nDiffMP > mnThreshDiff;
-	bool bPoseFail = mnMapPointMatching < 80;//nPoseFail > mnThreshDiffPose;
+	int nHalf = mpSystem->mnRadius;
+	int nSize = nHalf * 2;
+	int a = mnWidth / nSize;
+	int b = mnHeight / nSize;
+	int nTotal = a*b;
+	float fRatioCP = ((float)mnPointMatching) / nTotal;
+	float fRatioMP = ((float)mnMapPointMatching) / nTotal;
+
+	//int nDiffCP = abs(mnPointMatching - mnPrevPointMatching);
+	//int nDiffMP = abs(mnMapPointMatching - mnPrevMapPointMatching);
+	//int nPoseFail = abs(mnPointMatching - mnMapPointMatching);
+	//bool bDiffCP = nDiffCP > mnThreshDiff;
+	//bool bDiffMP = nDiffMP > mnThreshDiff;
+	//bool bPoseFail = mnMapPointMatching < 80;//nPoseFail > mnThreshDiffPose;
+	//bool bMatchMP = mnMapPointMatching < mnThreshMinMPs;
+	//bool bMatchCP = mnPointMatching < mnThreshMinCPs;
+	//bool bDoingMapping = !mpLocalMapper->isDoingProcess();
+	//bool bMaxFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
+	//bool bMinFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMinFrames;
+	//bNeedCP = bDiffCP || bMatchCP;
+	//bNeedMP = (bDiffMP || bMatchMP) && bMinFrames;
+	//bNeedPoseHandle = bPoseFail;
+	//bNeedNewKF = bMinFrames;
 	
 	bool bDoingMapping = !mpLocalMapper->isDoingProcess();
 	bool bMaxFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
 	bool bMinFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMinFrames;
-
-	bool bMatchMP = mnMapPointMatching < mnThreshMinMPs;
-	bool bMatchCP = mnPointMatching < mnThreshMinCPs;
-	bNeedCP = bDiffCP || bMatchCP;
-	bNeedMP = (bDiffMP || bMatchMP) && bMinFrames;
-	bNeedPoseHandle = bPoseFail;
+	bNeedCP = fRatioCP < 0.2f;
+	bNeedMP = fRatioMP < 0.1f && bMinFrames;
+	bNeedPoseHandle = fRatioMP < 0.1f;
 	bNeedNewKF = bMinFrames;
 	return bDoingMapping && (bNeedCP || bNeedMP || bNeedPoseHandle || bNeedNewKF);
-	/*if (bMinFrames && bDoingMapping && (bNeedCP || bNeedMP || bNeedPoseHandle)) {
-		return true;
-	}
-	return false;*/
 }
 UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev) {
 
