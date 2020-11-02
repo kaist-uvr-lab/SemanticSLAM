@@ -1161,6 +1161,9 @@ void UVR_SLAM::Frame::SetGrids() {
 			cv::Mat mGra = matGradient(rect).clone();
 			cv::Point2f pt;
 			if (pGrid->CalcActivePoint(mGra, thresh, pt)) {
+				bool bOccupied = this->mpMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
+				if (bOccupied)
+					continue;
 				bGrid = true;
 				auto pCP = new UVR_SLAM::CandidatePoint(mpMatchInfo);
 				int idx = mpMatchInfo->AddCP(pCP, pt);
