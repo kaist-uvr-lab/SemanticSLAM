@@ -2,6 +2,7 @@
 #include "Frame.h"
 #include "Map.h"
 #include "MapPoint.h"
+#include <DepthFilter.h>
 
 static int nCandidatePointID = 0;
 

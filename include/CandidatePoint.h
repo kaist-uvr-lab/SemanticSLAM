@@ -8,6 +8,7 @@ namespace UVR_SLAM {
 	class MatchInfo;
 	class Map;
 	class MapPoint;
+	class DepthFilter;
 	class CandidatePoint {
 		
 	public:
@@ -74,8 +75,10 @@ namespace UVR_SLAM {
 		int mnLastMatchingFrameID;
 	////////MP°ü¸®
 	////////////////////////
-
-	
+	//////Depth Filer
+	public:
+		Seed* mpSeed;
+	//////Depth Filer
 	};
 
 
