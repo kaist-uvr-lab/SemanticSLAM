@@ -157,9 +157,6 @@ namespace UVR_SLAM {
 		bool mbMapping;
 		/////////////////////////////
 
-		void SetDepthRange(float min, float max);
-		void GetDepthRange(float& min, float& max);
-
 		///
 		void AddKF(UVR_SLAM::Frame* pKF, int weight);
 		void RemoveKF(UVR_SLAM::Frame* pKF, int weight);
@@ -178,10 +175,8 @@ namespace UVR_SLAM {
 ////////////////
 	public:
 		void ComputeSceneMedianDepth();
-		float GetSceneMedianDepth();
-	private:
-		float mfMedianDepth;
-		std::mutex mMutexMedianDepth;
+		void ComputeSceneDepth();
+		float mfMeanDepth, mfMedianDepth, mfMinDepth, mfStdDev;
 	////////////////
 	public:
 		int mnLocalMapFrameID;
@@ -248,11 +243,8 @@ namespace UVR_SLAM {
 		std::mutex mMutexSegmented;
 	private:
 		
-		
 		std::mutex mMutexNumInliers;
 		std::mutex mMutexFrame, mMutexPose;
-		std::mutex mMutexDepthRange;
-		float mfMinDepth, mfMaxDepth;
 		
 		std::multimap<int,UVR_SLAM::Frame*, std::greater<int>> mmpConnectedKFs;
 		cv::Mat matFrame, matOri;

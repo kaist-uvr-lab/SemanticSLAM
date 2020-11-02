@@ -9,6 +9,7 @@ namespace UVR_SLAM {
 	class Map;
 	class MapPoint;
 	class DepthFilter;
+	class Seed;
 	class CandidatePoint {
 		
 	public:

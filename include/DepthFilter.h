@@ -7,6 +7,7 @@
 
 namespace UVR_SLAM {
 	class Frame;
+	class CandidatePoint;
 	class Seed {
 	public:
 		Seed(float depth_mean, float depth_min);
@@ -22,7 +23,7 @@ namespace UVR_SLAM {
 		DepthFilter();
 		virtual ~DepthFilter();
 	public:
-		void Initialize(Frame* pF);
+		void Update(Frame* pF);
 	private:
 	};
 

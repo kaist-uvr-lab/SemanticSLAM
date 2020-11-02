@@ -151,6 +151,9 @@ void UVR_SLAM::LocalMapper::Run() {
 			auto mpTargetMatchInfo = mpTargetFrame->mpMatchInfo;
 			int nTargetID = mpTargetFrame->mnFrameID;
 			
+			////키프레임의 mean & min depth 계산
+			mpTargetFrame->ComputeSceneDepth();
+
 			if (bNeedCP) {
 				/*mpTargetFrame->DetectFeature();
 				mpTargetFrame->DetectEdge();

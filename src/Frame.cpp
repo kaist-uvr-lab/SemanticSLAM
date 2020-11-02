@@ -16,6 +16,7 @@ float UVR_SLAM::Frame::mnMinX, UVR_SLAM::Frame::mnMinY, UVR_SLAM::Frame::mnMaxX,
 float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeightInv;
 
 UVR_SLAM::Frame::Frame(System* pSys, cv::Mat _src, int w, int h, cv::Mat K, double ts):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
+mfMeanDepth(0.0), mfMinDepth(0.0), mfMedianDepth(0.0),
 mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts)
 {
 	matOri = _src.clone();
@@ -36,8 +37,10 @@ mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), md
 	////////////canny
 	mnFrameID = UVR_SLAM::System::nFrameID++;
 }
-UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
-, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
+
+UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
+mfMeanDepth(0.0), mfMinDepth(0.0), mfMedianDepth(0.0),
+mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
@@ -59,8 +62,9 @@ UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), 
 	mnFrameID = UVR_SLAM::System::nFrameID++;
 }
 
-UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
-, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
+UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
+mfMeanDepth(0.0), mfMinDepth(0.0), mfMedianDepth(0.0),
+mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
@@ -259,17 +263,6 @@ cv::Point2f UVR_SLAM::Frame::Projection(cv::Mat w3D) {
 	return p2D;
 }
 
-void UVR_SLAM::Frame::SetDepthRange(float min, float max){
-	std::unique_lock<std::mutex> lock(mMutexDepthRange);
-	mfMaxDepth = max;
-	mfMinDepth = min;
-}
-void UVR_SLAM::Frame::GetDepthRange(float& min, float& max) {
-	std::unique_lock<std::mutex> lock(mMutexDepthRange);
-	min = mfMinDepth;
-	max = mfMaxDepth;
-}
-
 int UVR_SLAM::Frame::TrackedMapPoints(int minObservation) {
 	std::unique_lock<std::mutex> lock(mMutexFrame);
 	int nPoints = 0;
@@ -322,7 +315,7 @@ bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pTargetKF) {
 	cv::Mat vBaseline = Ow2 - Ow1;
 	float baseline = cv::norm(vBaseline);
 	pTargetKF->ComputeSceneMedianDepth();
-	float medianDepthKF2 = pTargetKF->GetSceneMedianDepth();
+	float medianDepthKF2 = pTargetKF->mfMedianDepth;
 	if(medianDepthKF2 < 0.0){
 		std::cout << "Not enough baseline!!" << std::endl;
 		return false;
@@ -367,6 +360,46 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(std::vector<UVR_SLAM::MapPoint*> v
 }
 
 ////20.09.05 수정 필요.
+void UVR_SLAM::Frame::ComputeSceneDepth() {
+
+	cv::Mat Rcw2;
+	float zcw;
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexPose);
+		Rcw2 = R.row(2);
+		zcw = t.at<float>(2);
+	}
+	std::vector<float> vDepths;
+	Rcw2 = Rcw2.t();
+	for (size_t i = 0, iend = mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++)
+	{
+		auto pCPi = mpMatchInfo->mvpMatchingCPs[i];
+		auto pMPi = pCPi->GetMP();
+		if (!pMPi || pMPi->isDeleted()) {
+			continue;
+		}
+		cv::Mat x3Dw = pMPi->GetWorldPos();
+		float z = (float)Rcw2.dot(x3Dw) + zcw;
+		vDepths.push_back(z);
+	}
+	if (vDepths.size() == 0) {
+		return;
+	}
+	int nidx = vDepths.size() / 2;
+	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
+
+	//median
+	mfMedianDepth = vDepths[nidx];
+	//mean & stddev
+	cv::Mat mMean, mDev;
+	meanStdDev(vDepths, mMean, mDev);
+	mfMeanDepth = (float)mMean.at<double>(0);
+	mfStdDev = (float)mDev.at<double>(0);
+	//min
+	double minVal, maxVal;
+	cv::minMaxIdx(vDepths, &minVal);
+	mfMinDepth = (float)minVal;
+}
 void UVR_SLAM::Frame::ComputeSceneMedianDepth()
 {
 	cv::Mat Rcw2;
@@ -396,14 +429,8 @@ void UVR_SLAM::Frame::ComputeSceneMedianDepth()
 	int nidx = vDepths.size() / 2;
 	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
 	{
-		std::unique_lock<std::mutex> lockMP(mMutexMedianDepth);
 		mfMedianDepth = vDepths[nidx];
 	}
-}
-
-float UVR_SLAM::Frame::GetSceneMedianDepth() {
-	std::unique_lock<std::mutex> lockMP(mMutexMedianDepth);
-	return mfMedianDepth;
 }
 
 cv::Mat UVR_SLAM::Frame::GetCameraCenter() {
