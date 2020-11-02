@@ -21,7 +21,7 @@ namespace UVR_SLAM {
 	class LoopCloser;
 	class SemanticSegmentator;
 	class PlaneEstimator;
-	
+	class DepthFilter;
 	class Visualizer;
 
 	class LocalMapper {
@@ -95,6 +95,7 @@ namespace UVR_SLAM {
 		LoopCloser* mpLoopCloser;
 		SemanticSegmentator* mpSegmentator;
 		PlaneEstimator* mpPlaneEstimator;
+		DepthFilter* mpDepthFilter;
 		Visualizer* mpVisualizer;
 		
 		Frame* mpTargetFrame, *mpPrevKeyFrame, *mpPPrevKeyFrame;

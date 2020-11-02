@@ -9,6 +9,7 @@
 #include <MapPoint.h>
 #include <FrameGrid.h>
 #include <Plane.h>
+#include <DepthFilter.h>
 
 bool UVR_SLAM::Frame::mbInitialComputations = true;
 float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
@@ -399,6 +400,7 @@ void UVR_SLAM::Frame::ComputeSceneDepth() {
 	double minVal, maxVal;
 	cv::minMaxIdx(vDepths, &minVal);
 	mfMinDepth = (float)minVal;
+	std::cout << mfMinDepth << ", " << mfMeanDepth << ", " << mfMedianDepth << std::endl;
 }
 void UVR_SLAM::Frame::ComputeSceneMedianDepth()
 {
@@ -526,8 +528,6 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 
 	mK = _k.clone();
 	mDistCoef = _d.clone();
-
-	
 
 	//에러나면 풀어야 함
 	//AssignFeaturesToGrid();
@@ -977,7 +977,7 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		if (mpRefFrame->mmbFrameGrids[gridPt])
 			continue;
 		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
-		auto pCP = new UVR_SLAM::CandidatePoint(this);
+		auto pCP = new UVR_SLAM::CandidatePoint(this->mpRefFrame);
 		int idx = this->AddCP(pCP, pt);
 		//pCP->ConnectFrame(this, idx);
 		
@@ -998,7 +998,7 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		if (mpRefFrame->mmbFrameGrids[gridPt])
 			continue;
 		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
-		auto pCP = new UVR_SLAM::CandidatePoint(this, mpRefFrame->mvnOctaves[i]);
+		auto pCP = new UVR_SLAM::CandidatePoint(this->mpRefFrame, mpRefFrame->mvnOctaves[i]);
 		int idx = this->AddCP(pCP, pt);
 		//pCP->ConnectFrame(this, idx);
 
@@ -1145,6 +1145,10 @@ void UVR_SLAM::Frame::SetGrids() {
 	matDX.convertTo(matDX, CV_8UC1);
 	matDY.convertTo(matDY, CV_8UC1);
 	matGradient = (matDX + matDY) / 2.0;
+	
+	float fx = mpSystem->mK.at<float>(0, 0);
+	float noise = 1.0;
+	float px_err_angle = atan(noise / (2.0*fx))*2.0;
 
 	for (int x = 0; x < mnWidth; x += nSize) {
 		for (int y = 0; y < mnHeight; y += nSize) {
@@ -1165,7 +1169,9 @@ void UVR_SLAM::Frame::SetGrids() {
 				if (bOccupied)
 					continue;
 				bGrid = true;
-				auto pCP = new UVR_SLAM::CandidatePoint(mpMatchInfo);
+				auto pCP = new UVR_SLAM::CandidatePoint(mpMatchInfo->mpRefFrame);
+				cv::Mat a = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
+				pCP->mpSeed = new Seed(std::move(mpSystem->mInvK*a), px_err_angle,mfMedianDepth, mfMinDepth);
 				int idx = mpMatchInfo->AddCP(pCP, pt);
 				pGrid->pt = pt;
 				pGrid->mpCP = pCP;

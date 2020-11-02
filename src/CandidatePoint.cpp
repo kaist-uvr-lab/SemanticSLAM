@@ -12,11 +12,11 @@ namespace  UVR_SLAM{
 	{
 		mpMapPoint = nullptr;
 	}
-	CandidatePoint::CandidatePoint(MatchInfo* pRefKF, int alabel, int aoct):mpRefKF(pRefKF), label(alabel), octave(aoct), bCreated(false), mbDelete(false), mpSeed(nullptr),
+	CandidatePoint::CandidatePoint(Frame* pRefKF, int alabel, int aoct):mpRefKF(pRefKF), label(alabel), octave(aoct), bCreated(false), mbDelete(false), mpSeed(nullptr),
 		mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mnCandidatePointID(++nCandidatePointID)
 	{
 		mpMapPoint = nullptr;
-		mnFirstID = pRefKF->mpRefFrame->mnFrameID;
+		mnFirstID = mpRefKF->mnFrameID;
 	}
 	CandidatePoint::~CandidatePoint(){}
 
@@ -86,7 +86,7 @@ namespace  UVR_SLAM{
 				mnConnectedFrames--;
 				//pKF->RemoveCP(idx);
 				if (this->mpRefKF == mpRefKF) {
-					mpRefKF = mmpFrames.begin()->first;
+					mpRefKF = mmpFrames.begin()->first->mpRefFrame;
 				}
 				/*if (mnConnectedFrames < 3)
 					mbDelete = true;*/
@@ -155,17 +155,12 @@ namespace  UVR_SLAM{
 		return x3D.clone();
 	}
 	bool CandidatePoint::CreateMapPoint(cv::Mat& X3D, float& fDepth, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr) {
-		cv::Point2f ptBottom = cv::Point2f(0, 480);
 		MatchInfo* pFirst;
-		int idx;
-		{
-			std::unique_lock<std::mutex> lockMP(mMutexCP);
-			pFirst = mmpFrames.begin()->first;
-			idx = mmpFrames.begin()->second;
-		}
+		pFirst = mpRefKF->mpMatchInfo;
+		int idx = this->GetPointIndexInFrame(pFirst);
+		
 		cv::Mat P, R, t, Rt;
-		auto pTargetKF = pFirst->mpRefFrame;
-		pTargetKF->GetPose(R, t);
+		mpRefKF->GetPose(R, t);
 		cv::hconcat(R, t, P);
 		Rt = R.t();
 		auto ptFirst = pFirst->mvMatchingPts[idx];
@@ -183,7 +178,6 @@ namespace  UVR_SLAM{
 		return false;
 	}
 	void CandidatePoint::CreateMapPoint(cv::Mat& X3D, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax, cv::Mat& debug) {
-		cv::Point2f ptBottom = cv::Point2f(0, 480);
 		MatchInfo* pFirst;
 		int idx;
 		{
@@ -212,8 +206,8 @@ namespace  UVR_SLAM{
 		auto pt1 = Projection(X3D, R, t, K, fDepth1, bd1); //first
 		auto pt2 = Projection(X3D, Rcurr, Tcurr, K, fDepth2, bd2); //curr
 
-		cv::line(debug, pt1, ptFirst, cv::Scalar(255, 0, 255), 1);
-		cv::line(debug, pt2+ ptBottom, ptCurr+ ptBottom, cv::Scalar(255, 0, 255), 1);
+		/*cv::line(debug, pt1, ptFirst, cv::Scalar(255, 0, 255), 1);
+		cv::line(debug, pt2+ ptBottom, ptCurr+ ptBottom, cv::Scalar(255, 0, 255), 1);*/
 
 		if (bRank && bd1 && bd2 && CheckReprojectionError(pt1, ptFirst, 9.0) && CheckReprojectionError(pt2, ptCurr, 9.0)){
 			bProjec = true;

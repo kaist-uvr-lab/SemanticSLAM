@@ -5,6 +5,7 @@
 #include <mutex>
 #include <map>
 namespace UVR_SLAM {
+	class Frame;
 	class MatchInfo;
 	class Map;
 	class MapPoint;
@@ -15,7 +16,7 @@ namespace UVR_SLAM {
 	public:
 		
 		CandidatePoint();
-		CandidatePoint(MatchInfo* pRefKF, int alabel = 0, int aoct = 0);
+		CandidatePoint(Frame* pRefKF, int alabel = 0, int aoct = 0);
 		virtual ~CandidatePoint();
 		std::map<MatchInfo*, int> GetFrames();
 		//void AddFrame(UVR_SLAM::MatchInfo* pF, cv::Point2f pt); //index in frame
@@ -30,6 +31,7 @@ namespace UVR_SLAM {
 		bool CheckReprojectionError(cv::Mat x3D, cv::Mat K, cv::Point2f pt, float thresh);
 		bool CheckReprojectionError(cv::Point2f pt1, cv::Point2f pt2, float thresh);
 		int GetNumSize();
+
 		bool CreateMapPoint(cv::Mat& X3D, float& fDepth, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr);
 		void CreateMapPoint(cv::Mat& X3D, cv::Mat K,cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax, cv::Mat& debug);
 		//삼각화
@@ -38,9 +40,9 @@ namespace UVR_SLAM {
 	public:
 		int mnCandidatePointID;
 		int mnFirstID; //처음 발견한 프레임
+		Frame* mpRefKF;
 		int octave;
 	private:
-		MatchInfo* mpRefKF;
 		bool mbDelete;
 		std::mutex mMutexCP;
 		std::map<UVR_SLAM::MatchInfo*, int> mmpFrames;
