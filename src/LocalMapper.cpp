@@ -19,7 +19,7 @@
 #include <direct.h>
 
 UVR_SLAM::LocalMapper::LocalMapper(){}
-UVR_SLAM::LocalMapper::LocalMapper(System* pSystem, std::string strPath, int w, int h):mnWidth(w), mnHeight(h), mbStopBA(false), mbDoingProcess(false), mbStopLocalMapping(false), mpTargetFrame(nullptr), mpPrevKeyFrame(nullptr), mpPPrevKeyFrame(nullptr){
+UVR_SLAM::LocalMapper::LocalMapper(System* pSystem, std::string strPath, int w, int h):mnWidth(w), mnHeight(h), mbStopBA(false), mbDoingProcess(false), mbStopLocalMapping(false), mpTempFrame(nullptr),mpTargetFrame(nullptr), mpPrevKeyFrame(nullptr), mpPPrevKeyFrame(nullptr){
 	mpSystem = pSystem;
 
 	cv::FileStorage fs(strPath, cv::FileStorage::READ);
@@ -78,17 +78,25 @@ bool UVR_SLAM::LocalMapper::CheckNewKeyFrames()
 	return(!mKFQueue.empty());
 }
 
-void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
-{
-	mpPPrevKeyFrame = mpPrevKeyFrame;
-	mpPrevKeyFrame = mpTargetFrame;
+void UVR_SLAM::LocalMapper::AcquireFrame() {
 	{
 		std::unique_lock<std::mutex> lock(mMutexNewKFs);
-		mpTargetFrame = mKFQueue.front();
+		mpTempFrame = mKFQueue.front();
 		mKFQueue.pop();
+	}
+	mpTempFrame->Init(mpSystem->mpORBExtractor, mpSystem->mK, mpSystem->mD);
+}
+
+void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
+{
+	{
+		std::unique_lock<std::mutex> lock(mMutexNewKFs);
 		mbStopBA = false;
 	}
-	mpTargetFrame->Init(mpSystem->mpORBExtractor, mpSystem->mK, mpSystem->mD);
+	mpPPrevKeyFrame = mpPrevKeyFrame;
+	mpPrevKeyFrame = mpTargetFrame;
+	mpTargetFrame = mpTempFrame;
+	mpTargetFrame->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 }
 
 bool  UVR_SLAM::LocalMapper::isStopLocalMapping(){
@@ -137,7 +145,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			double time1 = 0.0;
 			double time2 = 0.0;
 
-			ProcessNewKeyFrame();
+			AcquireFrame();
 			bool bNeedCP, bNeedMP, bNeedNewKF, bPoseHandle;
 			
 			{
@@ -148,8 +156,8 @@ void UVR_SLAM::LocalMapper::Run() {
 				bPoseHandle = mbNeedPoseHandle;
 			}
 
-			auto mpTargetMatchInfo = mpTargetFrame->mpMatchInfo;
-			int nTargetID = mpTargetFrame->mnFrameID;
+			auto mpTargetMatchInfo = mpTempFrame->mpMatchInfo;
+			int nTargetID = mpTempFrame->mnFrameID;
 			
 			if (bNeedCP) {
 				/*mpTargetFrame->DetectFeature();
@@ -158,7 +166,7 @@ void UVR_SLAM::LocalMapper::Run() {
 				{
 					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
 					std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
-					mpTargetFrame->SetGrids();
+					mpTempFrame->SetGrids();
 					//mpTargetFrame->mpMatchInfo->SetMatchingPoints();
 					mpSystem->mbCreateCP = true;
 					//std::cout << "LM::CP::" << mpTargetFrame->mnFrameID << "::" << mpTargetFrame->mpMatchInfo->mvpMatchingCPs.size() << std::endl;
@@ -187,7 +195,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			
 			if (bNeedMP || bNeedNewKF || bPoseHandle) {
 				
-				mpTargetFrame->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
+				ProcessNewKeyFrame();
 				mpTargetFrame->mpMatchInfo->UpdateKeyFrame();
 				NewMapPointMarginalization();
 				
@@ -322,12 +330,6 @@ void UVR_SLAM::LocalMapper::Run() {
 				}*/
 				
 			}
-			else {
-				mpTargetFrame = mpPrevKeyFrame;
-				mpPrevKeyFrame = mpPPrevKeyFrame;
-			}
-			
-			
 			
 			/////프레임 퀄리티 계산
 			//bool bLowQualityFrame = mpTargetFrame->mpMatchInfo->UpdateFrameQuality();

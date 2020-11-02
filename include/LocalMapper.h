@@ -39,6 +39,7 @@ namespace UVR_SLAM {
 		void InsertKeyFrame(UVR_SLAM::Frame *pKF, bool bNeedCP = false, bool bNeedMP = false, bool bNeedPoseHandle = false, bool bNeedNewKF = false);
 		//void InterruptLocalMapping();
 		bool CheckNewKeyFrames();
+		void AcquireFrame();
 		void ProcessNewKeyFrame();
 		bool isDoingProcess();
 		void CalculateKFConnections();
@@ -97,7 +98,7 @@ namespace UVR_SLAM {
 		PlaneEstimator* mpPlaneEstimator;
 		Visualizer* mpVisualizer;
 		
-		Frame* mpTargetFrame, *mpPrevKeyFrame, *mpPPrevKeyFrame;
+		Frame* mpTempFrame, *mpTargetFrame, *mpPrevKeyFrame, *mpPPrevKeyFrame;
 		Matcher* mpMatcher;
 
 		int mnWidth, mnHeight;
