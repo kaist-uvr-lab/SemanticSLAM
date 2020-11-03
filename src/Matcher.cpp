@@ -786,7 +786,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 	////////
 	std::vector<cv::Point2f> prevPts, currPts;
 	std::vector<CandidatePoint*> vpCPs;
-	prevPts = init->mpMatchInfo->GetMatchingPtsMapping(vpCPs);//init->mpMatchInfo->mvTempPts;
+	prevPts = init->mpMatchInfo->mvMatchingPts;//init->mpMatchInfo->mvTempPts;
 
 	int maxLvl = 3;
 	int searchSize = 21;
@@ -888,7 +888,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			continue;
 		}
 		auto gridPt = prev->GetGridBasePt(currPts[i], nGridSize);
-		if (curr->mmbFrameGrids[gridPt]) {
+		if (curr->mmbFrameGrids.count(gridPt)) {
 			continue;
 		}
 		auto pCPi = prev->mpMatchInfo->mvpMatchingCPs[i];

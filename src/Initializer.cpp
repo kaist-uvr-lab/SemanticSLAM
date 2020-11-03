@@ -45,7 +45,7 @@ void UVR_SLAM::Initializer::Reset() {
 	mpTempFrame = mpInitFrame1;
 }
 
-bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h) {
+bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, int& nKeyPointMatch, int& nMapPointMatch, bool& bReset, int w, int h) {
 	//std::cout << "Initializer::Initialize::Start" << std::endl;
 	
 	if (!mpInitFrame1) {
@@ -72,15 +72,29 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//////매칭 정보 생성
 		bool bSegment = false;
 		int nSegID = mpInitFrame1->mnFrameID;
-		int nMatchingThresh = 0;//mpInitFrame1->mpMatchInfo->mvTempPts.size()*0.6;
-		std::vector<cv::Point2f> vTempPts1, vTempPts2;
+		int nMatchingThresh = mpInitFrame1->mpMatchInfo->mvMatchingPts.size()*0.6;
+		std::vector<cv::Point2f> vTempPts, vTempPts1, vTempPts2;
 		std::vector<bool> vTempInliers;
 		std::vector<int> vTempIndexs;
 		std::vector<std::pair<cv::Point2f, cv::Point2f>> tempMatches2, resMatches;
 		cv::Mat debugging;
 		
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
-		int count = mpMatcher->OpticalMatchingForInitialization(mpInitFrame1, mpInitFrame2, vTempPts1, vTempPts2, vTempInliers, vTempIndexs, debugging);
+		std::vector<CandidatePoint*> vpTempCPs;
+		int count = mpMatcher->OpticalMatchingForTracking(mpTempFrame, mpInitFrame2, vpTempCPs, vTempPts2);
+		//int count = mpMatcher->OpticalMatchingForInitialization(mpTempFrame, mpInitFrame2, vTempPts1, vTempPts2, vTempInliers, vTempIndexs, debugging);
+
+		for (size_t i = 0, iend = vpTempCPs.size(); i < iend; i++) {
+			auto pCP = vpTempCPs[i];
+			auto pt = vTempPts2[i];
+			if (mpInitFrame2->mpMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) < 0) {
+				int idx = mpInitFrame2->mpMatchInfo->AddCP(pCP, pt);
+			}
+			int idx = pCP->GetPointIndexInFrame(mpInitFrame1->mpMatchInfo);
+			vTempPts1.push_back(mpInitFrame1->mpMatchInfo->mvMatchingPts[idx]);
+		}
+		nKeyPointMatch = count;
+
 		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 		double tttt = duration / 1000.0;
@@ -106,8 +120,10 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		cv::Mat E12 = cv::findEssentialMat(vTempPts1, vTempPts2, mK, cv::FM_RANSAC, 0.999, 1.0, vFInliers);
 		////E  찾기 : OpenCV
 
+		////템프 프레임을 추가하고 이닛프레임 포인트 불러오기
 		//////F, E를 통한 매칭 결과 반영
 		for (unsigned long i = 0; i < vFInliers.size(); i++) {
+			
 			if (vFInliers[i]) {
 				resMatches.push_back(std::make_pair(vTempPts1[i], vTempPts2[i]));
 				vTempMatchPts1.push_back(vTempPts1[i]);

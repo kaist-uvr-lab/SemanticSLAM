@@ -169,7 +169,7 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 	if(!mbInitializing){
 		bool bReset = false;
-		mbInitializing = mpInitializer->Initialize(pCurr, bReset, mnWidth, mnHeight);
+		mbInitializing = mpInitializer->Initialize(pCurr, mnPointMatching, mnMapPointMatching, bReset, mnWidth, mnHeight);
 		
 		if (bReset){
 			mpSystem->Reset();

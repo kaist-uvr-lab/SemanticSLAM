@@ -41,7 +41,7 @@ namespace UVR_SLAM {
 	public:
 		void Init();
 		void Reset();
-		bool Initialize(Frame* pFrame, bool& bReset, int w, int h);
+		bool Initialize(Frame* pFrame, int& nKeyPointMatch, int& nMapPointMatch, bool& bReset, int w, int h);
 	private:
 		void SetCandidatePose(cv::Mat F, std::vector<cv::DMatch> Matches, std::vector<UVR_SLAM::InitialData*>& vCandidates);
 		int SelectCandidatePose(std::vector<UVR_SLAM::InitialData*>& vCandidates);
