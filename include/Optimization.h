@@ -36,6 +36,7 @@ namespace UVR_SLAM {
 		static void InitBundleAdjustment(const std::vector<UVR_SLAM::Frame*> &vpKFs, const std::vector<UVR_SLAM::MapPoint *> &vpMP, int nIterations);
 		static void PoseRecoveryOptimization(Frame* pCurrKF, Frame* pPrevKF, Frame* pPPrevKF, std::vector<cv::Point2f> vCurrPTs, std::vector<cv::Point2f> vPrevPTs, std::vector<cv::Point2f> vPPrevPTs, std::vector<cv::Mat>& vP3Ds);
 		static void LocalOptimization(System* pSystem, Map* pMap, Frame* pCurrKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers, std::vector<bool>& vbInliers2, float scale, float fMedianDepth, float fMeanDepth, float fStdDev);
+		static void LocalOptimization(System* pSystem, Map* pMap, Frame* pCurrKF);
 	};
 }
 

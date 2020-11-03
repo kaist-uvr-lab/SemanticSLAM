@@ -886,6 +886,187 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer
 }
 ////Opticalflow 버전용
 
+void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame* pCurrKF) {
+
+	//std::unique_lock<std::mutex> lock(pMap->mMutexMapOptimization);
+	g2o::SparseOptimizer optimizer;
+	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
+
+	linearSolver = new g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>();
+
+	g2o::BlockSolver_6_3 * solver_ptr = new g2o::BlockSolver_6_3(linearSolver);
+
+	g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+	optimizer.setAlgorithm(solver);
+
+	auto vpKFs = pMap->GetWindowFramesVector(3);
+	auto spKFs = pMap->GetWindowFramesSet(3);
+	if (!spKFs.count(pCurrKF)) {
+		vpKFs.push_back(pCurrKF);
+		spKFs.insert(pCurrKF);
+	}
+
+	std::cout << "opt::-1" << std::endl;
+
+	long unsigned int maxKFid = 0;
+	int nCurrKeyFrameID = pCurrKF->mnKeyFrameID;
+	for (int i = 0; i < vpKFs.size(); i++) {
+		auto pKFi = vpKFs[i];
+		g2o::VertexSE3Expmap * vSE3 = new g2o::VertexSE3Expmap();
+
+		cv::Mat R, t;
+		pKFi->GetPose(R, t);
+		cv::Mat Tcw = cv::Mat::zeros(4, 4, CV_32FC1);
+		R.copyTo(Tcw.rowRange(0, 3).colRange(0, 3));
+		t.copyTo(Tcw.col(3).rowRange(0, 3));
+
+		vSE3->setEstimate(Converter::toSE3Quat(Tcw));
+		vSE3->setId(pKFi->mnKeyFrameID);
+		vSE3->setFixed(pKFi->mnKeyFrameID != nCurrKeyFrameID);
+		optimizer.addVertex(vSE3);
+		if (pKFi->mnKeyFrameID>maxKFid)
+			maxKFid = pKFi->mnKeyFrameID;
+	}
+
+	std::vector<CandidatePoint*> vpVertexCPs;
+	std::vector<g2o::VertexSBAPointXYZ*> vpVertices;
+	std::vector<g2o::EdgeSE3ProjectXYZ*> vpEdgesMono;
+	std::vector<UVR_SLAM::MatchInfo*> vpEdgeKFMono;
+	std::vector<int> vnVertexIDXs;
+	std::vector<int> vnConnected;
+	std::vector<int> vnEdgeConnectedIDXs;
+	
+	const float thHuberMono = sqrt(5.991);
+
+	auto vpCPs = pCurrKF->mpMatchInfo->mvpMatchingCPs;
+	auto vPTs = pCurrKF->mpMatchInfo->mvMatchingPts;
+
+	std::vector<bool> vbInliers(vpCPs.size(), true);
+	std::cout << "opt::0" << std::endl;
+	////새로 추가된 맵포인트 설정
+	for (size_t i = 0, iend = vpCPs.size(); i < iend; i++)
+	{
+		auto pCPi = (vpCPs[i]);
+		auto pMPi = pCPi->GetMP();
+		if (!pMPi || pMPi->isDeleted())
+			continue;
+
+		int vIDX = vpVertexCPs.size();
+
+		g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
+		cv::Mat X3D = pMPi->GetWorldPos();
+		vPoint->setEstimate(Converter::toVector3d(X3D));
+		const int id = pCPi->mnCandidatePointID + maxKFid + 1;
+		vPoint->setId(id);
+		vPoint->setMarginalized(true);
+		//vPoint->setFixed(pMPi && pMPi->GetQuality() && !pMPi->isDeleted());
+		optimizer.addVertex(vPoint);
+
+		const auto observations = pCPi->GetFrames();
+		int octave = pCPi->octave;
+		int numEdges = 0;
+		//Set edges
+		for (std::map<UVR_SLAM::MatchInfo*, int>::const_iterator mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
+		{
+			auto pMatch = mit->first;
+			auto pKFi = pMatch->mpRefFrame;
+			if (spKFs.find(pKFi) == spKFs.end())
+				continue;
+
+			int idx = mit->second;
+			auto pt = pMatch->mvMatchingPts[idx];
+			Eigen::Matrix<double, 2, 1> obs;
+			obs << pt.x, pt.y;
+
+			g2o::EdgeSE3ProjectXYZ* e = new g2o::EdgeSE3ProjectXYZ();
+			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
+			e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnKeyFrameID)));
+			e->setMeasurement(obs);
+
+			const float &invSigma2 = pKFi->mvInvLevelSigma2[octave];
+
+			e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
+
+			g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+			e->setRobustKernel(rk);
+			rk->setDelta(thHuberMono);
+
+			e->fx = pKFi->fx;
+			e->fy = pKFi->fy;
+			e->cx = pKFi->cx;
+			e->cy = pKFi->cy;
+
+			optimizer.addEdge(e);
+			vpEdgesMono.push_back(e);
+			vnVertexIDXs.push_back(vIDX);
+			vpEdgeKFMono.push_back(pMatch);
+			vnEdgeConnectedIDXs.push_back(idx);
+			numEdges++;
+		}
+		vpVertices.push_back(vPoint);
+		vpVertexCPs.push_back(pCPi);
+		vnConnected.push_back(numEdges);
+	}
+	////새로 추가된 맵포인트 설정
+
+	optimizer.initializeOptimization();
+	optimizer.optimize(20);
+	std::cout << "opt::1" << std::endl;
+	//std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
+	std::cout << "opt::2" << std::endl;
+	////체크
+	for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
+	{
+		g2o::EdgeSE3ProjectXYZ* e = vpEdgesMono[i];
+		int vIdx = vnVertexIDXs[i];
+
+		auto pCPi = vpVertexCPs[vIdx];
+		auto pMPi = pCPi->GetMP();
+		bool bMP = pMPi && !pMPi->isDeleted();
+		auto pMatch = vpEdgeKFMono[i];
+		bool bConnect = true;
+		if (e->chi2()>5.991 || !e->isDepthPositive())
+		{
+			bConnect = false;
+		}
+		if (bMP) {
+			if (bConnect) {
+				auto cIdx = vnEdgeConnectedIDXs[i];
+				pMPi->ConnectFrame(pMatch, cIdx);
+			}else
+				pMPi->DisconnectFrame(pMatch);
+		}
+	}
+	std::cout << "opt::3" << std::endl;
+	//Curr KF 포즈 수정
+	cv::Mat R, t;
+	{
+		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pCurrKF->mnKeyFrameID));
+		g2o::SE3Quat SE3quat = vSE3->estimate();
+		cv::Mat Tcw = Converter::toCvMat(SE3quat);
+		R = Tcw.rowRange(0, 3).colRange(0, 3);
+		t = Tcw.rowRange(0, 3).col(3);
+		pCurrKF->SetPose(R, t);
+	}
+	
+	////포인트 복원
+	
+	
+	std::cout << "opt::4" << std::endl;
+	for (size_t i = 0, iend = vpVertexCPs.size(); i < iend; i++)
+	{
+		int idx = vnVertexIDXs[i];
+		auto pCPi = vpVertexCPs[i];
+		
+		//g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(idx + maxKFid + 1));
+		cv::Mat Xw = Converter::toCvMat(vpVertices[i]->estimate()).clone();
+		auto pMPi = pCPi->GetMP();
+		if(pMPi && !pMPi->isDeleted())
+			pMPi->SetWorldPos(Xw);
+	}
+	std::cout << "opt::5" << std::endl;
+}
+
 void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame* pCurrKF, std::vector<cv::Mat>& vX3Ds, std::vector<CandidatePoint*> vpCPs, std::vector<bool>& vbInliers, std::vector<bool>& vbInliers2, float scale, float fMedianDepth, float fMeanDepth, float fStdDev) {
 	
 	//std::unique_lock<std::mutex> lock(pMap->mMutexMapOptimization);

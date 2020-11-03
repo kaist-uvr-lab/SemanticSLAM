@@ -4,6 +4,7 @@
 #include <Frame.h>
 #include <CandidatePoint.h>
 #include <MapPoint.h>
+#include <Optimization.h>
 #include <Visualizer.h>
 
 namespace UVR_SLAM {
@@ -75,10 +76,10 @@ namespace UVR_SLAM {
 		pSeed->a = (e - f) / (f - e / f);
 		pSeed->b = pSeed->a*(1.0f - f) / f;
 	}
-	void DepthFilter::Update(Frame* pF) {
+	void DepthFilter::Update(Frame* pF, Frame* pPrev) {
 
 		std::cout << "DepthFilter::Update::start" << std::endl;
-		float thresh = 200.; //200.0
+		float thresh = 100.; //200.0
 		auto pMatch = pF->mpMatchInfo;
 		auto vpCPs = pMatch->mvpMatchingCPs;
 		auto vPTs = pMatch->mvMatchingPts;
@@ -91,6 +92,7 @@ namespace UVR_SLAM {
 		//mpSystem->mpMap->ClearReinit();
 
 		cv::Mat testImg = pF->GetOriginalImage().clone();
+		cv::Mat testImg2 = pPrev->GetOriginalImage().clone();
 
 		int nFail = 0;
 		int nCandidate = 0;
@@ -98,8 +100,8 @@ namespace UVR_SLAM {
 			auto pCPi = vpCPs[i];
 			auto pMPi = pCPi->GetMP();
 			
-			if (pMPi && !pMPi->isDeleted())
-				continue;
+			/*if (pMPi && !pMPi->isDeleted())
+				continue;*/
 
 			auto pSeed = pCPi->mpSeed;
 			if (!pSeed) {
@@ -145,23 +147,23 @@ namespace UVR_SLAM {
 			cv::Point2f projPt2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
 			cv::Point2f projPt3(proj3.at<float>(0) / proj3.at<float>(2), proj3.at<float>(1) / proj3.at<float>(2));
 
-			cv::line(testImg, projPt2, projPt3, cv::Scalar(255, 255, 0), 1);
-			cv::line(testImg, projPt1, pt, cv::Scalar(0, 255, 0), 1);
-			cv::circle(testImg, projPt1, 2, cv::Scalar(0, 255, 255),-1);
-			cv::circle(testImg, pt, 2, cv::Scalar(255, 0, 255),-1);
+			/*if (tempRay1.at<float>(2) < 0.0)
+			{
+				continue;
+			}
+			if (!pF->isInImage(projPt1.x, projPt1.y)) {
+				continue;
+			}*/
+			int idx = pCPi->GetPointIndexInFrame(pPrev->mpMatchInfo);
+			if(idx > -1 && !std::isnan(z_min) && !std::isnan(z_max) && z_min > 0.){
+				cv::line(testImg, projPt2, projPt3, cv::Scalar(255, 255, 0), 3);
+				cv::line(testImg, projPt1, pt, cv::Scalar(0, 255, 0), 1);
+				cv::circle(testImg, projPt1, 3, cv::Scalar(0, 255, 255), -1);
+				cv::circle(testImg, pt, 2, cv::Scalar(255, 0, 255), -1);
 
-			//if (tempRay.at<float>(2) < 0.0)
-			//{
-			//	//std::cout << "depthfilter::depth::err::" << std::endl;
-			//	continue;
-			//}
-			//cv::Mat proj = K*tempRay;
-			//cv::Point2f projPt(proj.at<float>(0) / proj.at<float>(2), proj.at<float>(1) / proj.at<float>(2));
-			//if (!pF->isInImage(projPt.x, projPt.y)) {
-			//	//std::cout << "depthfilter::projection::err::" << std::endl;
-			//	continue;
-			//}
-
+				cv::Point2f prevPt = pPrev->mpMatchInfo->mvMatchingPts[idx];
+				cv::circle(testImg2, prevPt, 2, cv::Scalar(255, 0, 255), -1);
+			}
 			float tau = pSeed->ComputeTau(Trefcurr, z);
 			float tau_inverse = 0.5 * (1.0 / max(0.0000001, z - tau) - 1.0 / (z + tau));
 			UpdateSeed(pSeed, invz, tau_inverse*tau_inverse);
@@ -171,7 +173,7 @@ namespace UVR_SLAM {
 
 			//std::cout << "depth test::" << pSeed->count << "::" << val << "=" << pSeed->z_range / thresh << std::endl; //1./z << ", " << z_inv_min << ", " << z_inv_max << std::endl;
 
-			if(bConverged){
+			/*if(bConverged){
 				std::cout << "depth filter : " << pSeed->count <<"::"<< val <<"="<< pSeed->z_range/ thresh << std::endl;
 				cv::Mat Rrefinv = Rref.t();
 				cv::Mat Trefinv = -Rrefinv*Tref;
@@ -181,14 +183,37 @@ namespace UVR_SLAM {
 				auto pMP = new UVR_SLAM::MapPoint(mpSystem->mpMap, pF, pCPi, X3D, cv::Mat(), label, pCPi->octave);
 				pMP->SetOptimization(true);
 				mpSystem->mlpNewMPs.push_back(pMP);
-			}
+
+				auto mmpFrames = pCPi->GetFrames();
+				for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
+					auto pMatch = iter->first;
+					auto pKF = pMatch->mpRefFrame;
+					int idx = iter->second;
+					pMP->ConnectFrame(pMatch, idx);
+				}
+
+			}*/
 			//update ÇÔ¼ö && convergence test && triangulation
 		}//for
+		
+
 		cv::Mat resized;
 		cv::resize(testImg, resized, cv::Size(testImg.cols / 2, testImg.rows / 2));
 		mpSystem->mpVisualizer->SetOutputImage(resized, 1);
+
+		cv::moveWindow("Output::DepthFilter", mpSystem->mnDisplayX, mpSystem->mnDisplayY);
+
 		std::cout << "DepthFilter::Update::end::" <<nFail<<", "<< nCandidate << std::endl;
-		//imshow("depth filter", testImg); 
+		
+		cv::Mat debugImg = cv::Mat::zeros(testImg.rows * 2, testImg.cols, testImg.type());
+		
+		cv::Rect mergeRect1 = cv::Rect(0, 0, testImg.cols, testImg.rows);
+		cv::Rect mergeRect2 = cv::Rect(0, testImg.rows, testImg.cols, testImg.rows);
+		testImg.copyTo(debugImg(mergeRect1));
+		testImg2.copyTo(debugImg(mergeRect2));
+
+		imshow("Output::DepthFilter", debugImg);
+
 		cv::waitKey(1);
 	}
 }

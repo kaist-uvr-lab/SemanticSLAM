@@ -32,7 +32,7 @@ namespace UVR_SLAM {
 		virtual ~DepthFilter();
 	public:
 		void Init();
-		void Update(Frame* pF);
+		void Update(Frame* pF, Frame* pPrev);
 		void UpdateSeed(Seed* pSeed, float invz, float tau2);
 	private:
 		cv::Mat K, invK;

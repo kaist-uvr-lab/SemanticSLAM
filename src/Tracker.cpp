@@ -225,7 +225,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		/////////////////////////////////////////////키프레임 체크
 		bool bNeedCP, bNeedMP, bNeedPoseHandle, bNeedNewKF;
 		auto bNewKF = CheckNeedKeyFrame(pCurr, bNeedCP, bNeedMP, bNeedPoseHandle, bNeedNewKF);
-		if (true) {
+		if (bNewKF) {
 			if (bNeedCP) {
 				std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
 				mpSystem->mbCreateCP = false;
