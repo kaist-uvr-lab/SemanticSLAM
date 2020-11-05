@@ -67,6 +67,8 @@ namespace  UVR_SLAM{
 		std::unique_lock<std::mutex> lockMP(mMutexCP);
 		auto res = mmpFrames.find(pF);
 		if (res == mmpFrames.end()) {
+			if (mmpFrames.size() == 0)
+				this->mpRefKF = pF->mpRefFrame;
 			mmpFrames.insert(std::pair<UVR_SLAM::MatchInfo*, int>(pF, idx));
 			mnConnectedFrames++;
 		}
@@ -159,18 +161,17 @@ namespace  UVR_SLAM{
 		pFirst = mpRefKF->mpMatchInfo;
 		int idx = this->GetPointIndexInFrame(pFirst);
 		
-		cv::Mat P, R, t, Rt;
-		mpRefKF->GetPose(R, t);
-		cv::hconcat(R, t, P);
-		Rt = R.t();
+		cv::Mat Pref, Rref, Tref;
+		mpRefKF->GetPose(Rref, Tref);
+		cv::hconcat(Rref, Tref, Pref);
 		auto ptFirst = pFirst->mvMatchingPts[idx];
 		bool bRank = true;
-		X3D = Triangulate(ptFirst, ptCurr, K*P, K*Pcurr, bRank);
+		X3D = Triangulate(ptFirst, ptCurr, K*Pref, K*Pcurr, bRank);
 
 		bool bd1, bd2;
-		float fDepth1;
-		auto pt1 = Projection(X3D, R, t, K, fDepth1, bd1); //first
-		auto pt2 = Projection(X3D, Rcurr, Tcurr, K, fDepth, bd2); //curr
+		float fDepth1, fDepth2;
+		auto pt1 = Projection(X3D, Rref, Tref, K, fDepth, bd1); //first
+		auto pt2 = Projection(X3D, Rcurr, Tcurr, K, fDepth2, bd2); //curr
 
 		if (bRank && bd1 && bd2 && CheckReprojectionError(pt1, ptFirst, 9.0) && CheckReprojectionError(pt2, ptCurr, 9.0)) {
 			return true;

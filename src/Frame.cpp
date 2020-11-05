@@ -144,7 +144,16 @@ void UVR_SLAM::Frame::close() {
 	std::set<UVR::KeyFrame*>().swap(mspKFs);
 	*/
 }
-
+float UVR_SLAM::Frame::GetDepth(cv::Mat X3D) {
+	cv::Mat Rcw2;
+	float zcw;
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexPose);
+		Rcw2 = R.row(2).t();
+		zcw = t.at<float>(2);
+	}
+	return (float)Rcw2.dot(X3D) + zcw;
+}
 void UVR_SLAM::Frame::SetPose(cv::Mat _R, cv::Mat _t) {
 	std::unique_lock<std::mutex>(mMutexPose);
 	R = _R.clone();
@@ -155,6 +164,18 @@ void UVR_SLAM::Frame::GetPose(cv::Mat&_R, cv::Mat& _t) {
 	std::unique_lock<std::mutex>(mMutexPose);
 	_R = R.clone();
 	_t = t.clone();
+}
+void UVR_SLAM::Frame::GetInversePose(cv::Mat&_Rinv, cv::Mat& _Tinv) {
+	std::unique_lock<std::mutex>(mMutexPose);
+	_Rinv = R.t();
+	_Tinv = -_Rinv*t;
+}
+void UVR_SLAM::Frame::GetRelativePoseFromTargetFrame(Frame* pTargetFrame, cv::Mat& Rft, cv::Mat& Tft){
+	cv::Mat Rinv, Tinv;
+	pTargetFrame->GetInversePose(Rinv, Tinv);
+	std::unique_lock<std::mutex>(mMutexPose);
+	Rft = R*Rinv;
+	Tft = R*Tinv + t;
 }
 cv::Mat UVR_SLAM::Frame::GetRotation() {
 	std::unique_lock<std::mutex>(mMutexPose);
@@ -381,6 +402,7 @@ void UVR_SLAM::Frame::ComputeSceneDepth() {
 		}
 		cv::Mat x3Dw = pMPi->GetWorldPos();
 		float z = (float)Rcw2.dot(x3Dw) + zcw;
+		mfMinDepth = fmin(z, mfMinDepth);
 		vDepths.push_back(z);
 	}
 	if (vDepths.size() == 0) {
@@ -396,11 +418,11 @@ void UVR_SLAM::Frame::ComputeSceneDepth() {
 	meanStdDev(vDepths, mMean, mDev);
 	mfMeanDepth = (float)mMean.at<double>(0);
 	mfStdDev = (float)mDev.at<double>(0);
-	//min
-	double minVal, maxVal;
-	cv::minMaxIdx(vDepths, &minVal);
-	mfMinDepth = (float)minVal;
-	std::cout << mfMinDepth << ", " << mfMeanDepth << ", " << mfMedianDepth << std::endl;
+	////min
+	//double minVal, maxVal;
+	//cv::minMaxIdx(vDepths, &minVal);
+	//mfMinDepth = (float)minVal;
+	//std::cout << mfMinDepth << ", " << mfMeanDepth << ", " << mfMedianDepth << std::endl;
 }
 void UVR_SLAM::Frame::ComputeSceneMedianDepth()
 {
@@ -1146,10 +1168,6 @@ void UVR_SLAM::Frame::SetGrids() {
 	matDY.convertTo(matDY, CV_8UC1);
 	matGradient = (matDX + matDY) / 2.0;
 	
-	float fx = mpSystem->mK.at<float>(0, 0);
-	float noise = 1.0;
-	float px_err_angle = atan(noise / (2.0*fx))*2.0;
-
 	for (int x = 0; x < mnWidth; x += nSize) {
 		for (int y = 0; y < mnHeight; y += nSize) {
 			cv::Point2f ptLeft(x, y);
@@ -1170,8 +1188,6 @@ void UVR_SLAM::Frame::SetGrids() {
 					continue;
 				bGrid = true;
 				auto pCP = new UVR_SLAM::CandidatePoint(mpMatchInfo->mpRefFrame);
-				cv::Mat a = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
-				pCP->mpSeed = new Seed(std::move(mpSystem->mInvK*a), px_err_angle,mfMedianDepth, mfMinDepth);
 				int idx = mpMatchInfo->AddCP(pCP, pt);
 				pGrid->pt = pt;
 				pGrid->mpCP = pCP;

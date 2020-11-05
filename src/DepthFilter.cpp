@@ -112,10 +112,10 @@ namespace UVR_SLAM {
 			cv::Mat X3D;
 			float z;
 			bool bNewMP = pCPi->CreateMapPoint(X3D, z, K, invK, Pcurr, Rcurr, Tcurr, pt);
-			if (!bNewMP){
+			/*if (!bNewMP){
 				nFail++;
 				continue;
-			}
+			}*/
 			float invz = 1. / z;
 			float z_inv_min = pSeed->mu + sqrt(pSeed->sigma2);
 			float z_inv_max = max(pSeed->mu - sqrt(pSeed->sigma2), 0.00000001f);
