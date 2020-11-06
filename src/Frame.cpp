@@ -1103,21 +1103,25 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsMapping(std::vector<
 void UVR_SLAM::Frame::SetGrids() {
 	int nHalf = mpMatchInfo->mpSystem->mnRadius;
 	int nSize = nHalf * 2;
-
-	int thresh = 30;
+	int ksize = 1;
+	int thresh = ksize*10;
 
 	cv::Mat temp = GetOriginalImage();
 	cv::Mat edge;
 	cv::cvtColor(temp, edge, CV_BGR2GRAY);
 	edge.convertTo(edge, CV_8UC1);
 	cv::Mat matDY, matDX, matGradient;
-	cv::Sobel(edge, matDX, CV_64FC1, 1, 0, 3);
-	cv::Sobel(edge, matDY, CV_64FC1, 0, 1, 3);
+	cv::Sobel(edge, matDX, CV_64FC1, 1, 0, ksize);
+	cv::Sobel(edge, matDY, CV_64FC1, 0, 1, ksize);
 	matDX = abs(matDX);
 	matDY = abs(matDY);
 	matDX.convertTo(matDX, CV_8UC1);
 	matDY.convertTo(matDY, CV_8UC1);
 	matGradient = (matDX + matDY) / 2.0;
+	matGradient.convertTo(matGradient, CV_8UC1);
+	//cv::Laplacian(edge, matGradient, CV_8UC1, 3);//CV_64FC1
+	imshow("gra:::", matGradient);
+	cv::waitKey(1);
 
 	for (int x = 0; x < mnWidth; x += nSize) {
 		for (int y = 0; y < mnHeight; y += nSize) {
@@ -1133,7 +1137,7 @@ void UVR_SLAM::Frame::SetGrids() {
 			//cv::Mat mGra = pGrid->CalcGradientImage(GetOriginalImage());
 			cv::Mat mGra = matGradient(rect).clone();
 			cv::Point2f pt;
-			if (pGrid->CalcActivePoint(mGra, thresh, pt)) {
+			if (pGrid->CalcActivePoints(mGra, thresh, pt)) {
 				bool bOccupied = this->mpMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
 				if (bOccupied)
 					continue;

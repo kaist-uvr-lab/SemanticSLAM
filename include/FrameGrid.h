@@ -16,7 +16,7 @@ namespace UVR_SLAM {
 		virtual ~FrameGrid();
 	public:
 		cv::Mat CalcGradientImage(cv::Mat src);
-		bool CalcActivePoint(cv::Mat src, int gthresh, cv::Point2f& pt);
+		bool CalcActivePoints(cv::Mat src, int gthresh, cv::Point2f& pt);
 	public:
 		int mnLabel;
 		int mnPlane;
@@ -25,6 +25,7 @@ namespace UVR_SLAM {
 		cv::Rect rect;
 		cv::Point2f basePt;
 		cv::Point2f pt;
+		std::vector<cv::Point2f> vecPTs;
 	private:
 	};
 

@@ -858,12 +858,127 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 
 	return vpPts2.size();
 }
+
+int UVR_SLAM::Matcher::OpticalGridsMatching(Frame* pFrame1, Frame* pFrame2, std::vector<cv::Point2f>& vpPTs) {
+
+	cv::Mat img1 = pFrame1->GetOriginalImage().clone();
+	cv::Mat img2 = pFrame2->GetOriginalImage().clone();
+
+	cv::Rect mergeRect1 = cv::Rect(0, 0, img1.cols, img1.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, img1.rows, img1.cols, img1.rows);
+	
+	int nCurrFrameID = pFrame2->mnFrameID;
+	cv::Mat overlap = cv::Mat::zeros(mHeight, mWidth, CV_8UC1);
+	int nGridSize = mpSystem->mnRadius * 2;
+	int searchSize = mpSystem->mnRadius;
+	int maxLvl = 3;
+	for (auto iter = pFrame1->mmpFrameGrids.begin(), iend = pFrame1->mmpFrameGrids.end(); iter != iend; iter++) {
+		auto rectPt = iter->first;
+		auto pGrid = iter->second;
+		auto bGrid = pFrame1->mmbFrameGrids[rectPt];
+		if (!bGrid)
+			continue;
+		auto rect = pGrid->rect;
+		
+
+		std::vector<uchar> status;
+		std::vector<float> err;
+		std::vector<cv::Point2f> pts1, pts2;
+		std::vector<cv::Mat> pyr1, pyr2;
+		/*cv::buildOpticalFlowPyramid(img1(rect), pyr1, cv::Size(searchSize, searchSize), maxLvl);
+		maxLvl = cv::buildOpticalFlowPyramid(img2(rect), pyr2, cv::Size(searchSize, searchSize), maxLvl);*/
+		
+		if (pGrid->vecPTs.size()<3){
+			continue;
+		}
+		////여기는 테스트 과정에서 일단 추가한 것. 원래는 없으면 생성하고 만들어야 함.
+		auto pGrid2 = pFrame2->mmpFrameGrids[rectPt];
+		if (!pGrid2)
+			continue;
+		cv::calcOpticalFlowPyrLK(img1(rect), img2(rect), pGrid->vecPTs, pts2, status, err, cv::Size(searchSize, searchSize), maxLvl);
+		for (size_t j = 0, jend = pGrid->vecPTs.size(); j < jend; j++) {
+			if (!status[j])
+				continue;
+			auto pt1 = pGrid->vecPTs[j] + pGrid->basePt;
+			auto pt2 = pts2[j] + pGrid->basePt;
+			
+			pGrid2->vecPTs.push_back(pts2[j]);
+
+			cv::circle(img1, pt1, 1, cv::Scalar(255, 0, 255), -1);
+			cv::circle(img2, pt2, 1, cv::Scalar(255, 0, 255), -1);
+			cv::line(img2, pt1, pt2, cv::Scalar(255, 255, 0), 1);
+		}
+
+		//auto pt1 = pGrid->pt;
+		//pt1.x -= rect.x;
+		//pt1.y -= rect.y;
+		//pts1.push_back(pt1);
+		//cv::calcOpticalFlowPyrLK(img1(rect), img2(rect), pts1, pts2, status, err, cv::Size(searchSize, searchSize), maxLvl);
+		//if (!status[0]) {
+		//	continue;
+		//}
+		////////포인트 위치 변환
+		//cv::Point2f matchPt1, matchPt2;
+		//matchPt1 = pt1;
+		//matchPt2 = pts2[0];
+		//matchPt1.x += rect.x;
+		//matchPt1.y += rect.y;
+		//matchPt2.x += rect.x;
+		//matchPt2.y += rect.y;
+
+		//cv::rectangle(overlap, matchPt2 - mpSystem->mRectPt, matchPt2 + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
+		//cv::circle(img1, matchPt1, 2, cv::Scalar(255, 0, 255), -1);
+		//cv::circle(img2, matchPt2, 2, cv::Scalar(255, 0, 255), -1);
+		//cv::line(img2, matchPt1, matchPt2, cv::Scalar(255, 255, 0), 1);
+
+		//////포인트 위치 변환
+		//if (!pFrame1->mpMatchInfo->CheckOpticalPointOverlap(overlap, matchPt2, mpSystem->mnRadius)) {
+		//	continue;
+		//}
+		////정식 매칭에서 수행 예정
+		//auto gridPt = pFrame1->GetGridBasePt(matchPt2, nGridSize);
+		//if (pFrame2->mmbFrameGrids[gridPt]) {
+		//	continue;
+		//}
+		//auto pCPi = pGrid->mpCP;
+		//if (pCPi->mnTrackingFrameID == nCurrFrameID) {
+		//	std::cout << "tracking::" << pCPi->mnCandidatePointID << ", " << nCurrFrameID << std::endl;
+		//	continue;
+		//}
+
+		//////grid
+		//pFrame2->mmbFrameGrids[gridPt] = true;
+		//pFrame2->mmpFrameGrids[gridPt] = new FrameGrid(gridPt, nGridSize);
+		//pFrame2->mmpFrameGrids[gridPt]->mpCP = pCPi;
+		//pFrame2->mmpFrameGrids[gridPt]->pt = matchPt2;
+		//////grid
+		//pCPi->mnTrackingFrameID = nCurrFrameID;
+		///*vpCPs.push_back(pCPi);
+		//vpPts.push_back(currPts[i]);*/
+		////정식 매칭에서 수행 예정
+		
+		
+	}
+
+	cv::Mat debugMatch = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	img1.copyTo(debugMatch(mergeRect1));
+	img2.copyTo(debugMatch(mergeRect2));
+
+	cv::moveWindow("Output::MatchTest", mpSystem->mnDisplayX, mpSystem->mnDisplayY);
+	cv::imshow("Output::MatchTest", debugMatch);
+	cv::waitKey(1);
+}
+
 int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<cv::Point2f>& vpPts) {
+	
 	std::vector<cv::Mat> currPyr, prevPyr;
 	std::vector<uchar> status;
 	std::vector<float> err;
-	cv::Mat prevImg = prev->GetOriginalImage();
-	cv::Mat currImg = curr->GetOriginalImage();
+	cv::Mat prevImg = prev->GetOriginalImage().clone();
+	cv::Mat currImg = curr->GetOriginalImage().clone();
+
+	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
 
 	int maxLvl = 3;
 	int searchSize = 15;
@@ -888,7 +1003,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			continue;
 		}
 		auto gridPt = prev->GetGridBasePt(currPts[i], nGridSize);
-		if (curr->mmbFrameGrids[gridPt]) {
+		if (curr->mmbFrameGrids.count(gridPt)) {
 			continue;
 		}
 		auto pCPi = prev->mpMatchInfo->mvpMatchingCPs[i];
@@ -896,6 +1011,16 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			std::cout << "tracking::" << pCPi->mnCandidatePointID << ", " << nCurrFrameID << std::endl;
 			continue;
 		}
+		auto prevGridPt = prev->GetGridBasePt(prevPts[i], nGridSize);
+
+		auto diffx = abs(prevGridPt.x - gridPt.x);
+		auto diffy = abs(prevGridPt.y - gridPt.y);
+		
+		if (diffx > 2 * nGridSize || diffy > 2 * nGridSize) {
+			cv::line(currImg, currPts[i], prevPts[i], cv::Scalar(0, 255, 255), 1);
+			continue;
+		}
+
 		////grid
 		curr->mmbFrameGrids[gridPt] = true;
 		curr->mmpFrameGrids[gridPt] = new FrameGrid(gridPt, nGridSize);
@@ -915,8 +1040,18 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		//	vpPts.push_back(currPts[i]);
 		//	vbInliers.push_back(true);
 		//}
+		cv::circle(prevImg, prevPts[i], 2, cv::Scalar(255, 0, 0), -1);
+		cv::circle(currImg, currPts[i], 2, cv::Scalar(255, 0, 0), -1);
+		cv::line(currImg, currPts[i], prevPts[i], cv::Scalar(255, 255, 0), 1);
 		res++;
 	}
+	cv::Mat debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+	prevImg.copyTo(debugMatch(mergeRect1));
+	currImg.copyTo(debugMatch(mergeRect2));
+	//cv::moveWindow("Output::MatchTest", mpSystem->mnDisplayX, mpSystem->mnDisplayY);
+	cv::imshow("Output::MatchTest2", debugMatch);
+
+
 	return res;
 }
 
