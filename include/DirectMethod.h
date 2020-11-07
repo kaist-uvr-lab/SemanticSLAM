@@ -17,7 +17,7 @@ namespace g2o {
 	using namespace Eigen;
 	//typedef BlockSolver< BlockSolverTraits<4, 2> > BlockSolver_4_2;
 		
-	class EdgeDirectXYZOnlyPose : public BaseUnaryEdge<1, double, VertexSE3Expmap> {
+	class EdgeDirectXYZOnlyPose : public BaseUnaryEdge<1, Matrix<double,1,1>, VertexSE3Expmap> {
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 		EdgeDirectXYZOnlyPose(){}

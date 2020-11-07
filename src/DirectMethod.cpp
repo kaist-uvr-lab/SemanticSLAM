@@ -37,8 +37,8 @@ namespace g2o {
 			_error = val;
 			return;
 		}*/
-		val(0) = _measurement-(double)gra2.at<uchar>(pt);
-		_error = val;
+		val(0) = (double)gra2.at<uchar>(pt);
+		_error = _measurement-val;
 	}
 	void EdgeDirectXYZOnlyPose::linearizeOplus(){
 		VertexSE3Expmap * vi = static_cast<VertexSE3Expmap *>(_vertices[0]);
@@ -54,7 +54,6 @@ namespace g2o {
 		Eigen::Matrix<double, 1, 2> temp2;
 		temp2(0, 0) = dx.at<double>(pt);
 		temp2(0, 1) = dy.at<double>(pt);
-		//_jacobianOplusXi
 		Eigen::Matrix<double, 2, 6> temp;
 		
 		temp(0, 0) = x*y*invz_2 *fx;

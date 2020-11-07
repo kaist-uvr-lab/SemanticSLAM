@@ -86,7 +86,9 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 		
 		g2o::EdgeDirectXYZOnlyPose* e = new g2o::EdgeDirectXYZOnlyPose();
 		e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
-		e->setMeasurement((double)prevGra.at<uchar>(pt));
+		Eigen::Matrix<double, 1, 1> obs;
+		obs(0) = (double)prevGra.at<uchar>(pt);
+		e->setMeasurement(obs);
 		int octave = pMP->mnOctave;
 		const float invSigma2 = mvInvLevelSigma2[octave];
 		e->setInformation(Eigen::Matrix<double,1,1>::Identity()*invSigma2);
