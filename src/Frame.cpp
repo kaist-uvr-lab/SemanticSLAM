@@ -580,6 +580,20 @@ void UVR_SLAM::Frame::DetectFeature() {
 	mvKeyPoints = mvKeyPointsUn;
 }
 
+void UVR_SLAM::Frame::DetectGradient() {
+	cv::Mat edge;
+	cv::cvtColor(matOri, edge, CV_BGR2GRAY);
+	edge.convertTo(edge, CV_8UC1);
+	cv::Sobel(edge, mDX, CV_64FC1, 1, 0, 1);
+	cv::Sobel(edge, mDY, CV_64FC1, 0, 1, 1);
+	mDX = abs(mDX);
+	mDY = abs(mDY);
+	//mDX.convertTo(mDX, CV_8UC1);
+	//mDY.convertTo(mDY, CV_8UC1);
+	mGra = (mDX + mDY) / 2.0;
+	mGra.convertTo(mGra, CV_8UC1);
+}
+
 void UVR_SLAM::Frame::DetectEdge() {
 	cv::Mat filtered;
 	GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
@@ -1104,21 +1118,8 @@ void UVR_SLAM::Frame::SetGrids() {
 	int nHalf = mpMatchInfo->mpSystem->mnRadius;
 	int nSize = nHalf * 2;
 
-	int thresh = 30;
-
-	cv::Mat temp = GetOriginalImage();
-	cv::Mat edge;
-	cv::cvtColor(temp, edge, CV_BGR2GRAY);
-	edge.convertTo(edge, CV_8UC1);
-	cv::Mat matDY, matDX, matGradient;
-	cv::Sobel(edge, matDX, CV_64FC1, 1, 0, 3);
-	cv::Sobel(edge, matDY, CV_64FC1, 0, 1, 3);
-	matDX = abs(matDX);
-	matDY = abs(matDY);
-	matDX.convertTo(matDX, CV_8UC1);
-	matDY.convertTo(matDY, CV_8UC1);
-	matGradient = (matDX + matDY) / 2.0;
-
+	int thresh = 10;
+	
 	for (int x = 0; x < mnWidth; x += nSize) {
 		for (int y = 0; y < mnHeight; y += nSize) {
 			cv::Point2f ptLeft(x, y);
@@ -1131,9 +1132,9 @@ void UVR_SLAM::Frame::SetGrids() {
 			auto pGrid = new FrameGrid(std::move(ptLeft), std::move(rect));
 			bool bGrid = false;
 			//cv::Mat mGra = pGrid->CalcGradientImage(GetOriginalImage());
-			cv::Mat mGra = matGradient(rect).clone();
+			cv::Mat mRectGra = mGra(rect).clone();
 			cv::Point2f pt;
-			if (pGrid->CalcActivePoint(mGra, thresh, pt)) {
+			if (pGrid->CalcActivePoint(mRectGra, thresh, pt)) {
 				bool bOccupied = this->mpMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
 				if (bOccupied)
 					continue;

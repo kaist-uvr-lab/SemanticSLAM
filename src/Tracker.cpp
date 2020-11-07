@@ -210,7 +210,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat debugImg;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->mnHeight, pCurr->mnWidth, CV_8UC1);
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempCPs, vpTempPts);
-		pCurr->mpMatchInfo->InitMapPointInlierVector(mnPointMatching);
+		
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
 		{
 			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
@@ -219,7 +219,12 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat prevR, prevT;
 		pPrev->GetPose(prevR, prevT);
 		pCurr->SetPose(prevR, prevT);
-		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vpTempPts, pCurr->mpMatchInfo->mvbMapPointInliers);
+		vpTempCPs = pPrev->mpMatchInfo->mvpMatchingCPs;
+		vpTempPts = pPrev->mpMatchInfo->mvMatchingPts;
+		pCurr->mpMatchInfo->InitMapPointInlierVector(vpTempCPs.size());
+		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vpTempPts, pCurr->mpMatchInfo->mvbMapPointInliers, pPrev->mGra);
+		/*pCurr->mpMatchInfo->InitMapPointInlierVector(mnPointMatching);
+		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vpTempPts, pCurr->mpMatchInfo->mvbMapPointInliers);*/
 		int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vpTempPts);
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크

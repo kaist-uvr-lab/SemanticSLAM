@@ -310,6 +310,8 @@ namespace UVR_SLAM {
 		std::vector<std::size_t> mGrid[FRAME_GRID_COLS][FRAME_GRID_ROWS];
 
 		void Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d);
+		cv::Mat mDX, mDY, mGra;
+		void DetectGradient();
 		void DetectFeature();
 		void DetectEdge();
 		void ExtractORB(const cv::Mat &im, std::vector<cv::KeyPoint>& vKPs, cv::Mat& desc);
