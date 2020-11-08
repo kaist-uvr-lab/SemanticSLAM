@@ -25,7 +25,7 @@ namespace UVR_SLAM {
 		matGradient = (matDX + matDY) / 2.0;
 		return matGradient;
 	}
-	bool FrameGrid::CalcActivePoints(cv::Mat src, int gthresh, cv::Point2f& pt) {
+	bool FrameGrid::CalcActivePoints(cv::Mat src, int gthresh, int& localthresh, cv::Point2f& pt) {
 		std::vector<uchar> vecFromMat;
 		cv::Mat mReshaped = src.reshape(0, 1); // spread Input Mat to single row
 		mReshaped.copyTo(vecFromMat); // Copy Input Mat to vector vecFromMat
@@ -45,32 +45,34 @@ namespace UVR_SLAM {
 			std::cout <<i<<"="<< vecFromMat.size() / 2 <<"::"<< (int)vecFromMat[i] << std::endl;
 		}*/
 		int median = (int)vecFromMat[vecFromMat.size() / 2];
-		int thresh = median + gthresh;
-		int maxval = median;
-		for (int y = 0; y < src.rows; y++) {
-			for (int x = 0; x < src.cols; x++) {
-				int val = src.at<uchar>(y, x);
-				if(val > thresh){
-					cv::Point2f tpt(x, y);
-					//auto tpt = cv::Point2f(gPt.x + basePt.x, gPt.y + basePt.y);
-					vecPTs.push_back(tpt+ basePt);
-					if (val > maxval) {
-						pt = tpt+basePt;
-						maxval = val;
-						mnMaxIDX = vecPTs.size() - 1; //vecpt+basept¸¦ ÇÏ¸é µÊ.
-					}//max
-				}//thresh
-			}//for x
-		}//fory
-		if (vecPTs.size() > 0)
-			return true;
-		return false;
-		/*int resVal = (int)maxVal;
-		if (resVal > thresh) {
+		localthresh = median + gthresh;
+		
+		//int maxval = median;
+		//for (int y = 0; y < src.rows; y++) {
+		//	for (int x = 0; x < src.cols; x++) {
+		//		int val = src.at<uchar>(y, x);
+		//		if(val > thresh){
+		//			cv::Point2f tpt(x, y);
+		//			//auto tpt = cv::Point2f(gPt.x + basePt.x, gPt.y + basePt.y);
+		//			vecPTs.push_back(tpt+ basePt);
+		//			if (val > maxval) {
+		//				pt = tpt+basePt;
+		//				maxval = val;
+		//				mnMaxIDX = vecPTs.size() - 1; //vecpt+basept¸¦ ÇÏ¸é µÊ.
+		//			}//max
+		//		}//thresh
+		//	}//for x
+		//}//fory
+		//if (vecPTs.size() > 0)
+		//	return true;
+		//return false;
+		int resVal = (int)maxVal;
+		if (resVal > localthresh) {
 			pt = cv::Point2f(gPt.x + basePt.x, gPt.y + basePt.y);
+			vecPTs.push_back(pt);
 			return true;
 		}
 		else
-			return false;*/
+			return false;
 	}
 }

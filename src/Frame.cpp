@@ -1123,6 +1123,9 @@ void UVR_SLAM::Frame::SetGrids() {
 	imshow("gra:::", matGradient);
 	cv::waitKey(1);
 
+	cv::Mat occupied = cv::Mat::zeros(mnWidth, mnHeight, CV_8UC1);
+	cv::Point2f gridTempRect(3,3);//nHalf/2, nHalf/2
+
 	for (int x = 0; x < mnWidth; x += nSize) {
 		for (int y = 0; y < mnHeight; y += nSize) {
 			cv::Point2f ptLeft(x, y);
@@ -1134,7 +1137,6 @@ void UVR_SLAM::Frame::SetGrids() {
 			if (ptLeft.x != prevGridPt.x || ptLeft.y != prevGridPt.y) {
 				std::cout << "setgrids::error" << std::endl;
 			}
-
 			if (ptRight.x > mnWidth || ptRight.y > mnHeight)
 				continue;
 			cv::Rect rect(ptLeft, ptRight);
@@ -1143,7 +1145,8 @@ void UVR_SLAM::Frame::SetGrids() {
 			//cv::Mat mGra = pGrid->CalcGradientImage(GetOriginalImage());
 			cv::Mat mGra = matGradient(rect).clone();
 			cv::Point2f pt;
-			if (pGrid->CalcActivePoints(mGra, thresh, pt)) {
+			int localthresh;
+			if (pGrid->CalcActivePoints(mGra, thresh, localthresh,pt)) {
 				bool bOccupied = this->mpMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
 				if (bOccupied)
 					continue;
@@ -1152,6 +1155,22 @@ void UVR_SLAM::Frame::SetGrids() {
 				int idx = mpMatchInfo->AddCP(pCP, pt);
 				pGrid->pt = pt;
 				pGrid->mpCP = pCP;
+				cv::rectangle(occupied, pt - gridTempRect, pt + gridTempRect, cv::Scalar(255, 0, 0), -1);
+				//for (int gy = 0; gy < mGra.rows; gy++) {
+				//	for (int gx = 0; gx < mGra.cols; gx++) {
+				//		int val = mGra.at<uchar>(gy, gx);
+				//		if(val > localthresh){
+				//			cv::Point2f tpt(gx+pGrid->basePt.x, gy+pGrid->basePt.y);
+				//			if (!mpMatchInfo->CheckOpticalPointOverlap(occupied, tpt, mpSystem->mnRadius)) {
+				//				continue;
+				//			}
+				//			//pGrid->vecPTs.push_back(tpt);//pGrid->basePt
+				//			auto pCP2 = new UVR_SLAM::CandidatePoint(mpMatchInfo);
+				//			int idx2 = mpMatchInfo->AddCP(pCP2, tpt);
+				//			cv::rectangle(occupied, tpt - gridTempRect, tpt + gridTempRect, cv::Scalar(255, 0, 0), -1);
+				//		}//thresh
+				//	}//for x
+				//}//fory
 			}
 			//imshow("gra ", mGra); waitKey();
 			mmpFrameGrids.insert(std::make_pair(ptLeft, pGrid));
