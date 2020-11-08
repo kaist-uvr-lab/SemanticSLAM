@@ -25,6 +25,7 @@ namespace UVR_SLAM {
 		cv::Rect rect;
 		cv::Point2f basePt;
 		cv::Point2f pt;
+		int mnMaxIDX;
 		std::vector<cv::Point2f> vecPTs;
 	private:
 	};

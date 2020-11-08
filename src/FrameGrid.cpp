@@ -53,10 +53,11 @@ namespace UVR_SLAM {
 				if(val > thresh){
 					cv::Point2f tpt(x, y);
 					//auto tpt = cv::Point2f(gPt.x + basePt.x, gPt.y + basePt.y);
-					vecPTs.push_back(tpt);
+					vecPTs.push_back(tpt+ basePt);
 					if (val > maxval) {
 						pt = tpt+basePt;
 						maxval = val;
+						mnMaxIDX = vecPTs.size() - 1; //vecpt+basept¸¦ ÇÏ¸é µÊ.
 					}//max
 				}//thresh
 			}//for x

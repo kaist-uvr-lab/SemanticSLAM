@@ -8,6 +8,7 @@
 #include <PlaneEstimator.h>
 #include <Visualizer.h>
 #include <Plane.h>
+#include <FrameGrid.h>
 #include <direct.h>
 
 //추후 파라메터화. 귀찮아.
@@ -141,6 +142,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		std::vector<UVR_SLAM::MapPoint*> tempMPs;
 		std::vector<cv::Point2f> vTempMappedPts1, vTempMappedPts2; //맵포인트로 생성된 포인트 정보를 저장
 		std::vector<int> vTempMappedOctaves,vTempMappedIDXs; //vTempMatch에서 다시 일부분을 저장. 초기 포인트와 대응되는 위치를 저장.
+		int nGridSize = mpSystem->mnRadius * 2;
 		int res3 = 0;
 		for (int i = 0; i < matTriangulateInliers.rows; i++) {
 			int val = matTriangulateInliers.at<uchar>(i);
@@ -171,6 +173,13 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			if (err1 > 4.0 || err2 > 4.0)
 				continue;
 			///////////////reprojection error
+			
+			////그리드 체크
+			auto gridPt = mpInitFrame1->GetGridBasePt(pt2, nGridSize);
+			if (mpInitFrame2->mmbFrameGrids.count(gridPt)) {
+				continue;
+			}
+			
 			int idx = vTempMatchIDXs[i];
 			int idx2 = vTempIndexs[idx];
 			//std::cout << vTempPts1[idx] << ", " << mpInitFrame1->mpMatchInfo->GetCPPt(idx2) <<"::"<< vTempMatchPts1[i] << std::endl;
@@ -185,9 +194,35 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			vTempMappedPts2.push_back(vTempMatchPts2[i]);
 			vTempMappedIDXs.push_back(i);//vTempMatchIDXs[i]
 			
-			//Initframe1에는 이미 등록이 되어 있음.
+			////그리드 매칭
+			auto rect = cv::Rect(gridPt, std::move(cv::Point2f(gridPt.x + nGridSize, gridPt.y + nGridSize)));
+			auto prevGridPt = mpInitFrame1->GetGridBasePt(pt1, nGridSize);
+			auto prevGrid = mpInitFrame1->mmpFrameGrids[prevGridPt];
+			if (!prevGrid) {
+				std::cout << "initialization::error" << std::endl;
+				continue;
+			}
+			auto prevRect = mpInitFrame1->GetOriginalImage()(prevGrid->rect);
+			auto currRect = mpInitFrame2->GetOriginalImage()(rect);
+			std::vector<cv::Point2f> vPrevGridPTs, vGridPTs;
+			/*bool bGridMatch = mpMatcher->OpticalGridMatching(prevGrid, prevRect, currRect, vPrevGridPTs, vGridPTs);
+			if (!bGridMatch)
+				continue;*/
+
+			//InitFrame2에 CP를 추가
 			int idx3 = mpInitFrame2->mpMatchInfo->AddCP(pCP, vTempMatchPts2[i]);
 			pCP->ConnectFrame(mpInitFrame2->mpMatchInfo, idx3);
+
+			////grid 추가
+			mpInitFrame2->mmbFrameGrids[gridPt] = true;
+			auto currGrid = new FrameGrid(gridPt, rect);
+			//currGrid->vecPTs = vGridPTs;
+			mpInitFrame2->mmpFrameGrids[gridPt] = currGrid;
+			mpInitFrame2->mmpFrameGrids[gridPt]->mpCP = pCP;
+			mpInitFrame2->mmpFrameGrids[gridPt]->pt = pt2;
+			////grid 추가
+
+
 			//MP 등록
 			pMP->ConnectFrame(mpInitFrame1->mpMatchInfo, idx2);
 			pMP->ConnectFrame(mpInitFrame2->mpMatchInfo, idx3);

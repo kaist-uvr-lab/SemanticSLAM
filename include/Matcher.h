@@ -25,7 +25,7 @@ namespace UVR_SLAM {
 ///////////////////////////////////////////////////////////
 ////200410 Optical flow 적용 버전
 	public:
-		int OpticalGridMatching(FrameGrid* grid1, FrameGrid* grid2, cv::Mat src1, cv::Mat src2);
+		bool OpticalGridMatching(FrameGrid* grid1, cv::Mat src1, cv::Mat src2, std::vector<cv::Point2f>& vPrevPTs, std::vector<cv::Point2f>& vCurrPTs);
 		int OpticalGridsMatching(Frame* pFrame1, Frame* pFrame2, std::vector<cv::Point2f>& vpPTs);
 		int OpticalMatchingForInitialization(Frame* init, Frame* curr, std::vector<std::pair<cv::Point2f, cv::Point2f>>& resMatches);
 		int OpticalMatchingForInitialization(Frame* prev, Frame* curr, std::vector<cv::Point2f>& vpPts1, std::vector<cv::Point2f>& vpPts2, std::vector<bool>& vbInliers, std::vector<int>& vnIDXs, cv::Mat& debug);

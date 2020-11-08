@@ -1129,6 +1129,12 @@ void UVR_SLAM::Frame::SetGrids() {
 			if (mmpFrameGrids.count(ptLeft))
 				continue;
 			cv::Point2f ptRight(x + nSize, y + nSize);
+
+			auto prevGridPt = GetGridBasePt(ptLeft, nSize);
+			if (ptLeft.x != prevGridPt.x || ptLeft.y != prevGridPt.y) {
+				std::cout << "setgrids::error" << std::endl;
+			}
+
 			if (ptRight.x > mnWidth || ptRight.y > mnHeight)
 				continue;
 			cv::Rect rect(ptLeft, ptRight);
