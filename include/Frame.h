@@ -222,6 +222,7 @@ namespace UVR_SLAM {
 		std::vector<std::multimap<ObjectType, int, std::greater<int>>> mvMapObjects;
 		double mdTimestamp;
 		//matching
+		cv::Mat matFrame, matOri;
 		cv::Mat mPlaneDescriptor;
 		cv::Mat mWallDescriptor;
 		cv::Mat mObjectDescriptor;
@@ -255,7 +256,7 @@ namespace UVR_SLAM {
 		float mfMinDepth, mfMaxDepth;
 		
 		std::multimap<int,UVR_SLAM::Frame*, std::greater<int>> mmpConnectedKFs;
-		cv::Mat matFrame, matOri;
+		
 		cv::Mat R, t;
 		int mnInliers;
 		

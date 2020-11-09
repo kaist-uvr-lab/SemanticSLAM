@@ -38,7 +38,7 @@ namespace g2o {
 			return;
 		}*/
 		val(0) = (double)gra2.at<uchar>(pt);
-		_error = _measurement-val;
+		_error = (_measurement-val)*0.5;
 	}
 	void EdgeDirectXYZOnlyPose::linearizeOplus(){
 		VertexSE3Expmap * vi = static_cast<VertexSE3Expmap *>(_vertices[0]);

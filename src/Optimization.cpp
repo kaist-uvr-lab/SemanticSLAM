@@ -64,7 +64,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 	std::vector<size_t> vnIndexEdgeMono;
 	vpEdgesMono.reserve(N);
 	vnIndexEdgeMono.reserve(N);
-	float testErr = 5.991;//5.991
+	float testErr = 10.0;//5.991;//5.991
 	const float deltaMono = sqrt(testErr);
 	auto mvInvLevelSigma2 = pFrame->mpMatchInfo->mpTargetFrame->mvInvLevelSigma2;
 
@@ -108,7 +108,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 		e->Xw[2] = Xw.at<float>(2);
 		e->dx = pFrame->mDX;
 		e->dy = pFrame->mDY;
-		e->gra2 = pFrame->mGra;
+		e->gra2 = pFrame->matFrame;
 
 		optimizer.addEdge(e);
 		vpEdgesMono.push_back(e);

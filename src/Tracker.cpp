@@ -222,7 +222,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		vpTempCPs = pPrev->mpMatchInfo->mvpMatchingCPs;
 		vpTempPts = pPrev->mpMatchInfo->mvMatchingPts;
 		pCurr->mpMatchInfo->InitMapPointInlierVector(vpTempCPs.size());
-		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vpTempPts, pCurr->mpMatchInfo->mvbMapPointInliers, pPrev->mGra);
+		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vpTempPts, pCurr->mpMatchInfo->mvbMapPointInliers, pPrev->matFrame);
 		/*pCurr->mpMatchInfo->InitMapPointInlierVector(mnPointMatching);
 		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vpTempPts, pCurr->mpMatchInfo->mvbMapPointInliers);*/
 		int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vpTempPts);
