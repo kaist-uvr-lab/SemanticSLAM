@@ -170,7 +170,8 @@ namespace UVR_SLAM {
 		std::list<UVR_SLAM::MapPoint*> mlpNewMPs;
 		std::string strVOCPath;
 		fbow::Vocabulary* fvoc;
-		cv::Mat mK, mInvK, mKforPL, mD;
+		cv::Mat mK, mInvK, mD;
+		cv::Mat mKforPL;
 		bool mbInitialized;
 		int mnPatchSize;
 		int mnHalfWindowSize;

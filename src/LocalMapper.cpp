@@ -194,7 +194,7 @@ void UVR_SLAM::LocalMapper::Run() {
 
 				ProcessNewKeyFrame();
 				mpTargetFrame->mpMatchInfo->UpdateKeyFrame();
-				//NewMapPointMarginalization();
+				NewMapPointMarginalization();
 				
 				/////디버깅 이미지
 				int nCreated = 0;
@@ -941,18 +941,19 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		auto pCPi = std::move(vMatchCPs[i]);
 		auto pMPi = pCPi->GetMP();
 
-		////시드 관련
-		{
-			if (pCPi->mpSeed) {
+		//////시드 관련
+		//{
+		//	if (pCPi->mpSeed) {
 
-			}
-			else {
-				int idx = pCPi->GetPointIndexInFrame(pCPi->mpRefKF->mpMatchInfo);
-				auto refPt = pCPi->mpRefKF->mpMatchInfo->mvMatchingPts[idx];
-				cv::Mat a = (cv::Mat_<float>(3, 1) << refPt.x, refPt.y, 1);
-				pCPi->mpSeed = new Seed(std::move(mpSystem->mInvK*a), px_err_angle, pCPi->mpRefKF->mfMedianDepth, pCPi->mpRefKF->mfMinDepth);
-			}
-		}
+		//	}
+		//	else {
+		//		int idx = pCPi->GetPointIndexInFrame(pCPi->mpRefKF->mpMatchInfo);
+		//		auto refPt = pCPi->mpRefKF->mpMatchInfo->mvMatchingPts[idx];
+		//		cv::Mat a = (cv::Mat_<float>(3, 1) << refPt.x, refPt.y, 1);
+		//		pCPi->mpSeed = new Seed(std::move(mpSystem->mInvK*a), px_err_angle, pCPi->mpRefKF->mfMedianDepth, pCPi->mpRefKF->mfMinDepth);
+		//	}
+		//}
+		//////시드 관련
 
 		cv::Mat X3D;
 		float depth;
@@ -1003,60 +1004,60 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 				cv::Mat X3D2;
 				float depthRef;
 				auto bNewMP2 =pCPi->CreateMapPoint(X3D2, depthRef, mK, mInvK, Pcurr, Rcurr, Tcurr, currPt);
-				if(bNewMP2){
-					cv::Point2f ptFromRefB = pCurrKF->Projection(X3D2);
-					cv::Mat Rrel, Trel;
-					pCurrKF->GetRelativePoseFromTargetFrame(pCPi->mpRefKF, Rrel, Trel);
-					cv::Mat Xcam2 = pCPi->mpSeed->ray*depthRef;
-					cv::Mat Xcam3 = pCPi->mpSeed->ray*(depthRef - 1.0f);
-					cv::Mat Xcam4 = pCPi->mpSeed->ray*(depthRef + 1.0f);
-					cv::Mat projFromRef = mK*(Rrel*Xcam2 + Trel);
-					cv::Mat projFromRef2 = mK*(Rrel*Xcam3 + Trel);
-					cv::Mat projFromRef3 = mK*(Rrel*Xcam4 + Trel);
-					cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
-					cv::Point2f ptFromRef2(projFromRef2.at<float>(0) / projFromRef2.at<float>(2), projFromRef2.at<float>(1) / projFromRef2.at<float>(2));
-					cv::Point2f ptFromRef3(projFromRef3.at<float>(0) / projFromRef3.at<float>(2), projFromRef3.at<float>(1) / projFromRef3.at<float>(2));
-				
-					//cv::circle(prevImg, prevPt, 3, color2, -1);
-					/*cv::line(currImg, currPt, ptFromRefB, color5, 2);*/
-					cv::line(currImg, currPt, ptFromRef, color3, 2);
-					cv::line(currImg, ptFromRef2, ptFromRef3, color5, 1);
-					//cv::circle(currImg, currPt, 3, color2, -1);
-					//cv::circle(currImg, ptFromRef, 2, color4, -1);
-				
-					//cv::Mat ray = mInvK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1);
-					//cv::Mat Xcam2 = ray*depth2;
-					//////Seed Init & Update
-					//cv::Mat Rrel, Trel;
-					//pCurrKF->GetRelativePoseFromTargetFrame(pPrevKF, Rrel, Trel);
-					//cv::Mat projFromRef = mK*(Rrel*Xcam2 + Trel);
-					//cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
-					//cv::circle(currImg, projected1, 3, color2, -1);
-					//cv::line(currImg, projected1, ptFromRef, color4, 2);
+				//if(bNewMP2){
+				//	cv::Point2f ptFromRefB = pCurrKF->Projection(X3D2);
+				//	cv::Mat Rrel, Trel;
+				//	pCurrKF->GetRelativePoseFromTargetFrame(pCPi->mpRefKF, Rrel, Trel);
+				//	cv::Mat Xcam2 = pCPi->mpSeed->ray*depthRef;
+				//	cv::Mat Xcam3 = pCPi->mpSeed->ray*(depthRef - 1.0f);
+				//	cv::Mat Xcam4 = pCPi->mpSeed->ray*(depthRef + 1.0f);
+				//	cv::Mat projFromRef = mK*(Rrel*Xcam2 + Trel);
+				//	cv::Mat projFromRef2 = mK*(Rrel*Xcam3 + Trel);
+				//	cv::Mat projFromRef3 = mK*(Rrel*Xcam4 + Trel);
+				//	cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
+				//	cv::Point2f ptFromRef2(projFromRef2.at<float>(0) / projFromRef2.at<float>(2), projFromRef2.at<float>(1) / projFromRef2.at<float>(2));
+				//	cv::Point2f ptFromRef3(projFromRef3.at<float>(0) / projFromRef3.at<float>(2), projFromRef3.at<float>(1) / projFromRef3.at<float>(2));
+				//
+				//	//cv::circle(prevImg, prevPt, 3, color2, -1);
+				//	/*cv::line(currImg, currPt, ptFromRefB, color5, 2);*/
+				//	cv::line(currImg, currPt, ptFromRef, color3, 2);
+				//	cv::line(currImg, ptFromRef2, ptFromRef3, color5, 1);
+				//	//cv::circle(currImg, currPt, 3, color2, -1);
+				//	//cv::circle(currImg, ptFromRef, 2, color4, -1);
+				//
+				//	//cv::Mat ray = mInvK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1);
+				//	//cv::Mat Xcam2 = ray*depth2;
+				//	//////Seed Init & Update
+				//	//cv::Mat Rrel, Trel;
+				//	//pCurrKF->GetRelativePoseFromTargetFrame(pPrevKF, Rrel, Trel);
+				//	//cv::Mat projFromRef = mK*(Rrel*Xcam2 + Trel);
+				//	//cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
+				//	//cv::circle(currImg, projected1, 3, color2, -1);
+				//	//cv::line(currImg, projected1, ptFromRef, color4, 2);
 
-					////Seed Init & Update
-					/*cv::Mat Rrel, Trel;
-					pCPi->mpRefKF->GetRelativePoseFromTargetFrame(pCurrKF, Rrel, Trel);*/
-					//float depthRef = pCPi->mpRefKF->GetDepth(X3D);
-					//cv::Point2f refPt1 = pCPi->mpRefKF->Projection(X3D);
-					//int idx = pCPi->GetPointIndexInFrame(pCPi->mpRefKF->mpMatchInfo);
-					//auto refPt2 = pCPi->mpRefKF->mpMatchInfo->mvMatchingPts[idx];
-					//auto diffPt3 = refPt1 - refPt2;
-					//float errref = (diffPt3.dot(diffPt3));
-					//std::cout << "ref::err::" << errref << std::endl;
-					//if (pCPi->mpSeed) {
-					//	cv::Mat Xcam2 = pCPi->mpSeed->ray*depthRef;
-					//	cv::Mat projFromRef = mK*(Rrel*Xcam2 + Trel);
-					//	cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
-					//	cv::circle(currImg, projected1, 3, color2, -1);
-					//	cv::line(currImg, projected1, ptFromRef, color4, 2);
-					//}
-					////Seed Init & Update
-				}
-				else {
-					cv::circle(prevImg, prevPt, 3, cv::Scalar(0,0,0), -1);
-					cv::circle(currImg, currPt, 3, cv::Scalar(0, 0, 0), -1);
-				}
+				//	////Seed Init & Update
+				//	/*cv::Mat Rrel, Trel;
+				//	pCPi->mpRefKF->GetRelativePoseFromTargetFrame(pCurrKF, Rrel, Trel);*/
+				//	//float depthRef = pCPi->mpRefKF->GetDepth(X3D);
+				//	//cv::Point2f refPt1 = pCPi->mpRefKF->Projection(X3D);
+				//	//int idx = pCPi->GetPointIndexInFrame(pCPi->mpRefKF->mpMatchInfo);
+				//	//auto refPt2 = pCPi->mpRefKF->mpMatchInfo->mvMatchingPts[idx];
+				//	//auto diffPt3 = refPt1 - refPt2;
+				//	//float errref = (diffPt3.dot(diffPt3));
+				//	//std::cout << "ref::err::" << errref << std::endl;
+				//	//if (pCPi->mpSeed) {
+				//	//	cv::Mat Xcam2 = pCPi->mpSeed->ray*depthRef;
+				//	//	cv::Mat projFromRef = mK*(Rrel*Xcam2 + Trel);
+				//	//	cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
+				//	//	cv::circle(currImg, projected1, 3, color2, -1);
+				//	//	cv::line(currImg, projected1, ptFromRef, color4, 2);
+				//	//}
+				//	////Seed Init & Update
+				//}
+				//else {
+				//	cv::circle(prevImg, prevPt, 3, cv::Scalar(0,0,0), -1);
+				//	cv::circle(currImg, currPt, 3, cv::Scalar(0, 0, 0), -1);
+				//}
 
 			}//reproj
 			if (bNewMP) {
@@ -1088,22 +1089,22 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		vPTs.push_back(currPt);
 	}
 
-	//////////테스트용도
-	cv::Mat resized, r1, r2;
-	/*cv::resize(debugMatch, resized, cv::Size(debugMatch.cols / 2, debugMatch.rows / 2));
-	cv::Rect mergeRect3 = cv::Rect(0, 0, prevImg.cols/2, prevImg.rows / 2);
-	cv::Rect mergeRect4 = cv::Rect(0, prevImg.rows / 2, prevImg.cols / 2, prevImg.rows / 2);*/
-	cv::resize(prevImg, r1, cv::Size(prevImg.cols / 2, prevImg.rows / 2));
-	cv::resize(currImg, r2, cv::Size(currImg.cols / 2, currImg.rows / 2));
-	mpVisualizer->SetOutputImage(r1, 2);
-	mpVisualizer->SetOutputImage(r2, 3);
+	////////////테스트용도
+	//cv::Mat resized, r1, r2;
+	///*cv::resize(debugMatch, resized, cv::Size(debugMatch.cols / 2, debugMatch.rows / 2));
+	//cv::Rect mergeRect3 = cv::Rect(0, 0, prevImg.cols/2, prevImg.rows / 2);
+	//cv::Rect mergeRect4 = cv::Rect(0, prevImg.rows / 2, prevImg.cols / 2, prevImg.rows / 2);*/
+	//cv::resize(prevImg, r1, cv::Size(prevImg.cols / 2, prevImg.rows / 2));
+	//cv::resize(currImg, r2, cv::Size(currImg.cols / 2, currImg.rows / 2));
+	//mpVisualizer->SetOutputImage(r1, 2);
+	//mpVisualizer->SetOutputImage(r2, 3);
 
-	prevImg.copyTo(debugMatch(mergeRect1));
-	currImg.copyTo(debugMatch(mergeRect2));
-	cv::moveWindow("Output::DepthFilter", mpSystem->mnDisplayX, mpSystem->mnDisplayY);
-	cv::imshow("Output::DepthFilter", debugMatch); 
-	cv::waitKey(1);
-	//////////테스트용도
+	//prevImg.copyTo(debugMatch(mergeRect1));
+	//currImg.copyTo(debugMatch(mergeRect2));
+	//cv::moveWindow("Output::DepthFilter", mpSystem->mnDisplayX, mpSystem->mnDisplayY);
+	//cv::imshow("Output::DepthFilter", debugMatch); 
+	//cv::waitKey(1);
+	////////////테스트용도
 
 	////////////////////////////////////////최적화 진행
 	if (vX3Ds.size() < 30) {

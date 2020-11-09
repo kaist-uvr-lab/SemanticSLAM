@@ -1173,8 +1173,10 @@ void UVR_SLAM::Frame::SetGrids() {
 	imshow("gra:::", matGradient);
 	cv::waitKey(1);
 
+	////포인트 중복 및 그리드 내 추가 포인트 관련
 	cv::Mat occupied = cv::Mat::zeros(mnWidth, mnHeight, CV_8UC1);
 	cv::Point2f gridTempRect(3,3);//nHalf/2, nHalf/2
+	////포인트 중복 및 그리드 내 추가 포인트 관련
 
 	for (int x = 0; x < mnWidth; x += nSize) {
 		for (int y = 0; y < mnHeight; y += nSize) {
@@ -1206,6 +1208,8 @@ void UVR_SLAM::Frame::SetGrids() {
 				pGrid->pt = pt;
 				pGrid->mpCP = pCP;
 				cv::rectangle(occupied, pt - gridTempRect, pt + gridTempRect, cv::Scalar(255, 0, 0), -1);
+
+				////그리드 내의 추가 포인트 처리
 				//for (int gy = 0; gy < mGra.rows; gy++) {
 				//	for (int gx = 0; gx < mGra.cols; gx++) {
 				//		int val = mGra.at<uchar>(gy, gx);

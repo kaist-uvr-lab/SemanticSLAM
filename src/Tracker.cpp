@@ -14,6 +14,8 @@
 #include <CandidatePoint.h>
 #include <MapPoint.h>
 #include <FrameGrid.h>
+#include <DepthFilter.h>
+#include <ZMSSD.h>
 
 //std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
 
@@ -229,15 +231,23 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
 		cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
 
-		cv::Mat currR, currT;
-		pCurr->GetPose(currR, currT);
-		cv::Mat invR = prevR.t();
-		cv::Mat invT = -invR*prevT;
-		cv::Mat Rrel = currR*invR;
-		cv::Mat Trel = currR*invT + currT;
-		cv::Mat invK = mpSystem->mK.inv();
+		//에피폴라 관련 파라메터
+		cv::Mat Rrel, Trel;
+		pCurr->GetRelativePoseFromTargetFrame(pPrev, Rrel, Trel);
+		float fx = mK.at<float>(0, 0);
+		float fy = mK.at<float>(1, 1);
+		float cx = mK.at<float>(0, 2);
+		float cy = mK.at<float>(1, 2);
+		int patch_size = UVR_SLAM::ZMSSD::patch_size_;
+		int patch_half_size = patch_size / 2;
+		int patch_area = patch_size * patch_size;
+		int mzssd_thresh = 2000 * patch_area;
+		cv::Point2f patch_pt(patch_half_size, patch_half_size);
+		//에피폴라 관련 파라메터
 
+		////그리드 파라메터
 		int nGridSize = mpSystem->mnRadius*2;
+		////그리드 파라메터
 		for (size_t i = 0, iend = vpTempCPs.size(); i < iend; i++) {
 			auto pCP = vpTempCPs[i];
 			auto currPt = vTempCurrPts[i];
@@ -285,26 +295,97 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			
 			////epipolar
 			//ray test
-			cv::Mat ray = invK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
-			
-			cv::Mat Xcam2 = ray*0.1f;
-			cv::Mat Xcam3 = ray*1.0f;
-			cv::Mat projFromRef = mK*(Rrel*Xcam2 + Trel);
-			cv::Mat projFromRef2 = mK*(Rrel*Xcam3 + Trel);
-			cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
-			cv::Point2f ptFromRef2(projFromRef2.at<float>(0) / projFromRef2.at<float>(2), projFromRef2.at<float>(1) / projFromRef2.at<float>(2));
-			cv::line(currImg, ptFromRef, ptFromRef2, cv::Scalar(0, 255, 255), 1);
+			cv::Mat ray = mpSystem->mInvK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
+			float z_min, z_max;
+			/*auto pSeeda = pCP->mpSeed;
+			if (pCP->mpSeed) {
+				float z_inv_min = pSeeda->mu + sqrt(pSeeda->sigma2);
+				float z_inv_max = max(pSeeda->mu - sqrt(pSeeda->sigma2), 0.00000001f);
+				z_min = 1. / z_inv_min;
+				z_max = 1. / z_inv_max;
+			}
+			else
+			{
+				z_min = 0.01f;
+				z_max = 1.0f;
+			}*/
+			z_min = 0.01f;
+			z_max = 1.0f;
+
+			cv::Mat Xcmin = Rrel*ray*z_min + Trel;
+			cv::Mat Xcmax = Rrel*ray*z_max + Trel;
+			cv::Point2f XprojMin(Xcmin.at<float>(0) / Xcmin.at<float>(2), Xcmin.at<float>(1) / Xcmin.at<float>(2));
+			cv::Point2f XprojMax(Xcmax.at<float>(0) / Xcmax.at<float>(2), Xcmax.at<float>(1) / Xcmax.at<float>(2));
+			cv::Point2f epi_dir = XprojMin - XprojMax;
+			cv::Point2f XimgMin(XprojMin.x*fx + cx, XprojMin.y*fy + cy);
+			cv::Point2f XimgMax(XprojMax.x*fx + cx, XprojMax.y*fy + cy);
+			float epi_length = cv::norm(XimgMin - XimgMax) / 2.0;
+			size_t n_steps = epi_length / 0.7; // one step per pixel
+			cv::Point2f step(epi_dir.x / n_steps, epi_dir.y / n_steps);
+			cv::Point2f uv = XprojMax - step;
+			cv::Point2f uv_best;
+			int zmssd_best = mzssd_thresh;
+			auto refLeftPt = prevPt - patch_pt;
+			auto refRightPt = prevPt + patch_pt;
+			bool bRefLeft = pCurr->isInImage(refLeftPt.x, refLeftPt.y, 10);
+			bool bRefRight = pCurr->isInImage(refRightPt.x, refRightPt.y, 10);
+			if (bRefLeft && bRefRight) {
+				cv::Rect refRect(prevPt - patch_pt, prevPt + patch_pt);
+				auto refZMSSD = new ZMSSD(pPrev->matFrame(refRect));
+				for (size_t i = 0; i < n_steps; ++i, uv += step)
+				{
+					cv::Point2f pt(uv.x*fx + cx, uv.y*fy + cy);
+					auto leftPt = pt - patch_pt;
+					auto rightPt = pt + patch_pt;
+					bool bPatchLeft = pCurr->isInImage(leftPt.x, leftPt.y, 10);
+					bool bPatchRight = pCurr->isInImage(rightPt.x, rightPt.y, 10);
+					if (bPatchLeft && bPatchRight) {
+						cv::Rect patchRect(leftPt, rightPt);
+						int val = refZMSSD->computeScore(pCurr->matFrame(patchRect));
+						if (val < zmssd_best) {
+							uv_best = pt;
+							zmssd_best = val;
+						}
+					}//if patch
+				}//for
+				if (zmssd_best < mzssd_thresh) {
+					cv::line(currImg, prevPt, uv_best, cv::Scalar(0, 255, 255), 1);
+					cv::circle(currImg, uv_best, 2, cv::Scalar(0, 255, 0), -1);
+				}
+			}//if ref
+
+			//cv::line(currImg, XimgMin, XimgMax, cv::Scalar(0, 255, 255), 1);
+
+			auto pSeed = pCP->mpSeed;
+			if (pSeed) {
+
+				/*float z_inv_min = pSeed->mu + sqrt(pSeed->sigma2);
+				float z_inv_max = max(pSeed->mu - sqrt(pSeed->sigma2), 0.00000001f);
+				float z_min = 1. / z_inv_min;
+				float z_max = 1. / z_inv_max;
+				cv::Mat Xcam4 = pSeed->ray*z_min;
+				cv::Mat Xcam5 = pSeed->ray*z_max;
+				cv::Mat Rrel2, Trel2;
+				pCurr->GetRelativePoseFromTargetFrame(pCP->mpRefKF, Rrel2, Trel2);
+				{
+					cv::Mat projFromRef  = mK*(Rrel2*Xcam4 + Trel2);
+					cv::Mat projFromRef2 = mK*(Rrel2*Xcam5 + Trel2);
+					cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
+					cv::Point2f ptFromRef2(projFromRef2.at<float>(0) / projFromRef2.at<float>(2), projFromRef2.at<float>(1) / projFromRef2.at<float>(2));
+					cv::line(currImg, ptFromRef, ptFromRef2, cv::Scalar(0, 255, 0), 1);
+				}*/
+			}
 
 			if (bMP)
 			{
+				cv::line(currImg, currPt, prevPt, cv::Scalar(255, 0, 255), 1);
 				cv::circle(prevImg, prevPt, 2,    cv::Scalar(0, 0, 255), -1);
 				cv::circle(currImg, currPt, 2,    cv::Scalar(0, 0, 255), -1);
-				cv::line(currImg, currPt, prevPt, cv::Scalar(255, 0, 255), 2);
 			}
 			else {
+				cv::line(currImg, currPt, prevPt, cv::Scalar(255, 255, 0), 1);
 				cv::circle(prevImg, prevPt, 2, cv::Scalar(255, 0, 0), -1);
 				cv::circle(currImg, currPt, 2, cv::Scalar(255, 0, 0), -1);
-				cv::line(currImg, currPt, prevPt, cv::Scalar(255, 255, 0), 2);
 			}
 			
 		}
@@ -312,7 +393,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		prevImg.copyTo(debugMatch(mergeRect1));
 		currImg.copyTo(debugMatch(mergeRect2));
 		cv::moveWindow("Output::MatchTest2", mpSystem->mnDisplayX+prevImg.cols*2, mpSystem->mnDisplayY);
-		cv::imshow("Output::MatchTest2", debugMatch);
+		cv::imshow("Output::MatchTest2", debugMatch); //cv::waitKey();
 		int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vTempCurrPts, vbTempInliers);
 		////여기서 시각화
 

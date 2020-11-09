@@ -8,7 +8,8 @@
 #include <Visualizer.h>
 
 namespace UVR_SLAM {
-	Seed::Seed(cv::Mat _ray, float _px_err_angle, float depth_mean, float depth_min):count(1), a(10), b(10), mu(1.0/depth_mean), z_range(1.0/depth_min), sigma2(z_range*z_range/36), ray(_ray), px_err_angle(_px_err_angle){}
+	float Seed::px_err_angle;
+	Seed::Seed(cv::Mat _ray, float depth_mean, float depth_min):count(1), a(10), b(10), mu(1.0/depth_mean), z_range(1.0/depth_min), sigma2(z_range*z_range/36), ray(_ray){}
 	
 	float Seed::ComputeTau(cv::Mat t, float z) {
 		cv::Mat a = ray*z - t;
@@ -22,7 +23,6 @@ namespace UVR_SLAM {
 		return (z_plus - z); // tau
 	}
 	
-	
 	DepthFilter::DepthFilter(){
 	}
 	DepthFilter::DepthFilter(System* pSys):mpSystem(pSys) {
@@ -31,7 +31,13 @@ namespace UVR_SLAM {
 	}
 	void DepthFilter::Init() {
 		K = mpSystem->mK;
-		invK = K.inv();
+		invK = mpSystem->mInvK;
+		////시드 생성 관련 변수
+		float fx = mpSystem->mK.at<float>(0, 0);
+		float noise = 1.0;
+		Seed::px_err_angle = atan(noise / (2.0*fx))*2.0;
+		////시드 생성 관련 변수
+
 	}
 	void DepthFilter::UpdateSeed(Seed* pSeed, float invz, float tau2) {
 		float norm_scale = sqrt(pSeed->sigma2 + tau2);
@@ -196,24 +202,18 @@ namespace UVR_SLAM {
 			//update 함수 && convergence test && triangulation
 		}//for
 		
+		std::cout << "DepthFilter::Update::end::" << nFail << ", " << nCandidate << std::endl;
 
-		cv::Mat resized;
+		/*cv::Mat resized;
 		cv::resize(testImg, resized, cv::Size(testImg.cols / 2, testImg.rows / 2));
 		mpSystem->mpVisualizer->SetOutputImage(resized, 1);
-
 		cv::moveWindow("Output::DepthFilter", mpSystem->mnDisplayX, mpSystem->mnDisplayY);
-
-		std::cout << "DepthFilter::Update::end::" <<nFail<<", "<< nCandidate << std::endl;
-		
 		cv::Mat debugImg = cv::Mat::zeros(testImg.rows * 2, testImg.cols, testImg.type());
-		
 		cv::Rect mergeRect1 = cv::Rect(0, 0, testImg.cols, testImg.rows);
 		cv::Rect mergeRect2 = cv::Rect(0, testImg.rows, testImg.cols, testImg.rows);
 		testImg.copyTo(debugImg(mergeRect1));
 		testImg2.copyTo(debugImg(mergeRect2));
-
 		imshow("Output::DepthFilter", debugImg);
-
-		cv::waitKey(1);
+		cv::waitKey(1);*/
 	}
 }

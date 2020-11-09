@@ -314,6 +314,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//	//pSeed->mf
 		//}
 		mpInitFrame2->SetGrids();
+		/*mpInitFrame1->mpMatchInfo->UpdateKeyFrame();
+		mpInitFrame2->mpMatchInfo->UpdateKeyFrame();*/
 		if(mpInitFrame2->mpMatchInfo->mvpMatchingCPs.size() < mpSystem->mnMaxMP){
 			/*mpInitFrame2->DetectFeature();
 			mpInitFrame2->DetectEdge();

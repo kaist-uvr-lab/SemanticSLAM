@@ -216,6 +216,7 @@ namespace UVR_SLAM {
 		int mnKeyFrameID;
 	public:
 		//objectype
+		cv::Mat matFrame;
 		std::set<MapPoint*> mspFloorMPs, mspCeilMPs, mspWallMPs;
 		std::vector<std::multimap<ObjectType, int, std::greater<int>>> mvMapObjects;
 		double mdTimestamp;
@@ -250,7 +251,7 @@ namespace UVR_SLAM {
 		std::mutex mMutexFrame, mMutexPose;
 		
 		std::multimap<int,UVR_SLAM::Frame*, std::greater<int>> mmpConnectedKFs;
-		cv::Mat matFrame, matOri;
+		cv::Mat matOri;
 		cv::Mat R, t;
 		int mnInliers;
 		
