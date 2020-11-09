@@ -156,7 +156,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 		}
 	}
 
-	for (size_t i = 0, iend = vnIndexEdgeMono.size(); i < iend; i++) {
+	/*for (size_t i = 0, iend = vnIndexEdgeMono.size(); i < iend; i++) {
 
 		const size_t idx = vnIndexEdgeMono[i];
 		auto pCPi = vpCPs[idx];
@@ -168,7 +168,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 			continue;
 		}
 		pMPi->IncreaseFound();
-	}
+	}*/
 
 	// Recover optimized pose and return number of inliers
 	g2o::VertexSE3Expmap* vSE3_recov = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(0));

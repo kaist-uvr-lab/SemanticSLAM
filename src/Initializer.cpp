@@ -176,7 +176,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			
 			////그리드 체크
 			auto gridPt = mpInitFrame1->GetGridBasePt(pt2, nGridSize);
-			if (mpInitFrame2->mmbFrameGrids.count(gridPt)) {
+			if (mpInitFrame2->mmbFrameGrids[gridPt]) {
 				continue;
 			}
 			

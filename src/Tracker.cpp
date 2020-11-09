@@ -13,6 +13,7 @@
 #include <Visualizer.h>
 #include <CandidatePoint.h>
 #include <MapPoint.h>
+#include <FrameGrid.h>
 
 //std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
 
@@ -202,16 +203,16 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		//초기 매칭 테스트
 		std::vector<UVR_SLAM::MapPoint*> vpTempMPs;
 		std::vector<UVR_SLAM::CandidatePoint*> vpTempCPs;
-		std::vector<cv::Point2f> vpTempPts, vpTempPts1;
+		std::vector<cv::Point2f> vTempCurrPts, vTempPrevPts;
 		std::vector<cv::Point3f> vpTempPts2;
 		std::vector<uchar> vcInliers;
 		std::vector<bool> vbTempInliers;// = std::vector<bool>(pPrev->mvpMatchingMPs.size(), false);
 		std::vector<int> vnIDXs, vnMPIDXs;
 		cv::Mat debugImg;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->mnHeight, pCurr->mnWidth, CV_8UC1);
-		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempCPs, vpTempPts);
+		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempCPs, vTempPrevPts, vTempCurrPts, vbTempInliers);
 		//mpMatcher->OpticalGridsMatching(pPrev, pCurr, vpTempPts1);
-		pCurr->mpMatchInfo->InitMapPointInlierVector(mnPointMatching);
+		//pCurr->mpMatchInfo->InitMapPointInlierVector(mnPointMatching); //삭제 예정
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
 		{
 			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
@@ -220,8 +221,102 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat prevR, prevT;
 		pPrev->GetPose(prevR, prevT);
 		pCurr->SetPose(prevR, prevT);
-		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vpTempPts, pCurr->mpMatchInfo->mvbMapPointInliers);
-		int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vpTempPts);
+		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vTempCurrPts, vbTempInliers);
+
+		//////임시
+		cv::Mat prevImg = pPrev->GetOriginalImage().clone();
+		cv::Mat currImg = pCurr->GetOriginalImage().clone();
+		cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+		cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+
+		cv::Mat currR, currT;
+		pCurr->GetPose(currR, currT);
+		cv::Mat invR = prevR.t();
+		cv::Mat invT = -invR*prevT;
+		cv::Mat Rrel = currR*invR;
+		cv::Mat Trel = currR*invT + currT;
+		cv::Mat invK = mpSystem->mK.inv();
+
+		int nGridSize = mpSystem->mnRadius*2;
+		for (size_t i = 0, iend = vpTempCPs.size(); i < iend; i++) {
+			auto pCP = vpTempCPs[i];
+			auto currPt = vTempCurrPts[i];
+			auto prevPt = vTempPrevPts[i];
+			auto pMP = pCP->GetMP();
+			bool bMP = pMP && !pMP->isDeleted();
+			if (!vbTempInliers[i])
+				continue;
+
+			auto gridPt = pPrev->GetGridBasePt(currPt, nGridSize);
+			if (pCurr->mmbFrameGrids[gridPt]) {
+				continue;
+			}
+
+			auto prevGridPt = pPrev->GetGridBasePt(prevPt, nGridSize);
+			auto diffx = abs(prevGridPt.x - gridPt.x);
+			auto diffy = abs(prevGridPt.y - gridPt.y);
+
+			if (diffx > 2 * nGridSize || diffy > 2 * nGridSize) {
+				//cv::line(currImg, currPts[i], prevPts[i], cv::Scalar(0, 255, 255), 1);
+				continue;
+			}
+			auto rect = cv::Rect(gridPt, std::move(cv::Point2f(gridPt.x + nGridSize, gridPt.y + nGridSize)));
+			//////grid matching
+			//auto prevGrid = pPrev->mmpFrameGrids[prevGridPt];
+			//if (!prevGrid) {
+			//	std::cout << "tracking::error" << std::endl;
+			//	continue;
+			//}
+			//auto prevRect = prevImg(prevGrid->rect);
+			//auto currRect = currImg(rect);
+			//std::vector<cv::Point2f> vPrevGridPTs, vGridPTs;
+			///*bool bGridMatch = this->OpticalGridMatching(prevGrid, prevRect, currRect, vPrevGridPTs, vGridPTs);
+			//if (!bGridMatch)
+			//	continue;*/
+			//////grid matching
+			//////grid 추가
+			pCurr->mmbFrameGrids[gridPt] = true;
+			auto currGrid = new FrameGrid(gridPt, rect);
+			//currGrid->vecPTs = vGridPTs;
+			pCurr->mmpFrameGrids[gridPt] = currGrid;
+			pCurr->mmpFrameGrids[gridPt]->mpCP = pCP;
+			pCurr->mmpFrameGrids[gridPt]->pt = currPt;
+			//////grid 추가
+			
+			////epipolar
+			//ray test
+			cv::Mat ray = invK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
+			
+			cv::Mat Xcam2 = ray*0.1f;
+			cv::Mat Xcam3 = ray*1.0f;
+			cv::Mat projFromRef = mK*(Rrel*Xcam2 + Trel);
+			cv::Mat projFromRef2 = mK*(Rrel*Xcam3 + Trel);
+			cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
+			cv::Point2f ptFromRef2(projFromRef2.at<float>(0) / projFromRef2.at<float>(2), projFromRef2.at<float>(1) / projFromRef2.at<float>(2));
+			cv::line(currImg, ptFromRef, ptFromRef2, cv::Scalar(0, 255, 0), 1);
+
+			if (bMP)
+			{
+				cv::circle(prevImg, prevPt, 2,    cv::Scalar(0, 0, 255), -1);
+				cv::circle(currImg, currPt, 2,    cv::Scalar(0, 0, 255), -1);
+				cv::line(currImg, currPt, prevPt, cv::Scalar(255, 0, 255), 1);
+			}
+			else {
+				cv::circle(prevImg, prevPt, 2, cv::Scalar(255, 0, 0), -1);
+				cv::circle(currImg, currPt, 2, cv::Scalar(255, 0, 0), -1);
+				cv::line(currImg, currPt, prevPt, cv::Scalar(255, 255, 0), 1);
+			}
+			
+		}
+		cv::Mat debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+		prevImg.copyTo(debugMatch(mergeRect1));
+		currImg.copyTo(debugMatch(mergeRect2));
+		cv::moveWindow("Output::MatchTest2", mpSystem->mnDisplayX+prevImg.cols*2, mpSystem->mnDisplayY);
+		cv::imshow("Output::MatchTest2", debugMatch);
+		int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vTempCurrPts, vbTempInliers);
+		////여기서 시각화
+
+
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크
 		bool bNeedCP, bNeedMP, bNeedPoseHandle, bNeedNewKF;
@@ -277,19 +372,26 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 ////MP와 PT가 대응함.
 ////pPrev가 mpRefKF가 됨
 //매칭정보에 비율을 아예 추가하기
-int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<cv::Point2f> vpPts) {
+int UVR_SLAM::Tracker::UpdateMatchingInfo(UVR_SLAM::Frame* pCurr, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<cv::Point2f> vpPts, std::vector<bool> vbInliers) {
 	
 	auto pMatchInfo = pCurr->mpMatchInfo;
 	
 	for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
 		auto pCP = vpCPs[i];
 		auto pt = vpPts[i];
-		if (pMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) < 0) {
-			int idx = pMatchInfo->AddCP(pCP, pt);
-			//pCP->ConnectFrame(pMatchInfo, idx);
+		auto pMP = pCP->GetMP();
+		bool bMP = pMP && !pMP->isDeleted();
+		if (bMP) {
+			pMP->IncreaseVisible();
 		}
-		else
-			std::cout << "UpdateMatchingInfo::???????????????????????????????????????????????" << std::endl;
+		if (vbInliers[i]) {
+			if(bMP)
+				pMP->IncreaseFound();
+			if (pMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) < 0) {
+				int idx = pMatchInfo->AddCP(pCP, pt);
+				//pCP->ConnectFrame(pMatchInfo, idx);
+			}
+		}
 	}
 	
 	return 0;

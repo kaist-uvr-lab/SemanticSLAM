@@ -1016,6 +1016,7 @@ int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
 	int res = mvpMatchingCPs.size();
 	mvpMatchingCPs.push_back(pCP);
 	mvMatchingPts.push_back(pt);
+	mvbMapPointInliers.push_back(true);
 	cv::rectangle(mMapCP, pt- mpSystem->mRectPt, pt+ mpSystem->mRectPt, cv::Scalar(res + 1), -1);
 	//cv::circle(mMapCP, pt, Frame::mnRadius, cv::Scalar(res+1), -1);
 	return res;
@@ -1129,7 +1130,7 @@ void UVR_SLAM::Frame::SetGrids() {
 	for (int x = 0; x < mnWidth; x += nSize) {
 		for (int y = 0; y < mnHeight; y += nSize) {
 			cv::Point2f ptLeft(x, y);
-			if (mmpFrameGrids.count(ptLeft))
+			if (mmbFrameGrids[ptLeft])
 				continue;
 			cv::Point2f ptRight(x + nSize, y + nSize);
 
