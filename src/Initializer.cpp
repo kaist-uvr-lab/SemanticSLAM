@@ -10,6 +10,7 @@
 #include <Plane.h>
 #include <FrameGrid.h>
 #include <direct.h>
+#include <DepthFilter.h>
 
 //추후 파라메터화. 귀찮아.
 int N_matching_init_therah = 120; //80
@@ -298,8 +299,22 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		/////////////레이아웃 추정
 
 		////CP 추가
+		mpInitFrame1->ComputeSceneDepth();
+		mpInitFrame2->ComputeSceneDepth();
+		//for (auto iter = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.begin(), iend = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.end(); iter != iend; iter++) {
+		//	auto pCPi = *iter;
+		//	auto pMPi = pCPi->GetMP();
+		//	if (pMPi && !pMPi->isDeleted())
+		//		continue;
+		//	auto pSeed = pCPi->mpSeed;
+		//	cv::Mat ray = pSeed->ray.clone();
+		//	float err = pSeed->px_err_angle;
+		//	delete pCPi->mpSeed;
+		//	pCPi->mpSeed = new UVR_SLAM::Seed(ray, err, mpInitFrame1->mfMedianDepth, mpInitFrame1->mfMinDepth);
+		//	//pSeed->mf
+		//}
+		mpInitFrame2->SetGrids();
 		if(mpInitFrame2->mpMatchInfo->mvpMatchingCPs.size() < mpSystem->mnMaxMP){
-			mpInitFrame2->SetGrids();
 			/*mpInitFrame2->DetectFeature();
 			mpInitFrame2->DetectEdge();
 			mpInitFrame2->SetBowVec(mpSystem->fvoc);

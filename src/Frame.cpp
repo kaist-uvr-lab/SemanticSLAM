@@ -9,6 +9,7 @@
 #include <MapPoint.h>
 #include <FrameGrid.h>
 #include <Plane.h>
+#include <DepthFilter.h>
 
 bool UVR_SLAM::Frame::mbInitialComputations = true;
 float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
@@ -16,6 +17,7 @@ float UVR_SLAM::Frame::mnMinX, UVR_SLAM::Frame::mnMinY, UVR_SLAM::Frame::mnMaxX,
 float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeightInv;
 
 UVR_SLAM::Frame::Frame(System* pSys, cv::Mat _src, int w, int h, cv::Mat K, double ts):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
+mfMeanDepth(0.0), mfMinDepth(0.0), mfMedianDepth(0.0),
 mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts)
 {
 	matOri = _src.clone();
@@ -36,8 +38,10 @@ mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), md
 	////////////canny
 	mnFrameID = UVR_SLAM::System::nFrameID++;
 }
-UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
-, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
+
+UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
+mfMeanDepth(0.0), mfMinDepth(0.0), mfMedianDepth(0.0),
+mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
@@ -59,8 +63,9 @@ UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), 
 	mnFrameID = UVR_SLAM::System::nFrameID++;
 }
 
-UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0)
-, mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
+UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
+mfMeanDepth(0.0), mfMinDepth(0.0), mfMedianDepth(0.0),
+mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
 	matOri = tempImg.clone();
@@ -139,7 +144,16 @@ void UVR_SLAM::Frame::close() {
 	std::set<UVR::KeyFrame*>().swap(mspKFs);
 	*/
 }
-
+float UVR_SLAM::Frame::GetDepth(cv::Mat X3D) {
+	cv::Mat Rcw2;
+	float zcw;
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexPose);
+		Rcw2 = R.row(2).t();
+		zcw = t.at<float>(2);
+	}
+	return (float)Rcw2.dot(X3D) + zcw;
+}
 void UVR_SLAM::Frame::SetPose(cv::Mat _R, cv::Mat _t) {
 	std::unique_lock<std::mutex>(mMutexPose);
 	R = _R.clone();
@@ -150,6 +164,18 @@ void UVR_SLAM::Frame::GetPose(cv::Mat&_R, cv::Mat& _t) {
 	std::unique_lock<std::mutex>(mMutexPose);
 	_R = R.clone();
 	_t = t.clone();
+}
+void UVR_SLAM::Frame::GetInversePose(cv::Mat&_Rinv, cv::Mat& _Tinv) {
+	std::unique_lock<std::mutex>(mMutexPose);
+	_Rinv = R.t();
+	_Tinv = -_Rinv*t;
+}
+void UVR_SLAM::Frame::GetRelativePoseFromTargetFrame(Frame* pTargetFrame, cv::Mat& Rft, cv::Mat& Tft){
+	cv::Mat Rinv, Tinv;
+	pTargetFrame->GetInversePose(Rinv, Tinv);
+	std::unique_lock<std::mutex>(mMutexPose);
+	Rft = R*Rinv;
+	Tft = R*Tinv + t;
 }
 cv::Mat UVR_SLAM::Frame::GetRotation() {
 	std::unique_lock<std::mutex>(mMutexPose);
@@ -259,17 +285,6 @@ cv::Point2f UVR_SLAM::Frame::Projection(cv::Mat w3D) {
 	return p2D;
 }
 
-void UVR_SLAM::Frame::SetDepthRange(float min, float max){
-	std::unique_lock<std::mutex> lock(mMutexDepthRange);
-	mfMaxDepth = max;
-	mfMinDepth = min;
-}
-void UVR_SLAM::Frame::GetDepthRange(float& min, float& max) {
-	std::unique_lock<std::mutex> lock(mMutexDepthRange);
-	min = mfMinDepth;
-	max = mfMaxDepth;
-}
-
 int UVR_SLAM::Frame::TrackedMapPoints(int minObservation) {
 	std::unique_lock<std::mutex> lock(mMutexFrame);
 	int nPoints = 0;
@@ -322,7 +337,7 @@ bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pTargetKF) {
 	cv::Mat vBaseline = Ow2 - Ow1;
 	float baseline = cv::norm(vBaseline);
 	pTargetKF->ComputeSceneMedianDepth();
-	float medianDepthKF2 = pTargetKF->GetSceneMedianDepth();
+	float medianDepthKF2 = pTargetKF->mfMedianDepth;
 	if(medianDepthKF2 < 0.0){
 		std::cout << "Not enough baseline!!" << std::endl;
 		return false;
@@ -367,6 +382,48 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(std::vector<UVR_SLAM::MapPoint*> v
 }
 
 ////20.09.05 수정 필요.
+void UVR_SLAM::Frame::ComputeSceneDepth() {
+
+	cv::Mat Rcw2;
+	float zcw;
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexPose);
+		Rcw2 = R.row(2);
+		zcw = t.at<float>(2);
+	}
+	std::vector<float> vDepths;
+	Rcw2 = Rcw2.t();
+	for (size_t i = 0, iend = mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++)
+	{
+		auto pCPi = mpMatchInfo->mvpMatchingCPs[i];
+		auto pMPi = pCPi->GetMP();
+		if (!pMPi || pMPi->isDeleted()) {
+			continue;
+		}
+		cv::Mat x3Dw = pMPi->GetWorldPos();
+		float z = (float)Rcw2.dot(x3Dw) + zcw;
+		mfMinDepth = fmin(z, mfMinDepth);
+		vDepths.push_back(z);
+	}
+	if (vDepths.size() == 0) {
+		return;
+	}
+	int nidx = vDepths.size() / 2;
+	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
+
+	//median
+	mfMedianDepth = vDepths[nidx];
+	//mean & stddev
+	cv::Mat mMean, mDev;
+	meanStdDev(vDepths, mMean, mDev);
+	mfMeanDepth = (float)mMean.at<double>(0);
+	mfStdDev = (float)mDev.at<double>(0);
+	////min
+	//double minVal, maxVal;
+	//cv::minMaxIdx(vDepths, &minVal);
+	//mfMinDepth = (float)minVal;
+	//std::cout << mfMinDepth << ", " << mfMeanDepth << ", " << mfMedianDepth << std::endl;
+}
 void UVR_SLAM::Frame::ComputeSceneMedianDepth()
 {
 	cv::Mat Rcw2;
@@ -396,14 +453,8 @@ void UVR_SLAM::Frame::ComputeSceneMedianDepth()
 	int nidx = vDepths.size() / 2;
 	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
 	{
-		std::unique_lock<std::mutex> lockMP(mMutexMedianDepth);
 		mfMedianDepth = vDepths[nidx];
 	}
-}
-
-float UVR_SLAM::Frame::GetSceneMedianDepth() {
-	std::unique_lock<std::mutex> lockMP(mMutexMedianDepth);
-	return mfMedianDepth;
 }
 
 cv::Mat UVR_SLAM::Frame::GetCameraCenter() {
@@ -499,8 +550,6 @@ void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
 
 	mK = _k.clone();
 	mDistCoef = _d.clone();
-
-	
 
 	//에러나면 풀어야 함
 	//AssignFeaturesToGrid();
@@ -950,7 +999,7 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		if (mpRefFrame->mmbFrameGrids[gridPt])
 			continue;
 		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
-		auto pCP = new UVR_SLAM::CandidatePoint(this);
+		auto pCP = new UVR_SLAM::CandidatePoint(this->mpRefFrame);
 		int idx = this->AddCP(pCP, pt);
 		//pCP->ConnectFrame(this, idx);
 		
@@ -971,7 +1020,7 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 		if (mpRefFrame->mmbFrameGrids[gridPt])
 			continue;
 		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
-		auto pCP = new UVR_SLAM::CandidatePoint(this, mpRefFrame->mvnOctaves[i]);
+		auto pCP = new UVR_SLAM::CandidatePoint(this->mpRefFrame, mpRefFrame->mvnOctaves[i]);
 		int idx = this->AddCP(pCP, pt);
 		//pCP->ConnectFrame(this, idx);
 
@@ -1116,8 +1165,8 @@ void UVR_SLAM::Frame::SetGrids() {
 	cv::Sobel(edge, matDY, CV_64FC1, 0, 1, ksize);
 	matDX = abs(matDX);
 	matDY = abs(matDY);
-	matDX.convertTo(matDX, CV_8UC1);
-	matDY.convertTo(matDY, CV_8UC1);
+	//matDX.convertTo(matDX, CV_8UC1);
+	//matDY.convertTo(matDY, CV_8UC1);
 	matGradient = (matDX + matDY) / 2.0;
 	matGradient.convertTo(matGradient, CV_8UC1);
 	//cv::Laplacian(edge, matGradient, CV_8UC1, 3);//CV_64FC1
@@ -1134,10 +1183,10 @@ void UVR_SLAM::Frame::SetGrids() {
 				continue;
 			cv::Point2f ptRight(x + nSize, y + nSize);
 
-			auto prevGridPt = GetGridBasePt(ptLeft, nSize);
+			/*auto prevGridPt = GetGridBasePt(ptLeft, nSize);
 			if (ptLeft.x != prevGridPt.x || ptLeft.y != prevGridPt.y) {
 				std::cout << "setgrids::error" << std::endl;
-			}
+			}*/
 			if (ptRight.x > mnWidth || ptRight.y > mnHeight)
 				continue;
 			cv::Rect rect(ptLeft, ptRight);
@@ -1152,7 +1201,7 @@ void UVR_SLAM::Frame::SetGrids() {
 				if (bOccupied)
 					continue;
 				bGrid = true;
-				auto pCP = new UVR_SLAM::CandidatePoint(mpMatchInfo);
+				auto pCP = new UVR_SLAM::CandidatePoint(mpMatchInfo->mpRefFrame);
 				int idx = mpMatchInfo->AddCP(pCP, pt);
 				pGrid->pt = pt;
 				pGrid->mpCP = pCP;

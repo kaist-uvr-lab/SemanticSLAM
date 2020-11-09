@@ -3,6 +3,7 @@
 #include <Map.h>
 #include <Initializer.h>
 #include <SemanticSegmentator.h>
+#include <DepthFilter.h>
 #include <LocalMapper.h>
 #include <LoopCloser.h>
 #include <PlaneEstimator.h>
@@ -52,6 +53,7 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	mK.at<float>(1, 1) = fy;
 	mK.at<float>(0, 2) = cx;
 	mK.at<float>(1, 2) = cy;
+	mInvK = mK.inv();
 
 	cv::Mat DistCoef(4, 1, CV_32F);
 	DistCoef.at<float>(0) = fs["Camera.k1"];
@@ -196,6 +198,9 @@ void UVR_SLAM::System::Init() {
 	//local mapping thread
 	mpLocalMapper = new UVR_SLAM::LocalMapper(this, mstrFilePath, mnWidth, mnHeight);
 	
+	//depth fiilter
+	mpDepthFilter = new UVR_SLAM::DepthFilter(this);
+
 	//loop closing thread
 	mpLoopCloser = new UVR_SLAM::LoopCloser(this, mnWidth, mnHeight, mK);
 
@@ -209,6 +214,7 @@ void UVR_SLAM::System::Init() {
 	mpSegmentator->Init();
 	mpPlaneEstimator->Init();
 	mpLocalMapper->Init();
+	mpDepthFilter->Init();
 	mpLoopCloser->Init();
 	mpMapOptimizer->Init();
 	mpVisualizer->Init();

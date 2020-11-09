@@ -2,20 +2,21 @@
 #include "Frame.h"
 #include "Map.h"
 #include "MapPoint.h"
+#include <DepthFilter.h>
 
 static int nCandidatePointID = 0;
 
 namespace  UVR_SLAM{
-	CandidatePoint::CandidatePoint():octave(0), bCreated(false), mbDelete(false),
+	CandidatePoint::CandidatePoint():octave(0), bCreated(false), mbDelete(false),mpSeed(nullptr),
 		mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mnCandidatePointID(++nCandidatePointID)		
 	{
 		mpMapPoint = nullptr;
 	}
-	CandidatePoint::CandidatePoint(MatchInfo* pRefKF, int alabel, int aoct):mpRefKF(pRefKF), label(alabel), octave(aoct), bCreated(false), mbDelete(false),
+	CandidatePoint::CandidatePoint(Frame* pRefKF, int alabel, int aoct):mpRefKF(pRefKF), label(alabel), octave(aoct), bCreated(false), mbDelete(false), mpSeed(nullptr),
 		mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mnCandidatePointID(++nCandidatePointID)
 	{
 		mpMapPoint = nullptr;
-		mnFirstID = pRefKF->mpRefFrame->mnFrameID;
+		mnFirstID = mpRefKF->mnFrameID;
 	}
 	CandidatePoint::~CandidatePoint(){}
 
@@ -66,6 +67,8 @@ namespace  UVR_SLAM{
 		std::unique_lock<std::mutex> lockMP(mMutexCP);
 		auto res = mmpFrames.find(pF);
 		if (res == mmpFrames.end()) {
+			if (mmpFrames.size() == 0)
+				this->mpRefKF = pF->mpRefFrame;
 			mmpFrames.insert(std::pair<UVR_SLAM::MatchInfo*, int>(pF, idx));
 			mnConnectedFrames++;
 		}
@@ -85,7 +88,7 @@ namespace  UVR_SLAM{
 				mnConnectedFrames--;
 				//pKF->RemoveCP(idx);
 				if (this->mpRefKF == mpRefKF) {
-					mpRefKF = mmpFrames.begin()->first;
+					mpRefKF = mmpFrames.begin()->first->mpRefFrame;
 				}
 				/*if (mnConnectedFrames < 3)
 					mbDelete = true;*/
@@ -154,27 +157,21 @@ namespace  UVR_SLAM{
 		return x3D.clone();
 	}
 	bool CandidatePoint::CreateMapPoint(cv::Mat& X3D, float& fDepth, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr) {
-		cv::Point2f ptBottom = cv::Point2f(0, 480);
 		MatchInfo* pFirst;
-		int idx;
-		{
-			std::unique_lock<std::mutex> lockMP(mMutexCP);
-			pFirst = mmpFrames.begin()->first;
-			idx = mmpFrames.begin()->second;
-		}
-		cv::Mat P, R, t, Rt;
-		auto pTargetKF = pFirst->mpRefFrame;
-		pTargetKF->GetPose(R, t);
-		cv::hconcat(R, t, P);
-		Rt = R.t();
+		pFirst = mpRefKF->mpMatchInfo;
+		int idx = this->GetPointIndexInFrame(pFirst);
+		
+		cv::Mat Pref, Rref, Tref;
+		mpRefKF->GetPose(Rref, Tref);
+		cv::hconcat(Rref, Tref, Pref);
 		auto ptFirst = pFirst->mvMatchingPts[idx];
 		bool bRank = true;
-		X3D = Triangulate(ptFirst, ptCurr, K*P, K*Pcurr, bRank);
+		X3D = Triangulate(ptFirst, ptCurr, K*Pref, K*Pcurr, bRank);
 
 		bool bd1, bd2;
-		float fDepth1;
-		auto pt1 = Projection(X3D, R, t, K, fDepth1, bd1); //first
-		auto pt2 = Projection(X3D, Rcurr, Tcurr, K, fDepth, bd2); //curr
+		float fDepth1, fDepth2;
+		auto pt1 = Projection(X3D, Rref, Tref, K, fDepth, bd1); //first
+		auto pt2 = Projection(X3D, Rcurr, Tcurr, K, fDepth2, bd2); //curr
 
 		if (bRank && bd1 && bd2 && CheckReprojectionError(pt1, ptFirst, 9.0) && CheckReprojectionError(pt2, ptCurr, 9.0)) {
 			return true;
@@ -182,7 +179,6 @@ namespace  UVR_SLAM{
 		return false;
 	}
 	void CandidatePoint::CreateMapPoint(cv::Mat& X3D, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax, cv::Mat& debug) {
-		cv::Point2f ptBottom = cv::Point2f(0, 480);
 		MatchInfo* pFirst;
 		int idx;
 		{
@@ -211,8 +207,8 @@ namespace  UVR_SLAM{
 		auto pt1 = Projection(X3D, R, t, K, fDepth1, bd1); //first
 		auto pt2 = Projection(X3D, Rcurr, Tcurr, K, fDepth2, bd2); //curr
 
-		cv::line(debug, pt1, ptFirst, cv::Scalar(255, 0, 255), 1);
-		cv::line(debug, pt2+ ptBottom, ptCurr+ ptBottom, cv::Scalar(255, 0, 255), 1);
+		/*cv::line(debug, pt1, ptFirst, cv::Scalar(255, 0, 255), 1);
+		cv::line(debug, pt2+ ptBottom, ptCurr+ ptBottom, cv::Scalar(255, 0, 255), 1);*/
 
 		if (bRank && bd1 && bd2 && CheckReprojectionError(pt1, ptFirst, 9.0) && CheckReprojectionError(pt2, ptCurr, 9.0)){
 			bProjec = true;

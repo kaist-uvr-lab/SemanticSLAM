@@ -13,6 +13,7 @@
 #include <Visualizer.h>
 #include <MapOptimizer.h>
 #include <SemanticSegmentator.h>
+#include <DepthFilter.h>
 
 #include <opencv2/core/mat.hpp>
 #include <ctime>
@@ -51,6 +52,7 @@ void UVR_SLAM::LocalMapper::Init() {
 	mpSegmentator = mpSystem->mpSegmentator;
 	mpPlaneEstimator = mpSystem->mpPlaneEstimator;
 	mpLoopCloser = mpSystem->mpLoopCloser;
+	mpDepthFilter = mpSystem->mpDepthFilter;
 }
 
 void UVR_SLAM::LocalMapper::SetInitialKeyFrame(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2) {
@@ -159,6 +161,10 @@ void UVR_SLAM::LocalMapper::Run() {
 			auto mpTargetMatchInfo = mpTempFrame->mpMatchInfo;
 			int nTargetID = mpTempFrame->mnFrameID;
 			
+			////키프레임의 mean & min depth 계산
+			mpTempFrame->ComputeSceneDepth();
+			//mpDepthFilter->Update(mpTempFrame, mpPrevKeyFrame);
+
 			if (bNeedCP) {
 				/*mpTargetFrame->DetectFeature();
 				mpTargetFrame->DetectEdge();
@@ -180,93 +186,101 @@ void UVR_SLAM::LocalMapper::Run() {
 					mpSystem->cvUseCreateCP.notify_all();
 				}
 			}
-			
-			int nCreated = 0;
-			////////New Matching & Create & Delayed CP test
-			cv::Mat debugMatch;
-			cv::Mat prevImg = mpPrevKeyFrame->GetOriginalImage();
-			cv::Mat currImg = mpTargetFrame->GetOriginalImage().clone();
-			cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
-			cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
-			cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
-			debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
-			prevImg.copyTo(debugMatch(mergeRect1));
-			currImg.copyTo(debugMatch(mergeRect2));
+			float timeAP = 0.0f;
+			if (numActive > 0)
+				timeAP = (totalActive / numActive);
 			
 			if (bNeedMP || bNeedNewKF || bPoseHandle) {
-				
+
 				ProcessNewKeyFrame();
 				mpTargetFrame->mpMatchInfo->UpdateKeyFrame();
-				NewMapPointMarginalization();
+				//NewMapPointMarginalization();
 				
+				/////디버깅 이미지
+				int nCreated = 0;
+				cv::Mat debugMatch;
+				cv::Mat prevImg = mpPrevKeyFrame->GetOriginalImage();
+				cv::Mat currImg = mpTargetFrame->GetOriginalImage().clone();
+				cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
+				cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+				cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+				debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+				prevImg.copyTo(debugMatch(mergeRect1));
+				currImg.copyTo(debugMatch(mergeRect2));
+				/////디버깅 이미지
+
 				if (bNeedMP) {
 
-					////RefKeyFrame 관련 작업
+					/*std::cout << "Optimization::start" << std::endl;
+					Optimization::LocalOptimization(mpSystem, mpMap, mpTargetFrame);
+					std::cout << "Optimization::end" << std::endl;*/
+
+					////////RefKeyFrame 관련 작업
 					auto mpRefKeyFrame = mpPPrevKeyFrame;
-					auto pCurrMatch = mpTargetFrame->mpMatchInfo;
-					auto pRefMatch = mpRefKeyFrame->mpMatchInfo;
-					auto vpTempCPs = pCurrMatch->mvpMatchingCPs;
-					auto vpRefCPs = pRefMatch->mvpMatchingCPs;
-					auto vpTempPTsCurr = pCurrMatch->mvMatchingPts;
-					auto vpTempPTsRef  = pRefMatch->mvMatchingPts;
+					//auto pCurrMatch = mpTargetFrame->mpMatchInfo;
+					//auto pRefMatch = mpRefKeyFrame->mpMatchInfo;
+					//auto vpTempCPs = pCurrMatch->mvpMatchingCPs;
+					//auto vpRefCPs = pRefMatch->mvpMatchingCPs;
+					//auto vpTempPTsCurr = pCurrMatch->mvMatchingPts;
+					//auto vpTempPTsRef  = pRefMatch->mvMatchingPts;
 
-					cv::Mat Rref, Tref, Rcurr, Tcurr;
-					mpTargetFrame->GetPose(Rcurr, Tcurr);
-					mpRefKeyFrame->GetPose(Rref, Tref);
+					//cv::Mat Rref, Tref, Rcurr, Tcurr;
+					//mpTargetFrame->GetPose(Rcurr, Tcurr);
+					//mpRefKeyFrame->GetPose(Rref, Tref);
 
-					cv::Mat Pcurr, Pref;
-					cv::hconcat(Rcurr, Tcurr, Pcurr);
-					cv::hconcat(Rref, Tref, Pref);
-					//1) 스케일 계산
-					cv::Mat Rcw = Rref.row(2);
-					Rcw = Rcw.t();
-					float zcw = Tref.at<float>(2);
-					std::vector<float> vfRefDepths;
-					float fMedianDepth, fMeanDepth, fStdDev;
-					for (size_t i = 0, iend = vpRefCPs.size(); i < iend; i++) {
-						auto pCPi = vpRefCPs[i];
-						auto pMPi = pCPi->GetMP();
-						if (!pMPi || pMPi->isDeleted()) {
-							continue;
-						}
-						cv::Mat x3Dw = pMPi->GetWorldPos();
-						float z = (float)Rcw.dot(x3Dw) + zcw;
-						vfRefDepths.push_back(z);
-					}
-					//median
-					std::nth_element(vfRefDepths.begin(), vfRefDepths.begin() + vfRefDepths.size() / 2, vfRefDepths.end());
-					fMedianDepth = vfRefDepths[vfRefDepths.size() / 2];
-					//mean & stddev
-					cv::Mat mMean, mDev;
-					meanStdDev(vfRefDepths, mMean, mDev);
-					fMeanDepth = (float)mMean.at<double>(0);
-					fStdDev = (float)mDev.at<double>(0);
-					float fRange = 1.15;
-					//float fMaxTh = fMean + 1.15*fStdDev; //1.654		//float thresh = 1.15;//1.284;// *dStdDev + dMean; //1.654
-					//float fMinTh = fMean - 1.15*fStdDev;
+					//cv::Mat Pcurr, Pref;
+					//cv::hconcat(Rcurr, Tcurr, Pcurr);
+					//cv::hconcat(Rref, Tref, Pref);
+					////1) 스케일 계산
+					//cv::Mat Rcw = Rref.row(2);
+					//Rcw = Rcw.t();
+					//float zcw = Tref.at<float>(2);
+					//std::vector<float> vfRefDepths;
+					//float fMedianDepth, fMeanDepth, fStdDev;
+					//for (size_t i = 0, iend = vpRefCPs.size(); i < iend; i++) {
+					//	auto pCPi = vpRefCPs[i];
+					//	auto pMPi = pCPi->GetMP();
+					//	if (!pMPi || pMPi->isDeleted()) {
+					//		continue;
+					//	}
+					//	cv::Mat x3Dw = pMPi->GetWorldPos();
+					//	float z = (float)Rcw.dot(x3Dw) + zcw;
+					//	vfRefDepths.push_back(z);
+					//}
+					////median
+					//std::nth_element(vfRefDepths.begin(), vfRefDepths.begin() + vfRefDepths.size() / 2, vfRefDepths.end());
+					//fMedianDepth = vfRefDepths[vfRefDepths.size() / 2];
+					////mean & stddev
+					//cv::Mat mMean, mDev;
+					//meanStdDev(vfRefDepths, mMean, mDev);
+					//fMeanDepth = (float)mMean.at<double>(0);
+					//fStdDev = (float)mDev.at<double>(0);
+					//float fRange = 1.15;
+					////float fMaxTh = fMean + 1.15*fStdDev; //1.654		//float thresh = 1.15;//1.284;// *dStdDev + dMean; //1.654
+					////float fMinTh = fMean - 1.15*fStdDev;
 
-					//2) 연결된 포인트 찾기
-					std::vector<CandidatePoint*> vMatchCPs;
-					std::vector<cv::Point2f> vMatchRefPTs, vMatchCurrPTs;
-					for (size_t i = 0, iend = vpTempPTsCurr.size(); i < iend; i++) {
-						auto pCPi = vpTempCPs[i];
-						int prevIDX = pCPi->GetPointIndexInFrame(pRefMatch);
-						if (prevIDX == -1)
-							continue;
-						auto currPt = vpTempPTsCurr[i];
-						auto refPt  = vpTempPTsRef[prevIDX];
-						vMatchRefPTs.push_back(refPt);
-						vMatchCurrPTs.push_back(currPt);
-						vMatchCPs.push_back(pCPi);
-					}
-					////pt 확보 과정
+					////2) 연결된 포인트 찾기
+					//std::vector<CandidatePoint*> vMatchCPs;
+					//std::vector<cv::Point2f> vMatchRefPTs, vMatchCurrPTs;
+					//for (size_t i = 0, iend = vpTempPTsCurr.size(); i < iend; i++) {
+					//	auto pCPi = vpTempCPs[i];
+					//	int prevIDX = pCPi->GetPointIndexInFrame(pRefMatch);
+					//	if (prevIDX == -1)
+					//		continue;
+					//	auto currPt = vpTempPTsCurr[i];
+					//	auto refPt  = vpTempPTsRef[prevIDX];
+					//	vMatchRefPTs.push_back(refPt);
+					//	vMatchCurrPTs.push_back(currPt);
+					//	vMatchCPs.push_back(pCPi);
+					//}
+					//////pt 확보 과정
 
 					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
-					nCreated = MappingProcess(mpMap, mpTargetFrame, mpPPrevKeyFrame, fMedianDepth, fMeanDepth, fStdDev, time2, currImg);
+					nCreated = MappingProcess(mpMap, mpTargetFrame, mpPPrevKeyFrame, mpRefKeyFrame->mfMedianDepth, mpRefKeyFrame->mfMeanDepth, mpRefKeyFrame->mfStdDev, time2, currImg);
 					mpSystem->mbCreateMP = true;
 					lock.unlock();
 					mpSystem->cvUseCreateMP.notify_all();
-					std::cout << "LM::MP::" <<mpTargetFrame->mnFrameID<<"::"<< nCreated << std::endl;
+					////std::cout << "LM::MP::" <<mpTargetFrame->mnFrameID<<"::"<< nCreated << std::endl;
 
 					/*cv::Mat resized;
 					cv::resize(currImg, resized, cv::Size(currImg.cols / 2, currImg.rows / 2));
@@ -362,7 +376,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			totalLM += t_test1;
 			
 			std::stringstream ssa;
-			ssa << "LocalMapping : " << mpTargetFrame->mnKeyFrameID << "::" << (totalLM / numLM) <<"::"<< (totalActive/numActive) << "::" << "::" << 0 <<", "<< time1 << ", " << time2 << std::endl;;// << ", " << nMinKF << ", " << nMaxKF;
+			ssa << "LocalMapping : " << mpTargetFrame->mnKeyFrameID << "::" << (totalLM / numLM) <<"::"<< timeAP << "::" << "::" << 0 <<", "<< time1 << ", " << time2 << std::endl;;// << ", " << nMinKF << ", " << nMaxKF;
 			mpSystem->SetLocalMapperString(ssa.str());
 			
 			SetDoingProcess(false);
@@ -860,6 +874,12 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	std::vector<CandidatePoint*> vMatchCPs;
 	std::vector<cv::Point2f> vMatchPrevPTs, vMatchCurrPTs;
 
+	////뎁스 필터 1픽셀 에러 관련
+	float fx = mpSystem->mK.at<float>(0, 0);
+	float noise = 1.0;
+	float px_err_angle = atan(noise / (2.0*fx))*2.0;
+	////뎁스 필터 1픽셀 에러 관련
+
 	//////////테스트용도
 	cv::Mat debugMatch;
 	cv::Mat prevImg = pPrevKF->GetOriginalImage().clone();
@@ -867,9 +887,8 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
 	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
 	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
-	/*debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
-	prevImg.copyTo(debugMatch(mergeRect1));
-	currImg.copyTo(debugMatch(mergeRect2));*/
+	debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+	
 	//////////테스트용도
 
 	////pt 확보 과정
@@ -888,18 +907,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		cv::circle(prevImg, prevPt, 4, cv::Scalar(255, 0, 0), 1);
 		cv::circle(currImg, currPt, 4, cv::Scalar(255, 0, 0), 1);
 	}
-	//////////테스트용도
-	cv::Mat resized, r1, r2;
-	/*cv::resize(debugMatch, resized, cv::Size(debugMatch.cols / 2, debugMatch.rows / 2));
-	cv::Rect mergeRect3 = cv::Rect(0, 0, prevImg.cols/2, prevImg.rows / 2);
-	cv::Rect mergeRect4 = cv::Rect(0, prevImg.rows / 2, prevImg.cols / 2, prevImg.rows / 2);*/
-	cv::resize(prevImg, r1, cv::Size(prevImg.cols / 2, prevImg.rows / 2));
-	cv::resize(currImg, r2, cv::Size(currImg.cols / 2, currImg.rows / 2));
-	mpVisualizer->SetOutputImage(r1, 2);
-	mpVisualizer->SetOutputImage(r2, 3);
-	//////////테스트용도
 	
-
 	if (vMatchCPs.size() < 10) {
 		std::cout << "포인트 부족 000" << std::endl;
 		return -1;
@@ -921,13 +929,30 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	std::vector<CandidatePoint*> vMappingCPs;
 	std::vector<cv::Point2f> vPTs;
 	std::vector<cv::Mat> vX3Ds;
+
 	std::vector<float> vfScales;
 	float thresh = 9.0;
 	for (size_t i = 0, iend = TempMap.cols; i < iend; i++) {
+
+		////Seed 확인이 필요. 초기화 & 업데이트를 여기서 수행하고 확인도 여기서 하기.
+
 		auto currPt = std::move(vMatchCurrPTs[i]);
 		auto prevPt = std::move(vMatchPrevPTs[i]);
 		auto pCPi = std::move(vMatchCPs[i]);
 		auto pMPi = pCPi->GetMP();
+
+		////시드 관련
+		{
+			if (pCPi->mpSeed) {
+
+			}
+			else {
+				int idx = pCPi->GetPointIndexInFrame(pCPi->mpRefKF->mpMatchInfo);
+				auto refPt = pCPi->mpRefKF->mpMatchInfo->mvMatchingPts[idx];
+				cv::Mat a = (cv::Mat_<float>(3, 1) << refPt.x, refPt.y, 1);
+				pCPi->mpSeed = new Seed(std::move(mpSystem->mInvK*a), px_err_angle, pCPi->mpRefKF->mfMedianDepth, pCPi->mpRefKF->mfMinDepth);
+			}
+		}
 
 		cv::Mat X3D;
 		float depth;
@@ -957,7 +982,8 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 				bNewMP = false;
 			}
 			////depth test
-
+			
+			
 			////reprojection error
 			if(bNewMP){
 				proj1 = mK*proj1;
@@ -972,6 +998,66 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 				if (err1 > thresh || err2 > thresh) {
 					bNewMP = false;
 				}
+
+				////CReateMP test
+				cv::Mat X3D2;
+				float depthRef;
+				auto bNewMP2 =pCPi->CreateMapPoint(X3D2, depthRef, mK, mInvK, Pcurr, Rcurr, Tcurr, currPt);
+				if(bNewMP2){
+					cv::Point2f ptFromRefB = pCurrKF->Projection(X3D2);
+					cv::Mat Rrel, Trel;
+					pCurrKF->GetRelativePoseFromTargetFrame(pCPi->mpRefKF, Rrel, Trel);
+					cv::Mat Xcam2 = pCPi->mpSeed->ray*depthRef;
+					cv::Mat Xcam3 = pCPi->mpSeed->ray*(depthRef - 1.0f);
+					cv::Mat Xcam4 = pCPi->mpSeed->ray*(depthRef + 1.0f);
+					cv::Mat projFromRef = mK*(Rrel*Xcam2 + Trel);
+					cv::Mat projFromRef2 = mK*(Rrel*Xcam3 + Trel);
+					cv::Mat projFromRef3 = mK*(Rrel*Xcam4 + Trel);
+					cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
+					cv::Point2f ptFromRef2(projFromRef2.at<float>(0) / projFromRef2.at<float>(2), projFromRef2.at<float>(1) / projFromRef2.at<float>(2));
+					cv::Point2f ptFromRef3(projFromRef3.at<float>(0) / projFromRef3.at<float>(2), projFromRef3.at<float>(1) / projFromRef3.at<float>(2));
+				
+					//cv::circle(prevImg, prevPt, 3, color2, -1);
+					/*cv::line(currImg, currPt, ptFromRefB, color5, 2);*/
+					cv::line(currImg, currPt, ptFromRef, color3, 2);
+					cv::line(currImg, ptFromRef2, ptFromRef3, color5, 1);
+					//cv::circle(currImg, currPt, 3, color2, -1);
+					//cv::circle(currImg, ptFromRef, 2, color4, -1);
+				
+					//cv::Mat ray = mInvK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1);
+					//cv::Mat Xcam2 = ray*depth2;
+					//////Seed Init & Update
+					//cv::Mat Rrel, Trel;
+					//pCurrKF->GetRelativePoseFromTargetFrame(pPrevKF, Rrel, Trel);
+					//cv::Mat projFromRef = mK*(Rrel*Xcam2 + Trel);
+					//cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
+					//cv::circle(currImg, projected1, 3, color2, -1);
+					//cv::line(currImg, projected1, ptFromRef, color4, 2);
+
+					////Seed Init & Update
+					/*cv::Mat Rrel, Trel;
+					pCPi->mpRefKF->GetRelativePoseFromTargetFrame(pCurrKF, Rrel, Trel);*/
+					//float depthRef = pCPi->mpRefKF->GetDepth(X3D);
+					//cv::Point2f refPt1 = pCPi->mpRefKF->Projection(X3D);
+					//int idx = pCPi->GetPointIndexInFrame(pCPi->mpRefKF->mpMatchInfo);
+					//auto refPt2 = pCPi->mpRefKF->mpMatchInfo->mvMatchingPts[idx];
+					//auto diffPt3 = refPt1 - refPt2;
+					//float errref = (diffPt3.dot(diffPt3));
+					//std::cout << "ref::err::" << errref << std::endl;
+					//if (pCPi->mpSeed) {
+					//	cv::Mat Xcam2 = pCPi->mpSeed->ray*depthRef;
+					//	cv::Mat projFromRef = mK*(Rrel*Xcam2 + Trel);
+					//	cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
+					//	cv::circle(currImg, projected1, 3, color2, -1);
+					//	cv::line(currImg, projected1, ptFromRef, color4, 2);
+					//}
+					////Seed Init & Update
+				}
+				else {
+					cv::circle(prevImg, prevPt, 3, cv::Scalar(0,0,0), -1);
+					cv::circle(currImg, currPt, 3, cv::Scalar(0, 0, 0), -1);
+				}
+
 			}//reproj
 			if (bNewMP) {
 				cv::circle(debugging, currPt, 3, color2, -1);
@@ -1001,6 +1087,23 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		vX3Ds.push_back(X3D);
 		vPTs.push_back(currPt);
 	}
+
+	//////////테스트용도
+	cv::Mat resized, r1, r2;
+	/*cv::resize(debugMatch, resized, cv::Size(debugMatch.cols / 2, debugMatch.rows / 2));
+	cv::Rect mergeRect3 = cv::Rect(0, 0, prevImg.cols/2, prevImg.rows / 2);
+	cv::Rect mergeRect4 = cv::Rect(0, prevImg.rows / 2, prevImg.cols / 2, prevImg.rows / 2);*/
+	cv::resize(prevImg, r1, cv::Size(prevImg.cols / 2, prevImg.rows / 2));
+	cv::resize(currImg, r2, cv::Size(currImg.cols / 2, currImg.rows / 2));
+	mpVisualizer->SetOutputImage(r1, 2);
+	mpVisualizer->SetOutputImage(r2, 3);
+
+	prevImg.copyTo(debugMatch(mergeRect1));
+	currImg.copyTo(debugMatch(mergeRect2));
+	cv::moveWindow("Output::DepthFilter", mpSystem->mnDisplayX, mpSystem->mnDisplayY);
+	cv::imshow("Output::DepthFilter", debugMatch); 
+	cv::waitKey(1);
+	//////////테스트용도
 
 	////////////////////////////////////////최적화 진행
 	if (vX3Ds.size() < 30) {

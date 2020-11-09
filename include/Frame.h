@@ -123,6 +123,9 @@ namespace UVR_SLAM {
 		cv::Mat GetOriginalImage();
 		void SetPose(cv::Mat _R, cv::Mat _t);
 		void GetPose(cv::Mat&_R, cv::Mat& _t);
+		void GetInversePose(cv::Mat&_Rinv, cv::Mat& _Tinv);
+		void GetRelativePoseFromTargetFrame(Frame* pTargetFrame, cv::Mat& Rft, cv::Mat& Tft);
+		float GetDepth(cv::Mat X3D);
 		cv::Mat GetRotation();
 		cv::Mat GetTranslation();
 		void AddMP(UVR_SLAM::MapPoint* pMP, int idx);
@@ -157,9 +160,6 @@ namespace UVR_SLAM {
 		bool mbMapping;
 		/////////////////////////////
 
-		void SetDepthRange(float min, float max);
-		void GetDepthRange(float& min, float& max);
-
 		///
 		void AddKF(UVR_SLAM::Frame* pKF, int weight);
 		void RemoveKF(UVR_SLAM::Frame* pKF, int weight);
@@ -178,10 +178,8 @@ namespace UVR_SLAM {
 ////////////////
 	public:
 		void ComputeSceneMedianDepth();
-		float GetSceneMedianDepth();
-	private:
-		float mfMedianDepth;
-		std::mutex mMutexMedianDepth;
+		void ComputeSceneDepth();
+		float mfMeanDepth, mfMedianDepth, mfMinDepth, mfStdDev;
 	////////////////
 	public:
 		int mnLocalMapFrameID;
@@ -248,11 +246,8 @@ namespace UVR_SLAM {
 		std::mutex mMutexSegmented;
 	private:
 		
-		
 		std::mutex mMutexNumInliers;
 		std::mutex mMutexFrame, mMutexPose;
-		std::mutex mMutexDepthRange;
-		float mfMinDepth, mfMaxDepth;
 		
 		std::multimap<int,UVR_SLAM::Frame*, std::greater<int>> mmpConnectedKFs;
 		cv::Mat matFrame, matOri;

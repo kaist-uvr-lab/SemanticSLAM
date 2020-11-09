@@ -78,6 +78,7 @@ namespace UVR_SLAM {
 	class LocalMapper;
 	class PlaneEstimator;
 	class LoopCloser;
+	class DepthFilter;
 	class Visualizer;
 	class FrameVisualizer;
 	class MapOptimizer;
@@ -99,6 +100,7 @@ namespace UVR_SLAM {
 		Initializer* mpInitializer;
 		Map* mpMap;
 		LocalMapper* mpLocalMapper;
+		DepthFilter* mpDepthFilter;
 		MapOptimizer* mpMapOptimizer;
 		LoopCloser* mpLoopCloser;
 		SemanticSegmentator* mpSegmentator;
@@ -168,7 +170,7 @@ namespace UVR_SLAM {
 		std::list<UVR_SLAM::MapPoint*> mlpNewMPs;
 		std::string strVOCPath;
 		fbow::Vocabulary* fvoc;
-		cv::Mat mK, mKforPL, mD;
+		cv::Mat mK, mInvK, mKforPL, mD;
 		bool mbInitialized;
 		int mnPatchSize;
 		int mnHalfWindowSize;
