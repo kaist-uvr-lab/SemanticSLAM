@@ -293,18 +293,18 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			cv::Mat projFromRef2 = mK*(Rrel*Xcam3 + Trel);
 			cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
 			cv::Point2f ptFromRef2(projFromRef2.at<float>(0) / projFromRef2.at<float>(2), projFromRef2.at<float>(1) / projFromRef2.at<float>(2));
-			cv::line(currImg, ptFromRef, ptFromRef2, cv::Scalar(0, 255, 0), 1);
+			cv::line(currImg, ptFromRef, ptFromRef2, cv::Scalar(0, 255, 255), 1);
 
 			if (bMP)
 			{
 				cv::circle(prevImg, prevPt, 2,    cv::Scalar(0, 0, 255), -1);
 				cv::circle(currImg, currPt, 2,    cv::Scalar(0, 0, 255), -1);
-				cv::line(currImg, currPt, prevPt, cv::Scalar(255, 0, 255), 1);
+				cv::line(currImg, currPt, prevPt, cv::Scalar(255, 0, 255), 2);
 			}
 			else {
 				cv::circle(prevImg, prevPt, 2, cv::Scalar(255, 0, 0), -1);
 				cv::circle(currImg, currPt, 2, cv::Scalar(255, 0, 0), -1);
-				cv::line(currImg, currPt, prevPt, cv::Scalar(255, 255, 0), 1);
+				cv::line(currImg, currPt, prevPt, cv::Scalar(255, 255, 0), 2);
 			}
 			
 		}
