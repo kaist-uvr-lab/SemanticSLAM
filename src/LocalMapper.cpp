@@ -922,7 +922,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	cv::Scalar color4(0, 255, 255);
 	cv::Scalar color5(0, 255, 0);
 
-	float fRange = 1.15;
+	float fRange = 1.25;//1.15
 	float fMinTH = fMeanDepth - fRange * fStdDev;
 	float fMaxTH = fMeanDepth + fRange * fStdDev;
 
@@ -979,7 +979,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 			if (depth1  < 0.0 || depth2 < 0.0) {
 				bNewMP = false;
 			}
-			if (depth2 < fMinTH || depth2 > fMaxTH) {
+			if (depth1 < fMinTH || depth1 > fMaxTH) {
 				bNewMP = false;
 			}
 			////depth test
@@ -1124,7 +1124,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	mpMap->ClearReinit();
 	std::vector<bool> vbInliers(vX3Ds.size(), true);
 	std::vector<bool> vbInliers2(vX3Ds.size(), true);
-	Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers, vbInliers2, medianPrevScale, fMedianDepth, fMeanDepth, fStdDev);
+	Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers, vbInliers2, 1.0, fMedianDepth, fMeanDepth, fStdDev);
 	
 	int nFail = vX3Ds.size();
 	for (size_t i = 0, iend = vX3Ds.size(); i < iend; i++) {

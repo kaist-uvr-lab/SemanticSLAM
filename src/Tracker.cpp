@@ -345,9 +345,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			auto pMP = pCP->GetMP();
 			bool bMP = pMP && !pMP->isDeleted();
 			bool bInlier = vbTempInliers[i];
-			if (!vbTempInliers[i]) {
+			/*if (!vbTempInliers[i]) {
 				continue;
-			}
+			}*/
 
 			/////////check epipolar constraints 
 			cv::Mat ray = mpSystem->mInvK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
@@ -364,9 +364,10 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			cv::Mat lineEqu = ComputeLineEquation(XimgMin, XimgMax);
 			bool bEpiConstraints = CheckLineDistance(lineEqu, currPt, 1.0);
 			vbTempInliers[i] = bEpiConstraints;
-			if (!bEpiConstraints)
+			if (!bEpiConstraints){
+				vbTempInliers[i] = false;
 				continue;
-
+			}
 			//cv::Point2f epi_dir = XprojMin - XprojMax;
 			//float epi_length = cv::norm(XimgMin - XimgMax) / 2.0;
 			//size_t n_steps = epi_length / 0.7; // one step per pixel
