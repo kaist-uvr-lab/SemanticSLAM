@@ -34,6 +34,20 @@ cv::Mat ComputeLineEquation(cv::Point2f pt1, cv::Point2f pt2) {
 	return (cv::Mat_<float>(3, 1) << x, y, z);
 }
 
+bool CheckLineDistance(cv::Mat line, cv::Point2f pt, float sigma) {
+	float a = line.at<float>(0);
+	float b = line.at<float>(1);
+	float c = line.at<float>(2);
+	const float den = a*a + b*b;
+	if (den == 0) {
+		return false;
+	}
+	const float num = a*pt.x + b*pt.y + c;
+	const float dsqr = num*num / den;
+	//res = abs(num) / sqrt(den);
+	return dsqr<3.84*sigma;
+}
+
 //std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
 cv::Point2f CalcLinePoint(float val, cv::Mat mLine, bool opt) {
 	float x, y;
@@ -320,7 +334,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Point2f patch_pt(patch_half_size, patch_half_size);
 		//에피폴라 관련 파라메터
 
-		////그리드 파라메터
+		//////그리드 파라메터
 		int nGridSize = mpSystem->mnRadius*2;
 		float fGridDistThresh = nGridSize*nGridSize*4;
 		////그리드 파라메터
@@ -330,78 +344,14 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			auto prevPt = vTempPrevPts[i];
 			auto pMP = pCP->GetMP();
 			bool bMP = pMP && !pMP->isDeleted();
-			
-			if (!vbTempInliers[i])
-				continue;
-
-			auto gridPt = pPrev->GetGridBasePt(currPt, nGridSize);
-			if (pCurr->mmbFrameGrids[gridPt]) {
-				vbTempInliers[i] = false;
+			bool bInlier = vbTempInliers[i];
+			if (!vbTempInliers[i]) {
 				continue;
 			}
 
-			auto prevGridPt = pPrev->GetGridBasePt(prevPt, nGridSize);
-			auto diffx = abs(prevGridPt.x - gridPt.x);
-			auto diffy = abs(prevGridPt.y - gridPt.y);
-
-			if (diffx > 2 * nGridSize || diffy > 2 * nGridSize) {
-				vbTempInliers[i] = false;
-				continue;
-			}
-
-			float epi_res;
-			bool bEpiLine;
-			cv::Mat epiLine;
-			bool bTestLine = false;
-			bool bEpiConstraints = mpMatcher->CheckEpiConstraints(F12, currPt, prevPt, 1.0, epiLine, epi_res, bEpiLine);
-			
-			if (!bEpiConstraints)
-			{
-				cv::circle(currImg, currPt, 4, cv::Scalar(0, 0, 0), -1);
-				cv::circle(prevImg, prevPt, 4, cv::Scalar(0, 0, 0), -1);
-				/*vbTempInliers[i] = false;
-				continue;*/
-			}
-
-			auto rect = cv::Rect(gridPt, std::move(cv::Point2f(gridPt.x + nGridSize, gridPt.y + nGridSize)));
-			//////grid matching
-			//auto prevGrid = pPrev->mmpFrameGrids[prevGridPt];
-			//if (!prevGrid) {
-			//	std::cout << "tracking::error" << std::endl;
-			//	continue;
-			//}
-			//auto prevRect = prevImg(prevGrid->rect);
-			//auto currRect = currImg(rect);
-			//std::vector<cv::Point2f> vPrevGridPTs, vGridPTs;
-			///*bool bGridMatch = this->OpticalGridMatching(prevGrid, prevRect, currRect, vPrevGridPTs, vGridPTs);
-			//if (!bGridMatch)
-			//	continue;*/
-			//////grid matching
-			//////grid 추가
-			pCurr->mmbFrameGrids[gridPt] = true;
-			auto currGrid = new FrameGrid(gridPt, rect);
-			//currGrid->vecPTs = vGridPTs;
-			pCurr->mmpFrameGrids[gridPt] = currGrid;
-			pCurr->mmpFrameGrids[gridPt]->mpCP = pCP;
-			pCurr->mmpFrameGrids[gridPt]->pt = currPt;
-			//////grid 추가
-			
-			//////epipolar
-			////ray test
+			/////////check epipolar constraints 
 			cv::Mat ray = mpSystem->mInvK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
 			float z_min, z_max;
-			/*auto pSeeda = pCP->mpSeed;
-			if (pCP->mpSeed) {
-				float z_inv_min = pSeeda->mu + sqrt(pSeeda->sigma2);
-				float z_inv_max = max(pSeeda->mu - sqrt(pSeeda->sigma2), 0.00000001f);
-				z_min = 1. / z_inv_min;
-				z_max = 1. / z_inv_max;
-			}
-			else
-			{
-				z_min = 0.01f;
-				z_max = 1.0f;
-			}*/
 			z_min = 0.01f;
 			z_max = 1.0f;
 
@@ -409,20 +359,66 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			cv::Mat Xcmax = Rrel*ray*z_max + Trel;
 			cv::Point2f XprojMin(Xcmin.at<float>(0) / Xcmin.at<float>(2), Xcmin.at<float>(1) / Xcmin.at<float>(2));
 			cv::Point2f XprojMax(Xcmax.at<float>(0) / Xcmax.at<float>(2), Xcmax.at<float>(1) / Xcmax.at<float>(2));
-			cv::Point2f epi_dir = XprojMin - XprojMax;
 			cv::Point2f XimgMin(XprojMin.x*fx + cx, XprojMin.y*fy + cy);
 			cv::Point2f XimgMax(XprojMax.x*fx + cx, XprojMax.y*fy + cy);
 			cv::Mat lineEqu = ComputeLineEquation(XimgMin, XimgMax);
-			float epi_length = cv::norm(XimgMin - XimgMax) / 2.0;
-			size_t n_steps = epi_length / 0.7; // one step per pixel
-			cv::Point2f step(epi_dir.x / n_steps, epi_dir.y / n_steps);
-			cv::Point2f uv = XprojMax - step;
-			cv::Point2f uv_best;
-			float zmssd_best = 0.0;//mzssd_thresh;
-			auto refLeftPt = prevPt - patch_pt;
-			auto refRightPt = prevPt + patch_pt;
-			bool bRefLeft = pCurr->isInImage(refLeftPt.x, refLeftPt.y, 10);
-			bool bRefRight = pCurr->isInImage(refRightPt.x, refRightPt.y, 10);
+			bool bEpiConstraints = CheckLineDistance(lineEqu, currPt, 1.0);
+			vbTempInliers[i] = bEpiConstraints;
+			if (!bEpiConstraints)
+				continue;
+
+			//cv::Point2f epi_dir = XprojMin - XprojMax;
+			//float epi_length = cv::norm(XimgMin - XimgMax) / 2.0;
+			//size_t n_steps = epi_length / 0.7; // one step per pixel
+			//cv::Point2f step(epi_dir.x / n_steps, epi_dir.y / n_steps);
+			//cv::Point2f uv = XprojMax - step;
+			//cv::Point2f uv_best;
+			//float zmssd_best = mzssd_thresh;
+			//auto refLeftPt = prevPt - patch_pt;
+			//auto refRightPt = prevPt + patch_pt;
+			//bool bRefLeft = pCurr->isInImage(refLeftPt.x, refLeftPt.y, 10);
+			//bool bRefRight = pCurr->isInImage(refRightPt.x, refRightPt.y, 10);
+						
+			//if (!bEpiConstraints)
+			//{
+			//	cv::circle(currImg, currPt, 3, cv::Scalar(0, 0, 0), -1);
+			//	cv::circle(prevImg, prevPt, 3, cv::Scalar(0, 0, 0), -1);
+			//	/*vbTempInliers[i] = false;
+			//	continue;*/
+			//}
+			/////////check epipolar constraints 
+
+			////이미 그리드에 포함되어 있는지 확인하는 단계
+			auto gridPt = pPrev->GetGridBasePt(currPt, nGridSize);
+			if (pCurr->mmbFrameGrids[gridPt]) {
+				vbTempInliers[i] = false;
+				continue;
+			}
+			////이미 그리드에 포함되어 있는지 확인하는 단계
+
+			////현재 프레임 포인트의 그리드와 이전 프레임 포인트의 그리드 차이를 이용하여 매칭 성능 향상
+			auto prevGridPt = pPrev->GetGridBasePt(prevPt, nGridSize);
+			auto diffx = abs(prevGridPt.x - gridPt.x);
+			auto diffy = abs(prevGridPt.y - gridPt.y);
+			if (diffx > 2 * nGridSize || diffy > 2 * nGridSize) {
+				vbTempInliers[i] = false;
+				continue;
+			}
+			////현재 프레임 포인트의 그리드와 이전 프레임 포인트의 그리드 차이를 이용하여 매칭 성능 향상
+
+			//////grid 추가
+			auto rect = cv::Rect(gridPt, std::move(cv::Point2f(gridPt.x + nGridSize, gridPt.y + nGridSize)));
+			pCurr->mmbFrameGrids[gridPt] = true;
+			auto currGrid = new FrameGrid(gridPt, rect);
+			pCurr->mmpFrameGrids[gridPt] = currGrid;
+			pCurr->mmpFrameGrids[gridPt]->mpCP = pCP;
+			pCurr->mmpFrameGrids[gridPt]->pt = currPt;
+			//////grid 추가
+			
+			////////epipolar
+			//////ray test
+			//
+			//	
 			//if (bRefLeft && bRefRight) {
 			//	cv::Rect refRect(prevPt - patch_pt, prevPt + patch_pt);
 
@@ -431,7 +427,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			//	cv::Mat ref_warp;
 			//	//cv::warpAffine(pPrev->GetOriginalImage()(refRect), ref_warp, A, cv::Size(patch_size, patch_size));
 
-			//	auto refZMSSD = new NCC(pPrev->GetOriginalImage()(refRect).clone());
+			//	auto refZMSSD = new ZMSSD(pPrev->GetOriginalImage()(refRect).clone());
 			//	//imshow("ref::", pPrev->GetOriginalImage()(refRect));
 			//	//imshow("ref::warp", ref_warp);
 			//	for (size_t i = 0; i < n_steps; ++i, uv += step)
@@ -452,7 +448,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			//		/*if(bTestLine)
 			//			cv::circle(currImg, pt, 1, cv::Scalar(0 , 0, 255), -1);
 			//		else*/
-			//			cv::circle(currImg, pt, 1, cv::Scalar(255, 255, 255), -1);
+			//		cv::circle(currImg, pt, 1, cv::Scalar(255, 255, 255), -1);
 
 			//		auto leftPt = pt - patch_pt;
 			//		auto rightPt = pt + patch_pt;
@@ -461,37 +457,18 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			//		if (bPatchLeft && bPatchRight) {
 			//			cv::Rect patchRect(leftPt, rightPt);
 			//			float val = refZMSSD->computeScore(pCurr->GetOriginalImage()(patchRect).clone());
-			//			if (val > zmssd_best) {
+			//			if (val < zmssd_best) {
 			//				uv_best = pt;
 			//				zmssd_best = val;
 			//			}
 			//			//imshow("cur::", pCurr->GetOriginalImage()(patchRect));
 			//		}//if patch
 			//	}//for
-			//	if (zmssd_best > 0.1) {//mzssd_thresh
+			//	if (zmssd_best < mzssd_thresh) {//
 			//		//cv::line(currImg, prevPt, uv_best, cv::Scalar(0, 255, 255), 1);
 			//		cv::circle(currImg, uv_best, 2, cv::Scalar(0, 255, 0), -1);
 			//	}
 			//}//if ref
-
-			if (i % 50 == 0 && bEpiLine) {
-				/*bTestLine = true;
-				auto sPt = CalcLinePoint(0, epiLine, true);
-				auto ePt = CalcLinePoint(mnHeight, epiLine, true);
-				cv::line(currImg, sPt, ePt, cv::Scalar(0, 255, 0), 1);
-				cv::Mat epiLines2(vLines[i]);
-				auto sPt2 = CalcLinePoint(0, epiLines2, true);
-				auto ePt2 = CalcLinePoint(mnHeight, epiLines2, true);
-				cv::line(currImg, sPt2, ePt2, cv::Scalar(255, 0, 0), 1);*/
-
-				//cv::Mat epiLines3(Xcmin- Xcmin);
-				auto sPt3 = CalcLinePoint(0, lineEqu, true);
-				auto ePt3 = CalcLinePoint(mnHeight, lineEqu, true);
-				cv::line(currImg, sPt3, ePt3, cv::Scalar(0, 0, 255), 1);
-				cv::line(currImg, XimgMin, XimgMax, cv::Scalar(0, 255, 255), 1);
-			}
-
-			
 
 			//auto pSeed = pCP->mpSeed;
 			//if (pSeed) {
@@ -513,28 +490,41 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			//	}*/
 			//}
 
-			if (bMP)
-			{
-				cv::line(currImg, currPt, prevPt, cv::Scalar(255, 0, 255), 1);
-				cv::circle(prevImg, prevPt, 2,    cv::Scalar(0, 0, 255), -1);
-				cv::circle(currImg, currPt, 2,    cv::Scalar(0, 0, 255), -1);
-			}
-			else {
-				cv::line(currImg, currPt, prevPt, cv::Scalar(255, 255, 0), 1);
-				cv::circle(prevImg, prevPt, 2, cv::Scalar(255, 0, 0), -1);
-				cv::circle(currImg, currPt, 2, cv::Scalar(255, 0, 0), -1);
-			}
-			/*if (!bEpiConstraints) {
-				cv::circle(currImg, currPt, 4, cv::Scalar(0, 0, 0), 1);
-				cv::circle(prevImg, prevPt, 4, cv::Scalar(0, 0, 0), 1);
-			}*/
+			//cv::Scalar ptColor;
+			//if (!bInlier) {
+			//	ptColor = cv::Scalar(255, 0, 0);
+			//}
+			//else if (bMP) {
+			//	ptColor = cv::Scalar(0, 255, 0);
+			//}
+			//else {
+			//	ptColor = cv::Scalar(0, 0, 255);
+			//}
+			//cv::Scalar matchColor(255, 0, 255);
+			//cv::Scalar lineColor;
+			//if (bEpiConstraints) {
+			//	lineColor = cv::Scalar(0, 255, 255);
+			//}
+			//else {
+			//	lineColor = cv::Scalar(255, 255, 0);
+			//}
+			//
+			//auto sPt3 = CalcLinePoint(0, lineEqu, true);
+			//auto ePt3 = CalcLinePoint(mnHeight, lineEqu, true);
+			///*if(!bEpiConstraints || i % 50 == 0){
+			//	cv::line(currImg, sPt3, ePt3, lineColor, 1);
+			//}*/
+			//cv::line(currImg, currPt, prevPt, matchColor, 1);
+
+			//cv::circle(prevImg, prevPt, 2, ptColor, -1);
+			//cv::circle(currImg, currPt, 2, ptColor, -1);
 			
 		}
-		cv::Mat debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
-		prevImg.copyTo(debugMatch(mergeRect1));
-		currImg.copyTo(debugMatch(mergeRect2));
-		cv::moveWindow("Output::MatchTest2", mpSystem->mnDisplayX+prevImg.cols*2, mpSystem->mnDisplayY);
-		cv::imshow("Output::MatchTest2", debugMatch); //cv::waitKey();
+		//cv::Mat debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+		//prevImg.copyTo(debugMatch(mergeRect1));
+		//currImg.copyTo(debugMatch(mergeRect2));
+		//cv::moveWindow("Output::MatchTest2", mpSystem->mnDisplayX+prevImg.cols*2, mpSystem->mnDisplayY);
+		//cv::imshow("Output::MatchTest2", debugMatch); //cv::waitKey();
 		int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vTempCurrPts, vbTempInliers);
 		////여기서 시각화
 

@@ -1040,6 +1040,9 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		if (status[i] == 0) {
 			continue;
 		}
+		if (!prev->isInImage(currPts[i].x, currPts[i].y, 20))
+			continue;
+
 		/*if (!prev->mpMatchInfo->CheckOpticalPointOverlap(overlap, currPts[i], mpSystem->mnRadius)) {
 			nBad++;
 			continue;
