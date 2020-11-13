@@ -125,6 +125,8 @@ namespace UVR_SLAM {
 		void GetPose(cv::Mat&_R, cv::Mat& _t);
 		void GetInversePose(cv::Mat&_Rinv, cv::Mat& _Tinv);
 		void GetRelativePoseFromTargetFrame(Frame* pTargetFrame, cv::Mat& Rft, cv::Mat& Tft);
+		cv::Mat ComputeFundamentalMatrix(Frame* pTarget);
+
 		float GetDepth(cv::Mat X3D);
 		cv::Mat GetRotation();
 		cv::Mat GetTranslation();

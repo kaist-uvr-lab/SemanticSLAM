@@ -1237,3 +1237,25 @@ cv::Point2f UVR_SLAM::Frame::GetGridBasePt(cv::Point2f pt, int size) {
 	int b = pt.y / size;
 	return std::move(cv::Point2f(a*size, b*size));
 }
+
+cv::Mat UVR_SLAM::Frame::ComputeFundamentalMatrix(Frame* pTarget) {
+	/*cv::Mat Rcw, Tcw;
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexPose);
+		Rcw = R.clone();
+		Tcw = t.clone();
+	}
+	cv::Mat Rtw, Ttw;
+	pTarget->GetPose(Rtw, Ttw);
+
+	cv::Mat R12 = Rcw*Rtw.t();
+	cv::Mat t12 = -Rcw*Rtw.t()*Ttw + Tcw;*/
+
+	cv::Mat Rrel, Trel;
+	GetRelativePoseFromTargetFrame(pTarget,Rrel, Trel);
+
+	Trel.convertTo(Trel, CV_64FC1);
+	cv::Mat t12x = UVR_SLAM::MatrixOperator::GetSkewSymetricMatrix(Trel);
+	t12x.convertTo(Trel, CV_32FC1);
+	return mK.t().inv()*Trel*Rrel*mK.inv();
+}

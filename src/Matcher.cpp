@@ -35,15 +35,19 @@ const double nn_match_ratio = 0.7f; // Nearest-neighbour matching ratio
 //////////////////////////////////////////////////////////////////
 ////////////일단 남겨놓긴 함. 근데 사용 안함
 ////////Fundamental Matrix를 위해 이용
-bool UVR_SLAM::Matcher::CheckEpiConstraints(cv::Mat F12, cv::Point2f pt1, cv::Point2f pt2, float sigma, float& res) {
+bool UVR_SLAM::Matcher::CheckEpiConstraints(cv::Mat F12, cv::Point2f pt1, cv::Point2f pt2, float sigma, cv::Mat & epiLine, float& res, bool& bLine) {
 	// Epipolar line in second image l = x1'F12 = [a b c]
 	// Epipolar line in second image l = x1'F12 = [a b c]
 	const float a = pt1.x*F12.at<float>(0, 0) + pt1.y*F12.at<float>(0, 1) + F12.at<float>(0, 2);
 	const float b = pt1.x*F12.at<float>(1, 0) + pt1.y*F12.at<float>(1, 1) + F12.at<float>(1, 2);
 	const float c = pt1.x*F12.at<float>(2, 0) + pt1.y*F12.at<float>(2, 1) + F12.at<float>(2, 2);
 	const float den = a*a + b*b;
-	if (den == 0)
+	if (den == 0){
+		bLine = false;
 		return false;
+	}
+	bLine = true;
+	epiLine = (cv::Mat_<float>(3, 1) << a, b, c);
 	const float num = a*pt2.x + b*pt2.y + c;
 	const float dsqr = num*num / den;
 	res = abs(num) / sqrt(den);
@@ -60,7 +64,9 @@ bool UVR_SLAM::Matcher::FeatureMatchingWithEpipolarConstraints(int& matchIDX, UV
 		cv::KeyPoint prevKP = pTargetKF->mvKeyPoints[j];
 
 		float epiDist;
-		if (!CheckEpiConstraints(F12, prevKP.pt, kp.pt, sigma, epiDist))
+		cv::Mat epiLine;
+		bool bEpiLine;
+		if (!CheckEpiConstraints(F12, prevKP.pt, kp.pt, sigma, epiLine, epiDist, bEpiLine))
 			continue;
 
 		cv::Mat descPrev = pTargetKF->matDescriptor.row(j);
@@ -78,6 +84,7 @@ bool UVR_SLAM::Matcher::FeatureMatchingWithEpipolarConstraints(int& matchIDX, UV
 
 //에센셜 매트릭스임
 //이건 그냥 프레임으로 옮기는 것도 좋을 듯.
+//앞이 현재, 뒤가 타겟
 cv::Mat UVR_SLAM::Matcher::CalcFundamentalMatrix(cv::Mat R1, cv::Mat t1, cv::Mat R2, cv::Mat t2, cv::Mat K) {
 
 	cv::Mat R12 = R1*R2.t();
@@ -1020,6 +1027,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	prevPts = prev->mpMatchInfo->mvMatchingPts;
 	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
 	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
+	cv::waitKey(1);
 	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
 	cv::Mat overlap = cv::Mat::zeros(mHeight, mWidth, CV_8UC1);
 
