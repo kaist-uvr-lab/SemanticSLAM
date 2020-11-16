@@ -1644,3 +1644,71 @@ int UVR_SLAM::Matcher::OpticalMatchingForMapping2(Map* pMap, Frame* pCurrKF, Fra
 
 ////200410 Optical flow
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////
+////201114 Epipolar constraints
+cv::Mat UVR_SLAM::Matcher::ComputeLineEquation(cv::Point2f pt1, cv::Point2f pt2) {
+	float a = pt2.x - pt1.x;
+	float b = pt2.y - pt1.y;
+
+	//bx - ay - bx1 + ay1 = 0;
+	float x = b;
+	float y = -a;
+	float z = -b*pt1.x + a*pt1.y;
+	if (b == 0.0)
+	{
+		x = 1.0;
+		y = 0.0;
+		z = -pt1.x;
+	}
+	return (cv::Mat_<float>(3, 1) << x, y, z);
+}
+
+bool UVR_SLAM::Matcher::CheckLineDistance(cv::Mat line, cv::Point2f pt, float sigma) {
+	float a = line.at<float>(0);
+	float b = line.at<float>(1);
+	float c = line.at<float>(2);
+	const float den = a*a + b*b;
+	if (den == 0) {
+		return false;
+	}
+	const float num = a*pt.x + b*pt.y + c;
+	const float dsqr = num*num / den;
+	//res = abs(num) / sqrt(den);
+	return dsqr<3.84*sigma;
+}
+
+void UVR_SLAM::Matcher::ComputeEpiLinePoint(cv::Point2f& sPt, cv::Point2f& ePt, cv::Mat ray, float minDepth, float maxDepth, cv::Mat Rrel, cv::Mat Trel, cv::Mat K) {
+	
+	cv::Mat Xcmin = Rrel*ray*minDepth + Trel;
+	cv::Mat Xcmax = Rrel*ray*maxDepth + Trel;
+	
+	cv::Mat temp1 = K*Xcmin;
+	cv::Mat temp2 = K*Xcmax;
+
+	float d1 = temp1.at<float>(2);
+	float d2 = temp2.at<float>(2);
+
+	sPt = cv::Point2f(temp1.at<float>(0) / d1, temp1.at<float>(1) / d1);
+	ePt = cv::Point2f(temp2.at<float>(0) / d2, temp2.at<float>(1) / d2);
+}
+
+cv::Point2f UVR_SLAM::Matcher::CalcLinePoint(float val, cv::Mat mLine, bool opt) {
+	float x, y;
+	if (opt) {
+		x = 0.0;
+		y = val;
+		if (mLine.at<float>(0) != 0)
+			x = (-mLine.at<float>(2) - mLine.at<float>(1)*y) / mLine.at<float>(0);
+	}
+	else {
+		y = 0.0;
+		x = val;
+		if (mLine.at<float>(1) != 0)
+			y = (-mLine.at<float>(2) - mLine.at<float>(0)*x) / mLine.at<float>(1);
+	}
+
+	return cv::Point2f(x, y);
+}
+////201114 Epipolar constraints
+///////////////////////////////////////////////////////////

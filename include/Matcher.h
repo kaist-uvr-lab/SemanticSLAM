@@ -23,6 +23,16 @@ namespace UVR_SLAM {
 		virtual ~Matcher();
 		void Init();
 ///////////////////////////////////////////////////////////
+////201114 Epipolar constraints
+	public:
+		cv::Mat ComputeLineEquation(cv::Point2f pt1, cv::Point2f pt2);
+		bool CheckLineDistance(cv::Mat line, cv::Point2f pt, float sigma);
+		void ComputeEpiLinePoint(cv::Point2f& sPt, cv::Point2f& ePt,cv::Mat ray, float minDepth, float maxDepth, cv::Mat Rrel, cv::Mat Trel, cv::Mat K);
+		cv::Point2f CalcLinePoint(float val, cv::Mat mLine, bool opt);
+////201114 Epipolar constraints
+///////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////
 ////200410 Optical flow 적용 버전
 	public:
 		bool OpticalGridMatching(FrameGrid* grid1, cv::Mat src1, cv::Mat src2, std::vector<cv::Point2f>& vPrevPTs, std::vector<cv::Point2f>& vCurrPTs);

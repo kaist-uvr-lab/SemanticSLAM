@@ -17,89 +17,7 @@
 #include <DepthFilter.h>
 #include <ZMSSD.h>
 
-cv::Mat ComputeLineEquation(cv::Point2f pt1, cv::Point2f pt2) {
-	float a = pt2.x - pt1.x;
-	float b = pt2.y - pt1.y;
-
-	//bx - ay - bx1 + ay1 = 0;
-	float x = b;
-	float y = -a;
-	float z = -b*pt1.x + a*pt1.y;
-	if (b == 0.0)
-	{
-		x = 1.0;
-		y = 0.0;
-		z = -pt1.x;
-	}
-	return (cv::Mat_<float>(3, 1) << x, y, z);
-}
-
-bool CheckLineDistance(cv::Mat line, cv::Point2f pt, float sigma) {
-	float a = line.at<float>(0);
-	float b = line.at<float>(1);
-	float c = line.at<float>(2);
-	const float den = a*a + b*b;
-	if (den == 0) {
-		return false;
-	}
-	const float num = a*pt.x + b*pt.y + c;
-	const float dsqr = num*num / den;
-	//res = abs(num) / sqrt(den);
-	return dsqr<3.84*sigma;
-}
-
 //std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
-cv::Point2f CalcLinePoint(float val, cv::Mat mLine, bool opt) {
-	float x, y;
-	if (opt) {
-		x = 0.0;
-		y = val;
-		if (mLine.at<float>(0) != 0)
-			x = (-mLine.at<float>(2) - mLine.at<float>(1)*y) / mLine.at<float>(0);
-	}
-	else {
-		y = 0.0;
-		x = val;
-		if (mLine.at<float>(1) != 0)
-			y = (-mLine.at<float>(2) - mLine.at<float>(0)*x) / mLine.at<float>(1);
-	}
-
-	return cv::Point2f(x, y);
-}
-cv::Mat ComputeWarpAffineMatrix(cv::Mat ray, cv::Point2f pt, float depth, cv::Mat Rrel, cv::Mat Trel, cv::Mat K, cv::Mat invK) {
-	int halfpatch_size = 5;
-	cv::Mat Xcam = ray*depth;
-	cv::Point2f pt_du_ref = pt + cv::Point2f(halfpatch_size, 0);
-	cv::Point2f pt_dv_ref = pt + cv::Point2f(0, halfpatch_size);
-	cv::Mat Xcam_du_ref = invK*(cv::Mat_<float>(3, 1) << pt_du_ref.x, pt_du_ref.y, 1.0);
-	cv::Mat Xcam_dv_ref = invK*(cv::Mat_<float>(3, 1) << pt_dv_ref.x, pt_dv_ref.y, 1.0);
-	Xcam_du_ref *= (Xcam.at<float>(2) / Xcam_du_ref.at<float>(2));
-	Xcam_dv_ref *= (Xcam.at<float>(2) / Xcam_dv_ref.at<float>(2));
-	
-	cv::Mat temp1 = K*(Rrel*Xcam + Trel);		 cv::Point2f px(temp1.at<float>(0) / temp1.at<float>(2), temp1.at<float>(1) / temp1.at<float>(2));
-	cv::Mat temp2 = K*(Rrel*Xcam_du_ref + Trel); cv::Point2f px_du(temp2.at<float>(0) / temp2.at<float>(2), temp2.at<float>(1) / temp2.at<float>(2));
-	cv::Mat temp3 = K*(Rrel*Xcam_dv_ref + Trel); cv::Point2f px_dv(temp3.at<float>(0) / temp3.at<float>(2), temp3.at<float>(1) / temp3.at<float>(2));
-
-	px_du -= px; px_du /=halfpatch_size;
-	px_dv -= px; px_dv /= halfpatch_size;
-
-	/*cv::Mat px    = temp1 / temp1.at<float>(2);
-	cv::Mat px_du = temp1 / temp2.at<float>(2);
-	cv::Mat px_dv = temp1 / temp3.at<float>(2);
-	
-	px_du = (px_du - px) / halfpatch_size;
-	px_dv = (px_dv - px) / halfpatch_size;*/
-
-	cv::Mat res = cv::Mat::zeros(2, 2, CV_32FC1);
-	//px_du.copyTo(res.col(0));
-	res.at<float>(0, 0) = px_du.x;
-	res.at<float>(1, 0) = px_du.y;
-	res.at<float>(0, 1) = px_dv.x;
-	res.at<float>(1, 1) = px_dv.y;
-	return res;
-}
-
-
 UVR_SLAM::Tracker::Tracker() {}
 UVR_SLAM::Tracker::Tracker(int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false){}
 UVR_SLAM::Tracker::Tracker(System* pSys, std::string strPath) : mpSystem(pSys), mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false) {
@@ -354,20 +272,19 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			float z_min, z_max;
 			z_min = 0.01f;
 			z_max = 1.0f;
-
-			cv::Mat Xcmin = Rrel*ray*z_min + Trel;
-			cv::Mat Xcmax = Rrel*ray*z_max + Trel;
-			cv::Point2f XprojMin(Xcmin.at<float>(0) / Xcmin.at<float>(2), Xcmin.at<float>(1) / Xcmin.at<float>(2));
-			cv::Point2f XprojMax(Xcmax.at<float>(0) / Xcmax.at<float>(2), Xcmax.at<float>(1) / Xcmax.at<float>(2));
-			cv::Point2f XimgMin(XprojMin.x*fx + cx, XprojMin.y*fy + cy);
-			cv::Point2f XimgMax(XprojMax.x*fx + cx, XprojMax.y*fy + cy);
-			cv::Mat lineEqu = ComputeLineEquation(XimgMin, XimgMax);
-			bool bEpiConstraints = CheckLineDistance(lineEqu, currPt, 1.0);
+			cv::Point2f XimgMin, XimgMax;
+			mpMatcher->ComputeEpiLinePoint(XimgMin, XimgMax, ray, z_min, z_max, Rrel, Trel, mK);
+			cv::Mat lineEqu = mpMatcher->ComputeLineEquation(XimgMin, XimgMax);
+			bool bEpiConstraints = mpMatcher->CheckLineDistance(lineEqu, currPt, 1.0);
 			vbTempInliers[i] = bEpiConstraints;
 			if (!bEpiConstraints){
 				vbTempInliers[i] = false;
 				continue;
 			}
+
+
+
+			
 			//cv::Point2f epi_dir = XprojMin - XprojMax;
 			//float epi_length = cv::norm(XimgMin - XimgMax) / 2.0;
 			//size_t n_steps = epi_length / 0.7; // one step per pixel
@@ -471,36 +388,43 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			//	}
 			//}//if ref
 
-			//auto pSeed = pCP->mpSeed;
-			//if (pSeed) {
+			auto pSeed = pCP->mpSeed;
+			if (pSeed) {
+				float z_inv_min = pSeed->mu + sqrt(pSeed->sigma2);
+				float z_inv_max = max(pSeed->mu - sqrt(pSeed->sigma2), 0.00000001f);
+				float z_min2 = -0.01;// 1. / z_inv_min;
+				float z_max2 = 0.01;// . / z_inv_max;
+				cv::Point2f XimgMin2, XimgMax2;
+				mpMatcher->ComputeEpiLinePoint(XimgMin2, XimgMax2, pSeed->ray, z_min2, z_max2, Rrel, Trel, mK);
+				cv::Mat lineEqu2 = mpMatcher->ComputeLineEquation(XimgMin2, XimgMax2);
 
-			//	/*float z_inv_min = pSeed->mu + sqrt(pSeed->sigma2);
-			//	float z_inv_max = max(pSeed->mu - sqrt(pSeed->sigma2), 0.00000001f);
-			//	float z_min = 1. / z_inv_min;
-			//	float z_max = 1. / z_inv_max;
-			//	cv::Mat Xcam4 = pSeed->ray*z_min;
-			//	cv::Mat Xcam5 = pSeed->ray*z_max;
-			//	cv::Mat Rrel2, Trel2;
-			//	pCurr->GetRelativePoseFromTargetFrame(pCP->mpRefKF, Rrel2, Trel2);
-			//	{
-			//		cv::Mat projFromRef  = mK*(Rrel2*Xcam4 + Trel2);
-			//		cv::Mat projFromRef2 = mK*(Rrel2*Xcam5 + Trel2);
-			//		cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
-			//		cv::Point2f ptFromRef2(projFromRef2.at<float>(0) / projFromRef2.at<float>(2), projFromRef2.at<float>(1) / projFromRef2.at<float>(2));
-			//		cv::line(currImg, ptFromRef, ptFromRef2, cv::Scalar(0, 255, 0), 1);
-			//	}*/
-			//}
+				cv::line(currImg, XimgMin2, XimgMax2, cv::Scalar(0, 255, 0), 1);
+				cv::line(currImg, XimgMin, XimgMax, cv::Scalar(255, 0, 0), 1);
 
-			//cv::Scalar ptColor;
-			//if (!bInlier) {
-			//	ptColor = cv::Scalar(255, 0, 0);
-			//}
-			//else if (bMP) {
-			//	ptColor = cv::Scalar(0, 255, 0);
-			//}
-			//else {
-			//	ptColor = cv::Scalar(0, 0, 255);
-			//}
+				/*
+				cv::Mat Xcam4 = pSeed->ray*z_min;
+				cv::Mat Xcam5 = pSeed->ray*z_max;
+				cv::Mat Rrel2, Trel2;
+				pCurr->GetRelativePoseFromTargetFrame(pCP->mpRefKF, Rrel2, Trel2);
+				{
+					cv::Mat projFromRef  = mK*(Rrel2*Xcam4 + Trel2);
+					cv::Mat projFromRef2 = mK*(Rrel2*Xcam5 + Trel2);
+					cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
+					cv::Point2f ptFromRef2(projFromRef2.at<float>(0) / projFromRef2.at<float>(2), projFromRef2.at<float>(1) / projFromRef2.at<float>(2));
+					cv::line(currImg, ptFromRef, ptFromRef2, cv::Scalar(0, 255, 0), 1);
+				}*/
+			}
+
+			cv::Scalar ptColor;
+			if (!bInlier) {
+				ptColor = cv::Scalar(255, 0, 0);
+			}
+			else if (bMP) {
+				ptColor = cv::Scalar(0, 255, 0);
+			}
+			else {
+				ptColor = cv::Scalar(0, 0, 255);
+			}
 			//cv::Scalar matchColor(255, 0, 255);
 			//cv::Scalar lineColor;
 			//if (bEpiConstraints) {
@@ -517,15 +441,15 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			//}*/
 			//cv::line(currImg, currPt, prevPt, matchColor, 1);
 
-			//cv::circle(prevImg, prevPt, 2, ptColor, -1);
-			//cv::circle(currImg, currPt, 2, ptColor, -1);
+			cv::circle(prevImg, prevPt, 2, ptColor, -1);
+			cv::circle(currImg, currPt, 2, ptColor, -1);
 			
 		}
-		//cv::Mat debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
-		//prevImg.copyTo(debugMatch(mergeRect1));
-		//currImg.copyTo(debugMatch(mergeRect2));
-		//cv::moveWindow("Output::MatchTest2", mpSystem->mnDisplayX+prevImg.cols*2, mpSystem->mnDisplayY);
-		//cv::imshow("Output::MatchTest2", debugMatch); //cv::waitKey();
+		cv::Mat debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+		prevImg.copyTo(debugMatch(mergeRect1));
+		currImg.copyTo(debugMatch(mergeRect2));
+		cv::moveWindow("Output::MatchTest2", mpSystem->mnDisplayX+prevImg.cols*2, mpSystem->mnDisplayY);
+		cv::imshow("Output::MatchTest2", debugMatch); //cv::waitKey();
 		int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vTempCurrPts, vbTempInliers);
 		////여기서 시각화
 
