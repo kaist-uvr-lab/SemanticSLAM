@@ -212,8 +212,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		cv::Mat debugImg;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->mnHeight, pCurr->mnWidth, CV_8UC1);
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempCPs, vTempPrevPts, vTempCurrPts, vbTempInliers);
-		//mpMatcher->OpticalGridsMatching(pPrev, pCurr, vpTempPts1);
-		//pCurr->mpMatchInfo->InitMapPointInlierVector(mnPointMatching); //삭제 예정
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
 		{
 			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
@@ -225,20 +223,13 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vTempCurrPts, vbTempInliers);
 
 		//////임시
-		cv::Mat prevImg = pPrev->GetOriginalImage().clone();
+		/*cv::Mat prevImg = pPrev->GetOriginalImage().clone();
 		cv::Mat currImg = pCurr->GetOriginalImage().clone();
 		cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
-		cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+		cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);*/
 
 		//에피폴라 관련 파라메터
 		cv::Mat invK = mK.inv();
-		cv::Mat F12 = pCurr->ComputeFundamentalMatrix(pPrev);
-
-		/*cv::Mat F12cv = cv::findFundamentalMat(vTempPrevPts, vTempCurrPts);
-		std::vector<cv::Point3f> vLines;
-		cv::computeCorrespondEpilines(vTempCurrPts, 2, F12, vLines);*/
-
-		//cv::Mat F12 = pPrev->ComputeFundamentalMatrix(pCurr);
 		cv::Mat Rrel, Trel;
 		pCurr->GetRelativePoseFromTargetFrame(pPrev, Rrel, Trel);
 		float fx = mK.at<float>(0, 0);
@@ -282,30 +273,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				continue;
 			}
 
-
-
-			
-			//cv::Point2f epi_dir = XprojMin - XprojMax;
-			//float epi_length = cv::norm(XimgMin - XimgMax) / 2.0;
-			//size_t n_steps = epi_length / 0.7; // one step per pixel
-			//cv::Point2f step(epi_dir.x / n_steps, epi_dir.y / n_steps);
-			//cv::Point2f uv = XprojMax - step;
-			//cv::Point2f uv_best;
-			//float zmssd_best = mzssd_thresh;
-			//auto refLeftPt = prevPt - patch_pt;
-			//auto refRightPt = prevPt + patch_pt;
-			//bool bRefLeft = pCurr->isInImage(refLeftPt.x, refLeftPt.y, 10);
-			//bool bRefRight = pCurr->isInImage(refRightPt.x, refRightPt.y, 10);
-						
-			//if (!bEpiConstraints)
-			//{
-			//	cv::circle(currImg, currPt, 3, cv::Scalar(0, 0, 0), -1);
-			//	cv::circle(prevImg, prevPt, 3, cv::Scalar(0, 0, 0), -1);
-			//	/*vbTempInliers[i] = false;
-			//	continue;*/
-			//}
-			/////////check epipolar constraints 
-
 			////이미 그리드에 포함되어 있는지 확인하는 단계
 			auto gridPt = pPrev->GetGridBasePt(currPt, nGridSize);
 			if (pCurr->mmbFrameGrids[gridPt]) {
@@ -332,128 +299,73 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			pCurr->mmpFrameGrids[gridPt]->mpCP = pCP;
 			pCurr->mmpFrameGrids[gridPt]->pt = currPt;
 			//////grid 추가
-			
-			////////epipolar
-			//////ray test
-			//
-			//	
-			//if (bRefLeft && bRefRight) {
-			//	cv::Rect refRect(prevPt - patch_pt, prevPt + patch_pt);
 
-			//	cv::Mat ray = invK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
-			//	cv::Mat A = ComputeWarpAffineMatrix(ray, prevPt, 1.0, Rrel, Trel, mK, invK);
-			//	cv::Mat ref_warp;
-			//	//cv::warpAffine(pPrev->GetOriginalImage()(refRect), ref_warp, A, cv::Size(patch_size, patch_size));
+			//auto pSeed = pCP->mpSeed;
+			//if (pSeed) {
+			//	float z_inv_min = pSeed->mu + sqrt(pSeed->sigma2);
+			//	float z_inv_max = max(pSeed->mu - sqrt(pSeed->sigma2), 0.00000001f);
+			//	float z_min2 = -0.01;// 1. / z_inv_min;
+			//	float z_max2 = 0.01;// . / z_inv_max;
+			//	cv::Point2f XimgMin2, XimgMax2;
+			//	mpMatcher->ComputeEpiLinePoint(XimgMin2, XimgMax2, pSeed->ray, z_min2, z_max2, Rrel, Trel, mK);
+			//	cv::Mat lineEqu2 = mpMatcher->ComputeLineEquation(XimgMin2, XimgMax2);
 
-			//	auto refZMSSD = new ZMSSD(pPrev->GetOriginalImage()(refRect).clone());
-			//	//imshow("ref::", pPrev->GetOriginalImage()(refRect));
-			//	//imshow("ref::warp", ref_warp);
-			//	for (size_t i = 0; i < n_steps; ++i, uv += step)
+			//	cv::line(currImg, XimgMin2, XimgMax2, cv::Scalar(0, 255, 0), 1);
+			//	cv::line(currImg, XimgMin, XimgMax, cv::Scalar(255, 0, 0), 1);
+
+			//	/*
+			//	cv::Mat Xcam4 = pSeed->ray*z_min;
+			//	cv::Mat Xcam5 = pSeed->ray*z_max;
+			//	cv::Mat Rrel2, Trel2;
+			//	pCurr->GetRelativePoseFromTargetFrame(pCP->mpRefKF, Rrel2, Trel2);
 			//	{
-			//		cv::Point2f pt(uv.x*fx + cx, uv.y*fy + cy);
+			//		cv::Mat projFromRef  = mK*(Rrel2*Xcam4 + Trel2);
+			//		cv::Mat projFromRef2 = mK*(Rrel2*Xcam5 + Trel2);
+			//		cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
+			//		cv::Point2f ptFromRef2(projFromRef2.at<float>(0) / projFromRef2.at<float>(2), projFromRef2.at<float>(1) / projFromRef2.at<float>(2));
+			//		cv::line(currImg, ptFromRef, ptFromRef2, cv::Scalar(0, 255, 0), 1);
+			//	}*/
+			//}
 
-			//		auto patchGridPt = pPrev->GetGridBasePt(pt, nGridSize);
-			//		auto diffPt = prevPt - pt;
-			//		float dist = diffPt.dot(diffPt);
-
-			//		if (dist > fGridDistThresh) {
-			//			continue;
-			//		}
-			//		/*if (pCurr->mmbFrameGrids[patchGridPt]) {wwwwwwwwww
-			//			continue;
-			//		}*/
-			//		
-			//		/*if(bTestLine)
-			//			cv::circle(currImg, pt, 1, cv::Scalar(0 , 0, 255), -1);
-			//		else*/
-			//		cv::circle(currImg, pt, 1, cv::Scalar(255, 255, 255), -1);
-
-			//		auto leftPt = pt - patch_pt;
-			//		auto rightPt = pt + patch_pt;
-			//		bool bPatchLeft = pCurr->isInImage(leftPt.x, leftPt.y, 10);
-			//		bool bPatchRight = pCurr->isInImage(rightPt.x, rightPt.y, 10);
-			//		if (bPatchLeft && bPatchRight) {
-			//			cv::Rect patchRect(leftPt, rightPt);
-			//			float val = refZMSSD->computeScore(pCurr->GetOriginalImage()(patchRect).clone());
-			//			if (val < zmssd_best) {
-			//				uv_best = pt;
-			//				zmssd_best = val;
-			//			}
-			//			//imshow("cur::", pCurr->GetOriginalImage()(patchRect));
-			//		}//if patch
-			//	}//for
-			//	if (zmssd_best < mzssd_thresh) {//
-			//		//cv::line(currImg, prevPt, uv_best, cv::Scalar(0, 255, 255), 1);
-			//		cv::circle(currImg, uv_best, 2, cv::Scalar(0, 255, 0), -1);
-			//	}
-			//}//if ref
-
-			auto pSeed = pCP->mpSeed;
-			if (pSeed) {
-				float z_inv_min = pSeed->mu + sqrt(pSeed->sigma2);
-				float z_inv_max = max(pSeed->mu - sqrt(pSeed->sigma2), 0.00000001f);
-				float z_min2 = -0.01;// 1. / z_inv_min;
-				float z_max2 = 0.01;// . / z_inv_max;
-				cv::Point2f XimgMin2, XimgMax2;
-				mpMatcher->ComputeEpiLinePoint(XimgMin2, XimgMax2, pSeed->ray, z_min2, z_max2, Rrel, Trel, mK);
-				cv::Mat lineEqu2 = mpMatcher->ComputeLineEquation(XimgMin2, XimgMax2);
-
-				cv::line(currImg, XimgMin2, XimgMax2, cv::Scalar(0, 255, 0), 1);
-				cv::line(currImg, XimgMin, XimgMax, cv::Scalar(255, 0, 0), 1);
-
-				/*
-				cv::Mat Xcam4 = pSeed->ray*z_min;
-				cv::Mat Xcam5 = pSeed->ray*z_max;
-				cv::Mat Rrel2, Trel2;
-				pCurr->GetRelativePoseFromTargetFrame(pCP->mpRefKF, Rrel2, Trel2);
-				{
-					cv::Mat projFromRef  = mK*(Rrel2*Xcam4 + Trel2);
-					cv::Mat projFromRef2 = mK*(Rrel2*Xcam5 + Trel2);
-					cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
-					cv::Point2f ptFromRef2(projFromRef2.at<float>(0) / projFromRef2.at<float>(2), projFromRef2.at<float>(1) / projFromRef2.at<float>(2));
-					cv::line(currImg, ptFromRef, ptFromRef2, cv::Scalar(0, 255, 0), 1);
-				}*/
-			}
-
-			cv::Scalar ptColor;
-			if (!bInlier) {
-				ptColor = cv::Scalar(255, 0, 0);
-			}
-			else if (bMP) {
-				ptColor = cv::Scalar(0, 255, 0);
-			}
-			else {
-				ptColor = cv::Scalar(0, 0, 255);
-			}
-			//cv::Scalar matchColor(255, 0, 255);
-			//cv::Scalar lineColor;
-			//if (bEpiConstraints) {
-			//	lineColor = cv::Scalar(0, 255, 255);
+			//cv::Scalar ptColor;
+			//if (!bInlier) {
+			//	ptColor = cv::Scalar(255, 0, 0);
+			//}
+			//else if (bMP) {
+			//	ptColor = cv::Scalar(0, 255, 0);
 			//}
 			//else {
-			//	lineColor = cv::Scalar(255, 255, 0);
+			//	ptColor = cv::Scalar(0, 0, 255);
 			//}
-			//
-			//auto sPt3 = CalcLinePoint(0, lineEqu, true);
-			//auto ePt3 = CalcLinePoint(mnHeight, lineEqu, true);
-			///*if(!bEpiConstraints || i % 50 == 0){
-			//	cv::line(currImg, sPt3, ePt3, lineColor, 1);
-			//}*/
-			//cv::line(currImg, currPt, prevPt, matchColor, 1);
+			////cv::Scalar matchColor(255, 0, 255);
+			////cv::Scalar lineColor;
+			////if (bEpiConstraints) {
+			////	lineColor = cv::Scalar(0, 255, 255);
+			////}
+			////else {
+			////	lineColor = cv::Scalar(255, 255, 0);
+			////}
+			////
+			////auto sPt3 = CalcLinePoint(0, lineEqu, true);
+			////auto ePt3 = CalcLinePoint(mnHeight, lineEqu, true);
+			/////*if(!bEpiConstraints || i % 50 == 0){
+			////	cv::line(currImg, sPt3, ePt3, lineColor, 1);
+			////}*/
+			////cv::line(currImg, currPt, prevPt, matchColor, 1);
 
-			cv::circle(prevImg, prevPt, 2, ptColor, -1);
-			cv::circle(currImg, currPt, 2, ptColor, -1);
+			//cv::circle(prevImg, prevPt, 2, ptColor, -1);
+			//cv::circle(currImg, currPt, 2, ptColor, -1);
 			
 		}
-		cv::Mat debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
-		prevImg.copyTo(debugMatch(mergeRect1));
-		currImg.copyTo(debugMatch(mergeRect2));
-		cv::moveWindow("Output::MatchTest2", mpSystem->mnDisplayX+prevImg.cols*2, mpSystem->mnDisplayY);
-		cv::imshow("Output::MatchTest2", debugMatch); //cv::waitKey();
-		int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vTempCurrPts, vbTempInliers);
+		//cv::Mat debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+		//prevImg.copyTo(debugMatch(mergeRect1));
+		//currImg.copyTo(debugMatch(mergeRect2));
+		//cv::moveWindow("Output::MatchTest2", mpSystem->mnDisplayX+prevImg.cols*2, mpSystem->mnDisplayY);
+		//cv::imshow("Output::MatchTest2", debugMatch); //cv::waitKey();
 		////여기서 시각화
 
-
+		////트래킹 결과 갱신
+		int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vTempCurrPts, vbTempInliers);
 		///////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////키프레임 체크
 		bool bNeedCP, bNeedMP, bNeedPoseHandle, bNeedNewKF;

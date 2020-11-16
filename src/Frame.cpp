@@ -1032,14 +1032,6 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 	}
 }
 
-void UVR_SLAM::MatchInfo::InitMapPointInlierVector(int N) {
-	//int N = GetNumCPs();
-	{
-		std::unique_lock<std::mutex>(mMutexMPs);
-		mnNumMapPoint = 0;
-	}
-	mvbMapPointInliers = std::vector<bool>(N, false);
-}
 //void UVR_SLAM::MatchInfo::AddMP(MapPoint* pMP, int idx) {
 //	std::unique_lock<std::mutex>(mMutexMPs);
 //	mvpMatchingMPs[idx] = pMP;
@@ -1170,8 +1162,8 @@ void UVR_SLAM::Frame::SetGrids() {
 	matGradient = (matDX + matDY) / 2.0;
 	matGradient.convertTo(matGradient, CV_8UC1);
 	//cv::Laplacian(edge, matGradient, CV_8UC1, 3);//CV_64FC1
-	imshow("gra:::", matGradient);
-	cv::waitKey(1);
+	//imshow("gra:::", matGradient);
+	//cv::waitKey(1);
 
 	////포인트 중복 및 그리드 내 추가 포인트 관련
 	cv::Mat occupied = cv::Mat::zeros(mnWidth, mnHeight, CV_8UC1);

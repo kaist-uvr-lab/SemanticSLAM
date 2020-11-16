@@ -76,7 +76,6 @@ namespace UVR_SLAM {
 	public:
 		int GetNumMPs();
 		
-		void InitMapPointInlierVector(int N);
 		/*
 		void AddMP();
 		void RemoveMP();
