@@ -1173,8 +1173,10 @@ void UVR_SLAM::Frame::SetGrids() {
 	for (int x = 0; x < mnWidth; x += nSize) {
 		for (int y = 0; y < mnHeight; y += nSize) {
 			cv::Point2f ptLeft(x, y);
-			if (mmbFrameGrids[ptLeft])
+			if (mmbFrameGrids[ptLeft]){
 				continue;
+			}
+			
 			cv::Point2f ptRight(x + nSize, y + nSize);
 
 			/*auto prevGridPt = GetGridBasePt(ptLeft, nSize);
@@ -1200,7 +1202,7 @@ void UVR_SLAM::Frame::SetGrids() {
 				pGrid->pt = pt;
 				pGrid->mpCP = pCP;
 				cv::rectangle(occupied, pt - gridTempRect, pt + gridTempRect, cv::Scalar(255, 0, 0), -1);
-
+				
 				////그리드 내의 추가 포인트 처리
 				//for (int gy = 0; gy < mGra.rows; gy++) {
 				//	for (int gx = 0; gx < mGra.cols; gx++) {
@@ -1217,6 +1219,9 @@ void UVR_SLAM::Frame::SetGrids() {
 				//		}//thresh
 				//	}//for x
 				//}//fory
+
+				/*mmpFrameGrids.insert(std::make_pair(ptLeft, pGrid));
+				mmbFrameGrids.insert(std::make_pair(ptLeft, bGrid));*/
 			}
 			//imshow("gra ", mGra); waitKey();
 			mmpFrameGrids.insert(std::make_pair(ptLeft, pGrid));
@@ -1224,9 +1229,27 @@ void UVR_SLAM::Frame::SetGrids() {
 		}
 	}
 }
+
+cv::Point2f UVR_SLAM::Frame::GetExtendedRect(cv::Point2f pt, int size) {
+	auto basePt = GetGridBasePt(pt, size);
+	auto diffPt = pt - basePt;
+	int nHalf = size / 2;
+	if (diffPt.x < nHalf)
+		basePt.x -= size;
+	if (diffPt.y < nHalf)
+		basePt.y -= size;
+	return basePt;
+}
+
 cv::Point2f UVR_SLAM::Frame::GetGridBasePt(cv::Point2f pt, int size) {
 	int a = pt.x / size;
 	int b = pt.y / size;
+	/*int aa =(int)pt.x%size;
+	int bb = (int)pt.y%size;
+	if (aa == 0)
+		a--;
+	if (bb == 0)
+		b--;*/
 	return std::move(cv::Point2f(a*size, b*size));
 }
 

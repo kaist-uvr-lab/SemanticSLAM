@@ -242,6 +242,9 @@ void UVR_SLAM::System::Init() {
 void UVR_SLAM::System::SetCurrFrame(cv::Mat img, double t) {
 	mpPrevFrame = mpCurrFrame;
 	mpCurrFrame = new UVR_SLAM::Frame(this, img, mnWidth, mnHeight, mK, t);
+	mpCurrFrame->mpPrev = mpPrevFrame;
+	if(mpPrevFrame)
+		mpPrevFrame->mpNext = mpCurrFrame;
 	//mpCurrFrame->DetectEdge();
 	//std::cout << mpCurrFrame->mnFrameID << std::endl;
 	//mpCurrFrame->Init(mpORBExtractor, mK, mD);

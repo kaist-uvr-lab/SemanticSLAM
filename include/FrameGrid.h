@@ -27,6 +27,7 @@ namespace UVR_SLAM {
 		cv::Point2f pt;
 		int mnMaxIDX;
 		std::vector<cv::Point2f> vecPTs;
+		FrameGrid* mpPrev, *mpNext;
 	private:
 	};
 

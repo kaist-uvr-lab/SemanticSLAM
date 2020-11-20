@@ -63,6 +63,7 @@ namespace UVR_SLAM {
 		//std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs;
 		std::vector<cv::Point2f> mvMatchingPts; //CPPt에서 변경함
 	public:
+		
 		System* mpSystem;
 		//오브젝트 관련
 		std::map<int, int> mmLabelAcc; //std::list<cv::Point2f>
@@ -118,6 +119,7 @@ namespace UVR_SLAM {
 		void SetBowVec(fbow::Vocabulary* pfvoc);
 		double Score(UVR_SLAM::Frame* pF);
 	public:
+		Frame *mpPrev, *mpNext;
 		cv::Mat GetFrame();
 		cv::Mat GetOriginalImage();
 		void SetPose(cv::Mat _R, cv::Mat _t);
@@ -171,6 +173,7 @@ namespace UVR_SLAM {
 ////FrameGrid
 	public:
 		void SetGrids();
+		cv::Point2f GetExtendedRect(cv::Point2f pt, int size);
 		cv::Point2f GetGridBasePt(cv::Point2f pt, int size);
 
 		std::map<cv::Point2f, FrameGrid*, Point2fLess> mmpFrameGrids;

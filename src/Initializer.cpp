@@ -221,6 +221,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			mpInitFrame2->mmpFrameGrids[gridPt] = currGrid;
 			mpInitFrame2->mmpFrameGrids[gridPt]->mpCP = pCP;
 			mpInitFrame2->mmpFrameGrids[gridPt]->pt = pt2;
+			prevGrid->mpNext = currGrid;
+			currGrid->mpPrev = prevGrid;
 			////grid Ãß°¡
 
 

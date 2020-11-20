@@ -11,6 +11,47 @@ namespace UVR_SLAM {
 	float Seed::px_err_angle;
 	Seed::Seed(cv::Mat _ray, float depth_mean, float depth_min):count(1), a(10), b(10), mu(1.0/depth_mean), z_range(1.0/depth_min), sigma2(z_range*z_range/36), ray(_ray){}
 	
+	float Seed::ComputeDepth(cv::Point2f& est, cv::Point2f src, cv::Mat R, cv::Mat t, cv::Mat K) {
+		float sig_sqrt = sqrt(sigma2);
+		float z_inv_min = mu + sig_sqrt;
+		float z_inv_max = max(mu - sig_sqrt, 0.00000001f);
+		float z_min = 1. / z_inv_min;
+		float z_max = 1. / z_inv_max;
+
+		cv::Mat Xcmin = R*ray*z_min + t;
+		cv::Mat Xcmax = R*ray*z_max + t;
+		
+		float fx = K.at<float>(0, 0);
+		float fy = K.at<float>(1, 1);
+		float cx = K.at<float>(0, 2);
+		float cy = K.at<float>(1, 2);
+
+		cv::Point2f XprojMin(Xcmin.at<float>(0) / Xcmin.at<float>(2), Xcmin.at<float>(1) / Xcmin.at<float>(2));
+		cv::Point2f XprojMax(Xcmax.at<float>(0) / Xcmax.at<float>(2), Xcmax.at<float>(1) / Xcmax.at<float>(2));
+		cv::Point2f epi_dir = XprojMin - XprojMax;
+		cv::Point2f XimgMin(XprojMin.x*fx + cx, XprojMin.y*fy + cy);
+		cv::Point2f XimgMax(XprojMax.x*fx + cx, XprojMax.y*fy + cy);
+		float epi_length = cv::norm(XimgMin - XimgMax) / 2.0;
+		size_t n_steps = epi_length / 0.7; // one step per pixel
+		cv::Point2f step(epi_dir.x / n_steps, epi_dir.y / n_steps);
+		cv::Point2f uv = XprojMax - step;
+		cv::Point2f uv_best;
+		float minDist = FLT_MAX;
+		
+		for (size_t i = 0; i < n_steps; ++i, uv += step)
+		{
+			cv::Point2f pt(uv.x*fx + cx, uv.y*fy + cy);
+			auto diffPt = pt - src;
+			float dist = diffPt.dot(diffPt);
+			if (dist < minDist) {
+				minDist = dist;
+				uv_best = pt;
+			}
+		}//for
+		est = uv_best;
+		return minDist;
+	}
+
 	float Seed::ComputeTau(cv::Mat t, float z) {
 		cv::Mat a = ray*z - t;
 		float t_norm = cv::norm(t);

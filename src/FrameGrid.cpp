@@ -3,9 +3,9 @@
 
 namespace UVR_SLAM {
 	FrameGrid::FrameGrid(){}
-	FrameGrid::FrameGrid(cv::Point2f base, cv::Rect r):basePt(std::move(base)), rect(std::move(r)),mbMatched(false){
+	FrameGrid::FrameGrid(cv::Point2f base, cv::Rect r):basePt(std::move(base)), rect(std::move(r)),mbMatched(false), mpPrev(nullptr), mpNext(nullptr){
 		
-	}FrameGrid::FrameGrid(cv::Point2f base, int nsize) : basePt(std::move(base)), mbMatched(false) {
+	}FrameGrid::FrameGrid(cv::Point2f base, int nsize) : basePt(std::move(base)), mbMatched(false), mpPrev(nullptr), mpNext(nullptr) {
 		rect = cv::Rect(basePt, std::move(cv::Point2f(basePt.x + nsize, basePt.y + nsize)));
 	}
 	FrameGrid::~FrameGrid(){}

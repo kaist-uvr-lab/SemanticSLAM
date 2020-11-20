@@ -259,12 +259,20 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			}*/
 
 			/////////check epipolar constraints 
+			/*if (!pCP)
+				continue;
+			auto pSeed = pCP->mpSeed;
+			if (!pSeed)
+				continue;*/
 			cv::Mat ray = mpSystem->mInvK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
 			float z_min, z_max;
 			z_min = 0.01f;
 			z_max = 1.0f;
 			cv::Point2f XimgMin, XimgMax;
-			mpMatcher->ComputeEpiLinePoint(XimgMin, XimgMax, ray, z_min, z_max, Rrel, Trel, mK);
+			cv::Mat Rcr, Tcr;
+			//pCurr->GetRelativePoseFromTargetFrame(pCP->mpRefKF, Rcr, Tcr);
+			//mpMatcher->ComputeEpiLinePoint(XimgMin, XimgMax, pSeed->ray, z_min, z_max, Rcr, Tcr, mK); //ray,, Rrel, Trel
+			mpMatcher->ComputeEpiLinePoint(XimgMin, XimgMax, ray, z_min, z_max, Rrel, Trel, mK); //ray,, Rrel, Trel
 			cv::Mat lineEqu = mpMatcher->ComputeLineEquation(XimgMin, XimgMax);
 			bool bEpiConstraints = mpMatcher->CheckLineDistance(lineEqu, currPt, 1.0);
 			vbTempInliers[i] = bEpiConstraints;
@@ -298,6 +306,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			pCurr->mmpFrameGrids[gridPt] = currGrid;
 			pCurr->mmpFrameGrids[gridPt]->mpCP = pCP;
 			pCurr->mmpFrameGrids[gridPt]->pt = currPt;
+			auto prevGrid = pPrev->mmpFrameGrids[prevGridPt];
+			prevGrid->mpNext = currGrid;
+			currGrid->mpPrev = prevGrid;
 			//////grid Ãß°¡
 
 			//auto pSeed = pCP->mpSeed;

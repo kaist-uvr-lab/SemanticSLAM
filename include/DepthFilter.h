@@ -20,7 +20,7 @@ namespace UVR_SLAM {
 		int count;
 		static float px_err_angle;
 		cv::Mat ray;
-
+		float ComputeDepth(cv::Point2f& est, cv::Point2f src, cv::Mat R, cv::Mat t, cv::Mat K);
 		float ComputeTau(cv::Mat t, float z); //호출시 t는 상대좌표이며, Xcam depth는 레퍼런스의 것. 이거 시드로 옮겨도 됨.
 
 	private:
