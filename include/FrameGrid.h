@@ -27,7 +27,11 @@ namespace UVR_SLAM {
 		cv::Point2f pt;
 		int mnMaxIDX;
 		std::vector<cv::Point2f> vecPTs;
+		////새로 추가한 것
+		//오브젝트는 일단 대표 오브젝트만 고려?
 		FrameGrid* mpPrev, *mpNext;
+		std::map<int, int> mmObjCounts;
+		std::map<int, float> mmObjAreas;
 	private:
 	};
 

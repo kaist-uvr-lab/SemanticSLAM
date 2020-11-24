@@ -376,26 +376,36 @@ namespace UVR_SLAM {
 					cv::rectangle(base, cv::Rect(0, 0, nRectWidth, nRectHeight), cv::Scalar(255, 0, 0), -1);
 					cv::Mat base2 = cv::Mat::zeros(nRectHeight, nRectWidth, CV_8UC3);
 					cv::rectangle(base2, cv::Rect(0, 0, nRectWidth, nRectHeight), cv::Scalar(0, 255, 0), -1);
+					cv::Mat base3 = cv::Mat::zeros(nRectHeight, nRectWidth, CV_8UC3);
 
 					for (auto iter = mpGrids.begin(), iend = mpGrids.end(); iter != iend; iter++) {
 						auto pt = iter->first;
 						auto pGrid = iter->second;
 						if (!pGrid)
 							continue;
-						if (!mbGrids[pt])
-							continue;
+						
 						auto rect = pGrid->rect;
 						cv::Mat temp = vis2(rect);
+						
+						if (pGrid->mmObjCounts.size() > 0) {
+							auto iter = pGrid->mmObjCounts.begin();
+							int label = iter->first;
+							cv::rectangle(base3, cv::Rect(0, 0, nRectWidth, nRectHeight), ObjectColors::mvObjectLabelColors[label], -1);
+							cv::addWeighted(temp, 0.5, base3, 0.5, 0.0, temp);
+						}
+
+						/*if (!mbGrids[pt])
+							continue;
 						auto pCP = pGrid->mpCP;
 						if (!pCP) {
 							cv::addWeighted(temp, 0.5, base2, 0.5, 0.0, temp);
 						}
 						else {
 							cv::addWeighted(temp, 0.5, base, 0.5, 0.0, temp);
-						}
+						}*/
 					}
 				}
-
+				/////그리드 관련 시각화
 				
 				std::stringstream ss;
 				ss << "Traking = "<<mpKeyFrame->mnKeyFrameID<<", "<<mpFrame->mnFrameID<<"="<< pF->mpMatchInfo->mvpMatchingCPs.size() <<"::"<< nMatch << "::" <<mfTime<< "::";

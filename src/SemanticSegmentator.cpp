@@ -8,6 +8,7 @@
 #include <LocalMapper.h>
 #include <Visualizer.h>
 #include <CandidatePoint.h>
+#include <FrameGrid.h>
 #include <Map.h>
 
 std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
@@ -106,6 +107,9 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			mpTargetFrame->matLabeled = segmented.clone();
 			mpTargetFrame->matSegmented = segmented.clone();
 			
+			////그리드 사이즈
+			int nGridSize = mpSystem->mnRadius * 2;
+
 			////세그멘테이션 칼라 전달
 			int nMaxLabel;
 			int nMaxLabelCount = 0;
@@ -115,6 +119,21 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 					int label = segmented.at<uchar>(y, x);
 					seg_color.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
 					
+					////그리드 처리
+					auto gridBasePt = mpTargetFrame->GetGridBasePt(cv::Point2f(x * 2, y * 2), nGridSize);
+					if (mpTargetFrame->mmpFrameGrids.count(gridBasePt)) {
+						auto pGrid = mpTargetFrame->mmpFrameGrids[gridBasePt];
+						if (pGrid) {
+							pGrid->mmObjCounts[label]++;
+
+						}
+						/*else {
+						std::cout << "seg::error::grid::nullptr" << std::endl;
+						}*/
+
+					}
+					////그리드 처리
+
 					if (!mpTargetFrame->mpMatchInfo->mmLabelMasks.count(label)) {
 						mpTargetFrame->mpMatchInfo->mmLabelMasks[label] = cv::Mat::zeros(segmented.size(), CV_8UC1);
 					}
@@ -130,6 +149,26 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 				}
 			}
 			
+			////다음 그리드에 전파
+			float nTotalArea = nGridSize*nGridSize;
+			for (auto iter = mpTargetFrame->mmpFrameGrids.begin(), iend = mpTargetFrame->mmpFrameGrids.end(); iter != iend; iter++) {
+				auto pGrid = iter->second;
+				if (!pGrid)
+					continue;
+				FrameGrid* nextPtr = pGrid->mpNext;
+				while (nextPtr) {
+					//std::copy(pGrid->mmObjCounts.begin(), pGrid->mmObjCounts.end(), nextPtr->mmObjCounts.begin());
+					for (auto oiter = pGrid->mmObjCounts.begin(), oiend = pGrid->mmObjCounts.end(); oiter != oiend; oiter++) {
+						auto label = oiter->first;
+						auto count = oiter->second;
+						nextPtr->mmObjCounts[label] = count;
+					}
+					nextPtr = nextPtr->mpNext;
+					//break;
+				}
+			}
+			////다음 그리드에 전파
+
 			///////////CCL TEST
 			cv::addWeighted(seg_color, 0.5, resized_color, 0.5, 0.0, resized_color);
 			for (auto iter = mpTargetFrame->mpMatchInfo->mmLabelMasks.begin(), eiter = mpTargetFrame->mpMatchInfo->mmLabelMasks.end(); iter != eiter; iter++) {
