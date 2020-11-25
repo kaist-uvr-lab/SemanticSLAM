@@ -1188,11 +1188,10 @@ void UVR_SLAM::Frame::SetGrids() {
 			cv::Rect rect(ptLeft, ptRight);
 			auto pGrid = new FrameGrid(std::move(ptLeft), std::move(rect));
 			bool bGrid = false;
-			//cv::Mat mGra = pGrid->CalcGradientImage(GetOriginalImage());
-			cv::Mat mGra = matGradient(rect).clone();
+			cv::Mat mGra = matGradient(rect);// .clone();
 			cv::Point2f pt;
 			int localthresh;
-			if (pGrid->CalcActivePoints(mGra, thresh, localthresh,pt)) {
+			if (pGrid->CalcActivePoints(mGra.clone(), thresh, localthresh,pt)) {
 				bool bOccupied = this->mpMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
 				if (bOccupied)
 					continue;
