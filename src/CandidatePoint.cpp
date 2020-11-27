@@ -70,9 +70,9 @@ namespace  UVR_SLAM{
 			if (mmpFrames.size() == 0){
 				this->mpRefKF = pF->mpRefFrame;
 				////seed持失
-				auto pt = pF->mvMatchingPts[idx];
+				/*auto pt = pF->mvMatchingPts[idx];
 				cv::Mat a = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
-				this->mpSeed = new Seed(std::move(pF->mpSystem->mInvK*a), pF->mpRefFrame->mfMedianDepth, pF->mpRefFrame->mfMinDepth);
+				this->mpSeed = new Seed(std::move(pF->mpSystem->mInvK*a), pF->mpRefFrame->mfMedianDepth, pF->mpRefFrame->mfMinDepth);*/
 				////seed持失
 			}
 			mmpFrames.insert(std::pair<UVR_SLAM::MatchInfo*, int>(pF, idx));

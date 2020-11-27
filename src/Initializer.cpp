@@ -303,18 +303,21 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		////CP 추가
 		mpInitFrame1->ComputeSceneDepth();
 		mpInitFrame2->ComputeSceneDepth();
-		//for (auto iter = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.begin(), iend = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.end(); iter != iend; iter++) {
-		//	auto pCPi = *iter;
-		//	auto pMPi = pCPi->GetMP();
-		//	if (pMPi && !pMPi->isDeleted())
-		//		continue;
-		//	auto pSeed = pCPi->mpSeed;
-		//	cv::Mat ray = pSeed->ray.clone();
-		//	float err = pSeed->px_err_angle;
-		//	delete pCPi->mpSeed;
-		//	pCPi->mpSeed = new UVR_SLAM::Seed(ray, err, mpInitFrame1->mfMedianDepth, mpInitFrame1->mfMinDepth);
-		//	//pSeed->mf
-		//}
+		////시드를 프레임마다 생성할 시
+		for (auto iter = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.begin(), iend = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.end(); iter != iend; iter++) {
+			auto pCPi = *iter;
+			auto pMPi = pCPi->GetMP();
+			if (pMPi && !pMPi->isDeleted())
+				continue;
+			auto pSeed = pCPi->mpSeed;
+			cv::Mat ray = pSeed->ray.clone();
+			float err = pSeed->px_err_angle;
+			delete pCPi->mpSeed;
+			pCPi->mpSeed = new UVR_SLAM::Seed(ray, mpInitFrame1->mfMedianDepth, mpInitFrame1->mfMinDepth);
+			//pSeed->mf
+		}
+		////시드를 프레임마다 생성할 시
+
 		mpInitFrame2->SetGrids();
 		/*mpInitFrame1->mpMatchInfo->UpdateKeyFrame();
 		mpInitFrame2->mpMatchInfo->UpdateKeyFrame();*/

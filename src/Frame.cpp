@@ -17,7 +17,7 @@ float UVR_SLAM::Frame::mnMinX, UVR_SLAM::Frame::mnMinY, UVR_SLAM::Frame::mnMaxX,
 float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeightInv;
 
 UVR_SLAM::Frame::Frame(System* pSys, cv::Mat _src, int w, int h, cv::Mat K, double ts):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
-mfMeanDepth(0.0), mfMinDepth(0.0), mfMedianDepth(0.0),
+mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMedianDepth(0.0),
 mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts)
 {
 	matOri = _src.clone();
@@ -40,7 +40,7 @@ mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), md
 }
 
 UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
-mfMeanDepth(0.0), mfMinDepth(0.0), mfMedianDepth(0.0),
+mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMedianDepth(0.0),
 mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
@@ -64,7 +64,7 @@ mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), m
 }
 
 UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
-mfMeanDepth(0.0), mfMinDepth(0.0), mfMedianDepth(0.0),
+mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMedianDepth(0.0),
 mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
 {
 	cv::Mat tempImg = cv::Mat(h, w, CV_8UC4, ptr);
@@ -1202,6 +1202,12 @@ void UVR_SLAM::Frame::SetGrids() {
 				pGrid->mpCP = pCP;
 				cv::rectangle(occupied, pt - gridTempRect, pt + gridTempRect, cv::Scalar(255, 0, 0), -1);
 				
+				////seed생성
+				cv::Mat a = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
+				pCP->mpSeed = new Seed(std::move(mpSystem->mInvK*a), mfMedianDepth, mfMinDepth);
+				////seed생성
+
+
 				////그리드 내의 추가 포인트 처리
 				//for (int gy = 0; gy < mGra.rows; gy++) {
 				//	for (int gx = 0; gx < mGra.cols; gx++) {

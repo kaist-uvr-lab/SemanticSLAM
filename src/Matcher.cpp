@@ -1025,10 +1025,9 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	int searchSize = 15;
 	std::vector<cv::Point2f> prevPts, currPts;
 	prevPts = prev->mpMatchInfo->mvMatchingPts;
-	cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
-	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);
-	cv::waitKey(1);
-	cv::calcOpticalFlowPyrLK(prevPyr, currPyr, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	/*cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
+	maxLvl = cv::buildOpticalFlowPyramid(prevImg, prevPyr, cv::Size(searchSize, searchSize), maxLvl);*/
+	cv::calcOpticalFlowPyrLK(prevImg, currImg, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
 	cv::Mat overlap = cv::Mat::zeros(mHeight, mWidth, CV_8UC1);
 
 	int nCurrFrameID = curr->mnFrameID;

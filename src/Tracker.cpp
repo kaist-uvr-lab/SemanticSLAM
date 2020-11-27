@@ -166,7 +166,7 @@ UVR_SLAM::Frame* UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, Frame* pPrev
 	else
 		return nullptr;
 }
-
+float fThresh_depth_filter = 100.;
 //bool bRefKF = false;
 void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 	if(!mbInitializing){
@@ -222,11 +222,12 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		pCurr->SetPose(prevR, prevT);
 		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vTempCurrPts, vbTempInliers);
 
-		//////임시
-		/*cv::Mat prevImg = pPrev->GetOriginalImage().clone();
+		//////임시 시각화
+		cv::Mat prevImg = pPrev->GetOriginalImage().clone();
 		cv::Mat currImg = pCurr->GetOriginalImage().clone();
 		cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
-		cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);*/
+		cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+		//////임시 시각화
 
 		//에피폴라 관련 파라메터
 		cv::Mat invK = mK.inv();
@@ -315,13 +316,136 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			}
 			//////grid 추가
 
+			/////라인 시각화
+			bool bSlope = abs(lineEqu.at<float>(0) / lineEqu.at<float>(1)) > 1.0;
+			cv::Point2f sPt, ePt;
+			if (bSlope) {
+				sPt = mpMatcher->CalcLinePoint(rect.y, lineEqu, bSlope);
+				ePt = mpMatcher->CalcLinePoint(rect.y + rect.height, lineEqu, bSlope);
+			}
+			else {
+				sPt = mpMatcher->CalcLinePoint(rect.x, lineEqu, bSlope);
+				ePt = mpMatcher->CalcLinePoint(rect.x + rect.width, lineEqu, bSlope);
+			}
+			cv::Scalar color;
+			if (bEpiConstraints)
+				color = cv::Scalar(255, 0, 0);
+			else
+				color = cv::Scalar(0, 255, 0);
+			cv::line(currImg, sPt, ePt, color, 1);
+			cv::circle(prevImg, prevPt, 2, color, -1);
+			cv::circle(currImg, prevPt, 2, cv::Scalar(255,255,0), -1);
+			cv::circle(currImg, currPt, 2, color, -1);
+			/////라인 시각화
+
+			//////seed update and check
+			////if (!bMP) {
+			//	auto pSeed = pCP->mpSeed;
+			//	if (pSeed) {
+			//		//float z_inv_min = pSeed->mu + sqrt(pSeed->sigma2);
+			//		//float z_inv_max = max(pSeed->mu - sqrt(pSeed->sigma2), 0.00000001f);
+			//		float z_min2 = -0.01;// 1. / z_inv_min; // -0.01;// ;
+			//		float z_max2 = 0.01; // 1. / z_inv_max; // 0.01;// ;
+			//		cv::Point2f XimgMin2, XimgMax2;
+			//		cv::Mat Rrel2, Trel2;
+			//		pCurr->GetRelativePoseFromTargetFrame(pCP->mpRefKF, Rrel2, Trel2);
+			//		
+			//		mpMatcher->ComputeEpiLinePoint(XimgMin2, XimgMax2, pSeed->ray, z_min2, z_max2, Rrel2, Trel2, mK);
+			//		cv::Mat lineEqu2 = mpMatcher->ComputeLineEquation(XimgMin2, XimgMax2);
+			//		bool bEpiConstraints = mpMatcher->CheckLineDistance(lineEqu2, currPt, 1.0);
+
+			//		////depth 추정
+			//		if(bEpiConstraints)
+			//		{
+			//			cv::Mat temp1 = Rrel2*pSeed->ray;
+			//			cv::Mat temp2 = mpSystem->mInvK*(cv::Mat_<float>(3, 1) << currPt.x, currPt.y, 1.0);
+			//			cv::Mat A = cv::Mat::zeros(3, 2, CV_32FC1);
+			//			temp1.copyTo(A.col(0));
+			//			temp2.copyTo(A.col(1));
+			//			cv::Mat AtA = A.t()*A;
+			//			if (cv::determinant(AtA) >= 0.000001) {
+			//				cv::Mat depthMat = AtA.inv()*A.t()*Trel2;
+			//				float depth = fabs(depthMat.at<float>(0));
+			//				pSeed->mvfDepths.push_back(depth);
+			//				pSeed->matDepths.push_back(std::move(cv::Mat::ones(1, 1, CV_32FC1)*depth));
+			//				pSeed->count++;
+			//				cv::Mat mean, stddev;
+			//				cv::meanStdDev(pSeed->matDepths, mean, stddev);
+			//				depth = mean.at<float>(0);
+			//				//cv::Mat Trel_inv = -Rrel2.t()*Trel2;
+			//				//float tau = pSeed->ComputeTau(Trel_inv, depth);
+			//				////std::cout <<"tau::"<< tau <<", "<< depth << std::endl;
+			//				//float tau_inverse = 0.5 * (1.0 / max(0.0000001, depth - tau) - 1.0 / (depth + tau));
+			//				////std::cout << "tau::" << tau_inverse << ", " << pSeed->z_range<<", "<<fThresh_depth_filter << std::endl;
+			//				//pSeed->UpdateDepth(1. / depth, tau_inverse*tau_inverse);
+			//				//float val = sqrt(pSeed->sigma2);
+			//				//bool bConverged = val < pSeed->z_range / fThresh_depth_filter;
+			//				//
+			//				///*else
+			//				//	std::cout <<"val::"<< val << ", " << pSeed->z_range / fThresh_depth_filter <<"::"<<pSeed->count<< std::endl;*/
+
+			//				cv::Mat Xw = Rrel2*pSeed->ray*depth + Trel2;
+			//				temp1 = mK*Xw;
+			//				float d1 = temp1.at<float>(2);
+			//				cv::Point2f est(temp1.at<float>(0) / d1, temp1.at<float>(1) / d1);
+			//				cv::circle(currImg, est, 3, cv::Scalar(255, 255, 0), -1);
+			//				cv::circle(currImg, currPt, 2, cv::Scalar(0, 255, 255), -1);
+			//				//if (bConverged) {
+			//				//	cv::circle(currImg, est, 3, cv::Scalar(255, 0, 255), -1);
+			//				//	cv::circle(currImg, currPt, 2, cv::Scalar(0, 0, 255), -1);
+			//				//}
+			//				//else {
+			//				//	cv::circle(currImg, est, 3, cv::Scalar(255, 0, 0), -1);
+			//				//	cv::circle(currImg, currPt, 2, cv::Scalar(0, 255, 0), -1);
+			//				//}
+			//			}
+			//		}
+			//		////depth 추정
+
+			//		bool bSlope = abs(lineEqu2.at<float>(0) / lineEqu2.at<float>(1)) > 1.0;
+			//		cv::Point2f sPt2, ePt2;
+			//		if (bSlope) {
+			//			sPt2 = mpMatcher->CalcLinePoint(rect.y, lineEqu2, bSlope);
+			//			ePt2 = mpMatcher->CalcLinePoint(rect.y + rect.height, lineEqu2, bSlope);
+			//		}
+			//		else {
+			//			sPt2 = mpMatcher->CalcLinePoint(rect.x, lineEqu2, bSlope);
+			//			ePt2 = mpMatcher->CalcLinePoint(rect.x + rect.width, lineEqu2, bSlope);
+			//		}
+
+			//		cv::Scalar color;
+			//		if (bEpiConstraints)
+			//			color = cv::Scalar(255, 0, 0);
+			//		else
+			//			color = cv::Scalar(0, 255, 0);
+			//		cv::line(currImg, sPt2, ePt2, color, 1);
+
+			//		//cv::line(currImg, XimgMin, XimgMax, cv::Scalar(255, 0, 0), 1);
+
+			//		/*
+			//		cv::Mat Xcam4 = pSeed->ray*z_min;
+			//		cv::Mat Xcam5 = pSeed->ray*z_max;
+			//		cv::Mat Rrel2, Trel2;
+			//		pCurr->GetRelativePoseFromTargetFrame(pCP->mpRefKF, Rrel2, Trel2);
+			//		{
+			//		cv::Mat projFromRef  = mK*(Rrel2*Xcam4 + Trel2);
+			//		cv::Mat projFromRef2 = mK*(Rrel2*Xcam5 + Trel2);
+			//		cv::Point2f ptFromRef(projFromRef.at<float>(0) / projFromRef.at<float>(2), projFromRef.at<float>(1) / projFromRef.at<float>(2));
+			//		cv::Point2f ptFromRef2(projFromRef2.at<float>(0) / projFromRef2.at<float>(2), projFromRef2.at<float>(1) / projFromRef2.at<float>(2));
+			//		cv::line(currImg, ptFromRef, ptFromRef2, cv::Scalar(0, 255, 0), 1);
+			//		}*/
+			//	}//pseed
+			////}//bmp
+			//////seed update and check
 		}
-		//cv::Mat debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
-		//prevImg.copyTo(debugMatch(mergeRect1));
-		//currImg.copyTo(debugMatch(mergeRect2));
-		//cv::moveWindow("Output::MatchTest2", mpSystem->mnDisplayX+prevImg.cols*2, mpSystem->mnDisplayY);
-		//cv::imshow("Output::MatchTest2", debugMatch); //cv::waitKey();
-		////여기서 시각화
+
+		//////임시 시각화
+		cv::Mat debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+		prevImg.copyTo(debugMatch(mergeRect1));
+		currImg.copyTo(debugMatch(mergeRect2));
+		cv::moveWindow("Output::MatchTest2", mpSystem->mnDisplayX+prevImg.cols*2, mpSystem->mnDisplayY);
+		cv::imshow("Output::MatchTest2", debugMatch); //cv::waitKey();
+		//////임시 시각화
 
 		////트래킹 결과 갱신
 		int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vTempCurrPts, vbTempInliers);

@@ -9,7 +9,8 @@
 
 namespace UVR_SLAM {
 	float Seed::px_err_angle;
-	Seed::Seed(cv::Mat _ray, float depth_mean, float depth_min):count(1), a(10), b(10), mu(1.0/depth_mean), z_range(1.0/depth_min), sigma2(z_range*z_range/36), ray(_ray){}
+	Seed::Seed(cv::Mat _ray, float depth_mean, float depth_min):count(0), a(10), b(10), mu(1.0/depth_mean), z_range(1.0/depth_min), sigma2(z_range*z_range/36), ray(_ray){
+	}
 	
 	float Seed::ComputeDepth(cv::Point2f& est, cv::Point2f src, cv::Mat R, cv::Mat t, cv::Mat K) {
 		float sig_sqrt = sqrt(sigma2);
@@ -64,6 +65,51 @@ namespace UVR_SLAM {
 		return (z_plus - z); // tau
 	}
 	
+	void Seed::UpdateDepth(float invz, float tau2) {
+		float norm_scale = sqrt(sigma2 + tau2);
+		if (std::isnan(norm_scale))
+			return;
+		float nd_mu = mu;
+		float nd_sd = norm_scale;
+
+		float pdf_val;
+		{
+			if (std::isnan(invz))
+				pdf_val = 0.f;
+			else {
+				float exponent = invz - nd_mu;
+				exponent *= -exponent;
+				exponent /= (2 * nd_sd*nd_sd);
+				float res = exp(exponent);
+				res /= nd_sd*sqrt(2 * CV_PI);
+				/*if (std::isinf(res)) {
+				std::cout << "inf::" << res << std::endl;
+				res = 0.0;
+				}*/
+				pdf_val = res;
+			}
+		}
+
+		float s2 = 1. / (1. / sigma2 + 1. / tau2);
+		float m = s2*(mu / sigma2 + invz / tau2);
+		float C1 = a / (a + b) * pdf_val;
+		float C2 = b / (a + b) * 1. / z_range;
+		float normalization_constant = C1 + C2;
+		C1 /= normalization_constant;
+		C2 /= normalization_constant;
+		float f = C1*(a + 1.) / (a + b + 1.) + C2*a / (a + b + 1.);
+		float e = C1*(a + 1.)*(a + 2.) / ((a + b + 1.)*(a + b + 2.))
+			+ C2*a*(a + 1.0f) / ((a + b + 1.0f)*(a + b + 2.0f));
+
+		// update parameters
+		float mu_new = C1*m + C2*mu;
+		sigma2 = C1*(s2 + m*m) + C2*(sigma2 + mu*mu) - mu_new*mu_new;
+		mu = mu_new;
+		a = (e - f) / (f - e / f);
+		b = a*(1.0f - f) / f;
+		count++;
+	}
+
 	DepthFilter::DepthFilter(){
 	}
 	DepthFilter::DepthFilter(System* pSys):mpSystem(pSys) {
