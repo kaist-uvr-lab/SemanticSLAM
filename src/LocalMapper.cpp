@@ -496,6 +496,7 @@ void UVR_SLAM::LocalMapper::Run() {
 					//////pt 확보 과정
 
 					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
+					//nCreated = MappingProcess(mpMap, mpTargetFrame, mpPPrevKeyFrame, time2, currImg);
 					nCreated = MappingProcess(mpMap, mpTargetFrame, mpPPrevKeyFrame, mpRefKeyFrame->mfMedianDepth, mpRefKeyFrame->mfMeanDepth, mpRefKeyFrame->mfStdDev, time2, currImg);
 					mpSystem->mbCreateMP = true;
 					lock.unlock();
@@ -1126,6 +1127,178 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, Frame* pP
 
 }
 ////////////200722 수정 필요
+int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPrevKF, double& dtime, cv::Mat& debugging) {
+	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
+	int N;
+	auto pCurrMatch = pCurrKF->mpMatchInfo;
+	auto pPrevMatch = pPrevKF->mpMatchInfo;
+	auto vpTempCPs = pCurrMatch->mvpMatchingCPs;
+	auto vpTempPTsCurr = pCurrMatch->mvMatchingPts;
+	auto vpTempPTsPrev = pPrevKF->mpMatchInfo->mvMatchingPts;
+
+	cv::Mat Rprev, Tprev, Rcurr, Tcurr;
+	pCurrKF->GetPose(Rcurr, Tcurr);
+	pPrevKF->GetPose(Rprev, Tprev);
+
+	cv::Mat Pcurr, Pprev;
+	cv::hconcat(Rcurr, Tcurr, Pcurr);
+	cv::hconcat(Rprev, Tprev, Pprev);
+
+	std::vector<CandidatePoint*> vMatchCPs;
+	std::vector<cv::Point2f> vMatchPrevPTs, vMatchCurrPTs;
+
+	////뎁스 필터 1픽셀 에러 관련
+	float fx = mpSystem->mK.at<float>(0, 0);
+	float noise = 1.0;
+	float px_err_angle = atan(noise / (2.0*fx))*2.0;
+	////뎁스 필터 1픽셀 에러 관련
+
+	//////////테스트용도
+	cv::Mat debugMatch;
+	cv::Mat prevImg = pPrevKF->GetOriginalImage().clone();
+	cv::Mat currImg = pCurrKF->GetOriginalImage().clone();
+	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
+	debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
+
+	//////////테스트용도
+
+	std::cout << "MappingProcess::" << pCurrKF->mpMatchInfo->mvpMatchingCPs.size() << ", " << vpTempCPs.size() << ", " << vpTempPTsCurr.size() << std::endl;
+
+	////pt 확보 과정
+	for (size_t i = 0, iend = vpTempPTsCurr.size(); i < iend; i++) {
+		auto pCPi = vpTempCPs[i];
+		int prevIDX = pCPi->GetPointIndexInFrame(pPrevMatch);
+		if (prevIDX == -1)
+			continue;
+		if (pCPi->GetNumSize() < mnThreshMinKF)
+			continue;
+		auto pMPi = pCPi->GetMP();
+		bool bOldMP = pMPi && pMPi->GetQuality() && !pMPi->isDeleted();
+		if (bOldMP)
+			continue;
+		auto currPt = vpTempPTsCurr[i];
+		auto prevPt = vpTempPTsPrev[prevIDX];
+		vMatchPrevPTs.push_back(prevPt);
+		vMatchCurrPTs.push_back(currPt);
+		vMatchCPs.push_back(pCPi);
+
+		//cv::line(debugMatch, prevPt, currPt+ptBottom, cv::Scalar(255, 0, 255), 2);
+		cv::circle(prevImg, prevPt, 4, cv::Scalar(255, 0, 0), 1);
+		cv::circle(currImg, currPt, 4, cv::Scalar(255, 0, 0), 1);
+	}
+
+	if (vMatchCPs.size() < 10) {
+		std::cout << "포인트 부족 000" << std::endl;
+		//return -1;
+	}
+
+	cv::Mat TempMap;
+	cv::triangulatePoints(mK*Pprev, mK*Pcurr, vMatchPrevPTs, vMatchCurrPTs, TempMap);
+
+	cv::Scalar color1(255, 0, 0);
+	cv::Scalar color2(255, 255, 0);
+	cv::Scalar color3(0, 0, 255);
+	cv::Scalar color4(0, 255, 255);
+	cv::Scalar color5(0, 255, 0);
+
+	float fMaxTH1 = mpTargetFrame->mfMedianDepth + mpTargetFrame->mfRange;// fMeanDepth + fRange * fStdDev;
+	float fMaxTH2 = pPrevKF->mfMedianDepth + pPrevKF->mfRange;// fMeanDepth + fRange * fStdDev;
+
+	std::vector<CandidatePoint*> vMappingCPs;
+	std::vector<cv::Point2f> vPTs;
+	std::vector<cv::Mat> vX3Ds;
+
+	std::vector<float> vfScales;
+	float thresh = 9.0;
+	for (size_t i = 0, iend = TempMap.cols; i < iend; i++) {
+
+		////Seed 확인이 필요. 초기화 & 업데이트를 여기서 수행하고 확인도 여기서 하기.
+
+		auto currPt = std::move(vMatchCurrPTs[i]);
+		auto prevPt = std::move(vMatchPrevPTs[i]);
+		auto pCPi = std::move(vMatchCPs[i]);
+		
+
+		cv::Mat X3D;
+		float depth;
+		bool bNewMP = true;
+		float depth1, depth2;
+		{
+			X3D = std::move(TempMap.col(i));
+			if (abs(X3D.at<float>(3)) < 0.0001) {
+				bNewMP = false;
+				continue;
+			}
+			X3D /= X3D.at<float>(3);
+			X3D = X3D.rowRange(0, 3);
+			//New MP 조정
+
+			cv::Mat proj1 = Rcurr*X3D + Tcurr;
+			cv::Mat proj2 = Rprev*X3D + Tprev;
+
+			depth1 = proj1.at<float>(2);
+			depth2 = proj2.at<float>(2);
+
+			if (depth1  < 0.0 || depth2 < 0.0) {
+				bNewMP = false;
+				continue;
+			}
+			if (depth1 > fMaxTH1 || depth2 > fMaxTH2) {
+				bNewMP = false;
+				continue;
+			}
+			////depth test
+
+
+			////reprojection error
+			proj1 = mK*proj1;
+			proj2 = mK*proj2;
+			cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
+			cv::Point2f projected2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
+
+			auto diffPt1 = projected1 - currPt;
+			auto diffPt2 = projected2 - prevPt;
+			float err1 = (diffPt1.dot(diffPt1));
+			float err2 = (diffPt2.dot(diffPt2));
+			if (err1 > thresh || err2 > thresh) {
+				bNewMP = false;
+				continue;
+			}
+		}
+		vMappingCPs.push_back(pCPi);
+		vX3Ds.push_back(X3D);
+		vPTs.push_back(currPt);
+	}
+
+	////////////////////////////////////////최적화 진행
+	if (vX3Ds.size() < 30) {
+		std::cout << "포인트 부족11" << std::endl;
+		//return -1;
+	}
+
+	mpMap->ClearReinit();
+	std::vector<bool> vbInliers(vX3Ds.size(), true);
+	Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers);
+
+	int nFail = vX3Ds.size();
+	for (size_t i = 0, iend = vX3Ds.size(); i < iend; i++) {
+		if (!vbInliers[i]) {
+			nFail--;
+			cv::circle(debugging, vPTs[i], 3, color3, -1);
+		}
+	}
+	/*if (nFail < 50) {
+		std::cout << "Map Creation Fail case::" << pCurrKF->mnFrameID << std::endl;
+	}*/
+
+	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
+	dtime = duration / 1000.0;
+	return vX3Ds.size() - nFail;
+
+}
 int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPrevKF, float fMedianDepth, float fMeanDepth, float fStdDev, double& dtime, cv::Mat& debugging) {
 	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 	int N;
@@ -1160,7 +1333,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
 	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
 	debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
-	
+
 	//////////테스트용도
 
 	////pt 확보 과정
@@ -1179,7 +1352,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		cv::circle(prevImg, prevPt, 4, cv::Scalar(255, 0, 0), 1);
 		cv::circle(currImg, currPt, 4, cv::Scalar(255, 0, 0), 1);
 	}
-	
+
 	if (vMatchCPs.size() < 10) {
 		std::cout << "포인트 부족 000" << std::endl;
 		return -1;
@@ -1203,7 +1376,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	std::vector<cv::Mat> vX3Ds;
 
 	std::vector<float> vfScales;
-	float thresh = 9.0;
+	float thresh = 25.0;
 	for (size_t i = 0, iend = TempMap.cols; i < iend; i++) {
 
 		////Seed 확인이 필요. 초기화 & 업데이트를 여기서 수행하고 확인도 여기서 하기.
@@ -1255,10 +1428,10 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 				bNewMP = false;
 			}
 			////depth test
-			
-			
+
+
 			////reprojection error
-			if(bNewMP){
+			if (bNewMP) {
 				proj1 = mK*proj1;
 				proj2 = mK*proj2;
 				cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
@@ -1275,7 +1448,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 				////CReateMP test
 				cv::Mat X3D2;
 				float depthRef;
-				auto bNewMP2 =pCPi->CreateMapPoint(X3D2, depthRef, mK, mInvK, Pcurr, Rcurr, Tcurr, currPt);
+				auto bNewMP2 = pCPi->CreateMapPoint(X3D2, depthRef, mK, mInvK, Pcurr, Rcurr, Tcurr, currPt);
 				//if(bNewMP2){
 				//	cv::Point2f ptFromRefB = pCurrKF->Projection(X3D2);
 				//	cv::Mat Rrel, Trel;
@@ -1397,10 +1570,10 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	std::vector<bool> vbInliers(vX3Ds.size(), true);
 	std::vector<bool> vbInliers2(vX3Ds.size(), true);
 	Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, vX3Ds, vMappingCPs, vbInliers, vbInliers2, 1.0, fMedianDepth, fMeanDepth, fStdDev);
-	
+
 	int nFail = vX3Ds.size();
 	for (size_t i = 0, iend = vX3Ds.size(); i < iend; i++) {
-		if (!vbInliers[i]){
+		if (!vbInliers[i]) {
 			nFail--;
 			cv::circle(debugging, vPTs[i], 3, color3, -1);
 		}
@@ -1408,15 +1581,16 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 			cv::circle(debugging, vPTs[i], 3, color5, -1);
 	}
 	if (nFail < 50) {
-		std::cout << "Map Creation Fail case::" <<pCurrKF->mnFrameID<< std::endl;
+		std::cout << "Map Creation Fail case::" << pCurrKF->mnFrameID << std::endl;
 	}
 
 	std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 	dtime = duration / 1000.0;
-	return vX3Ds.size()-nFail;
+	return vX3Ds.size() - nFail;
 
 }
+
 int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, double& dtime, cv::Mat& debugging) {
 	std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 
