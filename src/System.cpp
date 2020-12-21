@@ -17,6 +17,8 @@
 #include <Matcher.h>
 #include <Tracker.h>
 #include <MapPoint.h>
+#include <LocalBinaryPatternProcessor.h>
+#include <Database.h>
 
 int UVR_SLAM::System::nKeyFrameID = 1;
 int UVR_SLAM::System::nFrameID = 1;
@@ -210,6 +212,10 @@ void UVR_SLAM::System::Init() {
 	//tracker thread
 	mpTracker = new UVR_SLAM::Tracker(this, mstrFilePath);
 	
+	//LBP && DB
+	mpLBPProcessor = new UVR_SLAM::LocalBinaryPatternProcessor(2, 4, 10, 10);
+	mpDatabase = new UVR_SLAM::Database();
+
 	/////ÃÊ±âÈ­
 	mpSegmentator->Init();
 	mpPlaneEstimator->Init();

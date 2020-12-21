@@ -372,6 +372,9 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		sababs.str("");
 		sababs << base << "/fuse";
 		_mkdir(sababs.str().c_str());
+		sababs.str("");
+		sababs << base << "/seg";
+		_mkdir(sababs.str().c_str());
 		return mbInit;
 		//200419
 		///////////////////////////////////////////////////////////////////////////////////////

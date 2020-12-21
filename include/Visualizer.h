@@ -12,6 +12,7 @@ namespace UVR_SLAM {
 	class MapPoint;
 	class PlaneProcessInformation;
 	class PlaneInformation;
+	class PlaneEstimator;
 	class System;
 	class Map;
 
@@ -20,7 +21,6 @@ namespace UVR_SLAM {
 		Visualizer();
 		Visualizer(System* pSystem, int w, int h, int scale);
 		virtual ~Visualizer();
-
 	public:
 		void Run();
 		void SetBoolDoingProcess(bool b);
@@ -81,6 +81,11 @@ namespace UVR_SLAM {
 		std::mutex mMutexPlaneInfo;
 		std::vector<PlaneProcessInformation*> mvpPlaneInfos;
 	///////바닥 확인용
+	///////평면 관련
+	public:
+		PlaneEstimator* mpPlaneEstimator;
+	private:
+	///////평면 관련
 	};
 }
 #endif

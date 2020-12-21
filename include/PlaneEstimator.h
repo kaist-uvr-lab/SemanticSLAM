@@ -20,6 +20,7 @@ namespace UVR_SLAM {
 	class Initializer;
 	class Matcher;
 	class Visualizer;
+	class FrameGrid;
 	class LineProcessor {
 	public:
 		float static CalcSlope(cv::Point2f pt1, cv::Point2f pt2) {
@@ -40,6 +41,7 @@ namespace UVR_SLAM {
 	
 	class PlaneInformation {
 	public:
+		bool mbInit;
 		int mnPlaneID;
 		int mnFrameID;
 		int mnCount;
@@ -63,7 +65,8 @@ namespace UVR_SLAM {
 		//단일 포인트에 대해서 평면을 생성하는 경우
 		//트래킹 도중에 생성이 가능함.
 		//이걸 제대로 동작하는지 확인하려면 match와 ratio를 이용하던가 하면 됨.
-		static cv::Mat CreatePlanarMapPoint(cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK);
+		static bool CreatePlanarMapPoint(cv::Mat& res, cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK);
+		static bool CreatePlanarMapPoint(cv::Mat& res, cv::Point2f pt, cv::Mat invP, cv::Mat invK, cv::Mat Rinv, cv::Mat Tinv, float max_thresh);
 		////
 
 		float CalcOverlapMPs(PlaneInformation* p, int nID);
@@ -127,9 +130,6 @@ namespace UVR_SLAM {
 		bool isDoingProcess();
 
 	private:
-
-		
-
 		
 		void reversePlaneSign(cv::Mat& param);
 		void UpdatePlane(PlaneInformation* pPlane, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
@@ -160,7 +160,31 @@ namespace UVR_SLAM {
 		Initializer* mpInitializer;
 		Matcher* mpMatcher;
 		Visualizer* mpVisualizer;
-		
+
+	//////////////////////////////////
+	////바닥 평면 외부 접근용
+	public:
+		void SetPlaneParam(PlaneInformation* pParam);
+		PlaneInformation* GetPlaneParam();
+	private:
+		PlaneInformation* mpFloorPlaneInformation;
+		std::mutex mMutexFloorPlaneParam;
+	////바닥 평면외부 접근용
+	//////////////////////////////////
+	
+
+	////////////////
+	////임시 시각화
+	public:
+		void SetTempPTs(std::vector<UVR_SLAM::FrameGrid*> vGrids, std::vector<cv::Mat> vPts);
+		void GetTempPTs(std::vector<UVR_SLAM::FrameGrid*>& vGrids, std::vector<cv::Mat>& vPts);
+		void GetTempPTs(std::vector<cv::Mat>& vPts);
+	private:
+		std::mutex mMutexVisPt;
+		std::vector<cv::Mat> mvTempPTs;
+		std::vector<UVR_SLAM::FrameGrid*> mvTempGrids;
+	////임시 시각화
+	////////////////
 	};
 }
 #endif

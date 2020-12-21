@@ -4,6 +4,8 @@
 #include <Map.h>
 #include <Plane.h>
 #include <Frame.h>
+#include <FrameGrid.h>
+#include <CandidatePoint.h>
 #include <SegmentationData.h>
 #include <MapPoint.h>
 #include <Matcher.h>
@@ -119,6 +121,8 @@ void UVR_SLAM::PlaneEstimator::Reset() {
 
 void UVR_SLAM::PlaneEstimator::Run() {
 
+	mpFloorPlaneInformation = new UVR_SLAM::PlaneInformation();
+	mpFloorPlaneInformation->mbInit = false;
 	std::string mStrPath;
 
 	std::vector<UVR_SLAM::PlaneInformation*> mvpPlanes;
@@ -148,6 +152,10 @@ void UVR_SLAM::PlaneEstimator::Run() {
 	float sumCeil = 0.0;
 	int nCeil = 0;
 
+	int mnLabel_floor = 4;
+	int mnLabel_ceil = 6;
+	int mnLabel_wall = 1;
+
 	while (true) {
 
 		if (CheckNewKeyFrames()) {
@@ -156,7 +164,201 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			SetBoolDoingProcess(true,0);
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 			ProcessNewKeyFrame();
-			std::cout << "pe::start::"<<mpTargetFrame->mnKeyFrameID<< std::endl;
+			
+			if (!mpPrevFrame) {
+				SetBoolDoingProcess(false, 0);
+				continue;
+			}
+			else
+			{
+
+				cv::Scalar color1(255, 0, 0);
+				cv::Scalar color2(0, 255, 0);
+				cv::Scalar color3(0, 0, 255);
+
+				std::vector<MapPoint*> vpMPs;
+				std::set<MapPoint*> spMPs;
+
+				std::vector<UVR_SLAM::MapPoint*> vpTempFloorMPs, vpTempOutlierFloorMPs;
+
+				auto spGraphKFs = mpMap->GetGraphFrames();//GetWindowFramesSet, GetGraphFrames
+				for (auto iter = spGraphKFs.begin(), iend = spGraphKFs.end(); iter != iend; iter++) {
+					auto pKFi = *iter;
+
+					auto vpGrids = pKFi->mmpFrameGrids;
+					auto vbGrids = pKFi->mmbFrameGrids;
+
+					for (auto iter = vpGrids.begin(), iend = vpGrids.end(); iter != iend; iter++) {
+						auto pGrid = iter->second;
+						auto pt = iter->first;
+						if (!pGrid)
+							continue;
+						
+						auto pCPi = pGrid->mpCP;
+						if (!pCPi)
+							continue;
+						auto pMPi = pCPi->GetMP();
+						bool bMP = !pMPi || pMPi->isDeleted() || !pMPi->GetQuality();
+						if (bMP)
+							continue;
+						if (spMPs.count(pMPi))
+							continue;
+
+						int nCountFloor = pGrid->mObjCount.at<int>(mnLabel_floor);//pGrid->mmObjCounts.count(mnLabel_floor);
+						float fWallArea = pGrid->mObjArea.at<float>(mnLabel_wall);
+						float fFloorArea = pGrid->mObjArea.at<float>(mnLabel_floor);
+						bool bFloor = nCountFloor > 0 && fFloorArea > fWallArea;
+						if (bFloor) {
+							vpTempFloorMPs.push_back(pMPi);
+						}
+						vpMPs.push_back(pMPi);
+						spMPs.insert(pMPi);
+
+						//int nCountFloor = pGrid->mmObjCounts[mnLabel_floor];
+					}
+				}
+				//std::cout << "Plane::MP::"<< vpTempFloorMPs.size()<<"::"<<vpMPs.size() << std::endl;
+				
+				if (vpTempFloorMPs.size() > 50) {
+					//std::cout << vpTempFloorMPs.size() << ", " << vpTempOutlierFloorMPs.size() << std::endl;
+					auto tempFloor = new UVR_SLAM::PlaneInformation();
+					bool bFloorRes = UVR_SLAM::PlaneInformation::PlaneInitialization(tempFloor, vpTempFloorMPs, vpTempOutlierFloorMPs, mpTargetFrame->mnFrameID, 1500, pidst, 0.1);
+					if (bFloorRes) {
+
+						SetPlaneParam(tempFloor);
+						//std::cout << "PARAM::" << tempFloor->GetParam().t() << std::endl;
+						cv::Mat R, t;
+						mpTargetFrame->GetPose(R, t);
+						for (size_t i = 0, iend = tempFloor->mvpMPs.size(); i < iend; i++) {
+							auto pMPi = tempFloor->mvpMPs[i];
+							if (!pMPi || pMPi->isDeleted())
+								continue;
+							cv::Mat X3D = pMPi->GetWorldPos();
+							cv::Mat temp = mK*(R*X3D + t);
+							cv::Point2f pt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
+							//cv::circle(testImg, pt, 2, color2, -1);
+						}
+						for (size_t i = 0, iend = vpTempOutlierFloorMPs.size(); i < iend; i++) {
+							auto pMPi = vpTempOutlierFloorMPs[i];
+							cv::Mat X3D = pMPi->GetWorldPos();
+							cv::Mat temp = mK*(R*X3D + t);
+							cv::Point2f pt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
+							//cv::circle(testImg, pt, 2, color3, -1);
+						}
+
+						////평면 시각화용
+						/*cv::Mat invP, invT, invK;
+						mpTargetFrame->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpTargetFrame, tempFloor);
+						mpTargetFrame->mpPlaneInformation->Calculate(tempFloor);
+						mpTargetFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
+						std::vector<cv::Mat> vTempVisPts;
+						int x = mpTargetFrame->matFrame.cols / 2;
+						for (size_t y = 0, yend = mpTargetFrame->matFrame.rows / 2; y < yend; y += 2) {
+							cv::Point2f pt(x, y);
+							cv::Mat s;
+							bool b = PlaneInformation::CreatePlanarMapPoint(s, pt, invP, invT, invK);
+							if (b)
+								vTempVisPts.push_back(s);
+						}
+						SetTempPTs(vTempVisPts);*/
+						////평면 시각화용
+
+					}//평면 검출 성공
+				}//사이즈
+				 //imshow("test::floor", testImg); cv::waitKey(1);
+				 /*cv::Mat resized;
+				 cv::resize(testImg, resized, cv::Size(testImg.cols / 2, testImg.rows / 2));
+				 mpVisualizer->SetOutputImage(resized, 2);*/
+
+				SetBoolDoingProcess(false, 0);
+				continue;
+			}
+
+			{
+				auto vpGrids = mpTargetFrame->mmpFrameGrids;
+				auto vbGrids = mpTargetFrame->mmbFrameGrids;
+				cv::Mat testImg = mpTargetFrame->GetOriginalImage().clone();
+				std::vector<UVR_SLAM::MapPoint*> vpTempFloorMPs, vpTempOutlierFloorMPs;
+				
+				cv::Scalar color1(255, 0, 0);
+				cv::Scalar color2(0, 255, 0);
+				cv::Scalar color3(0, 0, 255);
+
+				for (auto iter = vpGrids.begin(), iend = vpGrids.end(); iter != iend; iter++) {
+					auto pGrid = iter->second;
+					auto pt = iter->first;
+					if (!pGrid)
+						continue;
+					int nCountFloor = pGrid->mObjCount.at<int>(mnLabel_floor);
+					if (nCountFloor>0) {
+						
+						cv::circle(testImg, pGrid->pt, 3, color1, -1);
+						auto pCPi = pGrid->mpCP;
+						if (!pCPi)
+							continue;
+						auto pMPi = pCPi->GetMP();
+						if (pMPi) {
+							vpTempFloorMPs.push_back(pMPi);
+						}
+					}
+					//int nCountFloor = pGrid->mmObjCounts[mnLabel_floor];
+				}
+				if (vpTempFloorMPs.size() > 10) {
+					//std::cout << vpTempFloorMPs.size() << ", " << vpTempOutlierFloorMPs.size() << std::endl;
+					auto tempFloor = new UVR_SLAM::PlaneInformation();
+					bool bFloorRes = UVR_SLAM::PlaneInformation::PlaneInitialization(tempFloor, vpTempFloorMPs, vpTempOutlierFloorMPs, mpTargetFrame->mnFrameID, 1500, pidst, 0.1);
+					if (bFloorRes) {
+						
+						cv::Mat R, t;
+						mpTargetFrame->GetPose(R, t);
+						for (size_t i = 0, iend = tempFloor->mvpMPs.size(); i < iend; i++) {
+							auto pMPi = tempFloor->mvpMPs[i];
+							if (!pMPi || pMPi->isDeleted())
+								continue;
+							cv::Mat X3D = pMPi->GetWorldPos();
+							cv::Mat temp = mK*(R*X3D + t);
+							cv::Point2f pt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
+							cv::circle(testImg, pt, 2, color2, -1);
+						}
+						for (size_t i = 0, iend = vpTempOutlierFloorMPs.size(); i < iend; i++) {
+							auto pMPi = vpTempOutlierFloorMPs[i];
+							cv::Mat X3D = pMPi->GetWorldPos();
+							cv::Mat temp = mK*(R*X3D + t);
+							cv::Point2f pt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
+							cv::circle(testImg, pt, 2, color3, -1);
+						}
+
+						//////평면 시각화용
+						//cv::Mat invP, invT, invK;
+						//mpTargetFrame->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpTargetFrame, tempFloor);
+						//mpTargetFrame->mpPlaneInformation->Calculate(tempFloor);
+						//mpTargetFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
+						//std::vector<cv::Mat> vTempVisPts;
+						//std::vector<FrameGrid*> vTempGrids;
+						//int x = testImg.cols / 2;
+						//for (size_t y = 0, yend = testImg.rows/2; y < yend; y+=2) {
+						//	cv::Point2f pt(x, y);
+						//	cv::Mat s;
+						//	bool b = PlaneInformation::CreatePlanarMapPoint(s, pt, invP, invT, invK);
+						//	if(b){
+						//		vTempVisPts.push_back(s);
+						//		vTempGrids.push_back()
+						//	}
+						//}
+						//SetTempPTs(vTempVisPts);
+
+					}//평면 검출 성공
+				}//사이즈
+				//imshow("test::floor", testImg); cv::waitKey(1);
+				/*cv::Mat resized;
+				cv::resize(testImg, resized, cv::Size(testImg.cols / 2, testImg.rows / 2));
+				mpVisualizer->SetOutputImage(resized, 2);*/
+
+				SetBoolDoingProcess(false, 0);
+				continue;
+			}
+			
+			//std::cout << "pe::start::"<<mpTargetFrame->mnKeyFrameID<< std::endl;
 
 			///////////////////////////////평면 정보 시각화 관련 변수
 			cv::Mat debug = cv::Mat::zeros(1000, 640, CV_8UC1);
@@ -167,10 +369,10 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			int nTargetID = mpTargetFrame->mnKeyFrameID;
 			auto matchInfo = mpTargetFrame->mpMatchInfo;
 			//이전 프레임
-			auto prevFrame = mpTargetFrame->mpMatchInfo->mpTargetFrame;
+			auto prevFrame = mpTargetFrame->mpMatchInfo->mpPrevFrame;
 			auto prevMatchInfo = prevFrame->mpMatchInfo;
 			//이전이전 프레임
-			auto prevPrevFrame = prevFrame->mpMatchInfo->mpTargetFrame;
+			auto prevPrevFrame = prevFrame->mpMatchInfo->mpPrevFrame;
 			auto prevPrevMatchInfo = prevPrevFrame->mpMatchInfo;
 			/////////////////////////////현재 프레임에서 이용할 데이터 정보
 
@@ -2780,9 +2982,9 @@ cv::Mat UVR_SLAM::PlaneInformation::PlaneWallEstimator(UVR_SLAM::Line* line, cv:
 
 	Point2f from = line->from;
 	Point2f to = line->to;
-
-	cv::Mat s = CreatePlanarMapPoint(from, invP, invT, invK);
-	cv::Mat e = CreatePlanarMapPoint(to, invP, invT, invK);
+	cv::Mat s, e;
+	bool bs = CreatePlanarMapPoint(s, from, invP, invT, invK);
+	bool be = CreatePlanarMapPoint(e, to, invP, invT, invK);
 
 	cv::Mat normal2 = s - e;
 	normal2 = normal2.rowRange(0, 3);
@@ -2803,9 +3005,9 @@ cv::Mat UVR_SLAM::PlaneInformation::PlaneWallEstimator(cv::Vec4i line, cv::Mat n
 	
 	Point2f from(line[0], line[1]);
 	Point2f to(line[2], line[3]);
-
-	cv::Mat s = CreatePlanarMapPoint(from, invP, invT, invK);
-	cv::Mat e = CreatePlanarMapPoint(to, invP, invT, invK);
+	cv::Mat s, e;
+	bool bs = CreatePlanarMapPoint(s, from, invP, invT, invK);
+	bool be = CreatePlanarMapPoint(e, to, invP, invT, invK);
 
 	cv::Mat normal2 = s - e;
 	normal2 = normal2.rowRange(0, 3);
@@ -2822,18 +3024,37 @@ cv::Mat UVR_SLAM::PlaneInformation::PlaneWallEstimator(cv::Vec4i line, cv::Mat n
 	return normal3;  
 }
 //3차원값? 4차원으로?ㄴㄴ
-cv::Mat UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK){
+ bool UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(cv::Mat& res, cv::Point2f pt, cv::Mat invP, cv::Mat invT, cv::Mat invK){
 	cv::Mat temp1 = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
 	temp1 = invK*temp1;
-	cv::Mat matDepth1 = -invP.at<float>(3) / (invP.rowRange(0, 3).t()*temp1);
-	float depth = matDepth1.at<float>(0);
-	if (depth < 0)
-		depth *= -1.0;
+	float depth = -invP.at<float>(3)/temp1.dot(invP.rowRange(0, 3));
+	//cv::Mat matDepth1 = -invP.at<float>(3) / (invP.rowRange(0, 3).t()*temp1);
+	//float depth = matDepth1.at<float>(0);
+	
+	if (depth <= 0.0){
+		std::cout << "aaa depth : " << depth << std::endl;
+		//return false;
+	}
 	temp1 *= depth;
 	temp1.push_back(cv::Mat::ones(1, 1, CV_32FC1));
 	cv::Mat estimated = invT*temp1;
-	return estimated.rowRange(0,3);
+	res = estimated.rowRange(0, 3);
+	return true;
 }
+
+bool UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(cv::Mat& res, cv::Point2f pt, cv::Mat invP, cv::Mat invK, cv::Mat Rinv, cv::Mat Tinv, float max_thresh) {
+	 cv::Mat temp1 = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
+	 temp1 = invK*temp1;
+	 float depth = -invP.at<float>(3) / temp1.dot(invP.rowRange(0, 3));
+
+	 temp1 *= depth;
+	 res = Rinv*temp1 + Tinv;
+
+	 if (depth <= 0.0 || depth >= max_thresh) {
+		 return false;
+	 }
+	 return true;
+ }
 
 void UVR_SLAM::PlaneInformation::CreatePlanarMapPoints(Frame* pF, System* pSystem) {
 	
@@ -3147,3 +3368,31 @@ void UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(Frame* pTargetF, PlaneInfo
 }
 //////////코드 백업
 ////////////////////////////////////////////////////////////////////////
+
+
+void UVR_SLAM::PlaneEstimator::SetPlaneParam(PlaneInformation* pParam){
+	std::unique_lock<std::mutex> lockTemp(mMutexFloorPlaneParam);
+	mpFloorPlaneInformation->mbInit = true;
+	mpFloorPlaneInformation->SetParam(pParam->GetParam());
+}
+UVR_SLAM::PlaneInformation* UVR_SLAM::PlaneEstimator::GetPlaneParam(){
+	std::unique_lock<std::mutex> lockTemp(mMutexFloorPlaneParam);
+	return mpFloorPlaneInformation;
+}
+
+void UVR_SLAM::PlaneEstimator::SetTempPTs(std::vector<UVR_SLAM::FrameGrid*> vGrids, std::vector<cv::Mat> vPts){
+	std::unique_lock<std::mutex> lockTemp(mMutexVisPt);
+	mvTempPTs = std::vector<cv::Mat>(vPts.begin(), vPts.end());
+	mvTempGrids = std::vector<UVR_SLAM::FrameGrid*>(vGrids.begin(), vGrids.end());
+}
+
+void UVR_SLAM::PlaneEstimator::GetTempPTs(std::vector<UVR_SLAM::FrameGrid*>& vGrids, std::vector<cv::Mat>& vPts){
+	std::unique_lock<std::mutex> lockTemp(mMutexVisPt);
+	vPts = std::vector<cv::Mat>(mvTempPTs.begin(), mvTempPTs.end());
+	vGrids = std::vector<UVR_SLAM::FrameGrid*>(mvTempGrids.begin(), mvTempGrids.end());
+}
+
+void UVR_SLAM::PlaneEstimator::GetTempPTs(std::vector<cv::Mat>& vPts) {
+	std::unique_lock<std::mutex> lockTemp(mMutexVisPt);
+	vPts = std::vector<cv::Mat>(mvTempPTs.begin(), mvTempPTs.end());
+}

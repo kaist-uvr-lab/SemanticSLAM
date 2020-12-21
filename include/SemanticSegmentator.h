@@ -19,6 +19,8 @@ namespace UVR_SLAM {
 	class LocalMapper;
 	class Visualizer;
 	class Map;
+	class Database;
+	class LocalBinaryPatternProcessor;
 	class SemanticSegmentator {
 	public:
 		SemanticSegmentator();
@@ -57,6 +59,8 @@ namespace UVR_SLAM {
 		FrameWindow* mpFrameWindow;
 		PlaneEstimator* mpPlaneEstimator;
 		LocalMapper* mpLocalMapper;
+		LocalBinaryPatternProcessor* mpLBPProcessor;
+		Database* mpDatabase;
 		std::string ip;
 		int port;
 	};

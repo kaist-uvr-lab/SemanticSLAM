@@ -22,6 +22,9 @@ namespace UVR_SLAM {
 		int mnPlane;
 		bool mbMatched;
 		CandidatePoint* mpCP;
+		cv::Mat mDescLBP, mHistLBP;
+		cv::Mat mDescLBP2;
+		unsigned char mCharCode;
 		cv::Rect rect;
 		cv::Point2f basePt;
 		cv::Point2f pt;
@@ -30,8 +33,9 @@ namespace UVR_SLAM {
 		////새로 추가한 것
 		//오브젝트는 일단 대표 오브젝트만 고려?
 		FrameGrid* mpPrev, *mpNext;
-		std::map<int, int> mmObjCounts;
-		std::map<int, float> mmObjAreas;
+		cv::Mat mObjCount, mObjArea;
+		/*std::map<int, int> mmObjCounts;
+		std::map<int, float> mmObjAreas;*/
 	private:
 	};
 

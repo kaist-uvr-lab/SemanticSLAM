@@ -45,6 +45,55 @@ namespace g2o {
 	private:
 	};
 
+	class BAEdgeOnlyMapPoint : public BaseUnaryEdge<2, Vector2d, VertexSBAPointXYZ> {
+	public:
+		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+		BAEdgeOnlyMapPoint();
+		bool read(std::istream& is);
+		bool write(std::ostream& os) const;
+		
+		void SetPose(cv::Mat _R, cv::Mat _t) {
+			R << _R.at<float>(0, 0), _R.at<float>(0, 1), _R.at<float>(0, 2),
+				_R.at<float>(1, 0), _R.at<float>(1, 1), _R.at<float>(1, 2),
+				_R.at<float>(2, 0), _R.at<float>(2, 1), _R.at<float>(2, 2);
+			t[0] = _t.at<float>(0);
+			t[1] = _t.at<float>(1);
+			t[2] = _t.at<float>(2);
+			//std::cout << "t::" << t << std::endl;
+		}
+
+		void computeError() {
+			const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
+			Vector2d obs(_measurement);
+			_error = obs - cam_project(R*v2->estimate()+t);
+		}
+
+		bool isDepthPositive() {
+			const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
+			return (R*v2->estimate() + t)(2)>0.0;
+		}
+
+		float Depth() {
+			const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
+			return (R*v2->estimate() + t)(2);
+		}
+
+		virtual void linearizeOplus();
+		Vector2d cam_project(const Vector3d & trans_xyz) {
+			Vector2d res;
+			Vector2d proj;
+			proj(0) = trans_xyz(0) / trans_xyz(2);
+			proj(1) = trans_xyz(1) / trans_xyz(2);
+			res[0] = proj[0] * fx + cx;
+			res[1] = proj[1] * fy + cy;
+			return res;
+		}
+
+		Eigen::Matrix<double, 3, 3> R;
+		Eigen::Matrix<double, 3, 1> t;
+		double fx, fy, cx, cy;
+	};
+
 	class PlaneBAEdgeOnlyMapPoint : public BaseUnaryEdge<1, double, VertexSBAPointXYZ> {
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -57,6 +106,7 @@ namespace g2o {
 		Vector3d normal;
 		double dist;
 		Vector3d Xw;
+
 	};
 
 	class PlaneBAEdge : public BaseBinaryEdge<1, double, PlaneVertex, VertexSBAPointXYZ> {

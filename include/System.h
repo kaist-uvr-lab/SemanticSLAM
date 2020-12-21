@@ -14,9 +14,6 @@
 #include <opencv2/features2d.hpp>
 //#include <opencv2/calib3d.hpp>
 
-
-
-
 namespace fbow {
 	class VocabularyCreator {
 	public:
@@ -83,6 +80,8 @@ namespace UVR_SLAM {
 	class FrameVisualizer;
 	class MapOptimizer;
 	class Map;
+	class Database;
+	class LocalBinaryPatternProcessor;
 	class System {
 	public:
 
@@ -107,6 +106,8 @@ namespace UVR_SLAM {
 		PlaneEstimator* mpPlaneEstimator;
 		Visualizer* mpVisualizer;
 		FrameVisualizer* mpFrameVisualizer;
+		LocalBinaryPatternProcessor* mpLBPProcessor;
+		Database* mpDatabase;
 	public:
 		////parameter 파일 관련
 		std::string mstrFilePath;
@@ -251,6 +252,10 @@ namespace UVR_SLAM {
 		std::string mStrMapOptimizer;
 	////////////////////////////////////////////////////////////////////////
 	
+	//////TEST
+	public:
+		cv::Mat mPlaneHist;
+		std::mutex mMutexPlaneHist;
 	};
 }
 

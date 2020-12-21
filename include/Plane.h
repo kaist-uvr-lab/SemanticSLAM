@@ -24,6 +24,7 @@ namespace UVR_SLAM {
 			//std::vector<PlaneInformation*> GetPlanes();
 
 			void Calculate();
+			void Calculate(PlaneInformation* plane);
 			void GetInformation(cv::Mat& pInvP, cv::Mat& pInvT, cv::Mat& pInvK);
 			Frame* GetReferenceFrame();
 			void SetReferenceFrame(Frame* pF);

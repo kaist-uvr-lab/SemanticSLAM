@@ -1,12 +1,16 @@
 #include <FrameGrid.h>
 #include <CandidatePoint.h>
+#include <SegmentationData.h>
 
 namespace UVR_SLAM {
 	FrameGrid::FrameGrid(){}
 	FrameGrid::FrameGrid(cv::Point2f base, cv::Rect r):basePt(std::move(base)), rect(std::move(r)),mbMatched(false), mpPrev(nullptr), mpNext(nullptr){
-		
+		mObjCount = cv::Mat::zeros(1, ObjectColors::mvObjectLabelColors.size(), CV_32SC1);
+		mObjArea = cv::Mat::zeros(1, ObjectColors::mvObjectLabelColors.size(), CV_32FC1);
 	}FrameGrid::FrameGrid(cv::Point2f base, int nsize) : basePt(std::move(base)), mbMatched(false), mpPrev(nullptr), mpNext(nullptr) {
 		rect = cv::Rect(basePt, std::move(cv::Point2f(basePt.x + nsize, basePt.y + nsize)));
+		mObjCount = cv::Mat::zeros(1, ObjectColors::mvObjectLabelColors.size(), CV_32SC1);
+		mObjArea = cv::Mat::zeros(1, ObjectColors::mvObjectLabelColors.size(), CV_32FC1);
 	}
 	FrameGrid::~FrameGrid(){}
 
@@ -33,10 +37,8 @@ namespace UVR_SLAM {
 		std::nth_element(vecFromMat.begin(), vecFromMat.begin() + vecFromMat.size() / 2, vecFromMat.end());
 		//std::cout <<"gra::"<< (int)vecFromMat[0]<<" "<< (int)vecFromMat[vecFromMat.size() / 2] << " " << (int)vecFromMat[vecFromMat.size() - 1] << std::endl;;
 		
-		double minVal, maxVal;
-		cv::Point maxPt;
-		cv::Point gPt;
-		cv::minMaxLoc(src, &minVal, &maxVal, NULL, &gPt);
+		
+
 		/*std::cout << "test::" << std::endl;
 		std::cout << "max::"<<maxVal << std::endl;
 		std::cout << "min::" << minVal << std::endl;
@@ -44,28 +46,40 @@ namespace UVR_SLAM {
 		for (int i = 0; i < vecFromMat.size(); i++) {
 			std::cout <<i<<"="<< vecFromMat.size() / 2 <<"::"<< (int)vecFromMat[i] << std::endl;
 		}*/
+		////median 값 계산
 		int median = (int)vecFromMat[vecFromMat.size() / 2];
 		localthresh = median + gthresh;
 		
-		//int maxval = median;
-		//for (int y = 0; y < src.rows; y++) {
-		//	for (int x = 0; x < src.cols; x++) {
-		//		int val = src.at<uchar>(y, x);
-		//		if(val > thresh){
-		//			cv::Point2f tpt(x, y);
-		//			//auto tpt = cv::Point2f(gPt.x + basePt.x, gPt.y + basePt.y);
-		//			vecPTs.push_back(tpt+ basePt);
-		//			if (val > maxval) {
-		//				pt = tpt+basePt;
-		//				maxval = val;
-		//				mnMaxIDX = vecPTs.size() - 1; //vecpt+basept를 하면 됨.
-		//			}//max
-		//		}//thresh
-		//	}//for x
-		//}//fory
-		//if (vecPTs.size() > 0)
-		//	return true;
-		//return false;
+		////그리드 내 모든 포인트를 추가하는 경우
+		int maxval = median;
+		for (int y = 0; y < src.rows; y++) {
+			for (int x = 0; x < src.cols; x++) {
+				int val = src.at<uchar>(y, x);
+				if(val > localthresh){
+					cv::Point2f tpt(x, y);
+					//auto tpt = cv::Point2f(gPt.x + basePt.x, gPt.y + basePt.y);
+					auto apt = tpt + basePt;
+					vecPTs.push_back(apt);
+					if (val > maxval) {
+						pt = apt;
+						maxval = val;
+						mnMaxIDX = vecPTs.size() - 1; //vecpt+basept를 하면 됨.
+					}//max
+				}//thresh
+			}//for x
+		}//fory
+
+		if (vecPTs.size() > 0)
+			return true;
+		return false;
+		////그리드 내 모든 포인트를 추가하는 경우
+
+		//////max 값 하나만 선택시
+		/*double minVal, maxVal;
+		cv::Point maxPt;
+		cv::Point gPt;
+		cv::minMaxLoc(src, &minVal, &maxVal, NULL, &gPt);
+
 		int resVal = (int)maxVal;
 		if (resVal > localthresh) {
 			pt = cv::Point2f(gPt.x + basePt.x, gPt.y + basePt.y);
@@ -73,6 +87,7 @@ namespace UVR_SLAM {
 			return true;
 		}
 		else
-			return false;
+			return false;*/
+		//////max 값 하나만 선택시
 	}
 }

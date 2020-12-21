@@ -18,6 +18,39 @@ bool PlaneVertex::write(std::ostream& os) const {
 	}
 	return os.good();
 }
+BAEdgeOnlyMapPoint::BAEdgeOnlyMapPoint() {
+
+}
+bool BAEdgeOnlyMapPoint::read(std::istream& is) {
+	return true;
+}
+
+bool BAEdgeOnlyMapPoint::write(std::ostream& os) const {
+	return true;
+}
+void BAEdgeOnlyMapPoint::linearizeOplus() {
+	VertexSBAPointXYZ* vi = static_cast<VertexSBAPointXYZ*>(_vertices[0]);
+	Vector3d xyz = vi->estimate();
+	Vector3d xyz_trans = R*xyz + t;
+	
+	double x = xyz_trans[0];
+	double y = xyz_trans[1];
+	double z = xyz_trans[2];
+	double z_2 = z*z;
+
+	Matrix<double, 2, 3> tmp;
+	
+	tmp(0, 0) = fx;
+	tmp(0, 1) = 0;
+	tmp(0, 2) = -x / z*fx;
+
+	tmp(1, 0) = 0;
+	tmp(1, 1) = fy;
+	tmp(1, 2) = -y / z*fy;
+
+	_jacobianOplusXi = -1. / z * tmp * R;
+}
+
 //new edge
 PlaneBAEdgeOnlyMapPoint::PlaneBAEdgeOnlyMapPoint() {
 

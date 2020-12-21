@@ -92,7 +92,7 @@ namespace UVR_SLAM {
 		//현재 매칭된 값을 저장함.
 		float mfLowQualityRatio;
 		int mnWidth, mnHeight;
-		UVR_SLAM::Frame* mpTargetFrame, *mpRefFrame, *mpNextFrame;
+		UVR_SLAM::Frame* mpPrevFrame, *mpRefFrame, *mpNextFrame;
 		////매칭 된 정보를 저장하는건데 사용 안할듯함.
 		std::vector<int> mvnVisibles, mvnMatches;
 		////디버깅용 이미지를 저장함.
@@ -183,7 +183,7 @@ namespace UVR_SLAM {
 	public:
 		void ComputeSceneMedianDepth();
 		void ComputeSceneDepth();
-		float mfMeanDepth, mfMedianDepth, mfMinDepth, mfStdDev;
+		float mfMeanDepth, mfMedianDepth, mfMinDepth, mfStdDev, mfRange;
 	////////////////
 	public:
 		int mnLocalMapFrameID;

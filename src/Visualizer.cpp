@@ -11,6 +11,7 @@ UVR_SLAM::Visualizer::Visualizer() {}
 UVR_SLAM::Visualizer::Visualizer(System* pSystem, int w, int h, int scale) :mpSystem(pSystem), mnWidth(w), mnHeight(h), mnVisScale(scale), mnFontFace(2), mfFontScale(0.6), mpMatchInfo(nullptr){
 }
 UVR_SLAM::Visualizer::~Visualizer() {}
+
 void CalcLineEquation(cv::Point2f pt1, cv::Point2f pt2, float& slope, float& dist) {
 	float dx = pt2.x - pt1.x;	//a
 	float dy = pt2.y - pt1.y;   //b
@@ -131,6 +132,7 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 
 void UVR_SLAM::Visualizer::Init() {
 	
+	mpPlaneEstimator = mpSystem->mpPlaneEstimator;
 	mpMap = mpSystem->mpMap;
 	mnDisplayX = mpSystem->mnDisplayX;
 	mnDisplayY = mpSystem->mnDisplayY;
@@ -370,6 +372,21 @@ void UVR_SLAM::Visualizer::Run() {
 				}
 				//전체 맵포인트 시각화
 				//////////////////////////////
+
+				////////////////////////////////
+				//////평면 시각화
+				std::vector<cv::Mat> vpTempPlaneVisPTs;
+				mpPlaneEstimator->GetTempPTs(vpTempPlaneVisPTs);
+				cv::Scalar tempPlaneColor(255, 0, 255);
+				for (size_t i = 0, iend = vpTempPlaneVisPTs.size(); i < iend; i++) {
+					cv::Mat x3D = vpTempPlaneVisPTs[i];
+					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
+					tpt += mVisMidPt;
+					cv::circle(tempVis, tpt, 2, tempPlaneColor, -1);
+				}
+				//////평면 시각화
+				////////////////////////////////
+				
 
 				////////////////////////////////////////////////////////////
 				/////트래킹 결과 출력

@@ -10,6 +10,9 @@
 #include <CandidatePoint.h>
 #include <FrameGrid.h>
 #include <Map.h>
+#include <LocalBinaryPatternProcessor.h>
+#include <Database.h>
+//#include "lbplibrary.hpp"
 
 std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
 
@@ -52,6 +55,8 @@ void UVR_SLAM::SemanticSegmentator::InsertKeyFrame(UVR_SLAM::Frame *pKF)
 {
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
 	//std::cout << "Segmentator::" << mKFQueue.size() << std::endl;
+	std::queue<Frame*> emptyQueue;
+	std::swap(mKFQueue, emptyQueue);
 	mKFQueue.push(pKF);
 }
 
@@ -66,7 +71,7 @@ void UVR_SLAM::SemanticSegmentator::ProcessNewKeyFrame()
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
 	mpPrevFrame = mpTargetFrame;
 	mpTargetFrame = mKFQueue.front();
-	mKFQueue.pop();
+	//mKFQueue.pop();
 }
 
 void UVR_SLAM::SemanticSegmentator::Init() {
@@ -74,11 +79,93 @@ void UVR_SLAM::SemanticSegmentator::Init() {
 	mpLocalMapper = mpSystem->mpLocalMapper;
 	mpPlaneEstimator = mpSystem->mpPlaneEstimator;
 	mpVisualizer = mpSystem->mpVisualizer;
+	mpLBPProcessor = mpSystem->mpLBPProcessor;
+	mpDatabase = mpSystem->mpDatabase;
+}
+
+unsigned long long ConvertID(cv::Mat hist, int numPatterns, int numIDs) {
+	unsigned long long id = 0;
+	unsigned long long base = 1;
+	for (size_t i = 0, iend = hist.cols; i < iend; i++) {
+		//std::cout << "curr base id::" << base << std::endl;
+		/*unsigned long long tempID = base-1;*/
+		int val = hist.at<int>(i);
+		if (val == numIDs)
+			val--;
+		/*if(val > 0)
+			id += (tempID + val);*/
+		id += (base*val);
+		base *= numIDs;
+		//std::cout << "next base id::" <<base<< std::endl;
+	}
+	//std::cout << id << "::" << hist << std::endl;
+	return id;
 }
 
 void UVR_SLAM::SemanticSegmentator::Run() {
 
 	JSONConverter::Init();
+	
+	////LBP param
+	lbplibrary::LBP* lbp = new lbplibrary::SCSLBP(2, 4);
+	mpSystem->mPlaneHist = cv::Mat::zeros(1, lbp->numPatterns, CV_32SC1);
+	cv::Mat mWallHist = cv::Mat::zeros(1, lbp->numPatterns, CV_32SC1);
+	int mnLabel_floor = 4;
+	int mnLabel_wall = 1;
+	cv::Point minLoc, maxLoc;
+	maxLoc = cv::Point(-1, -1);
+	cv::Point minLoc1, maxLoc1;
+	maxLoc1 = cv::Point(-1, -1);
+	cv::Point minLoc2, maxLoc2;
+	maxLoc2 = cv::Point(-1, -1);
+	int minIdx, maxIdx;
+	maxIdx = -1;
+	unsigned char maxOverlapCode, maxPlaneCode, maxWallCode;
+	cv::Mat matCandidatePlaneCode, matCandidateWallCode;
+
+	int numPatterns = lbp->numPatterns; //2^N
+	int nHalfPatchSize = 5;
+	int nPatchSize = nHalfPatchSize * 2;
+	int numIDs = nPatchSize;// nHalfPatchSize;// nHalfPatchSize;	   //patch size / n
+	int nDicrete = nPatchSize*nPatchSize / numIDs;
+	std::map<unsigned long long, cv::Mat> mmObjLBP;
+	////LBP param
+
+	//unsigned long long nMaxID = (unsigned long long)pow(10, numPatterns);
+	//unsigned long nMaxID2 = (unsigned long)pow(numPatterns, numIDs);
+	//unsigned int nMaxID3 = (unsigned int)pow(numPatterns, numIDs);
+	//unsigned long long val = 1LL;
+	//for (int i = 0; i < numPatterns; i++) {
+	//	val *= 10;
+	//	std::cout << val <<"::"<<i+1<< std::endl;
+	//}
+	//std::cout << "maxID::" << LLONG_MAX<<", "<<INT_MAX<<", "<< nDicrete <<"::"<<nMaxID<<", "<<nMaxID2<<", "<< (LLONG_MAX > nMaxID) << std::endl;
+
+	//cv::Mat a = cv::Mat::zeros(1, numPatterns, CV_32SC1);
+	//a.at<int>(1) = 3;
+	////std::vector<cv::Mat> mvLBPDesc(nMaxID,a);
+	////std::cout << "make vector::" <<mvLBPDesc.size()<< std::endl;
+	//ConvertID(a, numPatterns, numIDs);
+
+	//cv::Mat b = cv::Mat::zeros(1, numPatterns, CV_32SC1);
+	//b.at<int>(13) = 4;
+	//ConvertID(b, numPatterns, numIDs);
+
+	//UVR_SLAM::ObjectColors::mvObjectLabelColors
+
+	/*std::map<cv::Mat, Frame*> mmpTest;
+	cv::Mat A = cv::Mat::zeros(1, 10, CV_8UC1);
+	cv::Mat B = cv::Mat::zeros(1, 10, CV_8UC1);
+	cv::Mat C = cv::Mat::ones(1, 10, CV_8UC1);
+	cv::Mat D = cv::Mat::ones(1, 10, CV_8UC1)*10;
+	auto a = A > B;
+	
+	mmpTest.insert(std::make_pair(A, mpTargetFrame));
+	mmpTest.insert(std::make_pair(B, mpTargetFrame));
+	mmpTest.insert(std::make_pair(C, mpTargetFrame));
+	mmpTest.insert(std::make_pair(D, mpTargetFrame));
+	std::cout << "asdfasdfasdf::" << mmpTest.size() << std::endl;*/
+	////LBP
 
 	while (1) {
 		std::string mStrDirPath;
@@ -98,6 +185,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//request post
 			//리사이즈 안하면 칼라이미지로
 			int status = 0;
+
 			JSONConverter::RequestPOST(ip, port, resized_color, segmented, mpTargetFrame->mnFrameID, status);
 
 			int nRatio = colorimg.rows / segmented.rows;
@@ -107,8 +195,21 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			mpTargetFrame->matLabeled = segmented.clone();
 			mpTargetFrame->matSegmented = segmented.clone();
 			
+			cv::Mat testImg = mpTargetFrame->GetOriginalImage().clone();
 			////그리드 사이즈
 			int nGridSize = mpSystem->mnRadius * 2;
+			
+			////////////LBP process
+			////LBP용 가우시안 블러
+			cv::Mat blurred, lbpImg, lbpHist;
+			cv::GaussianBlur(mpTargetFrame->matFrame, blurred, cv::Size(7, 7), 5, 3, cv::BORDER_CONSTANT);
+			lbpImg = mpLBPProcessor->ConvertDescriptor(blurred);
+			cv::Mat resized_lbp;
+			cv::resize(lbpImg, resized_lbp, cv::Size(lbpImg.cols / 2, lbpImg.rows / 2));
+			cv::normalize(resized_lbp, resized_lbp, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+			cv::cvtColor(resized_lbp, resized_lbp, CV_GRAY2BGR);
+			mpVisualizer->SetOutputImage(resized_lbp, 2);
+			////////////LBP process
 
 			////세그멘테이션 칼라 전달
 			int nMaxLabel;
@@ -119,13 +220,107 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 					int label = segmented.at<uchar>(y, x);
 					seg_color.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
 					
+					cv::Point2f pt(x * 2, y * 2);
+					
+					//////LBP code update
+					//unsigned char code;
+					//cv::Point2f ptLeft1(pt.x - 10, pt.y - 10);
+					//cv::Point2f ptRight1(pt.x + 10, pt.y + 10);
+					//bool bLeft = ptLeft1.x >= 0 && ptLeft1.y >= 0;
+					//bool bRight = ptRight1.x < mnWidth && ptRight1.y < mnHeight;
+					//bool bCode = bLeft && bRight;
+					//cv::Mat hist;
+					//unsigned long long id;
+					//if (bCode) {
+					//	cv::Mat desc, hist;
+					//	cv::Rect rect1(ptLeft1, ptRight1);
+					//	//lbp->run(mpTargetFrame->matFrame(rect1), desc);
+					//	
+					//	/*desc = lbpImg(rect1);
+					//	hist = lbplibrary::histogram(desc, lbp->numPatterns);
+					//	hist /= nDicrete;
+					//	id = ConvertID(hist, numPatterns, numIDs);*/
+					//	/*if (mmObjLBP.count(id) == 0) {
+					//		mmObjLBP[id] = cv::Mat::zeros(1, ObjectColors::mvObjectLabelColors.size(), CV_32SC1);
+					//	}
+					//	mmObjLBP[id].at<int>(label)++;*/
+
+					//	hist = mpLBPProcessor->ConvertHistogram(lbpImg, rect1);
+					//	id = mpLBPProcessor->GetID(hist);
+					//	mpDatabase->AddData(id, label);
+					//	//std::cout <<"pt::"<<x<<", "<<y<<"::code::"<< id << "::label=" << label <<"::label2="<< maxLoc2.x<<"::"<<max_val<<", "<<mmObjLBP[id].at<int>(label)<< std::endl;
+					//}
+					//////LBP code update
+
 					////그리드 처리
-					auto gridBasePt = mpTargetFrame->GetGridBasePt(cv::Point2f(x * 2, y * 2), nGridSize);
+					auto gridBasePt = mpTargetFrame->GetGridBasePt(pt, nGridSize);
 					if (mpTargetFrame->mmpFrameGrids.count(gridBasePt)) {
 						auto pGrid = mpTargetFrame->mmpFrameGrids[gridBasePt];
+						
 						if (pGrid) {
-							pGrid->mmObjCounts[label]++;
+							pGrid->mObjCount.at<int>(label)++;
+							//cv::circle(resized_color, cv::Point2f(pGrid->basePt.x/2, pGrid->basePt.y/2), 3, cv::Scalar(0, 0, 255));
 
+							////LBP texture classification
+							//if (bCode) {
+							//	/*double max_val = 0;
+							//	minMaxLoc(mmObjLBP[id], 0, &max_val, &minLoc2, &maxLoc2);
+							//	int label2 = maxLoc2.x;*/
+							//	int label2 = mpDatabase->GetData(id);
+							//	cv::circle(testImg, pGrid->pt, 4, ObjectColors::mvObjectLabelColors[label], -1);
+							//	cv::circle(testImg, pGrid->pt, 2, ObjectColors::mvObjectLabelColors[label2], -1);
+							//}
+							////LBP texture classification
+
+							//if (label == mnLabel_floor) {
+							//	hist = mpSystem->mPlaneHist;
+							//	if (bCode) {
+							//		code = lbp->run(mpTargetFrame->matFrame, pGrid->pt);
+							//		mpSystem->mPlaneHist.at<int>(code)++;
+							//	}
+							//	/*if (bCode) {
+							//		code = lbp->run(mpTargetFrame->matFrame, pGrid->pt);
+							//		mpSystem->mPlaneHist.at<int>(code)++;
+
+							//		if (maxLoc1.x != -1 && maxLoc1.y != -1 && matCandidatePlaneCode.at<uchar>(code) == 255) {
+							//			cv::circle(testImg, pGrid->pt, 4, cv::Scalar(255, 0, 0), -1);
+							//		}
+							//	}*/
+							//}
+							//else if (label == mnLabel_wall) {
+							//	if (bCode) {
+							//		code = lbp->run(mpTargetFrame->matFrame, pGrid->pt);
+							//		mWallHist.at<int>(code)++;
+							//	}
+							//	hist = mWallHist;
+							//	/*if (bCode) {
+							//		code = lbp->run(mpTargetFrame->matFrame, pGrid->pt);
+							//		mWallHist.at<int>(code)++;
+							//		if (maxLoc2.x != -1 && maxLoc2.y != -1 && code == maxLoc2.x) {
+							//			cv::circle(testImg, pGrid->pt, 4, cv::Scalar(0, 255, 0), -1);
+							//		}
+							//	}*/
+							//}
+							//if (bCode) {
+							//	
+							//	if (maxLoc1.x != -1 && maxLoc1.y != -1 && matCandidatePlaneCode.at<uchar>(code) == 255) {
+							//		cv::circle(testImg, pGrid->pt, 4, cv::Scalar(255, 0, 0), -1);
+							//	}
+							//	if (maxLoc1.x != -1 && maxLoc1.y != -1 && matCandidateWallCode.at<uchar>(code) == 255) {
+							//		cv::circle(testImg, pGrid->pt, 3, cv::Scalar(0, 255, 0), -1);
+							//	}
+							//}
+
+							/*if (bCode) {
+								auto code = lbp->run(mpTargetFrame->matFrame, pGrid->pt);
+								hist.at<int>(code)++;
+							}*/
+							//if (bCode && maxLoc.x != -1 && maxLoc.y != -1 && matCandidateWallCode.at<uchar>(code) == 255) {
+							//	//시각화
+							//	cv::circle(testImg, pGrid->pt, 2, cv::Scalar(255, 0, 255), -1);
+							//	//cv::imshow("overlap::max", mpTargetFrame->GetOriginalImage()(pGrid->rect)); cv::waitKey(1);
+							//}
+							////LBP code update
 						}
 						/*else {
 						std::cout << "seg::error::grid::nullptr" << std::endl;
@@ -134,21 +329,163 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 					}
 					////그리드 처리
 
-					if (!mpTargetFrame->mpMatchInfo->mmLabelMasks.count(label)) {
-						mpTargetFrame->mpMatchInfo->mmLabelMasks[label] = cv::Mat::zeros(segmented.size(), CV_8UC1);
-					}
-					else {
-						mpTargetFrame->mpMatchInfo->mmLabelAcc[label]++;
-						if (mpTargetFrame->mpMatchInfo->mmLabelAcc[label] > nMaxLabelCount)
-						{
-							nMaxLabel = label;
-							nMaxLabelCount = mpTargetFrame->mpMatchInfo->mmLabelAcc[label];
+
+					//////프레임에 대해서도 레이블 정보 누적 
+					////여기는 레이블 벡터가 되어도 될 거 같음.
+					//if (!mpTargetFrame->mpMatchInfo->mmLabelMasks.count(label)) {
+					//	mpTargetFrame->mpMatchInfo->mmLabelMasks[label] = cv::Mat::zeros(segmented.size(), CV_8UC1);
+					//}
+					//else {
+					//	mpTargetFrame->mpMatchInfo->mmLabelAcc[label]++;
+					//	if (mpTargetFrame->mpMatchInfo->mmLabelAcc[label] > nMaxLabelCount)
+					//	{
+					//		nMaxLabel = label;
+					//		nMaxLabelCount = mpTargetFrame->mpMatchInfo->mmLabelAcc[label];
+					//	}
+					//	mpTargetFrame->mpMatchInfo->mmLabelMasks[label].at<uchar>(y, x) = 255;
+					//}
+					//////프레임에 대해서도 레이블 정보 누적 
+					////여기는 레이블 벡터가 되어도 될 거 같음.
+				}
+			}//for seg_color image
+
+			////그리드 정보 획득
+			auto vpGrids = mpTargetFrame->mmpFrameGrids;
+			auto vbGrids = mpTargetFrame->mmbFrameGrids;
+			////그리드 정보 획득
+
+			////Grid area calculation
+			for (auto iter = vpGrids.begin(), iend = vpGrids.end(); iter != iend; iter++) {
+				auto pGrid = iter->second;
+				auto pt = iter->first;
+				if (!pGrid)
+					continue;
+
+				auto rect = pGrid->rect;
+				float area = (float)rect.area();
+				pGrid->mObjCount.convertTo(pGrid->mObjArea, CV_32FC1);
+				pGrid->mObjArea = pGrid->mObjArea / area;
+				/*for (auto oiter = pGrid->mmObjCounts.begin(), oiend = pGrid->mmObjCounts.end(); oiter != oiend; oiter++) {
+					int label = oiter->first;
+					int count = oiter->second;
+					float orea = count / area;
+					pGrid->mmObjAreas[label] = orea;
+				}*/
+			}
+			////Grid area calculation
+				
+			//////평면 정보로 복원
+			{
+				cv::Mat R, t;
+				mpTargetFrame->GetPose(R, t);
+				cv::Mat Rcw2 = R.row(2).t();
+				float zcw = t.at<float>(2);
+				float mfMaxDepth = mpTargetFrame->mfMedianDepth + mpTargetFrame->mfRange;
+				//cv::Mat testImg = mpTargetFrame->GetOriginalImage().clone();
+				cv::Mat invP, invT, invK;
+				cv::Mat Rinv, Tinv;
+				invK = mpSystem->mInvK;
+				mpTargetFrame->GetInversePose(Rinv, Tinv);
+				auto pFloorParam = mpPlaneEstimator->GetPlaneParam();
+				if (pFloorParam->mbInit) {
+					mpTargetFrame->mpPlaneInformation = new UVR_SLAM::PlaneProcessInformation(mpTargetFrame, pFloorParam);
+					mpTargetFrame->mpPlaneInformation->Calculate(pFloorParam);
+					mpTargetFrame->mpPlaneInformation->GetInformation(invP, invT, invK);
+					std::vector<cv::Mat> vTempVisPts;
+					std::vector<FrameGrid*> vTempGrids;
+					for (auto iter = vpGrids.begin(), iend = vpGrids.end(); iter != iend; iter++) {
+						auto pGrid = iter->second;
+						if (!pGrid)
+							continue;
+						//cv::circle(testImg, pGrid->basePt, 3, cv::Scalar(0,0,255));
+
+						auto pt = pGrid->basePt;
+						int nCountFloor = pGrid->mObjCount.at<int>(mnLabel_floor);//pGrid->mmObjCounts.count(mnLabel_floor);
+						float fWallArea = pGrid->mObjArea.at<float>(mnLabel_wall);
+						float fFloorArea = pGrid->mObjArea.at<float>(mnLabel_floor);
+						bool bFloor = nCountFloor > 0 && fFloorArea > fWallArea*5.0;
+						if (!bFloor){
+							//cv::circle(testImg, pGrid->basePt, 3, cv::Scalar(0, 255, 0));
+							continue;
 						}
-						mpTargetFrame->mpMatchInfo->mmLabelMasks[label].at<uchar>(y, x) = 255;
+						cv::Mat s;
+						//bool b = PlaneInformation::CreatePlanarMapPoint(s, pt, invP, invT, invK);
+						bool b = PlaneInformation::CreatePlanarMapPoint(s, pt, invP, invK, Rinv, Tinv, mfMaxDepth);
+						if (b){
+							vTempVisPts.push_back(s);
+							vTempGrids.push_back(pGrid);
+							//cv::circle(testImg, pt, 3, cv::Scalar(255));
+						}
+						/*else {
+							cv::circle(testImg, pGrid->basePt, 3, cv::Scalar(0, 255, 255));
+						}*/
 					}
+					mpPlaneEstimator->SetTempPTs(vTempGrids,vTempVisPts);
+					//imshow("Seg::Plane::", testImg); cv::waitKey(1);
 				}
 			}
 			
+			//////평면 정보로 복원
+
+			//////LBP hist visualization
+			//int bins = lbp->numPatterns;
+			//int hist_height = 256;
+			//{
+			//	double max_val = 0;
+			//	cv::Mat hist_plane = mpSystem->mPlaneHist.clone();
+			//	cv::Mat3b hist_image_plane = cv::Mat3b::zeros(hist_height, bins);
+			//	minMaxLoc(hist_plane, 0, &max_val, &minLoc1, &maxLoc1);
+			//	for (int b = 0; b < bins; b++) {
+			//		float const binVal = (float)hist_plane.at<int>(b);
+			//		int   const height = cvRound(binVal*hist_height / max_val);
+			//		cv::line
+			//		(hist_image_plane
+			//			, cv::Point(b, hist_height - height), cv::Point(b, hist_height)
+			//			, cv::Scalar::all(255)
+			//		);
+			//	}
+			//	matCandidatePlaneCode = hist_plane > max_val * 0.6;
+			//	cv::imshow("PlaneHist", hist_image_plane);
+			//}
+			//{
+			//	double max_val = 0;
+			//	cv::Mat hist_wall = mWallHist.clone();
+			//	cv::Mat3b hist_image_wall = cv::Mat3b::zeros(hist_height, bins);
+			//	minMaxLoc(hist_wall, 0, &max_val, &minLoc2, &maxLoc2);
+			//	for (int b = 0; b < bins; b++) {
+			//		float const binVal = (float)hist_wall.at<int>(b);
+			//		int   const height = cvRound(binVal*hist_height / max_val);
+			//		cv::line
+			//		(hist_image_wall
+			//			, cv::Point(b, hist_height - height), cv::Point(b, hist_height)
+			//			, cv::Scalar::all(255)
+			//		);
+			//	}
+			//	matCandidateWallCode = hist_wall > max_val * 0.6;
+			//	cv::imshow("WallHist", hist_image_wall);
+			//}
+			//{
+			//	double max_val = 0;
+			//	cv::Mat hist = mWallHist & mpSystem->mPlaneHist;
+			//	cv::Mat3b hist_image_plane = cv::Mat3b::zeros(hist_height, bins);
+			//	minMaxLoc(hist, 0, &max_val, &minLoc, &maxLoc);
+			//	std::cout << "overlap::" << max_val <<", "<<maxLoc<< std::endl;
+			//	for (int b = 0; b < bins; b++) {
+			//		float const binVal = (float)hist.at<int>(b);
+			//		int   const height = cvRound(binVal*hist_height / max_val);
+			//		cv::line
+			//		(hist_image_plane
+			//			, cv::Point(b, hist_height - height), cv::Point(b, hist_height)
+			//			, cv::Scalar::all(255)
+			//		);
+			//	}
+			//	cv::imshow("Overlap", hist_image_plane);
+			//	cv::imshow("overlap::max", testImg); cv::waitKey(1);
+			//}
+			//cv::imshow("overlap::max", testImg); cv::waitKey(1);
+			//////LBP hist visualization
+
+
 			////다음 그리드에 전파
 			float nTotalArea = nGridSize*nGridSize;
 			for (auto iter = mpTargetFrame->mmpFrameGrids.begin(), iend = mpTargetFrame->mmpFrameGrids.end(); iter != iend; iter++) {
@@ -158,16 +495,32 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 				FrameGrid* nextPtr = pGrid->mpNext;
 				while (nextPtr) {
 					//std::copy(pGrid->mmObjCounts.begin(), pGrid->mmObjCounts.end(), nextPtr->mmObjCounts.begin());
-					for (auto oiter = pGrid->mmObjCounts.begin(), oiend = pGrid->mmObjCounts.end(); oiter != oiend; oiter++) {
+					nextPtr->mObjArea = pGrid->mObjArea.clone();
+					nextPtr->mObjCount = pGrid->mObjCount.clone();
+					/*for (auto oiter = pGrid->mmObjCounts.begin(), oiend = pGrid->mmObjCounts.end(); oiter != oiend; oiter++) {
 						auto label = oiter->first;
 						auto count = oiter->second;
+						auto area = pGrid->mmObjAreas[label];
 						nextPtr->mmObjCounts[label] = count;
-					}
+						nextPtr->mmObjAreas[label] = area;
+					}*/
 					nextPtr = nextPtr->mpNext;
 					//break;
 				}
 			}
 			////다음 그리드에 전파
+
+			//////////////////////////////////////////////////
+			////////디버깅을 위한 이미지 저장
+			/*mStrDirPath = mpSystem->GetDirPath(0);
+			std::stringstream ss;
+			ss << mStrDirPath.c_str() << "/seg/ori_" << mpTargetFrame->mnFrameID << ".jpg";
+			cv::imwrite(ss.str(), mpTargetFrame->GetOriginalImage());
+			ss.str("");
+			ss << mStrDirPath.c_str() << "/seg/segmentation_color_"<<mpTargetFrame->mnFrameID <<".jpg";
+			cv::imwrite(ss.str(), seg_color);*/
+			////////디버깅을 위한 이미지 저장
+			//////////////////////////////////////////////////
 
 			///////////CCL TEST
 			cv::addWeighted(seg_color, 0.5, resized_color, 0.5, 0.0, resized_color);
@@ -180,6 +533,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 				if (numOfLables > 0) {
 					int maxArea = 0;
 					int maxIdx = 0;
+					
 					////라벨링 된 이미지에 각각 직사각형으로 둘러싸기 
 					//for (int j = 0; j < numOfLables; j++) {
 					//	int area = stats.at<int>(j, CC_STAT_AREA);
@@ -190,6 +544,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 					//		maxIdx = j;
 					//	}
 					//}
+
 					for (int j = 0; j < numOfLables; j++) {
 						/*if (j == maxIdx)
 						continue;*/
@@ -271,12 +626,19 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 		
 			//////////////////////////////////////////////
 			//////디버깅 값 전달
+			int nFrameSize = 0;
+			{
+				std::unique_lock<std::mutex> lock(mMutexNewKFs);
+				nFrameSize = mKFQueue.size();
+			}
 			std::stringstream ssa;
-			ssa << "Segmentation : " << mpTargetFrame->mnKeyFrameID <<" : " << tttt << std::endl;
+			ssa << "Segmentation : " << mpTargetFrame->mnKeyFrameID << " : " << tttt << " ::" << nFrameSize;
 			mpSystem->SetSegmentationString(ssa.str());
 			//////디버깅 값 전달
 			//////////////////////////////////////////////
 
+			////////평면 추정 쓰레드 전달
+			mpPlaneEstimator->InsertKeyFrame(mpTargetFrame);
 			
 			SetBoolDoingProcess(false);
 		}

@@ -10,6 +10,8 @@
 #include <FrameGrid.h>
 #include <Plane.h>
 #include <DepthFilter.h>
+#include <LocalBinaryPatternProcessor.h>
+#include <Database.h>
 
 bool UVR_SLAM::Frame::mbInitialComputations = true;
 float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
@@ -384,6 +386,8 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(std::vector<UVR_SLAM::MapPoint*> v
 ////20.09.05 수정 필요.
 void UVR_SLAM::Frame::ComputeSceneDepth() {
 
+	float fMaxDepth = 0.0;
+
 	cv::Mat Rcw2;
 	float zcw;
 	{
@@ -403,11 +407,13 @@ void UVR_SLAM::Frame::ComputeSceneDepth() {
 		cv::Mat x3Dw = pMPi->GetWorldPos();
 		float z = (float)Rcw2.dot(x3Dw) + zcw;
 		mfMinDepth = fmin(z, mfMinDepth);
+		fMaxDepth = fmax(z, fMaxDepth);
 		vDepths.push_back(z);
 	}
 	if (vDepths.size() == 0) {
 		return;
 	}
+
 	int nidx = vDepths.size() / 2;
 	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
 
@@ -418,6 +424,11 @@ void UVR_SLAM::Frame::ComputeSceneDepth() {
 	meanStdDev(vDepths, mMean, mDev);
 	mfMeanDepth = (float)mMean.at<double>(0);
 	mfStdDev = (float)mDev.at<double>(0);
+	
+	//range
+	mfRange = sqrt(mfMinDepth*mfMinDepth*16.0);//36
+	//std::cout <<"range test::"<< mfRange + mfMedianDepth <<"::"<< fMaxDepth << std::endl;;
+	
 	////min
 	//double minVal, maxVal;
 	//cv::minMaxIdx(vDepths, &minVal);
@@ -891,7 +902,7 @@ float UVR_SLAM::Frame::CalcDiffAngleAxis(UVR_SLAM::Frame* pF) {
 //////////////matchinfo
 UVR_SLAM::MatchInfo::MatchInfo(): mfLowQualityRatio(0.0){}
 UVR_SLAM::MatchInfo::MatchInfo(System* pSys, Frame* pRef, Frame* pTarget, int w, int h):mnHeight(h), mnWidth(w), mfLowQualityRatio(0.0){
-	mpTargetFrame = pTarget;
+	mpPrevFrame = pTarget;
 	mpRefFrame = pRef;
 	mMapCP = cv::Mat::zeros(h, w, CV_16SC1);
 	mpSystem = pSys;
@@ -1143,6 +1154,15 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsMapping(std::vector<
 
 ////////////////FrameGrid
 void UVR_SLAM::Frame::SetGrids() {
+	
+	////LBP
+	/*cv::Mat currFrame = this->matFrame.clone();
+	cv::Mat testImg = this->GetOriginalImage().clone();
+	cv::Mat blurred;
+	cv::GaussianBlur(currFrame, blurred, cv::Size(7, 7), 5, 3, cv::BORDER_CONSTANT);
+	cv::Mat lbpImg = mpSystem->mpLBPProcessor->ConvertDescriptor(blurred);*/
+	////LBP
+
 	int nHalf = mpMatchInfo->mpSystem->mnRadius;
 	int nSize = nHalf * 2;
 	int ksize = 1;
@@ -1169,11 +1189,19 @@ void UVR_SLAM::Frame::SetGrids() {
 	cv::Mat occupied = cv::Mat::zeros(mnWidth, mnHeight, CV_8UC1);
 	cv::Point2f gridTempRect(3,3);//nHalf/2, nHalf/2
 	////포인트 중복 및 그리드 내 추가 포인트 관련
+	
+	//cv::Mat testImg = GetOriginalImage().clone();
 
 	for (int x = 0; x < mnWidth; x += nSize) {
 		for (int y = 0; y < mnHeight; y += nSize) {
 			cv::Point2f ptLeft(x, y);
 			if (mmbFrameGrids[ptLeft]){
+				/*if (!mmpFrameGrids[ptLeft]) {
+					cv::circle(testImg, ptLeft, 3, cv::Scalar(255,0,255), -1);
+				}
+				else {
+					cv::circle(testImg, ptLeft, 3, cv::Scalar(0,0,255), -1);
+				}*/
 				continue;
 			}
 			
@@ -1183,18 +1211,24 @@ void UVR_SLAM::Frame::SetGrids() {
 			if (ptLeft.x != prevGridPt.x || ptLeft.y != prevGridPt.y) {
 				std::cout << "setgrids::error" << std::endl;
 			}*/
-			if (ptRight.x > mnWidth || ptRight.y > mnHeight)
+			if (ptRight.x > mnWidth || ptRight.y > mnHeight){
+				//cv::circle(testImg, ptLeft, 3, cv::Scalar(255, 255, 0), -1);
 				continue;
+			}
+
 			cv::Rect rect(ptLeft, ptRight);
 			auto pGrid = new FrameGrid(std::move(ptLeft), std::move(rect));
 			bool bGrid = false;
 			cv::Mat mGra = matGradient(rect);// .clone();
 			cv::Point2f pt;
 			int localthresh;
+			////LBP 계산
+			
+			////active point 계산
 			if (pGrid->CalcActivePoints(mGra.clone(), thresh, localthresh,pt)) {
-				bool bOccupied = this->mpMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
+				/*bool bOccupied = this->mpMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
 				if (bOccupied)
-					continue;
+					continue;*/
 				bGrid = true;
 				auto pCP = new UVR_SLAM::CandidatePoint(mpMatchInfo->mpRefFrame);
 				int idx = mpMatchInfo->AddCP(pCP, pt);
@@ -1207,6 +1241,29 @@ void UVR_SLAM::Frame::SetGrids() {
 				pCP->mpSeed = new Seed(std::move(mpSystem->mInvK*a), mfMedianDepth, mfMinDepth);
 				////seed생성
 
+				//////LBP code
+				////픽셀 LBP
+				//pGrid->mCharCode = lbp->run(currFrame, pt);
+				////패치 단위 LBP
+				/*cv::Point2f ptLeft1( pt.x - 10, pt.y - 10);
+				cv::Point2f ptRight1(pt.x + 10, pt.y + 10);
+				bool bLeft = ptLeft1.x >= 0 && ptLeft1.y >= 0;
+				bool bRight = ptRight1.x < mnWidth && ptRight1.y < mnHeight;
+				bool bCode = bLeft && bRight;
+				if (bCode) {
+					cv::Rect rect1(ptLeft1, ptRight1);
+					cv::Mat hist = mpSystem->mpLBPProcessor->ConvertHistogram(lbpImg, rect1);
+					auto id = mpSystem->mpLBPProcessor->GetID(hist);
+					int label = mpSystem->mpDatabase->GetData(id);
+					if(label > 0)
+						cv::circle(testImg, pGrid->pt, 4, ObjectColors::mvObjectLabelColors[label], -1);
+					else
+						cv::circle(testImg, pGrid->pt, 4, cv::Scalar(0,0,0), -1);
+				}*/
+				/*else {
+					pGrid->mHistLBP = cv::Mat::zeros(1, lbp->numPatterns, CV_8UC1);
+				}*/
+				//////LBP code
 
 				////그리드 내의 추가 포인트 처리
 				//for (int gy = 0; gy < mGra.rows; gy++) {
@@ -1231,8 +1288,10 @@ void UVR_SLAM::Frame::SetGrids() {
 			//imshow("gra ", mGra); waitKey();
 			mmpFrameGrids.insert(std::make_pair(ptLeft, pGrid));
 			mmbFrameGrids.insert(std::make_pair(ptLeft, bGrid));
+			//cv::circle(testImg, ptLeft, 3, cv::Scalar(255),-1);
 		}
 	}
+	//imshow("label test", testImg); waitKey(1);
 }
 
 cv::Point2f UVR_SLAM::Frame::GetExtendedRect(cv::Point2f pt, int size) {

@@ -14,16 +14,15 @@ UVR_SLAM::PlaneProcessInformation::PlaneProcessInformation() : mpFrame(nullptr){
 }
 UVR_SLAM::PlaneProcessInformation::PlaneProcessInformation(Frame* pF, PlaneInformation* pPlane):mpFrame(pF){
 	//mpCeil(nullptr), mpFloor(nullptr)
-	mpFrame = pF;
+	//mpFrame = pF;
 }
 UVR_SLAM::PlaneProcessInformation::~PlaneProcessInformation(){}
 
 void UVR_SLAM::PlaneProcessInformation::Calculate(){
 	std::unique_lock<std::mutex> lock(mMutexProessor);
-	
 	auto pFloor = mmpPlanes[1];
 	cv::Mat planeParam = pFloor->GetParam();
-	
+	std::cout << planeParam << std::endl;
 	cv::Mat R, t;
 	mpFrame->GetPose(R, t);
 	cv::Mat T = cv::Mat::eye(4, 4, CV_32FC1);
@@ -34,11 +33,27 @@ void UVR_SLAM::PlaneProcessInformation::Calculate(){
 	invP = invT.t()*planeParam;
 	invK = mpFrame->mK.inv();
 }
+
+//invT, invK 지우기. 의미가 없음.
+void UVR_SLAM::PlaneProcessInformation::Calculate(PlaneInformation* plane) {
+	std::unique_lock<std::mutex> lock(mMutexProessor);
+	cv::Mat planeParam = plane->GetParam();
+	cv::Mat R, t;
+	mpFrame->GetInversePose(R, t);
+	invT = cv::Mat::eye(4, 4, CV_32FC1);
+	R.copyTo(invT.rowRange(0, 3).colRange(0, 3));
+	t.copyTo(invT.col(3).rowRange(0, 3));
+
+	//invT = T.inv();
+	//invK = mpFrame->mK.inv();
+	invP = invT.t()*planeParam;
+}
+//여기서도 이제 invP만 의미가 있음.
 void UVR_SLAM::PlaneProcessInformation::GetInformation(cv::Mat& pInvP, cv::Mat& pInvT, cv::Mat& pInvK) {
 	std::unique_lock<std::mutex> lock(mMutexProessor);
 	pInvP = invP.clone();
 	pInvT = invT.clone();
-	pInvK = invK.clone();
+	//pInvK = invK.clone();
 }
 void UVR_SLAM::PlaneProcessInformation::SetReferenceFrame(Frame* pF) {
 	mpFrame = pF;
@@ -139,7 +154,8 @@ void UVR_SLAM::Line::SetLinePts() {
 	//std::cout <<"to::"<< to << ", " << from << std::endl;
 	for (int i = 0; i < nPts; i++) {
 		cv::Point2f pt(to.x - diffPt.x*i, to.y - diffPt.y*i);
-		cv::Mat s = UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(pt, invP, invT, invK);
+		cv::Mat s;
+		bool b= UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(s, pt, invP, invT, invK);
 		//std::cout << i << " :: " << pt <<" "<<s.t()<< std::endl;
 		cv::Mat temp = cv::Mat::zeros(1, 3, CV_32FC1);
 		temp.at<float>(0) = s.at<float>(0);
