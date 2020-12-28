@@ -19,6 +19,7 @@ namespace UVR_SLAM {
 	class FrameWindow;
 	class System;
 	class Frame;
+	class MatchInfo;
 	class Map;
 	class MapPoint;
 	class PlaneProcessInformation;
@@ -29,6 +30,8 @@ namespace UVR_SLAM {
 		static int PoseOptimization(UVR_SLAM::Map* pMap, Frame *pFrame, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<cv::Point2f> vpPts, std::vector<bool>& vbInliers, std::vector<float> vInvLevelSigma2);
 		static int PlanarPoseRefinement(UVR_SLAM::Map* pMap, std::vector<MapPoint*> vpPlanarMPs, std::vector<Frame*> vpKFs);
 		static int ObjectPointRefinement(UVR_SLAM::Map* pMap, std::vector<MapPoint*> vpObjectMPs, std::vector<Frame*> vpKFs);
+		static bool PointRefinement(UVR_SLAM::Map* pMap, UVR_SLAM::Frame* pCurrKF, UVR_SLAM::CandidatePoint* pCP, cv::Mat X3D, 
+			std::map<UVR_SLAM::MatchInfo*, int> observations, std::set<UVR_SLAM::Frame*> spKFs, int thMinKF, float thHuberMono);
 		//201225
 		/////////
 

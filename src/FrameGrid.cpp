@@ -90,4 +90,7 @@ namespace UVR_SLAM {
 			return false;*/
 		//////max 값 하나만 선택시
 	}
+
+	FrameGridKey::FrameGridKey(FrameGrid* key1, FrameGrid* key2):mpKey1(key1), mpKey2(key2){}
+	FrameGridKey::~FrameGridKey(){}
 }

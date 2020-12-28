@@ -41,6 +41,8 @@ namespace UVR_SLAM {
 	
 	class PlaneInformation {
 	public:
+		PlaneInformation();
+		virtual ~PlaneInformation();
 		bool mbInit;
 		int mnPlaneID;
 		int mnFrameID;

@@ -31,12 +31,22 @@ mpPrevFrame(nullptr), mpPPrevFrame(nullptr), mpTargetFrame(nullptr)
 	//mnNeedCeilMPs = fSettings["Layout.nceil"];
 	//mnConnect = fSettings["Layout.nconnect"];
 	fSettings.release();
+	mpFloorPlaneInformation = new PlaneInformation();
 	}
 void UVR_SLAM::PlaneEstimator::Init() {
 	mpMap = mpSystem->mpMap;
 	mpVisualizer = mpSystem->mpVisualizer;
 	mpMatcher = mpSystem->mpMatcher;
 	mpInitializer = mpSystem->mpInitializer;
+}
+UVR_SLAM::PlaneInformation::PlaneInformation() {
+	mbInit = false;
+	matPlaneParam = cv::Mat::zeros(4, 1, CV_32FC1);
+	normal = matPlaneParam.rowRange(0, 3);
+	distance = matPlaneParam.at<float>(3);
+}
+UVR_SLAM::PlaneInformation::~PlaneInformation() {
+
 }
 void UVR_SLAM::PlaneInformation::SetParam(cv::Mat m) {
 	std::unique_lock<std::mutex> lockTemp(mMutexParam);
@@ -224,7 +234,7 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					auto tempFloor = new UVR_SLAM::PlaneInformation();
 					bool bFloorRes = UVR_SLAM::PlaneInformation::PlaneInitialization(tempFloor, vpTempFloorMPs, vpTempOutlierFloorMPs, mpTargetFrame->mnFrameID, 1500, pidst, 0.1);
 					if (bFloorRes) {
-
+						tempFloor->mbInit = true;
 						SetPlaneParam(tempFloor);
 						//std::cout << "PARAM::" << tempFloor->GetParam().t() << std::endl;
 						cv::Mat R, t;
@@ -3372,7 +3382,7 @@ void UVR_SLAM::PlaneInformation::CreatePlanarMapPoint(Frame* pTargetF, PlaneInfo
 
 void UVR_SLAM::PlaneEstimator::SetPlaneParam(PlaneInformation* pParam){
 	std::unique_lock<std::mutex> lockTemp(mMutexFloorPlaneParam);
-	mpFloorPlaneInformation->mbInit = true;
+	mpFloorPlaneInformation->mbInit = pParam->mbInit;
 	mpFloorPlaneInformation->SetParam(pParam->GetParam());
 }
 UVR_SLAM::PlaneInformation* UVR_SLAM::PlaneEstimator::GetPlaneParam(){

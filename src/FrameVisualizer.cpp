@@ -55,6 +55,8 @@ namespace UVR_SLAM {
 		cv::Scalar color2(255,0,255);
 		cv::Scalar color3(0, 255, 255);
 		cv::Scalar color4(0, 0, 255);
+		cv::Scalar color5(0, 255, 0);
+		cv::Scalar color6(255, 0, 0);
 		
 		while (1) {
 
@@ -76,12 +78,17 @@ namespace UVR_SLAM {
 					mpSystem->cvUseCreateCP.wait(lock, [&] {return mpSystem->mbCreateCP; });
 				}
 				int nMatch = 0;
-				for (size_t i = 0, iend = pF->mpMatchInfo->mvbMapPointInliers.size(); i < iend; i++){
+				for (size_t i = 0, iend = pF->mpMatchInfo->mvbMapPointInliers.size(); i < iend; i++) {
 					auto pCPi = pF->mpMatchInfo->mvpMatchingCPs[i];
 					auto pt = pF->mpMatchInfo->mvMatchingPts[i];
 					int nCP = pCPi->GetNumSize();
 
-					if(nCP > mpSystem->mnThreshMinKF)
+					/////최소 프레임 연결보다 크면 분홍색, 작으면 하늘색
+					if (nCP > 20) {
+						cv::circle(vis2, pt, 3, color4, -1);
+					}else if (nCP > 10) {
+						cv::circle(vis2, pt, 3, color3, -1);
+					}else if(nCP > mpSystem->mnThreshMinKF)
 						cv::circle(vis2, pt, 3, color2, -1);
 					else
 						cv::circle(vis2, pt, 3, color1, -1);
@@ -89,6 +96,7 @@ namespace UVR_SLAM {
 					auto pMPi = pCPi->GetMP();
 					bool bMP = pMPi && !pMPi->isDeleted() && pMPi->GetQuality();
 
+					/////MP 존재하고 인라이언지, 아예 존재안하는지
 					if(bMP){
 						cv::Point2f p2D;
 						cv::Mat pCam;
@@ -97,15 +105,19 @@ namespace UVR_SLAM {
 						nMatch++;
 						int label = pMPi->GetLabel();
 						if(pF->mpMatchInfo->mvbMapPointInliers[i]){
-							cv::circle(vis2, p2D, 3, ObjectColors::mvObjectLabelColors[label], -1);//
-							cv::line(vis2, p2D, pt, color3, 2);
+							//cv::circle(vis2, p2D, 5, ObjectColors::mvObjectLabelColors[label]);//
+							cv::circle(vis2, p2D, 5, color5);//
+							cv::line(vis2, p2D, pt, color4, 2);
 						}else{
-							cv::circle(vis2, p2D, 5, color4, -1);//
+							cv::circle(vis2, p2D, 5, color6);//
 						}
 
 						//Depth
 						cv::Scalar c = ConvertDepthToColor(depth);
 						cv::circle(vis, p2D, 3, c, -1);//ObjectColors::mvObjectLabelColors[label]
+					}
+					else {
+
 					}
 				}
 				////////전전전 프레임의 매칭 포인트가 epi line을 제대로 따르는지 테스트

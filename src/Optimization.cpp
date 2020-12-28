@@ -27,6 +27,109 @@
 #include "g2o/types/types_seven_dof_expmap.h"
 
 //////Refinement
+bool UVR_SLAM::Optimization::PointRefinement(UVR_SLAM::Map* pMap, UVR_SLAM::Frame* pCurrKF, UVR_SLAM::CandidatePoint* pCP, cv::Mat X3D, 
+	std::map<UVR_SLAM::MatchInfo*, int> observations, std::set<UVR_SLAM::Frame*> spKFs, int thMinKF, float thHuberMono) {
+	g2o::SparseOptimizer optimizer;
+	g2o::BlockSolver_3_2::LinearSolverType * linearSolver;
+
+	linearSolver = new g2o::LinearSolverDense<g2o::BlockSolver_3_2::PoseMatrixType>();
+
+	g2o::BlockSolver_3_2 * solver_ptr = new g2o::BlockSolver_3_2(linearSolver);
+
+	g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+	optimizer.setAlgorithm(solver);
+
+
+	std::vector<g2o::BAEdgeOnlyMapPoint*> vpEdgesMono;
+	std::vector<UVR_SLAM::Frame*> vpEdgeKFMono;
+	std::vector<int> vnIDXs;
+	g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
+	//cv::Mat X3D = pMPi->GetWorldPos();
+	vPoint->setEstimate(Converter::toVector3d(X3D));
+	const int id = 0;// i + maxKFid + 1;
+	vPoint->setId(id);
+	//vPoint->setMarginalized(true);
+	optimizer.addVertex(vPoint);
+
+	int numEdges = 0;
+	//Set edges
+	for (std::map<UVR_SLAM::MatchInfo*, int>::const_iterator mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
+	{
+		auto pMatch = mit->first;
+		auto pKFi = pMatch->mpRefFrame;
+		if (!spKFs.count(pKFi))
+			continue;
+
+		int idx = mit->second;
+		auto pt = pMatch->mvMatchingPts[idx];
+		Eigen::Matrix<double, 2, 1> obs;
+		obs << pt.x, pt.y;
+
+		g2o::BAEdgeOnlyMapPoint* e = new g2o::BAEdgeOnlyMapPoint();
+		e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
+		//e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnKeyFrameID)));
+		e->setMeasurement(obs);
+
+		const float &invSigma2 = pKFi->mvInvLevelSigma2[pCP->octave];
+
+		e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
+
+		g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+		e->setRobustKernel(rk);
+		rk->setDelta(thHuberMono);
+
+		e->fx = pKFi->fx;
+		e->fy = pKFi->fy;
+		e->cx = pKFi->cx;
+		e->cy = pKFi->cy;
+
+		cv::Mat R, t;
+		pKFi->GetPose(R, t);
+		e->SetPose(R, t);
+
+		optimizer.addEdge(e);
+		vpEdgesMono.push_back(e);
+		vpEdgeKFMono.push_back(pKFi);
+		vnIDXs.push_back(idx);
+	}
+
+	optimizer.initializeOptimization();
+	optimizer.optimize(10);
+
+	int nres = 0;
+	std::vector<bool> vbTemp(vpEdgeKFMono.size(), false);
+	for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
+	{
+		g2o::BAEdgeOnlyMapPoint* e = vpEdgesMono[i];
+		
+		if (e->chi2() < 5.991 && e->isDepthPositive())
+		{
+			vbTemp[i] = true;
+			nres++;
+		}
+	}
+	float ratio = ((float)nres) / vbTemp.size();
+	if (nres >= thMinKF && ratio > 0.5f) {
+		////MP 생성
+		int label = pCP->GetLabel();
+		g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(0));
+		cv::Mat X = (Converter::toCvMat(vPoint->estimate()));
+		auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCP, X, cv::Mat(), label, pCP->octave);
+		//std::cout << "ratio::" << ratio << std::endl;
+		for (size_t i = 0, iend = vpEdgesMono.size(); i < iend; i++)
+		{
+			if (!vbTemp[i])
+				continue;
+			auto pKFi = vpEdgeKFMono[i];
+			pMP->ConnectFrame(pKFi->mpMatchInfo, vnIDXs[i]);
+		}
+
+		return true;
+		/*pMP->SetOptimization(true);
+		pSystem->mlpNewMPs.push_back(pMP);*/
+	}
+	return false;
+}
 int UVR_SLAM::Optimization::ObjectPointRefinement(UVR_SLAM::Map* pMap, std::vector<MapPoint*> vpObjectMPs, std::vector<Frame*> vpKFs) {
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
@@ -479,15 +582,12 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 	const float chi2Mono[4] = { 5.991,5.991,5.991,5.991 };
 	const int its[4] = { 10,10,10,10 };
 	int nBad = 0;
+	float maxDepth = pFrame->mfMedianDepth + pFrame->mfRange;
 	for (size_t it = 0; it<4; it++)
 	{
 
 		vSE3->setEstimate(Converter::toSE3Quat(Tcw)); //이건가??
 		optimizer.initializeOptimization(0);
-		if (!optimizer.optimize(its[it])) {
-			std::cout << "PoseOptimization::error" << std::endl;
-		}
-
 		nBad = 0;
 		for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
 		{
@@ -499,8 +599,8 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 			}
 
 			const float chi2 = e->chi2();
-
-			if (chi2>chi2Mono[it] || !e->isDepthPositive())
+			float depth = e->GetDepth();
+			if (chi2>chi2Mono[it] || depth <= 0.0 || depth > maxDepth)
 			{
 				vbInliers[idx] = false;
 				e->setLevel(1);
@@ -515,10 +615,10 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 				e->setRobustKernel(0);
 		}
 		
-		if (nInitialCorrespondences - nBad < 10) {
-			std::cout << "PoseOptimization::Error::" << pFrame->mnFrameID << "::" << it <<"="<< nInitialCorrespondences <<", " << nBad <<"="<< N << std::endl;
-			break;
-		}
+	}
+	if (nInitialCorrespondences - nBad < 10) {
+		std::cout << "PoseOptimization::Error::" << pFrame->mnFrameID << "::" << nInitialCorrespondences << ", " << nBad << "=" << N << std::endl;
+		return 0;
 	}
 
 	/*for (size_t i = 0, iend = vnIndexEdgeMono.size(); i < iend; i++) {
@@ -702,7 +802,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 	if (bStopBA)
 		optimizer.setForceStopFlag(&bStopBA);
 
-	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
+	
 
 	unsigned long maxKFid = 0;
 	int nTargetID = vpKFs[0]->mnLocalBAID;
@@ -872,6 +972,8 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 		}
 	}
 	
+	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
+
 	if (!vToErase.empty())
 	{
 		for (size_t i = 0; i<vToErase.size(); i++)
@@ -1450,7 +1552,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		spKFs.insert(pCurrKF);
 	}
 	
-	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
+	
 	long unsigned int maxKFid = 0;
 	int nCurrKeyFrameID = pCurrKF->mnKeyFrameID;
 	{
@@ -1567,6 +1669,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		R = Tcw.rowRange(0, 3).colRange(0, 3);
 		t = Tcw.rowRange(0, 3).col(3);
 		//std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
+		std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
 		pCurrKF->SetPose(R, t);
 	}
 	cv::Mat Rcw2 = R.row(2);
@@ -1634,16 +1737,14 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 
 	auto vpKFs = pMap->GetWindowFramesVector(3);
 	auto spKFs = pMap->GetWindowFramesSet(3);
-	if (!spKFs.count(pCurrKF)) {
+	/*if (!spKFs.count(pCurrKF)) {
 		vpKFs.push_back(pCurrKF);
 		spKFs.insert(pCurrKF);
-	}
-	
+	}*/
 	long unsigned int maxKFid = 0;
-	int nCurrKeyFrameID = pCurrKF->mnKeyFrameID;
-	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
+	int nCurrKeyFrameID = vpKFs[vpKFs.size()-1]->mnKeyFrameID;//pCurrKF->mnKeyFrameID;
+	
 	{
-		
 		for (int i = 0; i < vpKFs.size(); i++) {
 			auto pKFi = vpKFs[i];
 			g2o::VertexSE3Expmap * vSE3 = new g2o::VertexSE3Expmap();
@@ -1728,7 +1829,6 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		vnConnected.push_back(numEdges);
 	}
 	////새로 추가된 맵포인트 설정
-
 	optimizer.initializeOptimization();
 	optimizer.optimize(20);
 
@@ -1750,12 +1850,13 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 	//Curr KF 포즈 수정
 	cv::Mat R, t;
 	{
-		g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pCurrKF->mnKeyFrameID));
+		/*g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pCurrKF->mnKeyFrameID));
 		g2o::SE3Quat SE3quat = vSE3->estimate();
 		cv::Mat Tcw = Converter::toCvMat(SE3quat);
 		R = Tcw.rowRange(0, 3).colRange(0, 3);
 		t = Tcw.rowRange(0, 3).col(3);
-		pCurrKF->SetPose(R, t);
+		std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
+		pCurrKF->SetPose(R, t);*/
 	}
 	
 	
@@ -1764,7 +1865,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 	/*std::vector<float> vfDepths;
 	std::vector<int> vnTempIDXs;
 	*/
-	//pCurrKF->GetPose(R, t);
+	pCurrKF->GetPose(R, t);
 	cv::Mat Rcw2 = R.row(2);
 	Rcw2 = Rcw2.t();
 	float zcw = t.at<float>(2);
@@ -1779,7 +1880,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		vX3Ds[i] = Converter::toCvMat(vPoint->estimate()).clone();
 		cv::Mat X3D = std::move(vX3Ds[i]);
 		float z = (float)Rcw2.dot(X3D) + zcw;
-		if (vbInliers[i] && (z > fMinTh && z < fMaxTh)) {//&& (depth > fMinTh && depth < fMaxTh)
+		if (vbInliers[i] && (z > 0.0f && z < fMaxTh)) {//&& (depth > fMinTh && depth < fMaxTh)
 			pMap->AddReinit(X3D);
 			auto pCPi = vpCPs[i];
 			auto pMPi = pCPi->GetMP();

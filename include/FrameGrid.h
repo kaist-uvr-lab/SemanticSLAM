@@ -8,6 +8,7 @@
 namespace UVR_SLAM {
 
 	class CandidatePoint;
+	
 	class FrameGrid {
 	public:
 		FrameGrid();
@@ -38,6 +39,23 @@ namespace UVR_SLAM {
 		std::map<int, float> mmObjAreas;*/
 	private:
 	};
+	class FrameGridKey {
+	public:
+		FrameGridKey(FrameGrid* key1, FrameGrid* key2);
+		virtual ~FrameGridKey(); 
 
+		FrameGrid* mpKey1;
+		FrameGrid* mpKey2;
+		bool operator <(const FrameGridKey& key) const
+		{
+			if (mpKey1 != key.mpKey1) {
+				return mpKey1 < key.mpKey1;
+			}
+			else {
+				return mpKey2 < key.mpKey2;
+			}
+		}
+	private:
+	};
 }
 #endif

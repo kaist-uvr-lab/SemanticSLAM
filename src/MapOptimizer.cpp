@@ -88,6 +88,9 @@ void UVR_SLAM::MapOptimizer::ProcessNewKeyFrame()
 
 void UVR_SLAM::MapOptimizer::Run() {
 	std::string mStrPath;
+
+	int mnThreshMinKF = mpSystem->mnThreshMinKF;
+
 	while (1) {
 		if (CheckNewKeyFrames()) {
 			SetDoingProcess(true);
@@ -105,26 +108,40 @@ void UVR_SLAM::MapOptimizer::Run() {
 			mpTargetFrame->mnLocalBAID = nTargetID;
 			//std::cout << "BA::preprocessing::start" << std::endl;
 			std::chrono::high_resolution_clock::time_point temp_1 = std::chrono::high_resolution_clock::now();
-			std::vector<UVR_SLAM::MapPoint*> vpMPs;// , vpMPs2;
-			std::vector<UVR_SLAM::Frame*> vpKFs;
-			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
 			
+			std::vector<UVR_SLAM::MapPoint*> vpOptMPs, vpTempMPs;// , vpMPs2;
+			std::set<Frame*> spTempKFs, spGraphFrames;
+			std::vector<UVR_SLAM::Frame*> vpOptKFs, vpTempKFs;
+			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
+			auto vpGraphKFs = mpMap->GetGraphFrames();
+
+			
+			std::map<MapPoint*, int> mpMapPointCounts;
+			std::map<Frame*, int> mpKeyFrameCounts, mpGraphFrameCounts;
+
+			std::chrono::high_resolution_clock::time_point s_start2 = std::chrono::high_resolution_clock::now();
 			auto lpKFs = mpMap->GetWindowFramesVector();
 			for (auto iter = lpKFs.begin(); iter != lpKFs.end(); iter++) {
 				auto pKF = *iter;
-				pKF->mnLocalBAID = nTargetID;
-				vpKFs.push_back(pKF);
+				
+				spTempKFs.insert(pKF);
+				vpTempKFs.push_back(pKF);
+			}
+			for (auto iter = vpGraphKFs.begin(); iter != vpGraphKFs.end(); iter++) {
+				auto pKF = *iter;
+				spGraphFrames.insert(pKF);
 			}
 
-			for (size_t k = 0, kend= vpKFs.size(); k < kend; k++){
-				auto pKFi = vpKFs[k];
+			for (size_t k = 0, kend= vpTempKFs.size(); k < kend; k++){
+				auto pKFi = vpTempKFs[k];
 				auto matchInfo = pKFi->mpMatchInfo;
 				auto vpCPs = matchInfo->mvpMatchingCPs;
 				auto vPTs = matchInfo->mvMatchingPts;
+	
 				for (size_t i = 0, iend = vpCPs.size(); i < iend; i++){
 					auto pCPi = vpCPs[i];
 					auto pMPi = pCPi->GetMP();
-					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID || !pMPi->GetQuality() || pMPi->GetNumConnectedFrames() < 3) {
+					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID || !pMPi->GetQuality() || pMPi->GetNumConnectedFrames() < mnThreshMinKF) {
 						continue;
 					}
 					////퀄리티 체크
@@ -135,27 +152,73 @@ void UVR_SLAM::MapOptimizer::Run() {
 					}*/
 					////퀄리티 체크
 					pMPi->mnLocalBAID = nTargetID;
-					vpMPs.push_back(pMPi);
+					vpTempMPs.push_back(pMPi);
+				}
+			}
+			
+			/////////////////////////////////////////////////////////
+			////데이터 취득 과정
+			for (size_t i = 0, iend = vpTempMPs.size(); i < iend; i++) {
+				auto pMPi = vpTempMPs[i];
+				auto mmpFrames = pMPi->GetConnedtedFrames();
+
+				if (mpMapPointCounts[pMPi]) {
+					std::cout << "Map::error" << std::endl;
+				}
+				for (auto iter = mmpFrames.begin(), iter_end = mmpFrames.end(); iter != iter_end; iter++) {
+					auto pKFi = (iter->first)->mpRefFrame;
+					mpMapPointCounts[pMPi]++;
+					if (spGraphFrames.count(pKFi)) {
+						mpGraphFrameCounts[pKFi]++;
+					}
+					if (spTempKFs.count(pKFi)){
+						mpKeyFrameCounts[pKFi]++;
+					}
 				}
 			}
 
-			auto spGraphKFs = mpMap->GetGraphFrames();
-			for (auto iter = spGraphKFs.begin(); iter != spGraphKFs.end(); iter++) {
-				auto pKFi = *iter;
+			for (auto iter = mpMapPointCounts.begin(), iend = mpMapPointCounts.end(); iter != iend; iter++) {
+				auto pMPi = iter->first;
+				auto count = iter->second;
+				if (count < mnThreshMinKF)
+					continue;
+				vpOptMPs.push_back(pMPi);
+			}
+
+			for (auto iter = mpKeyFrameCounts.begin(), iend = mpKeyFrameCounts.end(); iter != iend; iter++) {
+				auto pKFi = iter->first;
+				auto count = iter->second;
+				if (count < 10)
+					continue;
+				vpOptKFs.push_back(pKFi);
+				pKFi->mnLocalBAID = nTargetID;
+			}
+
+			for (auto iter = mpGraphFrameCounts.begin(), iend = mpGraphFrameCounts.end(); iter != iend; iter++) {
+				auto pKFi = iter->first;
+				auto count = iter->second;
+				if (count < 10)
+					continue;
 				pKFi->mnFixedBAID = nTargetID;
 				pKFi->mnLocalBAID = nTargetID;
 				vpFixedKFs.push_back(pKFi);
 			}
+			std::chrono::high_resolution_clock::time_point s_end2 = std::chrono::high_resolution_clock::now();
+			auto leduration2 = std::chrono::duration_cast<std::chrono::milliseconds>(s_end2 - s_start2).count();
+			float letime2 = leduration2 / 1000.0;
+			////데이터 취득 과정
+			/////////////////////////////////////////////////////////
+
 			auto vpPlaneInfos = mpMap->GetPlaneInfos();
 			int n = vpPlaneInfos.size() - 1;
 			if(n < 0)
-				Optimization::OpticalLocalBundleAdjustment(mpMap, this, vpMPs, vpKFs, vpFixedKFs);
+				Optimization::OpticalLocalBundleAdjustment(mpMap, this, vpOptMPs, vpOptKFs, vpFixedKFs);
 			else
 			{
 				std::cout << "Plane optimization" << std::endl;
-				PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpMPs, vpKFs, vpFixedKFs);
+				PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpOptMPs, vpOptKFs, vpFixedKFs);
 			}
-			///////KF 이미지 시각화
+			///////KF 이미지 시각화1
 			{
 				
 				int nRows = mpVisualizer->mnWindowImgRows;
@@ -164,7 +227,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 				int nidx = 0;
 
 				int nKF = lpKFs.size();
-				auto lastKF = vpKFs[nKF - 1];
+				auto lastKF = vpOptKFs[nKF - 1];
 				auto lastMatch = lastKF->mpMatchInfo;
 				
 				cv::Scalar color1(0, 0, 255);
@@ -175,7 +238,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 				cv::Scalar color6(255, 0, 255);
 
 				for (int i = 0; i < nKF; i++) {
-					auto pKFi = vpKFs[i];
+					auto pKFi = vpOptKFs[i];
 					auto pMatch = pKFi->mpMatchInfo;
 					cv::Mat img = pKFi->GetOriginalImage().clone();
 
@@ -241,7 +304,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			auto leduration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
 			float letime = leduration / 1000.0;
 			std::stringstream ss;
-			ss << "Map Optimizer::" << mpTargetFrame->mnKeyFrameID <<", "<<vpKFs[0]->mnKeyFrameID <<"::"<<letime<<"||"<< vpKFs.size()<<", "<< vpFixedKFs.size()<<", "<<vpMPs.size();
+			ss << "Map Optimizer::" << mpTargetFrame->mnKeyFrameID <<", "<< vpOptKFs[0]->mnKeyFrameID <<"::"<<letime<<"::"<< letime2 <<"||"<< vpOptKFs.size()<<", "<< vpFixedKFs.size()<<", "<<vpOptMPs.size();
 			mpSystem->SetMapOptimizerString(ss.str());
 			//종료
 			SetDoingProcess(false);

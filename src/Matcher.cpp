@@ -1022,7 +1022,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	cv::Mat currImg = curr->GetOriginalImage();
 
 	int maxLvl = 3;
-	int searchSize = 15;
+	int searchSize = 20;
 	std::vector<cv::Point2f> prevPts, currPts;
 	prevPts = prev->mpMatchInfo->mvMatchingPts;
 	/*cv::buildOpticalFlowPyramid(currImg, currPyr, cv::Size(searchSize, searchSize), maxLvl);
@@ -1035,7 +1035,24 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	int nBad = 0;
 	int nGridSize = mpSystem->mnRadius * 2;
 	////그리드와 점유 체크
+
+	/////그리드 매칭 수행한 것. 삭제 예정
+	/*std::vector<cv::Point2f> testPrevPt, testCurrPt;
+	int nGridScale = 4;
+	int rx = 100;
+	int ry = 100;
+	cv::Rect rect(rx, ry, nGridSize * nGridScale, nGridSize * nGridScale);
+	cv::Mat testImg1 = prevImg(rect).clone();
+	cv::Mat testImg2 = currImg(rect).clone();*/
+	/////그리드 매칭 수행한 것
+
 	for (size_t i = 0, iend = prevPts.size(); i < iend; i++){
+		///////////////test
+		/*if (prevPts[i].x >= rect.x && prevPts[i].x < rect.x + rect.width && prevPts[i].y >= rect.y && prevPts[i].y < rect.y + rect.height) {
+			testPrevPt.push_back(cv::Point2f(prevPts[i].x -rect.x, prevPts[i].y-rect.y));
+		}*/
+		///////////////test
+
 		if (status[i] == 0) {
 			continue;
 		}
@@ -1125,6 +1142,24 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	currImg.copyTo(debugMatch(mergeRect2));
 	cv::moveWindow("Output::MatchTest2", mpSystem->mnDisplayX+prevImg.cols, mpSystem->mnDisplayY);
 	cv::imshow("Output::MatchTest2", debugMatch);*/
+
+	////////////test
+	/*if(testPrevPt.size() > 0){
+		cv::namedWindow("patch::1");
+		cv::moveWindow("patch::1", 0, 0);
+		cv::namedWindow("patch::2");
+		cv::moveWindow("patch::2", nGridSize * nGridScale, nGridSize * nGridScale);
+
+		cv::calcOpticalFlowPyrLK(testImg1, testImg2, testPrevPt, testCurrPt, status, err, cv::Size(10,10), maxLvl);
+		for (size_t i = 0, iend = testPrevPt.size(); i < iend; i++) {
+			if (status[i] == 0) {
+				continue;
+			}
+			cv::circle(testImg1, testPrevPt[i], 3, cv::Scalar(255, 0, 255), -1);
+			cv::circle(testImg2, testCurrPt[i], 3, cv::Scalar(255, 0, 255), -1);
+		}
+		imshow("patch::1", testImg1); imshow("patch::2", testImg2); cv::waitKey(1);
+	}*/
 	return res;
 }
 

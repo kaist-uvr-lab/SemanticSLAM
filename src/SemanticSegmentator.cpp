@@ -112,6 +112,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 	cv::Mat mWallHist = cv::Mat::zeros(1, lbp->numPatterns, CV_32SC1);
 	int mnLabel_floor = 4;
 	int mnLabel_wall = 1;
+	int mnLabel_ceil = 6;
 	cv::Point minLoc, maxLoc;
 	maxLoc = cv::Point(-1, -1);
 	cv::Point minLoc1, maxLoc1;
@@ -201,14 +202,14 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			
 			////////////LBP process
 			////LBP용 가우시안 블러
-			cv::Mat blurred, lbpImg, lbpHist;
+			/*cv::Mat blurred, lbpImg, lbpHist;
 			cv::GaussianBlur(mpTargetFrame->matFrame, blurred, cv::Size(7, 7), 5, 3, cv::BORDER_CONSTANT);
 			lbpImg = mpLBPProcessor->ConvertDescriptor(blurred);
 			cv::Mat resized_lbp;
 			cv::resize(lbpImg, resized_lbp, cv::Size(lbpImg.cols / 2, lbpImg.rows / 2));
 			cv::normalize(resized_lbp, resized_lbp, 0, 255, cv::NORM_MINMAX, CV_8UC1);
 			cv::cvtColor(resized_lbp, resized_lbp, CV_GRAY2BGR);
-			mpVisualizer->SetOutputImage(resized_lbp, 2);
+			mpVisualizer->SetOutputImage(resized_lbp, 2);*/
 			////////////LBP process
 
 			////세그멘테이션 칼라 전달
@@ -355,6 +356,8 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			////그리드 정보 획득
 
 			////Grid area calculation
+			////그리드 오브젝트 타입
+			cv::Mat testImgType= mpTargetFrame->GetOriginalImage().clone();
 			for (auto iter = vpGrids.begin(), iend = vpGrids.end(); iter != iend; iter++) {
 				auto pGrid = iter->second;
 				auto pt = iter->first;
@@ -365,6 +368,23 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 				float area = (float)rect.area();
 				pGrid->mObjCount.convertTo(pGrid->mObjArea, CV_32FC1);
 				pGrid->mObjArea = pGrid->mObjArea / area;
+
+				/*int nCountFloor = pGrid->mObjCount.at<int>(mnLabel_floor);
+				int nCountWall  = pGrid->mObjCount.at<int>(mnLabel_wall);
+				int nCountCeil = pGrid->mObjCount.at<int>(mnLabel_ceil);*/
+
+				float fAreaFloor = pGrid->mObjArea.at<float>(mnLabel_floor);
+				float fAreaWall  = pGrid->mObjArea.at<float>(mnLabel_wall);
+				float fAreaCeil  = pGrid->mObjArea.at<float>(mnLabel_ceil);
+
+				if (fAreaWall > 0.01) {
+					if (fAreaFloor > 0.01) {
+						cv::circle(testImgType, pt, 3, cv::Scalar(255, 0, 0), -1);
+					}
+					else if (fAreaCeil > 0.01) {
+						cv::circle(testImgType, pt, 3, cv::Scalar(0, 0, 255), -1);
+					}
+				}
 				/*for (auto oiter = pGrid->mmObjCounts.begin(), oiend = pGrid->mmObjCounts.end(); oiter != oiend; oiter++) {
 					int label = oiter->first;
 					int count = oiter->second;
@@ -372,6 +392,9 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 					pGrid->mmObjAreas[label] = orea;
 				}*/
 			}
+			cv::Mat resized_test;
+			cv::resize(testImgType, resized_test, cv::Size(testImgType.cols / 2, testImgType.rows / 2));
+			mpVisualizer->SetOutputImage(resized_test, 2);
 			////Grid area calculation
 				
 			//////평면 정보로 복원
@@ -424,7 +447,6 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 					//imshow("Seg::Plane::", testImg); cv::waitKey(1);
 				}
 			}
-			
 			//////평면 정보로 복원
 
 			//////LBP hist visualization
@@ -486,28 +508,28 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//////LBP hist visualization
 
 
-			////다음 그리드에 전파
-			float nTotalArea = nGridSize*nGridSize;
-			for (auto iter = mpTargetFrame->mmpFrameGrids.begin(), iend = mpTargetFrame->mmpFrameGrids.end(); iter != iend; iter++) {
-				auto pGrid = iter->second;
-				if (!pGrid)
-					continue;
-				FrameGrid* nextPtr = pGrid->mpNext;
-				while (nextPtr) {
-					//std::copy(pGrid->mmObjCounts.begin(), pGrid->mmObjCounts.end(), nextPtr->mmObjCounts.begin());
-					nextPtr->mObjArea = pGrid->mObjArea.clone();
-					nextPtr->mObjCount = pGrid->mObjCount.clone();
-					/*for (auto oiter = pGrid->mmObjCounts.begin(), oiend = pGrid->mmObjCounts.end(); oiter != oiend; oiter++) {
-						auto label = oiter->first;
-						auto count = oiter->second;
-						auto area = pGrid->mmObjAreas[label];
-						nextPtr->mmObjCounts[label] = count;
-						nextPtr->mmObjAreas[label] = area;
-					}*/
-					nextPtr = nextPtr->mpNext;
-					//break;
-				}
-			}
+			////다음 그리드에 전파 
+			//float nTotalArea = nGridSize*nGridSize;
+			//for (auto iter = mpTargetFrame->mmpFrameGrids.begin(), iend = mpTargetFrame->mmpFrameGrids.end(); iter != iend; iter++) {
+			//	auto pGrid = iter->second;
+			//	if (!pGrid)
+			//		continue;
+			//	FrameGrid* nextPtr = pGrid->mpNext;
+			//	while (nextPtr) {
+			//		//std::copy(pGrid->mmObjCounts.begin(), pGrid->mmObjCounts.end(), nextPtr->mmObjCounts.begin());
+			//		nextPtr->mObjArea = pGrid->mObjArea.clone();
+			//		nextPtr->mObjCount = pGrid->mObjCount.clone();
+			//		/*for (auto oiter = pGrid->mmObjCounts.begin(), oiend = pGrid->mmObjCounts.end(); oiter != oiend; oiter++) {
+			//			auto label = oiter->first;
+			//			auto count = oiter->second;
+			//			auto area = pGrid->mmObjAreas[label];
+			//			nextPtr->mmObjCounts[label] = count;
+			//			nextPtr->mmObjAreas[label] = area;
+			//		}*/
+			//		nextPtr = nextPtr->mpNext;
+			//		//break;
+			//	}
+			//}
 			////다음 그리드에 전파
 
 			//////////////////////////////////////////////////

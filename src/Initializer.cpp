@@ -338,8 +338,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpMap->AddWindowFrame(mpInitFrame1);
 		mpMap->AddWindowFrame(mpInitFrame2);
 
-		//mpInitFrame1->AddKF(mpInitFrame2, tempMPs.size()); //여기도
-		//mpInitFrame2->AddKF(mpInitFrame1, tempMPs.size());
+		mpInitFrame1->AddKF(mpInitFrame2, tempMPs.size()); //여기도
+		mpInitFrame2->AddKF(mpInitFrame1, tempMPs.size());
 		////////////////////시각화에 카메라 포즈를 출력하기 위해
 		mpMap->mpFirstKeyFrame = mpInitFrame1;
 		

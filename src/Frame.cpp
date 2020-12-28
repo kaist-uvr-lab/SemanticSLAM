@@ -912,11 +912,12 @@ UVR_SLAM::MatchInfo::~MatchInfo(){}
 void UVR_SLAM::MatchInfo::UpdateKeyFrame() {
 	int nCurrID = this->mpRefFrame->mnKeyFrameID;
 	for (size_t i = 0, iend = mvpMatchingCPs.size(); i < iend; i++) {
+		if (!mvbMapPointInliers[i])
+			continue;
 		auto pCPi = mvpMatchingCPs[i];
 		pCPi->ConnectFrame(this, i);
 		auto pMPi = pCPi->GetMP();
-		if (!mvbMapPointInliers[i])
-			continue;
+		
 		if (!pMPi || !pMPi->GetQuality() || pMPi->isDeleted())
 			continue;
 		//this->AddMP(pMPi, i);
