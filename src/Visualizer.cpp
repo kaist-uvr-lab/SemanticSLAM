@@ -420,7 +420,7 @@ void UVR_SLAM::Visualizer::Run() {
 				////////////////////////////////////////////////////////////
 				}
 			////trajectory
-			auto sGraphKFs = mpMap->GetGraphFrames();
+			/*auto sGraphKFs = mpMap->GetGraphFrames();
 			for (auto iter = sGraphKFs.begin(), iend = sGraphKFs.end(); iter != iend; iter++) {
 				auto pKFi = *iter;
 				cv::Mat t1 = pKFi->GetCameraCenter();
@@ -435,16 +435,33 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
 				pt1 += mVisMidPt;
 				cv::circle(tempVis, pt1, 2, cv::Scalar(51, 0, 51), -1);
-			} 
+			}*/
+			auto lKFs = mpMap->GetFrames();
+			int nMaxID = 0;
+			UVR_SLAM::Frame* lastKF = nullptr;
+			for (auto iter = lKFs.begin(); iter != lKFs.end(); iter++) {
+				auto pKFi = *iter;
+				cv::Mat t1 = pKFi->GetCameraCenter();
+				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
+				pt1 += mVisMidPt;
+				cv::circle(tempVis, pt1, 2, cv::Scalar(0, 155, 248), -1);
+				if (nMaxID < pKFi->mnKeyFrameID) {
+					nMaxID = pKFi->mnKeyFrameID;
+					lastKF = pKFi;
+				}
+			}
+			if(lKFs.size()>0)
 			{
-				auto currKF = lKFs.back();
+				auto currKF = lastKF;// lKFs[lKFs.size() - 1];
 				cv::Mat t1 = currKF->GetCameraCenter();
 				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
 				pt1 += mVisMidPt;
 				cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
+				
 				cv::Mat directionZ = currKF->GetRotation().row(2);
 				cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(mnAxis1)* mnVisScale / 10.0, directionZ.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
 				cv::line(tempVis, pt1, dirPtZ, cv::Scalar(255, 0, 0), 2);
+				
 				cv::Mat directionY = currKF->GetRotation().row(1);
 				cv::Point2f dirPtY = cv::Point2f(directionY.at<float>(mnAxis1)* mnVisScale / 10.0, directionY.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
 				cv::line(tempVis, pt1, dirPtY, cv::Scalar(0, 255, 0), 2);

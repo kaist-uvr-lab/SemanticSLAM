@@ -71,10 +71,12 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//////매칭 정보 생성
 		mpInitFrame2->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, mpInitFrame2, mpInitFrame1, mnWidth, mnHeight);
 		
+		int nFeatureSize = mpInitFrame1->mmpFrameGrids.size();
+
 		//////매칭 정보 생성
 		bool bSegment = false;
 		int nSegID = mpInitFrame1->mnFrameID;
-		int nMatchingThresh = 0;//mpInitFrame1->mpMatchInfo->mvTempPts.size()*0.6;
+		int nMatchingThresh = nFeatureSize*0.35;//mpInitFrame1->mpMatchInfo->mvTempPts.size()*0.6;
 		std::vector<cv::Point2f> vTempPts1, vTempPts2;
 		std::vector<bool> vTempInliers;
 		std::vector<int> vTempIndexs;
@@ -92,7 +94,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			while (mpSegmentator->isDoingProcess());
 			delete mpInitFrame1;
 			mpInitFrame1 = nullptr;
-			std::cout << "Initializer::replace::keyframe1" << std::endl;
+			std::cout << "Initializer::replace::keyframe1::"<< count << std::endl;
 			return mbInit;
 		}
 		
@@ -212,7 +214,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 			//InitFrame2에 CP를 추가
 			int idx3 = mpInitFrame2->mpMatchInfo->AddCP(pCP, vTempMatchPts2[i]);
-			pCP->ConnectFrame(mpInitFrame2->mpMatchInfo, idx3);
+			//pCP->ConnectFrame(mpInitFrame2->mpMatchInfo, idx3);
 
 			////grid 추가
 			mpInitFrame2->mmbFrameGrids[gridPt] = true;
@@ -227,8 +229,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 
 			//MP 등록
-			pMP->ConnectFrame(mpInitFrame1->mpMatchInfo, idx2);
-			pMP->ConnectFrame(mpInitFrame2->mpMatchInfo, idx3);
+			/*pMP->ConnectFrame(mpInitFrame1->mpMatchInfo, idx2);
+			pMP->ConnectFrame(mpInitFrame2->mpMatchInfo, idx3);*/
 
 			cv::circle(debugging, pt1, 2, cv::Scalar(0, 255, 0), -1);
 			cv::circle(debugging, pt2+ ptBottom, 2, cv::Scalar(0, 255, 0), -1);
@@ -278,6 +280,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//mpInitFrame2->SetPose(R1*Rcw, t1); //두번째 프레임은 median depth로 변경해야 함.
 		//////////카메라 자세 변환 하는 경우
 
+		UVR_SLAM::System::nKeyFrameID = 0;
 		mpInitFrame1->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 		mpInitFrame2->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 		
@@ -304,18 +307,18 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame1->ComputeSceneDepth();
 		mpInitFrame2->ComputeSceneDepth();
 		////시드를 프레임마다 생성할 시
-		for (auto iter = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.begin(), iend = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.end(); iter != iend; iter++) {
-			auto pCPi = *iter;
-			auto pMPi = pCPi->GetMP();
-			if (pMPi && !pMPi->isDeleted())
-				continue;
-			auto pSeed = pCPi->mpSeed;
-			cv::Mat ray = pSeed->ray.clone();
-			float err = pSeed->px_err_angle;
-			delete pCPi->mpSeed;
-			pCPi->mpSeed = new UVR_SLAM::Seed(ray, mpInitFrame1->mfMedianDepth, mpInitFrame1->mfMinDepth);
-			//pSeed->mf
-		}
+		//for (auto iter = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.begin(), iend = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.end(); iter != iend; iter++) {
+		//	auto pCPi = *iter;
+		//	auto pMPi = pCPi->GetMP();
+		//	if (pMPi && !pMPi->isDeleted())
+		//		continue;
+		//	auto pSeed = pCPi->mpSeed;
+		//	cv::Mat ray = pSeed->ray.clone();
+		//	float err = pSeed->px_err_angle;
+		//	delete pCPi->mpSeed;
+		//	pCPi->mpSeed = new UVR_SLAM::Seed(ray, mpInitFrame1->mfMedianDepth, mpInitFrame1->mfMinDepth);
+		//	//pSeed->mf
+		//}
 		////시드를 프레임마다 생성할 시
 
 		mpInitFrame2->SetGrids();
@@ -335,6 +338,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		////여기서 무슨일 하는지 정리 후 삭제
 		///////////10개 중에 한개씩 저장. 그냥 평면 값 비교하기 위해
 		mpLocalMapper->SetInitialKeyFrame(mpInitFrame1, mpInitFrame2);
+		mpInitFrame1->mpMatchInfo->UpdateKeyFrame();
+		mpInitFrame2->mpMatchInfo->UpdateKeyFrame();
 		mpMap->AddWindowFrame(mpInitFrame1);
 		mpMap->AddWindowFrame(mpInitFrame2);
 

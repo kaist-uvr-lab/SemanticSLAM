@@ -57,8 +57,8 @@ bool UVR_SLAM::Optimization::PointRefinement(UVR_SLAM::Map* pMap, UVR_SLAM::Fram
 	{
 		auto pMatch = mit->first;
 		auto pKFi = pMatch->mpRefFrame;
-		if (!spKFs.count(pKFi))
-			continue;
+		/*if (!spKFs.count(pKFi))
+			continue;*/
 
 		int idx = mit->second;
 		auto pt = pMatch->mvMatchingPts[idx];
@@ -122,6 +122,8 @@ bool UVR_SLAM::Optimization::PointRefinement(UVR_SLAM::Map* pMap, UVR_SLAM::Fram
 				continue;
 			auto pKFi = vpEdgeKFMono[i];
 			pMP->ConnectFrame(pKFi->mpMatchInfo, vnIDXs[i]);
+			if(pKFi->mnFrameID != pCurrKF->mnFrameID)
+				pCurrKF->mmKeyFrameCount[pKFi]++;
 		}
 
 		return true;
@@ -534,7 +536,6 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 	vpEdgesMono.reserve(N);
 	vnIndexEdgeMono.reserve(N);
 	const float deltaMono = sqrt(5.991);
-	const float deltaStereo = sqrt(7.815);
 	{
 		for (int i = 0; i<N; i++)
 		{
@@ -547,6 +548,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 
 			Eigen::Matrix<double, 2, 1> obs;
 			const cv::Point2f pt = vpPts[i];
+			
 			obs << pt.x, pt.y;
 			g2o::EdgeSE3ProjectXYZOnlyPose* e = new g2o::EdgeSE3ProjectXYZOnlyPose();
 
@@ -567,16 +569,17 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 			e->Xw[0] = Xw.at<float>(0);
 			e->Xw[1] = Xw.at<float>(1);
 			e->Xw[2] = Xw.at<float>(2);
-
+			//std::cout << Xw.t()<<", "<<pt << std::endl;
 			optimizer.addEdge(e);
 			vpEdgesMono.push_back(e);
 			vnIndexEdgeMono.push_back(i);
 			vbInliers[i] = true;
 		}
 	}
-	if (nInitialCorrespondences<3)
+	if (nInitialCorrespondences < 10) {
+		std::cout << "PoseOptimization::Error::Init=" << nInitialCorrespondences << "|| CP=" << N << std::endl;
 		return 0;
-
+	}
 	// We perform 4 optimizations, after each optimization we classify observation as inlier/outlier
 	// At the next optimization, outliers are not included, but at the end they can be classified as inliers again.
 	const float chi2Mono[4] = { 5.991,5.991,5.991,5.991 };
@@ -588,6 +591,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 
 		vSE3->setEstimate(Converter::toSE3Quat(Tcw)); //捞扒啊??
 		optimizer.initializeOptimization(0);
+		optimizer.optimize(its[it]);
 		nBad = 0;
 		for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
 		{
@@ -617,10 +621,10 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 		
 	}
 	if (nInitialCorrespondences - nBad < 10) {
-		std::cout << "PoseOptimization::Error::" << pFrame->mnFrameID << "::" << nInitialCorrespondences << ", " << nBad << "=" << N << std::endl;
+		std::cout << "PoseOptimization::Error::Init="<< nInitialCorrespondences << ", bad=" << nBad << "=CP=" << N << std::endl;
 		return 0;
 	}
-
+	//std::cout << "PoseOptimization::nBad::" << nBad <<"::"<< nInitialCorrespondences << std::endl;
 	/*for (size_t i = 0, iend = vnIndexEdgeMono.size(); i < iend; i++) {
 
 		const size_t idx = vnIndexEdgeMono[i];
@@ -642,7 +646,6 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 	R = pose.rowRange(0, 3).colRange(0, 3);
 	t = pose.rowRange(0, 3).col(3);
 	pFrame->SetPose(R, t);
-
 	return nInitialCorrespondences - nBad;
 }
 
@@ -802,8 +805,6 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 	if (bStopBA)
 		optimizer.setForceStopFlag(&bStopBA);
 
-	
-
 	unsigned long maxKFid = 0;
 	int nTargetID = vpKFs[0]->mnLocalBAID;
 	for (int i = 0; i < vpKFs.size(); i++) {
@@ -857,7 +858,6 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 	vpMapPointEdgeMono.reserve(nExpectedSize);
 
 	const float thHuberMono = sqrt(5.991);
-	const float thHuberStereo = sqrt(7.815);
 	
 	for (int i =0; i < vpMPs.size(); i++)
 	{
@@ -1679,6 +1679,8 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 	float fMaxTh = pCurrKF->mfMedianDepth + pCurrKF->mfRange; //fMean + 1.15*fstddev; //1.654		//float thresh = 1.15;//1.284;// *dStdDev + dMean; //1.654
 	float fMinTh = pCurrKF->mfMedianDepth - pCurrKF->mfRange;// fMean - 1.15*fstddev;
 
+
+	int N = 0;
 	for (size_t i = 0, iend = vX3Ds.size(); i < iend; i++)
 	{
 		g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(i + maxKFid + 1));
@@ -1695,6 +1697,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 				auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCPi, X3D, cv::Mat(), label, pCPi->octave);
 				pMP->SetOptimization(true);
 				pSystem->mlpNewMPs.push_back(pMP);
+				N++;
 			}
 			/*else if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
 			pMPi->SetWorldPos(std::move(X3D));
@@ -1702,6 +1705,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		}
 
 	}
+	std::cout << "LM::New::" << N << std::endl;
 
 	//目池记 眉农
 	for (int i = 0; i < vpEdgesMono.size(); i++) {
@@ -1737,12 +1741,13 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 
 	auto vpKFs = pMap->GetWindowFramesVector(3);
 	auto spKFs = pMap->GetWindowFramesSet(3);
-	/*if (!spKFs.count(pCurrKF)) {
+	if (!spKFs.count(pCurrKF)) {
 		vpKFs.push_back(pCurrKF);
 		spKFs.insert(pCurrKF);
-	}*/
+	}
+
 	long unsigned int maxKFid = 0;
-	int nCurrKeyFrameID = vpKFs[vpKFs.size()-1]->mnKeyFrameID;//pCurrKF->mnKeyFrameID;
+	int nCurrKeyFrameID = pCurrKF->mnKeyFrameID;// vpKFs[vpKFs.size() - 1]->mnKeyFrameID;//pCurrKF->mnKeyFrameID;
 	
 	{
 		for (int i = 0; i < vpKFs.size(); i++) {
@@ -1873,7 +1878,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 
 	float fMaxTh = pCurrKF->mfMedianDepth + pCurrKF->mfRange; //fMean + 1.15*fstddev; //1.654		//float thresh = 1.15;//1.284;// *dStdDev + dMean; //1.654
 	float fMinTh = pCurrKF->mfMedianDepth - pCurrKF->mfRange;// fMean - 1.15*fstddev;
-
+	int N = 0;
 	for (size_t i = 0, iend = vX3Ds.size(); i < iend; i++)
 	{
 		g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(i + maxKFid + 1));
@@ -1890,6 +1895,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 				auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCPi, X3D, cv::Mat(), label, pCPi->octave);
 				pMP->SetOptimization(true);
 				pSystem->mlpNewMPs.push_back(pMP);
+				N++;
 			}
 			/*else if (pMPi && pMPi->GetQuality() && !pMPi->isDeleted()) {
 				pMPi->SetWorldPos(std::move(X3D));
@@ -1897,7 +1903,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		}
 
 	}
-
+	std::cout << "LM::New<<" << N << std::endl;
 	//目池记 眉农
 	for (int i = 0; i < vpEdgesMono.size(); i++) {
 		g2o::EdgeSE3ProjectXYZ* e = vpEdgesMono[i];

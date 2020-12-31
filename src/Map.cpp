@@ -118,6 +118,22 @@ namespace UVR_SLAM{
 	}
 }
 
+///////////////////////////////////
+////키프레임 관리
+void UVR_SLAM::Map::AddFrame(Frame* pF) {
+	std::unique_lock<std::mutex> lock(mMutexFrames);
+	mspFrames.insert(pF);
+}
+void UVR_SLAM::Map::RemoveFrame(Frame* pF) {
+	std::unique_lock<std::mutex> lock(mMutexFrames);
+	mspFrames.erase(pF);
+}
+std::vector<UVR_SLAM::Frame*> UVR_SLAM::Map::GetFrames() {
+	std::unique_lock<std::mutex> lock(mMutexFrames);
+	return std::vector<Frame*>(mspFrames.begin(), mspFrames.end());
+}
+///////////////////////////////////
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 ////맵포인트 관리
 void UVR_SLAM::Map::AddMap(MapPoint* pMP, int label){

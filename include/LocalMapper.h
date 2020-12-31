@@ -42,7 +42,7 @@ namespace UVR_SLAM {
 		void AcquireFrame();
 		void ProcessNewKeyFrame();
 		bool isDoingProcess();
-		std::map<UVR_SLAM::Frame*, int> ComputeNeighborKFs(Frame* pKF);
+		void ComputeNeighborKFs(Frame* pKF);//std::map<UVR_SLAM::Frame*, int>
 		void ConnectNeighborKFs(Frame* pKF, std::map<UVR_SLAM::Frame*, int> mpCandiateKFs, int thresh);
 
 	private:

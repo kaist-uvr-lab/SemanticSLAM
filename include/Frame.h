@@ -52,7 +52,7 @@ namespace UVR_SLAM {
 		
 		
 	public:
-		int AddCP(CandidatePoint* pCP, cv::Point2f pt);
+		int AddCP(CandidatePoint* pCP, cv::Point2f pt, int idx = -1);
 		void RemoveCP(int idx);
 		std::vector<cv::Point2f> GetMatchingPtsMapping(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs);
 		int CheckOpticalPointOverlap(cv::Point2f pt, int radius, int margin = 30); //확인 후 삭제.
@@ -62,6 +62,7 @@ namespace UVR_SLAM {
 		std::vector<bool> mvbMapPointInliers; //프레임 업데이트에만 이용
 		//std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs;
 		std::vector<cv::Point2f> mvMatchingPts; //CPPt에서 변경함
+		std::vector<int> mvMatchingIdxs, mvPrevMatchingIdxs;
 	public:
 		
 		System* mpSystem;
@@ -164,7 +165,9 @@ namespace UVR_SLAM {
 		/////////////////////////////
 
 		///
+		void Delete();
 		void AddKF(UVR_SLAM::Frame* pKF, int weight);
+		void RemoveKF(Frame* pKF);
 		void RemoveKF(UVR_SLAM::Frame* pKF, int weight);
 		//std::vector<UVR_SLAM::Frame*> GetConnectedKFs();
 		std::vector<UVR_SLAM::Frame*> GetConnectedKFs(int n = 0);
@@ -258,7 +261,8 @@ namespace UVR_SLAM {
 		cv::Mat matOri;
 		cv::Mat R, t;
 		int mnInliers;
-		
+	public:
+		std::map<Frame*, int> mmKeyFrameCount;
 		/*
 		std::mutex mMutexID;
 		std::mutex mMutexMPs, mMutexBoolInliers, mMutexNumInliers, mMutexPose, mMutexType;

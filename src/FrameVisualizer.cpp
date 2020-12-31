@@ -70,8 +70,9 @@ namespace UVR_SLAM {
 				cv::Mat kfImg = pKF->GetOriginalImage().clone();
 				auto pKFMatch = pKF->mpMatchInfo;
 				//vis.convertTo(vis, CV_8UC3);
-				cv::Mat R = pF->GetRotation();
-				cv::Mat t = pF->GetTranslation();
+				cv::Mat R, t;
+				pF->GetPose(R, t);
+				
 				std::vector<MapPoint*> vpMPs;
 				{
 					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);

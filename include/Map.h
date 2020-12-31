@@ -34,6 +34,9 @@ namespace UVR_SLAM {
 		Map(System* pSystem, int nConnected = 8, int nCandiate = 4);
 		virtual ~Map();
 	public:
+		void AddFrame(Frame* pF);
+		void RemoveFrame(Frame* pF);
+		std::vector<Frame*> GetFrames();
 
 		Frame* GetLastWindowFrame();
 		Frame* GetReverseWindowFrame(int idx);
@@ -47,11 +50,11 @@ namespace UVR_SLAM {
 		int mnMaxCandidateKFs;
 	private:
 		int mnHalfCandidate;
-
+		std::mutex mMutexFrames;
 		std::mutex mMutexWindowFrames;
 		std::list<Frame*> mQueueFrameWindows1, mQueueFrameWindows2, mQueueFrameWindows3;
 		std::list<Frame*> mQueueCandidateGraphFrames;
-		std::set<Frame*> mspGraphFrames;
+		std::set<Frame*> mspGraphFrames, mspFrames;
 		std::vector<Frame*> mvpTrajectoryKFs;
 		System* mpSystem;
 		////////////////////////////////

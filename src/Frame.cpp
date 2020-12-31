@@ -12,6 +12,8 @@
 #include <DepthFilter.h>
 #include <LocalBinaryPatternProcessor.h>
 #include <Database.h>
+#include <System.h>
+#include <Map.h>
 
 bool UVR_SLAM::Frame::mbInitialComputations = true;
 float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
@@ -482,8 +484,43 @@ bool UVR_SLAM::Frame::GetBoolMapping(){
 	return mbMapping;
 }
 
+void UVR_SLAM::Frame::Delete() {
+
+	//커넥션 관련된 뮤텍스 추가해야 할 듯. KF제거시
+
+	if (mnKeyFrameID == 0)
+		return;
+
+	//MP제거
+	auto matchInfo = this->mpMatchInfo;
+	auto vpCPs = matchInfo->mvpMatchingCPs;
+	auto vPTs = matchInfo->mvMatchingPts;
+	for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
+		auto pCPi = vpCPs[i];
+		pCPi->DisconnectFrame(matchInfo);
+		auto pMPi = pCPi->GetMP();
+		if (!pMPi || pMPi->isDeleted())
+			continue;
+		pMPi->DisconnectFrame(matchInfo);
+	}
+	//KF제거
+	for (auto iter = mmKeyFrameCount.begin(), iend = mmKeyFrameCount.end(); iter != iend; iter++) {
+		auto pKFi = iter->first;
+		pKFi->RemoveKF(this);
+	}
+	mmpConnectedKFs.clear();
+	////DB 제거
+	mpSystem->mpMap->RemoveFrame(this);
+}
+
 void UVR_SLAM::Frame::AddKF(UVR_SLAM::Frame* pKF, int weight){
 	mmpConnectedKFs.insert(std::make_pair(weight,pKF));
+}
+void UVR_SLAM::Frame::RemoveKF(Frame* pKF) {
+	if (mmKeyFrameCount.count(pKF)) {
+		int c = mmKeyFrameCount[pKF];
+		RemoveKF(pKF, c);
+	}
 }
 void UVR_SLAM::Frame::RemoveKF(UVR_SLAM::Frame* pKF, int weight){
 	//mmpConnectedKFs.erase(pKF);
@@ -1064,12 +1101,13 @@ int UVR_SLAM::MatchInfo::GetNumMPs() {
 }
 ////////20.09.05 수정 필요
 
-int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt){
+int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt, int idx){
 	//std::unique_lock<std::mutex>(mMutexCPs);
 	int res = mvpMatchingCPs.size();
 	mvpMatchingCPs.push_back(pCP);
 	mvMatchingPts.push_back(pt);
 	mvbMapPointInliers.push_back(true);
+	mvMatchingIdxs.push_back(idx);
 	cv::rectangle(mMapCP, pt- mpSystem->mRectPt, pt+ mpSystem->mRectPt, cv::Scalar(res + 1), -1);
 	//cv::circle(mMapCP, pt, Frame::mnRadius, cv::Scalar(res+1), -1);
 	return res;
@@ -1292,6 +1330,12 @@ void UVR_SLAM::Frame::SetGrids() {
 			//cv::circle(testImg, ptLeft, 3, cv::Scalar(255),-1);
 		}
 	}
+	mpMatchInfo->mvPrevMatchingIdxs = std::vector<int>(mpMatchInfo->mvMatchingIdxs.begin(), mpMatchInfo->mvMatchingIdxs.end());
+	mpMatchInfo->mvMatchingIdxs.resize(mpMatchInfo->mvpMatchingCPs.size());// = std::vector<int>(mpMatchInfo->mvpMatchingCPs.size());
+	for (size_t i = 0, iend = mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++) {
+		mpMatchInfo->mvMatchingIdxs[i] = i;
+	}
+
 	//imshow("label test", testImg); waitKey(1);
 }
 

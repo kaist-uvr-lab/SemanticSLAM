@@ -50,7 +50,7 @@ UVR_SLAM::Tracker::Tracker(System* pSys, std::string strPath) : mpSystem(pSys), 
 	DistCoef.copyTo(mD);
 
 	float fps = fs["Camera.fps"];
-	mnMaxFrames = 5;// 10;//fps;
+	mnMaxFrames = 3;// 10;//fps;
 	mnMinFrames = 3; //fps / 3;//3
 
 	mnThreshMinCPs	 = fs["Tracker.MinCP"];
@@ -82,6 +82,14 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, bool &bNeedCP, bool &bNe
 	///////////////
 	//keyframe process
 
+	bool bDoingMapping = !mpLocalMapper->isDoingProcess();
+	bool bMaxFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
+	bool bMinFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMinFrames;
+	bNeedCP = bMinFrames;
+	bNeedMP = bMinFrames;
+	bNeedNewKF = bMaxFrames;
+
+	return bDoingMapping && (bNeedCP || bNeedMP || bNeedNewKF);;
 	int nHalf = mpSystem->mnRadius;
 	int nSize = nHalf * 2;
 	int a = mnWidth / nSize;
@@ -106,9 +114,7 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, bool &bNeedCP, bool &bNe
 	//bNeedPoseHandle = bPoseFail;
 	//bNeedNewKF = bMinFrames;
 	
-	bool bDoingMapping = !mpLocalMapper->isDoingProcess();
-	bool bMaxFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMaxFrames;//mnMinFrames;
-	bool bMinFrames = pCurr->mnFrameID >= mpRefKF->mnFrameID + mnMinFrames;
+	
 	bNeedCP = fRatioCP < 0.2f;
 	bNeedMP = fRatioMP < 0.1f && bMinFrames;
 	bNeedPoseHandle = fRatioMP < 0.1f;
@@ -190,26 +196,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		}
 	}
 	else {
-		cv::Mat currFrame = pCurr->matFrame.clone();
 		
-		lbplibrary::LBP* lbp2 = new lbplibrary::ELBP(2, 8);
-		//{
-		//	cv::Mat mImgLBP;
-		//	lbplibrary::LBP* lbp = new lbplibrary::SCSLBP(2, 4);
-		//	lbp->run(pCurr->matFrame, mImgLBP); //종류에 따라서 변경이 필요함.
-		//	std::cout << "size:" << mImgLBP.size() << std::endl;
-		//	cv::normalize(mImgLBP, mImgLBP, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-		//	cv::imshow("varlbp", mImgLBP);
-		//	lbplibrary::show_histogram("lbp_hist::VAR", mImgLBP);
-		//}
-		//{
-		//	cv::Mat mImgLBP2;
-		//	lbplibrary::LBP* lbp = new lbplibrary::ELBP(2, 8);
-		//	lbp->run(pCurr->matFrame, mImgLBP2);
-		//	cv::normalize(mImgLBP2, mImgLBP2, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-		//	cv::imshow("elbp", mImgLBP2);
-		//	lbplibrary::show_histogram("lbp_hist::ELBP", mImgLBP2);
-		//}
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		/////////Optical Flow Matching
@@ -231,10 +218,10 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::vector<cv::Point3f> vpTempPts2;
 		std::vector<uchar> vcInliers;
 		std::vector<bool> vbTempInliers;// = std::vector<bool>(pPrev->mvpMatchingMPs.size(), false);
-		std::vector<int> vnIDXs, vnMPIDXs;
+		std::vector<int> vnTempIDXs, vnMPIDXs;
 		cv::Mat debugImg;
 		cv::Mat overlap = cv::Mat::zeros(pCurr->mnHeight, pCurr->mnWidth, CV_8UC1);
-		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempCPs, vTempPrevPts, vTempCurrPts, vbTempInliers);
+		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempCPs, vTempPrevPts, vTempCurrPts, vbTempInliers, vnTempIDXs);
 
 		//////grid matching test
 		//{
@@ -321,174 +308,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			mpSystem->cvUseCreateMP.wait(lock, [&] {return mpSystem->mbCreateMP; });
 		}
 		cv::Mat prevR, prevT;
-		mpRefKF->GetPose(prevR, prevT);
+		pPrev->GetPose(prevR, prevT);
 		pCurr->SetPose(prevR, prevT);
 		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vTempCurrPts, vbTempInliers, mpSystem->mpORBExtractor->GetInverseScaleSigmaSquares());
-		
-		//////////////////디스크립션 매칭 테스트
-		//cv::Mat img1 = pPrev->GetOriginalImage().clone();
-		//cv::Mat img2 = pCurr->GetOriginalImage().clone();
-		//std::vector<cv::KeyPoint> vpTempKPs, vpTempKPs2;
-		//for (size_t i = 0, iend = pPrev->mpMatchInfo->mvMatchingPts.size(); i < iend; i++) {
-		//	cv::KeyPoint kp(pPrev->mpMatchInfo->mvMatchingPts[i], 3.0);
-		//	vpTempKPs.push_back(kp);
-		//}
-
-		//for (size_t i = 0, iend = vTempCurrPts.size(); i < iend; i++) {
-		//	cv::KeyPoint kp2(vTempCurrPts[i], 3.0);
-		//	vpTempKPs2.push_back(kp2);
-		//	cv::circle(img1, vTempPrevPts[i], 5, cv::Scalar(255, 0, 0));
-		//	cv::circle(img2, vTempCurrPts[i], 5, cv::Scalar(255, 0, 0));
-		//}
-
-		//cv::Ptr<cv::Feature2D> feature = cv::ORB::create();
-		//cv::Mat desc, desc2;
-		//
-		//feature->compute(img1, vpTempKPs, desc);
-		//feature->compute(img2, vpTempKPs2, desc2);
-
-		//std::vector< std::vector<cv::DMatch> > matches;
-		//std::vector<cv::DMatch> vMatches;
-		//auto matcher = DescriptorMatcher::create("BruteForce-Hamming");
-		//matcher->knnMatch(desc, desc2, matches, 2);
-		//
-		//for (unsigned long i = 0; i < matches.size(); i++) {
-		//	if (matches[i][0].distance < 0.8f * matches[i][1].distance) {
-		//		vMatches.push_back(matches[i][0]);
-		//		cv::circle(img1, vTempPrevPts[matches[i][0].trainIdx], 3, cv::Scalar(255, 0, 255), -1);
-		//		cv::circle(img2, vTempCurrPts[matches[i][0].queryIdx], 3, cv::Scalar(255, 0, 255), -1);
-		//	}
-		//}
-		//imshow("a", img1); imshow("b", img2);
-		//waitKey(1);
-		//std::cout << desc2.rows << ", " << vMatches.size() << std::endl;
-		////////////////디스크립션 매칭 테스트
-
-		//////Ref-Curr 매칭
-		//{
-		//	int nGridSize = mpSystem->mnRadius * 2 * 4;
-		//	std::map < cv::Point2f, FrameGrid*, Point2fLess> mapRefGrids, mapCurrGrids;
-		//	std::map<FrameGridKey, std::vector<cv::Point2f>> mapFrameGridAndKeyPoints;
-		//	std::map<FrameGridKey, std::vector<MapPoint*>>   mapFrameGridAndMapPoints;
-		//	cv::Mat R, t;
-		//	pCurr->GetPose(R, t);
-		//	for (int x = 0; x < mnWidth; x += nGridSize) {
-		//		for(int y = 0; y < mnHeight; y += nGridSize){
-		//			cv::Point2f ptLeft(x, y);
-		//			cv::Point2f ptRight(x + nGridSize, y + nGridSize);
-
-		//			if (ptRight.x > mnWidth || ptRight.y > mnHeight) {
-		//				//cv::circle(testImg, ptLeft, 3, cv::Scalar(255, 255, 0), -1);
-		//				continue;
-		//			}
-		//			cv::Rect rect(ptLeft, ptRight);
-		//			auto pGrid1 = new FrameGrid((ptLeft), (rect));
-		//			auto pGrid2 = new FrameGrid((ptLeft), (rect));
-		//			mapRefGrids.insert(std::make_pair(ptLeft, pGrid1));
-		//			mapCurrGrids.insert(std::make_pair(ptLeft, pGrid2));
-		//		}
-		//	}
-		//	for (size_t i = 0, iend = mpRefKF->mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++) {
-		//		auto pCP = mpRefKF->mpMatchInfo->mvpMatchingCPs[i];
-		//		auto pMP = pCP->GetMP();
-		//		if (!pMP || pMP->isDeleted())
-		//			continue;
-		//		auto pt = mpRefKF->mpMatchInfo->mvMatchingPts[i];
-		//		auto refBasePt = mpRefKF->GetGridBasePt(pt, nGridSize);
-
-		//		cv::Mat Xw = pMP->GetWorldPos();
-		//		cv::Mat temp = mK*(R*Xw + t);
-		//		float depth = temp.at<float>(2);
-		//		cv::Point2f projPt(temp.at<float>(0) / depth, temp.at<float>(1) / depth);
-		//		auto currBasePt = pCurr->GetGridBasePt(projPt, nGridSize);
-
-		//		auto refGrid = mapRefGrids[refBasePt];
-		//		if (!refGrid)
-		//			continue;
-		//		auto currGrid = mapCurrGrids[currBasePt];
-		//		if (!currGrid)
-		//			continue;
-
-		//		FrameGridKey key(refGrid, currGrid);
-		//		mapFrameGridAndKeyPoints[key].push_back(pt - refBasePt);
-		//		mapFrameGridAndMapPoints[key].push_back(pMP);
-		//	}
-		//	//매칭
-		//	cv::Mat refImg = mpRefKF->GetOriginalImage().clone();
-		//	cv::Mat currImg = pCurr->GetOriginalImage().clone();
-
-		//	cv::Mat Rrel, Trel;
-		//	pCurr->GetRelativePoseFromTargetFrame(mpRefKF, Rrel, Trel);
-
-		//	int nCurrFrameID = pCurr->mnFrameID;
-		//	int maxLvl = 3;
-		//	int searchSize = 10;
-		//	std::vector<cv::Point2f> matchPrevPTs, matchCurrPTs;
-		//	for (auto iter = mapFrameGridAndKeyPoints.begin(), iend = mapFrameGridAndKeyPoints.end(); iter != iend; iter++) {
-		//		auto key = iter->first;
-		//		auto refGrid = key.mpKey1;
-		//		auto currGrid = key.mpKey2;
-		//		auto refRect = refGrid->rect;
-		//		auto currRect = currGrid->rect;
-		//		auto refBasePt = refGrid->basePt;
-		//		auto currBasePt = currGrid->basePt;
-		//		auto refPts = iter->second;
-		//		auto refMPs = mapFrameGridAndMapPoints[key];
-
-		//		if (refPts.size() == 0)
-		//			continue;
-
-		//		cv::Mat refRectImg = mpRefKF->GetOriginalImage()(refRect);
-		//		cv::Mat currRectImg = pCurr->GetOriginalImage()(currRect);
-
-		//		std::vector<uchar> status;
-		//		std::vector<float> err;
-		//		std::vector<cv::Point2f> currPts;
-		//		cv::calcOpticalFlowPyrLK(refRectImg, currRectImg, refPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
-
-		//		for (size_t i = 0, iend2 = refPts.size(); i < iend2; i++) {
-		//			if (status[i] == 0) {
-		//				continue;
-		//			}
-		//			cv::Point2f refPt = refPts[i] + refBasePt;
-		//			cv::Point2f currPt = currPts[i] + currBasePt;
-		//			if (!pPrev->isInImage(currPt.x, currPt.y, 20))
-		//				continue;
-		//			auto pMP = refMPs[i];
-		//			
-		//			cv::Mat ray = mpSystem->mInvK*(cv::Mat_<float>(3, 1) << refPt.x, refPt.y, 1.0);
-		//			float z_min, z_max;
-		//			z_min = 0.01f;
-		//			z_max = 1.0f;
-		//			cv::Point2f XimgMin, XimgMax;
-		//			cv::Mat Rcr, Tcr;
-		//			mpMatcher->ComputeEpiLinePoint(XimgMin, XimgMax, ray, z_min, z_max, Rrel, Trel, mK); //ray,, Rrel, Trel
-		//			cv::Mat lineEqu = mpMatcher->ComputeLineEquation(XimgMin, XimgMax);
-		//			bool bEpiConstraints = mpMatcher->CheckLineDistance(lineEqu, currPt, 1.0);
-		//			if (!bEpiConstraints) {
-		//				cv::circle(refImg, refPt, 3, cv::Scalar(255, 0, 255), -1);
-		//				cv::circle(currImg, currPt, 3, cv::Scalar(255, 0, 255), -1);
-		//			}
-		//			else {
-		//				cv::circle(refImg, refPt, 3, cv::Scalar(255, 255, 0), -1);
-		//				cv::circle(currImg, currPt, 3, cv::Scalar(255, 255, 0), -1);
-		//			}
-
-		//			/*auto pCP = pPrev->mpMatchInfo->mvpMatchingCPs[idx];
-		//			if (pCP->mnTrackingFrameID == nCurrFrameID)
-		//				continue;
-		//			pCP->mnTrackingFrameID = nCurrFrameID;
-		//			vpTempCPs.push_back(pCP);
-		//			vTempPrevPts.push_back(prevPt);
-		//			vTempCurrPts.push_back(currPt);
-		//			vbTempInliers.push_back(true);*/
-		//		}
-		//	}
-		//	cv::imshow("KF-KF::ref", refImg);
-		//	cv::imshow("KF-KF::curr", currImg);
-		//	cv::waitKey(1);
-		//}
-		//////Ref-Curr 매칭
 
 		//에피폴라 관련 파라메터
 		cv::Mat Rrel, Trel;
@@ -496,14 +318,19 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		//에피폴라 관련 파라메터
 
 		//////그리드 파라메터
+		int nFinal = 0;
 		auto pMatchInfo = pCurr->mpMatchInfo;
 		int nGridSize = mpSystem->mnRadius*2;
 		float fGridDistThresh = nGridSize*nGridSize*4;
+
+		/*cv::Mat prevImg = mpRefKF->GetOriginalImage().clone();
+		cv::Mat currImg = pCurr->GetOriginalImage().clone();*/
+
 		////그리드 파라메터
 		for (size_t i = 0, iend = vpTempCPs.size(); i < iend; i++) {
 			auto pCP = vpTempCPs[i];
 			auto currPt = vTempCurrPts[i];
-			auto prevPt = vTempPrevPts[i];
+			auto prevPt = vTempPrevPts[i];//mpRefKF->mpMatchInfo->mvMatchingPts[vnTempIDXs[i]];//vTempPrevPts[i];
 			auto pMP = pCP->GetMP();
 			bool bMP = pMP && !pMP->isDeleted();
 			bool bInlier = vbTempInliers[i];
@@ -542,7 +369,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			pCurr->mmpFrameGrids[gridPt]->mpCP = pCP;
 			pCurr->mmpFrameGrids[gridPt]->pt = currPt;
 
-			pMatchInfo->AddCP(pCP, currPt);
+			pMatchInfo->AddCP(pCP, currPt, vnTempIDXs[i]);
 
 			/*
 			auto prevGridPt = pPrev->GetGridBasePt(prevPt, nGridSize);
@@ -562,8 +389,15 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				currGrid->mmObjCounts[label] = count;
 			}*/
 			//////grid 추가
-
+			if(bMP)
+				nFinal++;
+			/*cv::circle(prevImg, prevPt, 3, cv::Scalar(255, 0, 0), -1);
+			cv::circle(currImg, currPt, 3, cv::Scalar(255, 0, 0), -1);*/
 		}
+		/*imshow("prev", prevImg); 
+		imshow("curr", currImg); 
+		cv::waitKey(1);*/
+		//std::cout << "Tracking::" <<nFinal<<", "<<pCurr->mpMatchInfo->mvpMatchingCPs.size()<<"="<< mnMapPointMatching << "::" << mnPointMatching << std::endl;
 
 		////트래킹 결과 갱신
 		//int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vTempCurrPts, vbTempInliers);
@@ -571,16 +405,17 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		/////////////////////////////////////////////키프레임 체크
 		bool bNeedCP, bNeedMP, bNeedPoseHandle, bNeedNewKF;
 		auto bNewKF = CheckNeedKeyFrame(pCurr, bNeedCP, bNeedMP, bNeedPoseHandle, bNeedNewKF);
+		bNeedPoseHandle = false;
 		if (true) {
 			if (bNeedCP) {
 				std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
 				mpSystem->mbCreateCP = false;
-			}
-			/*if (bNeedMP) {
+			}  
+			if (bNeedMP) {
 				std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
 				mpSystem->mbCreateMP = false;
-			}*/
-			if(bNeedNewKF || bNeedMP)
+			}
+			if(bNeedNewKF)
 				mpRefKF = pCurr;
 			mpLocalMapper->InsertKeyFrame(pCurr, bNeedCP, bNeedMP, bNeedPoseHandle, bNeedNewKF);
 		}

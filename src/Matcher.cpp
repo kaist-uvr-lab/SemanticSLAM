@@ -1013,7 +1013,7 @@ int UVR_SLAM::Matcher::OpticalGridsMatching(Frame* pFrame1, Frame* pFrame2, std:
 	cv::waitKey(1);
 }
 
-int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<cv::Point2f>& vPrevPts, std::vector<cv::Point2f>& vCurrPts, std::vector<bool>& vbInliers) {
+int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<cv::Point2f>& vPrevPts, std::vector<cv::Point2f>& vCurrPts, std::vector<bool>& vbInliers, std::vector<int>& vnIDXs) {
 	
 	std::vector<cv::Mat> currPyr, prevPyr;
 	std::vector<uchar> status;
@@ -1035,131 +1035,29 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	int nBad = 0;
 	int nGridSize = mpSystem->mnRadius * 2;
 	////그리드와 점유 체크
-
-	/////그리드 매칭 수행한 것. 삭제 예정
-	/*std::vector<cv::Point2f> testPrevPt, testCurrPt;
-	int nGridScale = 4;
-	int rx = 100;
-	int ry = 100;
-	cv::Rect rect(rx, ry, nGridSize * nGridScale, nGridSize * nGridScale);
-	cv::Mat testImg1 = prevImg(rect).clone();
-	cv::Mat testImg2 = currImg(rect).clone();*/
-	/////그리드 매칭 수행한 것
-
+	
 	for (size_t i = 0, iend = prevPts.size(); i < iend; i++){
-		///////////////test
-		/*if (prevPts[i].x >= rect.x && prevPts[i].x < rect.x + rect.width && prevPts[i].y >= rect.y && prevPts[i].y < rect.y + rect.height) {
-			testPrevPt.push_back(cv::Point2f(prevPts[i].x -rect.x, prevPts[i].y-rect.y));
-		}*/
-		///////////////test
-
+	
 		if (status[i] == 0) {
 			continue;
 		}
 		if (!prev->isInImage(currPts[i].x, currPts[i].y, 20))
 			continue;
-
-		/*if (!prev->mpMatchInfo->CheckOpticalPointOverlap(overlap, currPts[i], mpSystem->mnRadius)) {
-			nBad++;
-			continue;
-		}*/
-		
-		/*auto gridPt = prev->GetGridBasePt(currPts[i], nGridSize);
-		if (curr->mmbFrameGrids[gridPt]) {
-			continue;
-		}*/
-
+	
 		auto pCPi = prev->mpMatchInfo->mvpMatchingCPs[i];
 		if (pCPi->mnTrackingFrameID == nCurrFrameID) {
 			std::cout << "tracking::" << pCPi->mnCandidatePointID << ", " << nCurrFrameID << std::endl;
 			continue;
 		}
 		
-		/*auto prevGridPt = prev->GetGridBasePt(prevPts[i], nGridSize);
-		auto diffx = abs(prevGridPt.x - gridPt.x);
-		auto diffy = abs(prevGridPt.y - gridPt.y);
-		
-		if (diffx > 2 * nGridSize || diffy > 2 * nGridSize) {
-			cv::line(currImg, currPts[i], prevPts[i], cv::Scalar(0, 255, 255), 1);
-			continue;
-		}*/
-		
-		//////grid matching
-		//auto rect = cv::Rect(gridPt, std::move(cv::Point2f(gridPt.x + nGridSize, gridPt.y + nGridSize)));
-		//auto prevGrid = prev->mmpFrameGrids[prevGridPt];
-		//if (!prevGrid) {
-		//	std::cout << "tracking::error" << std::endl;
-		//	continue;
-		//}
-		//auto prevRect = prevImg(prevGrid->rect);
-		//auto currRect = currImg(rect);
-		//std::vector<cv::Point2f> vPrevGridPTs, vGridPTs;
-		///*bool bGridMatch = this->OpticalGridMatching(prevGrid, prevRect, currRect, vPrevGridPTs, vGridPTs);
-		//if (!bGridMatch)
-		//	continue;*/
-		//////grid matching
-		//////grid 추가
-		//curr->mmbFrameGrids[gridPt] = true;
-		//auto currGrid = new FrameGrid(gridPt, rect);
-		////currGrid->vecPTs = vGridPTs;
-		//curr->mmpFrameGrids[gridPt] = currGrid;
-		//curr->mmpFrameGrids[gridPt]->mpCP = pCPi;
-		//curr->mmpFrameGrids[gridPt]->pt = currPts[i];
-		//////grid 추가
-
 		pCPi->mnTrackingFrameID = nCurrFrameID;
 		vpCPs.push_back(pCPi);
 		vPrevPts.push_back(prevPts[i]);
 		vCurrPts.push_back(currPts[i]);
 		vbInliers.push_back(true);
-		//cv::rectangle(overlap, currPts[i] - mpSystem->mRectPt, currPts[i] + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
-
-		//auto pMPi = pCPi->GetMP();
-		//
-		//if (pMPi && !pMPi->isDeleted() && pMPi->GetRecentTrackingFrameID() != nCurrFrameID && curr->isInFrustum(pMPi, 0.6f)) {
-		//	pMPi->SetRecentTrackingFrameID(nCurrFrameID);
-		//	vpMPs.push_back(pMPi); 의 index
-		//	vpPts.push_back(currPts[i]);
-		//	vbInliers.push_back(true);
-		//}
-		
-		////그리드 내의 추가 포인트 시각화
-		//for (size_t j = 0, jend = vGridPTs.size(); j < jend; j++) {
-		//	cv::circle(prevImg, vPrevGridPTs[j]+prevGridPt, 2, cv::Scalar(0, 0, 255), -1);
-		//	//cv::circle(currImg, vGridPTs[j]+gridPt, 2, cv::Scalar(0, 0, 255), -1);
-		//	cv::line(currImg, vGridPTs[j]+ gridPt, vPrevGridPTs[j]+ prevGridPt, cv::Scalar(255, 0, 255), 1);
-		//}
-		////그리드 내의 추가 포인트 시각화
-
-		/*cv::circle(prevImg, prevPts[i], 2, cv::Scalar(255, 0, 0), -1);
-		cv::circle(currImg, currPts[i], 2, cv::Scalar(255, 0, 0), -1);
-		cv::line(currImg, currPts[i], prevPts[i], cv::Scalar(255, 255, 0), 1);*/
+		vnIDXs.push_back(prev->mpMatchInfo->mvMatchingIdxs[i]);
 		res++;
 	}
-
-	/*cv::Mat debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
-	prevImg.copyTo(debugMatch(mergeRect1));
-	currImg.copyTo(debugMatch(mergeRect2));
-	cv::moveWindow("Output::MatchTest2", mpSystem->mnDisplayX+prevImg.cols, mpSystem->mnDisplayY);
-	cv::imshow("Output::MatchTest2", debugMatch);*/
-
-	////////////test
-	/*if(testPrevPt.size() > 0){
-		cv::namedWindow("patch::1");
-		cv::moveWindow("patch::1", 0, 0);
-		cv::namedWindow("patch::2");
-		cv::moveWindow("patch::2", nGridSize * nGridScale, nGridSize * nGridScale);
-
-		cv::calcOpticalFlowPyrLK(testImg1, testImg2, testPrevPt, testCurrPt, status, err, cv::Size(10,10), maxLvl);
-		for (size_t i = 0, iend = testPrevPt.size(); i < iend; i++) {
-			if (status[i] == 0) {
-				continue;
-			}
-			cv::circle(testImg1, testPrevPt[i], 3, cv::Scalar(255, 0, 255), -1);
-			cv::circle(testImg2, testCurrPt[i], 3, cv::Scalar(255, 0, 255), -1);
-		}
-		imshow("patch::1", testImg1); imshow("patch::2", testImg2); cv::waitKey(1);
-	}*/
 	return res;
 }
 

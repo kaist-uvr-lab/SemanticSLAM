@@ -220,9 +220,21 @@ namespace UVR_SLAM {
 		}*/
 	}
 	void MapPoint::DisconnectFrame(UVR_SLAM::MatchInfo* pF){
+		bool bDelete = false;
 		{
 			std::unique_lock<std::mutex> lockMP(mMutexMP);
-			auto res = mmpFrames.find(pF);
+			if (mmpFrames.count(pF)) {
+				mmpFrames.erase(pF);
+				mnConnectedFrames--;
+				if (pF->mpRefFrame == mpRefKF) {
+					mpRefKF = mmpFrames.begin()->first->mpRefFrame;
+				}
+				if (mnConnectedFrames < 3) {
+					mbDelete = true;
+					bDelete = true;
+				}
+			}
+			/*auto res = mmpFrames.find(pF);
 			if (res != mmpFrames.end()) {
 				int idx = res->second;
 				res = mmpFrames.erase(res);
@@ -230,11 +242,13 @@ namespace UVR_SLAM {
 				if (pF->mpRefFrame == mpRefKF) {
 					mpRefKF = mmpFrames.begin()->first->mpRefFrame;
 				}
-				if (mnConnectedFrames < 3)
+				if (mnConnectedFrames < 3){
 					mbDelete = true;
-			}
+					bDelete = true;
+				}
+			}*/
 		}
-		if (mbDelete){
+		if (bDelete){
 			Delete();
 		}
 	}
@@ -243,11 +257,11 @@ namespace UVR_SLAM {
 		{
 			std::unique_lock<std::mutex> lockMP(mMutexMP);
 			mbDelete = true;
-			for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
-				auto* pF = iter->first;
-				auto idx = iter->second;
-				//pF->RemoveMP(idx);
-			}
+			//for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
+			//	auto* pF = iter->first;
+			//	auto idx = iter->second;
+			//	//pF->RemoveMP(idx);
+			//}
 			mnConnectedFrames = 0;
 			mmpFrames.clear();
 		}
