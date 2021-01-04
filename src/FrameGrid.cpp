@@ -93,4 +93,6 @@ namespace UVR_SLAM {
 
 	FrameGridKey::FrameGridKey(FrameGrid* key1, FrameGrid* key2):mpKey1(key1), mpKey2(key2){}
 	FrameGridKey::~FrameGridKey(){}
+	FrameGridLevelKey::FrameGridLevelKey(cv::Point2f pt, int level) : _pt(pt), _level(level) {}
+	FrameGridLevelKey::~FrameGridLevelKey() {}
 }

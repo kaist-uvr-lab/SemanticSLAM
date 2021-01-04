@@ -37,6 +37,7 @@ namespace UVR_SLAM {
 	class PlaneProcessInformation;
 	class Line;
 	class FrameGrid;
+	class FrameGridLevelKey;
 	class MatchInfo {
 	public:
 		
@@ -175,6 +176,7 @@ namespace UVR_SLAM {
 ////////////////
 ////FrameGrid
 	public:
+		void ComputeGradientImage(cv::Mat src, cv::Mat& dst, int ksize = 1);
 		void SetGrids();
 		cv::Point2f GetExtendedRect(cv::Point2f pt, int size);
 		cv::Point2f GetGridBasePt(cv::Point2f pt, int size);
@@ -182,6 +184,13 @@ namespace UVR_SLAM {
 		std::map<cv::Point2f, FrameGrid*, Point2fLess> mmpFrameGrids;
 		std::map<cv::Point2f, bool, Point2fLess> mmbFrameGrids;
 ////FrameGrid
+
+//////Pyramid test
+	public:
+		std::map<FrameGridLevelKey, FrameGrid*> mmpFrameLevelGrids;
+		std::vector<cv::Point2f> mvPyramidPts;
+//////Pyramid test
+
 ////////////////
 	public:
 		void ComputeSceneMedianDepth();

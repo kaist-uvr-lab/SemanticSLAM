@@ -1201,6 +1201,21 @@ std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsMapping(std::vector<
 //////////////matchinfo
 
 ////////////////FrameGrid
+void UVR_SLAM::Frame::ComputeGradientImage(cv::Mat src, cv::Mat& dst, int ksize) {
+	cv::Mat edge;
+	cv::cvtColor(src, edge, CV_BGR2GRAY);
+	edge.convertTo(edge, CV_8UC1);
+	cv::Mat matDY, matDX;
+	cv::Sobel(edge, matDX, CV_64FC1, 1, 0, ksize);
+	cv::Sobel(edge, matDY, CV_64FC1, 0, 1, ksize);
+	matDX = abs(matDX);
+	matDY = abs(matDY);
+	//matDX.convertTo(matDX, CV_8UC1);
+	//matDY.convertTo(matDY, CV_8UC1);
+	dst = (matDX + matDY) / 2.0;
+	dst.convertTo(dst, CV_8UC1);
+}
+
 void UVR_SLAM::Frame::SetGrids() {
 	
 	////LBP
@@ -1215,23 +1230,47 @@ void UVR_SLAM::Frame::SetGrids() {
 	int nSize = nHalf * 2;
 	int ksize = 1;
 	int thresh = ksize*10;
+	cv::Mat matGradient;
+	ComputeGradientImage(GetOriginalImage(), matGradient);
+	
+	////피라미드 적용 테스트
+	{
+		int level = 3;
+		for (int l = 1; l < level; l++) {
+			cv::Mat matLevelGra;
+			ComputeGradientImage(this->mvPyramidImages[l], matLevelGra);
 
-	cv::Mat temp = GetOriginalImage();
-	cv::Mat edge;
-	cv::cvtColor(temp, edge, CV_BGR2GRAY);
-	edge.convertTo(edge, CV_8UC1);
-	cv::Mat matDY, matDX, matGradient;
-	cv::Sobel(edge, matDX, CV_64FC1, 1, 0, ksize);
-	cv::Sobel(edge, matDY, CV_64FC1, 0, 1, ksize);
-	matDX = abs(matDX);
-	matDY = abs(matDY);
-	//matDX.convertTo(matDX, CV_8UC1);
-	//matDY.convertTo(matDY, CV_8UC1);
-	matGradient = (matDX + matDY) / 2.0;
-	matGradient.convertTo(matGradient, CV_8UC1);
-	//cv::Laplacian(edge, matGradient, CV_8UC1, 3);//CV_64FC1
-	//imshow("gra:::", matGradient);
-	//cv::waitKey(1);
+			int a = pow(2, l);
+			int w = mnWidth / a;
+			int h = mnHeight / a;
+			
+			for (int x = 0; x < w; x += nSize) {
+				for (int y = 0; y < h; y += nSize) {
+					cv::Point2f ptLeft(x, y);
+					cv::Point2f ptRight(x + nSize, y + nSize);
+					if (ptRight.x > w || ptRight.y > h) {
+						continue;
+					}
+					
+					cv::Rect rect(ptLeft, ptRight);
+					auto pGrid = new FrameGrid(std::move(ptLeft), std::move(rect), l);
+					bool bGrid = false;
+					cv::Mat mGra = matLevelGra(rect).clone();// .clone();
+					cv::Point2f pt;
+					int localthresh;
+					if (pGrid->CalcActivePoints(mGra, thresh, localthresh, pt)) {
+						if (l == 2) {
+							FrameGridLevelKey a(ptLeft, l);
+							mmpFrameLevelGrids.insert(std::make_pair(a, pGrid));
+							mvPyramidPts.push_back(pt);
+						}
+					}//if active
+				}
+			}//이미지
+		}//레벨
+	}
+	////피라미드 적용 테스트
+
 
 	////포인트 중복 및 그리드 내 추가 포인트 관련
 	cv::Mat occupied = cv::Mat::zeros(mnWidth, mnHeight, CV_8UC1);

@@ -58,5 +58,22 @@ namespace UVR_SLAM {
 		}
 	private:
 	};
+
+	class FrameGridLevelKey {
+	public:
+		FrameGridLevelKey(cv::Point2f pt, int level);
+		virtual ~FrameGridLevelKey();
+		bool operator <(const FrameGridLevelKey& key)const
+		{
+			if (_level == key._level) {
+				return _pt.x == key._pt.x ? _pt.y < key._pt.y : _pt.x < key._pt.x;
+			}
+			else
+				return _level < key._level;
+		}
+		cv::Point2f _pt;
+		int _level;
+	};
+
 }
 #endif

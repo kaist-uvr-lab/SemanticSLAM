@@ -194,6 +194,7 @@ void UVR_SLAM::LocalMapper::Run() {
 					lock.unlock();
 					mpSystem->cvUseCreateCP.notify_all();
 				}
+
 			}
 			//else {
 			//	////여기에 락이 왜 필요한거였지?
@@ -293,9 +294,44 @@ void UVR_SLAM::LocalMapper::Run() {
 				KeyFrameMarginalization(mpTargetFrame, 0.92);
 
 				//키프레임 연결
-				auto mKeyframeCount = mpTargetFrame->mmKeyFrameCount;
-				ConnectNeighborKFs(mpTargetFrame, mKeyframeCount, 20);
+				ConnectNeighborKFs(mpTargetFrame, mpTargetFrame->mmKeyFrameCount, 20);
 				
+				{
+					auto vpNeighKFs = mpTargetFrame->GetConnectedKFs(10);
+					if (vpNeighKFs.size() > 4) {
+						std::vector<cv::Mat> currPyr, prevPyr;
+						std::vector<uchar> status;
+						std::vector<float> err;
+						int nSize = vpNeighKFs.size() - 1;
+						auto pKF = vpNeighKFs[nSize];
+						cv::Mat prevImg = pKF->mvPyramidImages[2].clone();
+						cv::Mat currImg = mpTargetFrame->mvPyramidImages[2].clone();
+
+						int maxLvl = 0;
+						int searchSize = 10;
+						std::vector<cv::Point2f> prevPts, currPts;
+						prevPts = pKF->mvPyramidPts;
+						if (prevPts.size() > 10) {
+							cv::calcOpticalFlowPyrLK(prevImg, currImg, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+							for (size_t i = 0, iend = prevPts.size(); i < iend; i++) {
+								if (status[i] == 0) {
+									continue;
+								}
+								if (currPts[i] == prevPts[i])
+								{
+									std::cout << "??????????????aaa" << std::endl;
+									continue;
+								}
+								if (!pKF->isInImage(currPts[i].x, currPts[i].y, 20))
+									continue;
+								cv::circle(prevImg, prevPts[i], 2, cv::Scalar(255), -1);
+								cv::circle(currImg, currPts[i], 2, cv::Scalar(255), -1);
+							}
+							imshow("level::curr", currImg);
+							imshow("level::prev", prevImg); cv::waitKey(1);
+						}
+					}//if neigh
+				}
 
 				//////평면 관련 프로세스
 				////평면 레이블링

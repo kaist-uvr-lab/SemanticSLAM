@@ -1058,6 +1058,35 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		vnIDXs.push_back(prev->mpMatchInfo->mvMatchingIdxs[i]);
 		res++;
 	}
+
+	/*{
+		std::vector<cv::Mat> currPyr, prevPyr;
+		std::vector<uchar> status;
+		std::vector<float> err;
+		cv::Mat prevImg = prev->mvPyramidImages[2].clone();
+		cv::Mat currImg = curr->mvPyramidImages[2].clone();
+
+		int maxLvl = 0;
+		int searchSize = 20;
+		std::vector<cv::Point2f> prevPts, currPts;
+		prevPts = prev->mvPyramidPts;
+		if(prevPts.size() > 10){
+			cv::calcOpticalFlowPyrLK(prevImg, currImg, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+			for (size_t i = 0, iend = prevPts.size(); i < iend; i++) {
+
+				if (status[i] == 0) {
+					continue;
+				}
+				if (!prev->isInImage(currPts[i].x, currPts[i].y, 20))
+					continue;
+				cv::circle(prevImg, prevPts[i], 2, cv::Scalar(255), -1);
+				cv::circle(currImg, currPts[i], 2, cv::Scalar(255), -1);
+			}
+			imshow("level::curr", currImg);
+			imshow("level::prev", prevImg); cv:; waitKey(1);
+		}
+	}*/
+
 	return res;
 }
 
