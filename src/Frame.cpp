@@ -41,6 +41,15 @@ mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), md
 	//}
 	////////////canny
 	mnFrameID = UVR_SLAM::System::nFrameID++;
+
+	mvPyramidImages.push_back(matOri);
+	int level = 3;
+	for (int i = 1; i < level; i++) {
+		int a = i * 2;
+		cv::Mat resized1, resized2;
+		cv::resize(matOri, resized1, cv::Size(w / a, h / a));
+		mvPyramidImages.push_back(resized1);
+	}
 }
 
 UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
@@ -1256,7 +1265,7 @@ void UVR_SLAM::Frame::SetGrids() {
 			}
 
 			cv::Rect rect(ptLeft, ptRight);
-			auto pGrid = new FrameGrid(std::move(ptLeft), std::move(rect));
+			auto pGrid = new FrameGrid(std::move(ptLeft), std::move(rect), 0);
 			bool bGrid = false;
 			cv::Mat mGra = matGradient(rect);// .clone();
 			cv::Point2f pt;
@@ -1265,9 +1274,10 @@ void UVR_SLAM::Frame::SetGrids() {
 			
 			////active point °è»ê
 			if (pGrid->CalcActivePoints(mGra.clone(), thresh, localthresh,pt)) {
-				/*bool bOccupied = this->mpMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
+				bool bOccupied = this->mpMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
 				if (bOccupied)
-					continue;*/
+					continue;
+
 				bGrid = true;
 				auto pCP = new UVR_SLAM::CandidatePoint(mpMatchInfo->mpRefFrame);
 				int idx = mpMatchInfo->AddCP(pCP, pt);

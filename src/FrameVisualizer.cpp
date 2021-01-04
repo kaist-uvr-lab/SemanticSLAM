@@ -21,7 +21,7 @@ namespace UVR_SLAM {
 		mpVisualizer = mpSystem->mpVisualizer;
 	}
 	float vmin = 0.001;
-	float vmax = 1.0;
+	float vmax = 4.0;
 	cv::Scalar ConvertDepthToColor(float v) {
 		float dv;
 
@@ -85,6 +85,8 @@ namespace UVR_SLAM {
 					int nCP = pCPi->GetNumSize();
 
 					/////최소 프레임 연결보다 크면 분홍색, 작으면 하늘색
+					int nFrame = pF->mnFrameID - pCPi->mnFirstID;
+
 					if (nCP > 20) {
 						cv::circle(vis2, pt, 3, color4, -1);
 					}else if (nCP > 10) {
@@ -379,7 +381,6 @@ namespace UVR_SLAM {
 				//	}//if
 				//}
 				////////전전전 프레임의 매칭 포인트가 epi line을 제대로 따르는지 테스트
-
 
 				///////그리드 관련 시각화. 현재 막음
 				////오브젝트 정보가 얼마나 전달이 되는지 확인함.

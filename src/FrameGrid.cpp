@@ -4,10 +4,10 @@
 
 namespace UVR_SLAM {
 	FrameGrid::FrameGrid(){}
-	FrameGrid::FrameGrid(cv::Point2f base, cv::Rect r):basePt(std::move(base)), rect(std::move(r)),mbMatched(false), mpPrev(nullptr), mpNext(nullptr){
+	FrameGrid::FrameGrid(cv::Point2f base, cv::Rect r, int level):basePt(std::move(base)), rect(std::move(r)),mbMatched(false), mpPrev(nullptr), mpNext(nullptr), mnLevel(level){
 		mObjCount = cv::Mat::zeros(1, ObjectColors::mvObjectLabelColors.size(), CV_32SC1);
 		mObjArea = cv::Mat::zeros(1, ObjectColors::mvObjectLabelColors.size(), CV_32FC1);
-	}FrameGrid::FrameGrid(cv::Point2f base, int nsize) : basePt(std::move(base)), mbMatched(false), mpPrev(nullptr), mpNext(nullptr) {
+	}FrameGrid::FrameGrid(cv::Point2f base, int nsize, int level) : basePt(std::move(base)), mbMatched(false), mpPrev(nullptr), mpNext(nullptr), mnLevel(level) {
 		rect = cv::Rect(basePt, std::move(cv::Point2f(basePt.x + nsize, basePt.y + nsize)));
 		mObjCount = cv::Mat::zeros(1, ObjectColors::mvObjectLabelColors.size(), CV_32SC1);
 		mObjArea = cv::Mat::zeros(1, ObjectColors::mvObjectLabelColors.size(), CV_32FC1);

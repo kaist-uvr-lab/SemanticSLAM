@@ -120,8 +120,8 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::map<Frame*, int> mpKeyFrameCounts, mpGraphFrameCounts;
 
 			std::chrono::high_resolution_clock::time_point s_start2 = std::chrono::high_resolution_clock::now();
-
 			{
+
 				////기본 MP획득
 				for (size_t i = 0, iend = mpTargetFrame->mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++) {
 					auto pCPi = mpTargetFrame->mpMatchInfo->mvpMatchingCPs[i];
@@ -134,56 +134,31 @@ void UVR_SLAM::MapOptimizer::Run() {
 					pMPi->mnLocalBAID = nTargetID;
 					vpOptMPs.push_back(pMPi);
 				}
+
+				////현재 타겟 프레임과 연결된 프레임들을 이용해 로컬맵 확장 및 키프레임, 픽스드 프레임 확장
 				mpTargetFrame->mnLocalBAID = nTargetID;
 				vpOptKFs.push_back(mpTargetFrame);
 
-				////MP 획득 및 redundant keyframe 찾기
-				auto mKeyframeCount = mpTargetFrame->mmKeyFrameCount;
-				if (mKeyframeCount.count(mpTargetFrame))
-					std::cout << "BA::error::keyframe" << std::endl;
-				for (auto iter = mKeyframeCount.begin(), iend = mKeyframeCount.end(); iter != iend; iter++) {
-					auto pKFi = iter->first;
-					
-					std::vector<MapPoint*> vpNeighMPs;
+				auto vpNeighKFs = mpTargetFrame->GetConnectedKFs(15);
+				for (auto iter = vpNeighKFs.begin(), iend = vpNeighKFs.end(); iter != iend; iter++) {
+					auto pKFi = *iter;
 					auto matchInfo = pKFi->mpMatchInfo;
 					auto vpCPs = matchInfo->mvpMatchingCPs;
 					auto vPTs = matchInfo->mvMatchingPts;
 					int N1 = 0;
-					int N2 = 0;
 					for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
 						auto pCPi = vpCPs[i];
 						auto pMPi = pCPi->GetMP();
-						if (!pMPi || pMPi->isDeleted() || pMPi->GetNumConnectedFrames() < mnThreshMinKF || !pMPi->GetQuality())
+						if (!pMPi || pMPi->isDeleted() || pMPi->GetNumConnectedFrames() < mnThreshMinKF || pMPi->mnLocalBAID == nTargetID || !pMPi->GetQuality())
 							continue;
 						N1++;
-						if (pMPi->GetNumConnectedFrames() > mnThreshMinKF)
-							N2++;
-
-						if (pMPi->mnLocalBAID == nTargetID ) {
-							continue;
-						}
 						pMPi->mnLocalBAID = nTargetID;
 						vpOptMPs.push_back(pMPi);
 					}
-					bool bErase = false;
-					if (N2 > N1*0.9){
-						std::cout << "Delete::KF::" << N1 << ", " << N2 << std::endl;
-						pKFi->Delete();
-						bErase = true;
-						continue;
-					}
-					/*else {
-						std::cout << "BA::ratio = " << N1 << ", " << N2 << std::endl;
-					}*/
-					
-					auto count = iter->second;
-					if (count < 15)
-						continue;
 					vpOptKFs.push_back(pKFi);
 					pKFi->mnLocalBAID = nTargetID;
+				}//for vpmps, vpkfs
 
-				}//for kf iter
-				
 				//Fixed KFs
 				for (size_t i = 0, iend = vpOptMPs.size(); i < iend; i++) {
 					auto pMPi = vpOptMPs[i];
@@ -196,8 +171,85 @@ void UVR_SLAM::MapOptimizer::Run() {
 						vpFixedKFs.push_back(pKFi);
 					}
 				}//for fixed iter
-				std::cout << "BA::" <<mpTargetFrame->mnKeyFrameID<<"="<<vpOptMPs.size()<<", "<<vpOptKFs.size()<<", "<<vpFixedKFs.size()<< std::endl;
 			}
+
+			//{
+			//	////기본 MP획득
+			//	for (size_t i = 0, iend = mpTargetFrame->mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++) {
+			//		auto pCPi = mpTargetFrame->mpMatchInfo->mvpMatchingCPs[i];
+			//		auto pMPi = pCPi->GetMP();
+			//		if (!pMPi || pMPi->isDeleted() || !pMPi->GetQuality() || pMPi->GetNumConnectedFrames() < mnThreshMinKF)
+			//			continue;
+			//		if (pMPi->mnLocalBAID == nTargetID) {
+			//			continue;
+			//		}
+			//		pMPi->mnLocalBAID = nTargetID;
+			//		vpOptMPs.push_back(pMPi);
+			//	}
+			//	mpTargetFrame->mnLocalBAID = nTargetID;
+			//	vpOptKFs.push_back(mpTargetFrame);
+
+			//	////MP 획득 및 redundant keyframe 찾기
+			//	auto mKeyframeCount = mpTargetFrame->mmKeyFrameCount;
+			//	if (mKeyframeCount.count(mpTargetFrame))
+			//		std::cout << "BA::error::keyframe" << std::endl;
+			//	for (auto iter = mKeyframeCount.begin(), iend = mKeyframeCount.end(); iter != iend; iter++) {
+			//		auto pKFi = iter->first;
+			//		
+			//		std::vector<MapPoint*> vpNeighMPs;
+			//		auto matchInfo = pKFi->mpMatchInfo;
+			//		auto vpCPs = matchInfo->mvpMatchingCPs;
+			//		auto vPTs = matchInfo->mvMatchingPts;
+			//		int N1 = 0;
+			//		int N2 = 0;
+			//		for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
+			//			auto pCPi = vpCPs[i];
+			//			auto pMPi = pCPi->GetMP();
+			//			if (!pMPi || pMPi->isDeleted() || pMPi->GetNumConnectedFrames() < mnThreshMinKF || !pMPi->GetQuality())
+			//				continue;
+			//			N1++;
+			//			if (pMPi->GetNumConnectedFrames() > mnThreshMinKF)
+			//				N2++;
+
+			//			if (pMPi->mnLocalBAID == nTargetID ) {
+			//				continue;
+			//			}
+			//			pMPi->mnLocalBAID = nTargetID;
+			//			vpOptMPs.push_back(pMPi);
+			//		}
+			//		bool bErase = false;
+			//		if (N2 > N1*0.9){
+			//			std::cout << "Delete::KF::" << N1 << ", " << N2 << std::endl;
+			//			pKFi->Delete();
+			//			bErase = true;
+			//			continue;
+			//		}
+			//		/*else {
+			//			std::cout << "BA::ratio = " << N1 << ", " << N2 << std::endl;
+			//		}*/
+			//		
+			//		auto count = iter->second;
+			//		if (count < 15)
+			//			continue;
+			//		vpOptKFs.push_back(pKFi);
+			//		pKFi->mnLocalBAID = nTargetID;
+
+			//	}//for kf iter
+			//	
+			//	//Fixed KFs
+			//	for (size_t i = 0, iend = vpOptMPs.size(); i < iend; i++) {
+			//		auto pMPi = vpOptMPs[i];
+			//		auto mmpFrames = pMPi->GetConnedtedFrames();
+			//		for (auto iter = mmpFrames.begin(), iter_end = mmpFrames.end(); iter != iter_end; iter++) {
+			//			auto pKFi = (iter->first)->mpRefFrame;
+			//			if (pKFi->mnLocalBAID == nTargetID)
+			//				continue;
+			//			pKFi->mnLocalBAID = nTargetID;
+			//			vpFixedKFs.push_back(pKFi);
+			//		}
+			//	}//for fixed iter
+			//	std::cout << "BA::" <<mpTargetFrame->mnKeyFrameID<<"="<<vpOptMPs.size()<<", "<<vpOptKFs.size()<<", "<<vpFixedKFs.size()<< std::endl;
+			//}
 
 
 			//auto lpKFs = mpMap->GetWindowFramesVector();

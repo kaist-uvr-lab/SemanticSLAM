@@ -70,13 +70,14 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame2 = pFrame;
 		//////매칭 정보 생성
 		mpInitFrame2->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, mpInitFrame2, mpInitFrame1, mnWidth, mnHeight);
-		
-		int nFeatureSize = mpInitFrame1->mmpFrameGrids.size();
+		int nFeatureSize = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.size();
+		int nThreshInit    = 0.5*nFeatureSize;
+		int nThreshReplace = 0.35*nFeatureSize;
 
 		//////매칭 정보 생성
 		bool bSegment = false;
 		int nSegID = mpInitFrame1->mnFrameID;
-		int nMatchingThresh = nFeatureSize*0.35;//mpInitFrame1->mpMatchInfo->mvTempPts.size()*0.6;
+		int nMatchingThresh = nFeatureSize*0.70;//mpInitFrame1->mpMatchInfo->mvTempPts.size()*0.6; 0.32, 
 		std::vector<cv::Point2f> vTempPts1, vTempPts2;
 		std::vector<bool> vTempInliers;
 		std::vector<int> vTempIndexs;
@@ -90,11 +91,14 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		double tttt = duration / 1000.0;
 
 		/////////매칭 확인
-		if (count < nMatchingThresh) {
+		if (count < nThreshReplace) {
 			while (mpSegmentator->isDoingProcess());
 			delete mpInitFrame1;
 			mpInitFrame1 = nullptr;
-			std::cout << "Initializer::replace::keyframe1::"<< count << std::endl;
+			std::cout << "Initializer::replace::keyframe1::"<< count <<", MIN = "<< nThreshInit <<", "<< nThreshReplace << std::endl;
+			return mbInit;
+		}else if (count < nThreshInit) {
+			std::cout << "Initializer::match::" << count << ", MIN = " << nThreshInit << ", " << nThreshReplace << std::endl;
 			return mbInit;
 		}
 		
@@ -120,8 +124,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			}
 		}
 		count = resMatches.size();
-
 		//////F, E를 통한 매칭 결과 반영
+
 		///////삼각화 : OpenCV
 		cv::Mat R1, t1;
 		cv::Mat matTriangulateInliers;
@@ -136,6 +140,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		////////////삼각화 결과에 따른 초기화 판단
 		if (res2 < 0.9*count) {
 			mpTempFrame = mpInitFrame2;
+			std::cout << "Initializer::triangulation::" << count << ", MIN = " << nThreshInit << ", " << nThreshReplace << std::endl;
 			return mbInit;
 		}
 		////////////삼각화 결과에 따른 초기화 판단
@@ -218,7 +223,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 			////grid 추가
 			mpInitFrame2->mmbFrameGrids[gridPt] = true;
-			auto currGrid = new FrameGrid(gridPt, rect);
+			auto currGrid = new FrameGrid(gridPt, rect, 0);
 			//currGrid->vecPTs = vGridPTs;
 			mpInitFrame2->mmpFrameGrids[gridPt] = currGrid;
 			mpInitFrame2->mmpFrameGrids[gridPt]->mpCP = pCP;

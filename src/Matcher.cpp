@@ -1021,7 +1021,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	cv::Mat prevImg = prev->GetOriginalImage();
 	cv::Mat currImg = curr->GetOriginalImage();
 
-	int maxLvl = 3;
+	int maxLvl = 0;
 	int searchSize = 20;
 	std::vector<cv::Point2f> prevPts, currPts;
 	prevPts = prev->mpMatchInfo->mvMatchingPts;
@@ -1046,7 +1046,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	
 		auto pCPi = prev->mpMatchInfo->mvpMatchingCPs[i];
 		if (pCPi->mnTrackingFrameID == nCurrFrameID) {
-			std::cout << "tracking::" << pCPi->mnCandidatePointID << ", " << nCurrFrameID << std::endl;
+			std::cout << "tracking::matching::" << pCPi->mnCandidatePointID << ", " << nCurrFrameID << std::endl;
 			continue;
 		}
 		

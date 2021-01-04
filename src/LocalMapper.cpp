@@ -130,6 +130,7 @@ void UVR_SLAM::LocalMapper::Reset() {
 	mpPrevKeyFrame = nullptr;
 	mpPPrevKeyFrame = nullptr;
 }
+
 void UVR_SLAM::LocalMapper::Run() {
 	
 	int nMinMapPoints = 1000;
@@ -177,6 +178,7 @@ void UVR_SLAM::LocalMapper::Run() {
 				mpTargetFrame->SetBowVec(mpSystem->fvoc);*/
 				mpSegmentator->InsertKeyFrame(mpTempFrame);
 				{
+					//FuseKeyFrame(mpTempFrame, mpPrevKeyFrame, mpSystem->mnRadius * 2);
 					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
 					std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
 					mpTempFrame->SetGrids();
@@ -269,6 +271,9 @@ void UVR_SLAM::LocalMapper::Run() {
 			}
 
 			if (bNeedMP) {
+
+				//FuseKeyFrame(mpTempFrame, mpPPrevKeyFrame, mpSystem->mnRadius*4);
+			
 				////////RefKeyFrame 관련 작업
 				auto mpRefKeyFrame = mpPPrevKeyFrame;
 				std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
@@ -284,6 +289,14 @@ void UVR_SLAM::LocalMapper::Run() {
 
 			if (bNeedNewKF) {
 			
+				//키프레임 컬링
+				KeyFrameMarginalization(mpTargetFrame, 0.92);
+
+				//키프레임 연결
+				auto mKeyframeCount = mpTargetFrame->mmKeyFrameCount;
+				ConnectNeighborKFs(mpTargetFrame, mKeyframeCount, 20);
+				
+
 				//////평면 관련 프로세스
 				////평면 레이블링
 				{
@@ -353,6 +366,223 @@ void UVR_SLAM::LocalMapper::ConnectNeighborKFs(Frame* pKF, std::map<UVR_SLAM::Fr
 	}
 }
 
+//MP가 아닌 CP로 할 경우에는?
+void UVR_SLAM::LocalMapper::KeyFrameMarginalization(Frame* pKF, float thresh, int thresh2){
+	for (auto iter = mpTargetFrame->mmKeyFrameCount.begin(), iend = mpTargetFrame->mmKeyFrameCount.end(); iter != iend; iter++) {
+		auto pKFi = iter->first;
+
+		//std::vector<MapPoint*> vpNeighMPs;
+		//auto matchInfo = pKFi->mpMatchInfo;
+		//auto vpCPs = matchInfo->mvpMatchingCPs;
+		//auto vPTs = matchInfo->mvMatchingPts;
+		//int N1 = vpCPs.size();
+		//int N2 = 0;
+		//for (size_t i = 0; i < N1; i++) {
+		//	auto pCPi = vpCPs[i];
+		//	if (pCPi->GetNumSize() > mnThreshMinKF) {
+		//		N2++;
+		//	}
+		//}
+
+		std::vector<MapPoint*> vpNeighMPs;
+		auto matchInfo = pKFi->mpMatchInfo;
+		auto vpCPs = matchInfo->mvpMatchingCPs;
+		auto vPTs = matchInfo->mvMatchingPts;
+		int N1 = 0;
+		int N2 = 0;
+		for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
+			auto pCPi = vpCPs[i];
+			auto pMPi = pCPi->GetMP();
+			if (!pMPi || pMPi->isDeleted() || pMPi->GetNumConnectedFrames() < mnThreshMinKF || !pMPi->GetQuality())
+				continue;
+			N1++;
+			if (pMPi->GetNumConnectedFrames() > mnThreshMinKF)
+				N2++;
+		}
+
+		if (N2 > N1*thresh && N1 > thresh2) {
+			std::cout << "Delete::KF::" <<pKFi->mnKeyFrameID<<"::"<< N1*thresh << ", " << N2 << std::endl;
+			pKFi->Delete();
+			iter->second = 0;
+		}
+		/*else {
+			std::cout << "Delete::KF::" << pKFi->mnKeyFrameID << "::" << N1*thresh << ", " << N2 << std::endl;
+		}*/
+	}//for kf iter
+}
+
+////pKF1이 현재 = mpTempFrame
+////pKF2가 이전 = mppprev 등
+void UVR_SLAM::LocalMapper::FuseKeyFrame(Frame* pKF1, Frame* pKF2, int nGridSize) {
+	//////Ref-Curr 매칭
+	{
+		//int nGridSize = mpSystem->mnRadius * 2 * 2;
+		int nOriGridSize = mpSystem->mnRadius * 2;
+		std::map < cv::Point2f, FrameGrid*, Point2fLess> mapRefGrids, mapCurrGrids;
+		std::map<FrameGridKey, std::vector<cv::Point2f>> mapFrameGridAndKeyPoints;
+		std::map<FrameGridKey, std::vector<CandidatePoint*>>   mapFrameGridAndMapPoints;
+		cv::Mat R, t;
+		pKF1->GetPose(R, t);
+		for (int x = 0; x < mnWidth; x += nGridSize) {
+			for (int y = 0; y < mnHeight; y += nGridSize) {
+				cv::Point2f ptLeft(x, y);
+				cv::Point2f ptRight(x + nGridSize, y + nGridSize);
+
+				if (ptRight.x > mnWidth || ptRight.y > mnHeight) {
+					//cv::circle(testImg, ptLeft, 3, cv::Scalar(255, 255, 0), -1);
+					continue;
+				}
+				cv::Rect rect(ptLeft, ptRight);
+				auto pGrid1 = new FrameGrid((ptLeft), (rect), 0);
+				auto pGrid2 = new FrameGrid((ptLeft), (rect), 0);
+				mapRefGrids.insert(std::make_pair(ptLeft, pGrid1));
+				mapCurrGrids.insert(std::make_pair(ptLeft, pGrid2));
+			}
+		}
+		for (size_t i = 0, iend = pKF2->mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++) {
+			auto pCP = pKF2->mpMatchInfo->mvpMatchingCPs[i];
+			if (pCP->mnTrackingFrameID == pKF1->mnFrameID)
+				continue;
+			auto pMP = pCP->GetMP();
+			if (!pMP || pMP->isDeleted())
+				continue;
+			if (pMP->isInFrame(pKF1->mpMatchInfo))
+				continue;
+			auto pt = pKF2->mpMatchInfo->mvMatchingPts[i];
+			auto refBasePt = pKF2->GetGridBasePt(pt, nGridSize);
+			if (refBasePt.x > mnWidth || refBasePt.y > mnHeight) {
+				//cv::circle(testImg, ptLeft, 3, cv::Scalar(255, 255, 0), -1);
+				continue;
+			}
+
+			//뎁스, 프로젝션 포인트 위치, 그리드 위치 확인하기
+			cv::Mat Xw = pMP->GetWorldPos();
+			cv::Mat temp = mK*(R*Xw + t);
+			float depth = temp.at<float>(2);
+			cv::Point2f projPt(temp.at<float>(0) / depth, temp.at<float>(1) / depth);
+			auto currBasePt = pKF1->GetGridBasePt(projPt, nGridSize);
+
+			auto refGrid = mapRefGrids[refBasePt];
+			if (!refGrid)
+				continue;
+			auto currGrid = mapCurrGrids[currBasePt];
+			if (!currGrid)
+				continue;
+
+			FrameGridKey key(refGrid, currGrid);
+			mapFrameGridAndKeyPoints[key].push_back(pt - refBasePt);
+			mapFrameGridAndMapPoints[key].push_back(pCP);
+		}
+		//매칭
+		cv::Mat refImg = pKF2->GetOriginalImage().clone();
+		cv::Mat currImg = pKF1->GetOriginalImage().clone();
+
+		cv::Mat Rrel, Trel;
+		pKF1->GetRelativePoseFromTargetFrame(pKF2, Rrel, Trel);
+
+		int nCurrFrameID = pKF1->mnFrameID;
+		int maxLvl = 3;
+		int searchSize = 10;
+		std::vector<cv::Point2f> matchPrevPTs, matchCurrPTs;
+		for (auto iter = mapFrameGridAndKeyPoints.begin(), iend = mapFrameGridAndKeyPoints.end(); iter != iend; iter++) {
+			auto key = iter->first;
+			auto refGrid = key.mpKey1;
+			auto currGrid = key.mpKey2;
+			auto refRect = refGrid->rect;
+			auto currRect = currGrid->rect;
+			auto refBasePt = refGrid->basePt;
+			auto currBasePt = currGrid->basePt;
+			auto refPts = iter->second;
+			auto refMPs = mapFrameGridAndMapPoints[key];
+
+			if (refPts.size() == 0)
+				continue;
+
+			cv::Mat refRectImg = pKF2->GetOriginalImage()(refRect);
+			cv::Mat currRectImg = pKF1->GetOriginalImage()(currRect);
+
+			std::vector<uchar> status;
+			std::vector<float> err;
+			std::vector<cv::Point2f> currPts;
+			cv::calcOpticalFlowPyrLK(refRectImg, currRectImg, refPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+
+			for (size_t i = 0, iend2 = refPts.size(); i < iend2; i++) {
+				if (status[i] == 0) {
+					continue;
+				}
+				cv::Point2f refPt = refPts[i] + refBasePt;
+				cv::Point2f currPt = currPts[i] + currBasePt;
+				if (!pKF2->isInImage(currPt.x, currPt.y, 20))
+					continue;
+				auto pCP = refMPs[i];
+				auto pMP = pCP->GetMP();
+
+				cv::Mat ray = mpSystem->mInvK*(cv::Mat_<float>(3, 1) << refPt.x, refPt.y, 1.0);
+				float z_min, z_max;
+				z_min = 0.01f;
+				z_max = 1.0f;
+				cv::Point2f XimgMin, XimgMax;
+				cv::Mat Rcr, Tcr;
+				mpMatcher->ComputeEpiLinePoint(XimgMin, XimgMax, ray, z_min, z_max, Rrel, Trel, mK); //ray,, Rrel, Trel
+				cv::Mat lineEqu = mpMatcher->ComputeLineEquation(XimgMin, XimgMax);
+				bool bEpiConstraints = mpMatcher->CheckLineDistance(lineEqu, currPt, 1.0);
+				if (!bEpiConstraints) {
+					//cv::circle(refImg, refPt, 3, cv::Scalar(255, 0, 255), -1);
+					//cv::circle(currImg, currPt, 3, cv::Scalar(255, 0, 255), -1);
+				}
+				else {
+					auto currGridBasePt = pKF1->GetGridBasePt(currPt, nOriGridSize);
+					if (!pKF1->mmpFrameGrids.count(currGridBasePt)) {
+
+						/*cv::Mat Xw = pMP->GetWorldPos();
+						cv::Mat temp = mK*(R*Xw + t);
+						float depth = temp.at<float>(2);
+						cv::Point2f projPt(temp.at<float>(0) / depth, temp.at<float>(1) / depth);
+
+						auto diffPt = projPt - currPt;
+						float dist = sqrt(diffPt.dot(diffPt));
+						std::cout << "dist::" << dist << std::endl;*/
+
+						//중복문제 해결하기
+						int idxi = pKF1->mpMatchInfo->AddCP(pCP, currPt);
+						//pCP->ConnectFrame(pKF1->mpMatchInfo, idxi);
+
+						//////grid 추가
+						auto rect = cv::Rect(currGridBasePt, std::move(cv::Point2f(currGridBasePt.x + nOriGridSize, currGridBasePt.y + nOriGridSize)));
+						pKF1->mmbFrameGrids[currGridBasePt] = true;
+						auto currGrid = new FrameGrid(currGridBasePt, rect, 0);
+						pKF1->mmpFrameGrids[currGridBasePt] = currGrid;
+						pKF1->mmpFrameGrids[currGridBasePt]->mpCP = pCP;
+						pKF1->mmpFrameGrids[currGridBasePt]->pt = currPt;
+
+						cv::circle(refImg, refPt, 3, cv::Scalar(255, 255, 0), -1);
+						cv::circle(currImg, currPt, 3, cv::Scalar(255, 255, 0), -1);
+					}
+					//auto currGrid2 = pKF1->mmpFrameGrids[currGridBasePt];
+					
+					/*if (currGrid2) {
+						cv::circle(currImg, currGrid2->pt, 3, cv::Scalar(255, 0, 0), -1);
+						cv::line(currImg, currGrid2->pt, currPt, cv::Scalar(255), 2);
+					}
+					*/
+				}
+
+				/*auto pCP = pPrev->mpMatchInfo->mvpMatchingCPs[idx];
+				if (pCP->mnTrackingFrameID == nCurrFrameID)
+				continue;
+				pCP->mnTrackingFrameID = nCurrFrameID;
+				vpTempCPs.push_back(pCP);
+				vTempPrevPts.push_back(prevPt);
+				vTempCurrPts.push_back(currPt);
+				vbTempInliers.push_back(true);*/
+			}
+		}
+		cv::imshow("KF-KF::ref", refImg);
+		cv::imshow("KF-KF::curr", currImg);
+		cv::waitKey(1);
+	}
+	//////Ref-Curr 매칭
+}
 
 //맵포인트가 삭제 되면 현재 프레임에서도 해당 맵포인트를 삭제 해야 하며, 
 //이게 수행되기 전에는 트래킹이 동작하지 않도록 막아야 함.
@@ -1043,21 +1273,16 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		if (pCPi->GetNumSize() < mnThreshMinKF)
 			continue;
 		auto pMPi = pCPi->GetMP();
-		if (!pMPi || pMPi->isDeleted())
-			NNN++;
+		if (pMPi && !pMPi->isDeleted())
+			continue;
 		auto currPt = vpTempPTsCurr[i];
 		auto prevPt = vpTempPTsPrev[prevIDX];
 		vMatchPrevPTs.push_back(prevPt);
 		vMatchCurrPTs.push_back(currPt);
 		vMatchCPs.push_back(pCPi);
-		cv::circle(prevImg, prevPt, 3, cv::Scalar(255), -1);
-		cv::circle(currImg, currPt, 3, cv::Scalar(255), -1);
 	}
-	imshow("prev", prevImg);
-	imshow("curr", currImg);
-	cv::waitKey(1);
-
-	if (vMatchCPs.size() < 10) {
+	
+	if (vMatchCPs.size() < 3) {
 		std::cout << "포인트 부족 000" << std::endl;
 		return -1;
 	}

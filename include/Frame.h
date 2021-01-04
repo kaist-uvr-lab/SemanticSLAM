@@ -285,7 +285,7 @@ namespace UVR_SLAM {
 //////////////////////////
 
 	public:
-
+		std::vector<cv::Mat> mvPyramidImages;
 		//from ORB_SLAM2
 		
 		cv::Mat mDistCoef, mK;

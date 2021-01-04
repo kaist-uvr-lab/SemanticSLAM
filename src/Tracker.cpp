@@ -335,6 +335,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			bool bMP = pMP && !pMP->isDeleted();
 			bool bInlier = vbTempInliers[i];
 			if (!bInlier) {
+				pCP->mnTrackingFrameID = -1;
 				continue;
 			}
 
@@ -350,6 +351,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			bool bEpiConstraints = mpMatcher->CheckLineDistance(lineEqu, currPt, 1.0);
 			vbTempInliers[i] = bEpiConstraints;
 			if (!bEpiConstraints) {
+				pCP->mnTrackingFrameID = -1;
 				continue;
 			}
 
@@ -357,14 +359,21 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			auto gridPt = pPrev->GetGridBasePt(currPt, nGridSize);
 			if (pCurr->mmbFrameGrids[gridPt]) {
 				vbTempInliers[i] = false;
+				pCP->mnTrackingFrameID = -1;
 				continue;
 			}
 			////이미 그리드에 포함되어 있는지 확인하는 단계
 
+			if (pMatchInfo->CheckOpticalPointOverlap(currPt, mpSystem->mnRadius) > -1) {
+				vbTempInliers[i] = false;
+				pCP->mnTrackingFrameID = -1;
+				continue;
+			}
+
 			//////grid 추가
 			auto rect = cv::Rect(gridPt, std::move(cv::Point2f(gridPt.x + nGridSize, gridPt.y + nGridSize)));
 			pCurr->mmbFrameGrids[gridPt] = true;
-			auto currGrid = new FrameGrid(gridPt, rect);
+			auto currGrid = new FrameGrid(gridPt, rect, 0);
 			pCurr->mmpFrameGrids[gridPt] = currGrid;
 			pCurr->mmpFrameGrids[gridPt]->mpCP = pCP;
 			pCurr->mmpFrameGrids[gridPt]->pt = currPt;

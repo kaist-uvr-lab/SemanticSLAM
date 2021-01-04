@@ -44,7 +44,8 @@ namespace UVR_SLAM {
 		bool isDoingProcess();
 		void ComputeNeighborKFs(Frame* pKF);//std::map<UVR_SLAM::Frame*, int>
 		void ConnectNeighborKFs(Frame* pKF, std::map<UVR_SLAM::Frame*, int> mpCandiateKFs, int thresh);
-
+		void KeyFrameMarginalization(Frame* pKF, float thresh = 0.9, int thresh2 = 250);
+		void FuseKeyFrame(Frame* pKF1, Frame* pKF2, int nGridSize);
 	private:
 		int MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPrevKF, float fMedianDepth, float fMeanDepth, float fStdDev, double& dtime);
 		int MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPrevKF, double& dtime, cv::Mat& debugging);
