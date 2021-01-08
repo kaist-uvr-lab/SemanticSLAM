@@ -39,7 +39,9 @@ namespace UVR_SLAM{
 			else {
 				//pKF->mpMatchInfo->DisconnectAll();
 			}
+			
 			mQueueFrameWindows1.pop_front();
+			
 			if (mQueueFrameWindows2.size() > mnHalfConnectedKFs) {
 				auto pKF = mQueueFrameWindows2.front();
 				if (pKF->mnKeyFrameID % 4 == 0) {

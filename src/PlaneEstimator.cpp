@@ -192,6 +192,11 @@ void UVR_SLAM::PlaneEstimator::Run() {
 				std::vector<UVR_SLAM::MapPoint*> vpTempFloorMPs, vpTempOutlierFloorMPs;
 
 				auto spGraphKFs = mpMap->GetGraphFrames();//GetWindowFramesSet, GetGraphFrames
+				auto spWindowKFs = mpMap->GetWindowFramesSet();
+				for (auto iter = spWindowKFs.begin(), iend = spWindowKFs.end(); iter != iend; iter++) {
+					auto pKFi = *iter;
+					spGraphKFs.push_back(pKFi);
+				}
 				for (auto iter = spGraphKFs.begin(), iend = spGraphKFs.end(); iter != iend; iter++) {
 					auto pKFi = *iter;
 
@@ -2648,9 +2653,9 @@ float UVR_SLAM::PlaneInformation::CalcOverlapMPs(PlaneInformation* p, int nID) {
 			continue;
 		if (pMP->isDeleted())
 			continue;
-		if (pMP->GetRecentLocalMapID()>=nID) {
+		/*if (pMP->GetRecentLocalMapID()>=nID) {
 			nTotal++;
-		}
+		}*/
 		if (pMP->GetPlaneID() == mnPlaneID) {
 			nCount++;
 		}

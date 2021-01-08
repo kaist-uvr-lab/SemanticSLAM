@@ -154,6 +154,7 @@ namespace UVR_SLAM {
 		void SetInliers(int nInliers);
 		int GetInliers();
 
+		bool isDeleted();
 		bool isInImage(float u, float v, float w = 0);
 		bool isInFrustum(MapPoint *pMP, float viewingCosLimit);
 		cv::Point2f Projection(cv::Mat w3D);
@@ -198,15 +199,9 @@ namespace UVR_SLAM {
 		float mfMeanDepth, mfMedianDepth, mfMinDepth, mfStdDev, mfRange;
 	////////////////
 	public:
-		int mnLocalMapFrameID;
+		int mnLocalMapFrameID, mnTrackingID;
 		int mnLocalBAID, mnFixedBAID;
 		int mnFuseFrameID;
-	public:
-		void SetRecentTrackedFrameID(int id);
-		int GetRecentTrackedFrameID();
-	private:
-		int mnRecentTrackedFrameId;
-		std::mutex mMutexTrackedFrame;
 
 	public:
 		///////////////////////////////
@@ -264,11 +259,12 @@ namespace UVR_SLAM {
 	private:
 		
 		std::mutex mMutexNumInliers;
-		std::mutex mMutexFrame, mMutexPose;
+		std::mutex mMutexFrame, mMutexPose, mMutexConnection;
 		
 		std::multimap<int,UVR_SLAM::Frame*, std::greater<int>> mmpConnectedKFs;
 		cv::Mat matOri;
 		cv::Mat R, t;
+		bool mbDeleted;
 		int mnInliers;
 	public:
 		std::map<Frame*, int> mmKeyFrameCount;

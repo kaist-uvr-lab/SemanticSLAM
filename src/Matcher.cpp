@@ -1012,6 +1012,59 @@ int UVR_SLAM::Matcher::OpticalGridsMatching(Frame* pFrame1, Frame* pFrame2, std:
 	cv::imshow("Output::MatchTest", debugMatch);
 	cv::waitKey(1);
 }
+int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vCurrPtsMP, std::vector<bool>& vbInliers,
+	std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<cv::Point2f>& vPrevPts, std::vector<cv::Point2f>& vCurrPtsCP, std::vector<int>& vnIDXs) {
+
+	std::vector<cv::Mat> currPyr, prevPyr;
+	std::vector<uchar> status;
+	std::vector<float> err;
+	cv::Mat prevImg = prev->GetOriginalImage();
+	cv::Mat currImg = curr->GetOriginalImage();
+
+	int maxLvl = 0;
+	int searchSize = 20;
+	std::vector<cv::Point2f> prevPts, currPts;
+	prevPts = prev->mpMatchInfo->mvMatchingPts;
+	cv::calcOpticalFlowPyrLK(prevImg, currImg, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	cv::Mat overlap = cv::Mat::zeros(mHeight, mWidth, CV_8UC1);
+
+	int nCurrFrameID = curr->mnFrameID;
+	int res = 0;
+	int nBad = 0;
+	int nGridSize = mpSystem->mnRadius * 2;
+	
+	for (size_t i = 0, iend = prevPts.size(); i < iend; i++) {
+
+		if (status[i] == 0) {
+			continue;
+		}
+		if (!prev->isInImage(currPts[i].x, currPts[i].y, 20))
+			continue;
+
+		auto pCPi = prev->mpMatchInfo->mvpMatchingCPs[i];
+		if (pCPi->mnTrackingFrameID == nCurrFrameID) {
+			std::cout << "tracking::matching::" << pCPi->mnCandidatePointID << ", " << nCurrFrameID << std::endl;
+			continue;
+		}
+
+		pCPi->mnTrackingFrameID = nCurrFrameID;
+		auto pMPi = pCPi->GetMP();
+		if (pMPi && !pMPi->isDeleted()) {
+			vpMPs.push_back(pMPi);
+			vCurrPtsMP.push_back(currPts[i]);
+			vbInliers.push_back(true);
+		}
+		else {
+			vpCPs.push_back(pCPi);
+			vPrevPts.push_back(prevPts[i]);
+			vCurrPtsCP.push_back(currPts[i]);
+			vnIDXs.push_back(prev->mpMatchInfo->mvMatchingIdxs[i]);
+		}
+		res++;
+	}
+
+	return res;
+}
 
 int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<cv::Point2f>& vPrevPts, std::vector<cv::Point2f>& vCurrPts, std::vector<bool>& vbInliers, std::vector<int>& vnIDXs) {
 	
@@ -1160,8 +1213,8 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 		cv::rectangle(overlap, currPts[i] - mpSystem->mRectPt, currPts[i] + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 		vpTempCPs[i]->mnTrackingFrameID = nCurrFrameID;
 		UVR_SLAM::MapPoint* pMPi = vpTempMPs[i];
-		if (pMPi && !pMPi->isDeleted() && pMPi->GetRecentTrackingFrameID() != nCurrFrameID && curr->isInFrustum(pMPi, 0.6f)) {
-			pMPi->SetRecentTrackingFrameID(nCurrFrameID);
+		if (pMPi && !pMPi->isDeleted() && pMPi->mnTrackingID != nCurrFrameID && curr->isInFrustum(pMPi, 0.6f)) {
+			pMPi->mnTrackingID = nCurrFrameID;
 			vpMPs.push_back(pMPi);
 			vpCPs.push_back(vpTempCPs[i]);
 			vnIDXs.push_back(i);

@@ -193,6 +193,53 @@ void UVR_SLAM::LocalMapper::Run() {
 					totalActive += t_test1;
 					lock.unlock();
 					mpSystem->cvUseCreateCP.notify_all();
+
+					///////////매칭 테스트
+					//cv::Mat desc1, desc2;
+					//std::vector<cv::Point2f> pts1, pts2;
+					//{
+					//	auto matchInfo1 = mpPrevKeyFrame->mpMatchInfo;
+					//	auto matchInfo2 = mpTempFrame->mpMatchInfo;
+					//	std::cout << mpPrevKeyFrame->matDescriptor.rows << ", " << matchInfo1->mvpMatchingCPs.size() << std::endl;
+					//	/*for (size_t i = 0, iend = matchInfo1->mvpMatchingCPs.size(); i < iend; i++) {
+					//		auto pCPi = matchInfo1->mvpMatchingCPs[i];
+					//		auto pMPi = pCPi->GetMP();
+					//		if (pMPi && !pMPi->isDeleted())
+					//			continue;
+					//		pts1.push_back(matchInfo1->mvMatchingPts[i]);
+					//		desc1.push_back(mpPrevKeyFrame->matDescriptor.row(i));
+					//	}
+					//	for (size_t i = 0, iend = matchInfo2->mvpMatchingCPs.size(); i < iend; i++) {
+					//		auto pCPi = matchInfo2->mvpMatchingCPs[i];
+					//		auto pMPi = pCPi->GetMP();
+					//		if (pMPi && !pMPi->isDeleted())
+					//			continue;
+					//		pts2.push_back(matchInfo2->mvMatchingPts[i]);
+					//		desc2.push_back(mpTempFrame->matDescriptor.row(i));
+					//	}*/
+					//	//if (desc1.rows != 0 && desc2.rows != 0)
+					//	{
+					//		std::cout << desc1.size() << " " << desc2.size() << std::endl;
+					//		cv::Mat img1 = mpPrevKeyFrame->GetOriginalImage().clone();
+					//		cv::Mat img2 = mpTempFrame->GetOriginalImage().clone();
+					//		std::vector< std::vector<cv::DMatch> > matches;
+					//		std::vector<cv::DMatch> vMatches;
+					//		auto matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
+					//		matcher->knnMatch(mpPrevKeyFrame->matDescriptor, mpTempFrame->matDescriptor, matches, 2);
+
+					//		for (unsigned long i = 0; i < matches.size(); i++) {
+					//			if (matches[i][0].distance < 0.8f * matches[i][1].distance) {
+					//				vMatches.push_back(matches[i][0]);
+					//				cv::circle(img1, mpPrevKeyFrame->mvKeyPoints[matches[i][0].trainIdx].pt, 3, cv::Scalar(255, 0, 255), -1);
+					//				cv::circle(img2, mpTempFrame->mvKeyPoints[matches[i][0].queryIdx].pt, 3, cv::Scalar(255, 0, 255), -1);
+					//			}
+					//		}
+					//		imshow("a", img1); imshow("b", img2);
+					//		cv::waitKey(1);
+					//	}
+					//	
+					//}
+					///////////매칭 테스트
 				}
 
 			}
@@ -291,47 +338,47 @@ void UVR_SLAM::LocalMapper::Run() {
 			if (bNeedNewKF) {
 			
 				//키프레임 컬링
-				KeyFrameMarginalization(mpTargetFrame, 0.92);
+				//KeyFrameMarginalization(mpTargetFrame, 0.92);
 
 				//키프레임 연결
 				ConnectNeighborKFs(mpTargetFrame, mpTargetFrame->mmKeyFrameCount, 20);
 				
-				{
-					auto vpNeighKFs = mpTargetFrame->GetConnectedKFs(10);
-					if (vpNeighKFs.size() > 4) {
-						std::vector<cv::Mat> currPyr, prevPyr;
-						std::vector<uchar> status;
-						std::vector<float> err;
-						int nSize = vpNeighKFs.size() - 1;
-						auto pKF = vpNeighKFs[nSize];
-						cv::Mat prevImg = pKF->mvPyramidImages[2].clone();
-						cv::Mat currImg = mpTargetFrame->mvPyramidImages[2].clone();
+				//{
+				//	auto vpNeighKFs = mpTargetFrame->GetConnectedKFs(10);
+				//	if (vpNeighKFs.size() > 4) {
+				//		std::vector<cv::Mat> currPyr, prevPyr;
+				//		std::vector<uchar> status;
+				//		std::vector<float> err;
+				//		int nSize = vpNeighKFs.size() - 1;
+				//		auto pKF = vpNeighKFs[nSize];
+				//		cv::Mat prevImg = pKF->mvPyramidImages[2].clone();
+				//		cv::Mat currImg = mpTargetFrame->mvPyramidImages[2].clone();
 
-						int maxLvl = 0;
-						int searchSize = 10;
-						std::vector<cv::Point2f> prevPts, currPts;
-						prevPts = pKF->mvPyramidPts;
-						if (prevPts.size() > 10) {
-							cv::calcOpticalFlowPyrLK(prevImg, currImg, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
-							for (size_t i = 0, iend = prevPts.size(); i < iend; i++) {
-								if (status[i] == 0) {
-									continue;
-								}
-								if (currPts[i] == prevPts[i])
-								{
-									std::cout << "??????????????aaa" << std::endl;
-									continue;
-								}
-								if (!pKF->isInImage(currPts[i].x, currPts[i].y, 20))
-									continue;
-								cv::circle(prevImg, prevPts[i], 2, cv::Scalar(255), -1);
-								cv::circle(currImg, currPts[i], 2, cv::Scalar(255), -1);
-							}
-							imshow("level::curr", currImg);
-							imshow("level::prev", prevImg); cv::waitKey(1);
-						}
-					}//if neigh
-				}
+				//		int maxLvl = 0;
+				//		int searchSize = 5;
+				//		std::vector<cv::Point2f> prevPts, currPts;
+				//		prevPts = pKF->mvPyramidPts;
+				//		if (prevPts.size() > 10) {
+				//			cv::calcOpticalFlowPyrLK(prevImg, currImg, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+				//			for (size_t i = 0, iend = prevPts.size(); i < iend; i++) {
+				//				if (status[i] == 0) {
+				//					continue;
+				//				}
+				//				if (currPts[i] == prevPts[i])
+				//				{
+				//					std::cout << "??????????????aaa" << std::endl;
+				//					continue;
+				//				}
+				//				if (!pKF->isInImage(currPts[i].x, currPts[i].y, 20))
+				//					continue;
+				//				cv::circle(prevImg, prevPts[i], 2, cv::Scalar(255), -1);
+				//				cv::circle(currImg, currPts[i], 2, cv::Scalar(255), -1);
+				//			}
+				//			imshow("level::curr", currImg);
+				//			imshow("level::prev", prevImg); cv::waitKey(1);
+				//		}
+				//	}//if neigh
+				//}
 
 				//////평면 관련 프로세스
 				////평면 레이블링
@@ -339,10 +386,10 @@ void UVR_SLAM::LocalMapper::Run() {
 					int mnLabel_floor = 4;
 					int mnLabel_ceil = 6;
 					int mnLabel_wall = 1;
-
 					auto pFloorParam = mpPlaneEstimator->GetPlaneParam();
-					
 				}
+
+				auto pTarget = mpMap->AddWindowFrame(mpTargetFrame);
 			
 				if (mpMapOptimizer->isDoingProcess()) {
 					//std::cout << "lm::ba::busy" << std::endl;
@@ -394,7 +441,9 @@ void UVR_SLAM::LocalMapper::ConnectNeighborKFs(Frame* pKF, std::map<UVR_SLAM::Fr
 	std::vector<std::pair<int, UVR_SLAM::Frame*>> vPairs;
 	for (auto biter = mpCandiateKFs.begin(), eiter = mpCandiateKFs.end(); biter != eiter; biter++) {
 		UVR_SLAM::Frame* pTempKF = biter->first;
+		
 		int nCount = biter->second;
+
 		if (nCount > thresh) {
 			pKF->AddKF(pTempKF, nCount);
 			pTempKF->AddKF(pKF, nCount);
@@ -439,6 +488,7 @@ void UVR_SLAM::LocalMapper::KeyFrameMarginalization(Frame* pKF, float thresh, in
 		if (N2 > N1*thresh && N1 > thresh2) {
 			std::cout << "Delete::KF::" <<pKFi->mnKeyFrameID<<"::"<< N1*thresh << ", " << N2 << std::endl;
 			pKFi->Delete();
+			std::cout << "Delete::KF::End" << std::endl;
 			iter->second = 0;
 		}
 		/*else {
@@ -803,7 +853,7 @@ int UVR_SLAM::LocalMapper::RecoverPose(Frame* pCurrKF, Frame* pPrevKF, std::vect
 	R = R*Rprev;
 	T = scaled;
 	mpTargetFrame->GetPose(R, T);
-	mpMap->ClearReinit();
+	//mpMap->ClearReinit();
 	std::vector<bool> vbInliers(vX3Ds.size(), true);
 	std::vector<bool> vbInliers2(vX3Ds.size(), true);
 	//Optimization::LocalOptimization(mpSystem, mpMap, pCurrKF, vX3Ds, vpTempCPs, vbInliers, vbInliers2, 1.0);
@@ -1319,7 +1369,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	}
 	
 	if (vMatchCPs.size() < 3) {
-		std::cout << "포인트 부족 000" << std::endl;
+		std::cout << "LM::NewMP::포인트부족="<< vMatchCPs.size()<< std::endl;
 		return -1;
 	}
 	cv::Mat TempMap;
@@ -1423,7 +1473,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 			bool bSuccess = Optimization::PointRefinement(mpMap, pCurrKF, pCPi, X3D, pCPi->GetFrames(), spKFs, mnThreshMinKF, thHuber);
 			if(bSuccess){
 				N2++;
-				mpMap->AddReinit(pCPi->GetMP()->GetWorldPos());
+				//mpMap->AddReinit(pCPi->GetMP()->GetWorldPos());
 			}
 		}
 		////수정 후 이것만 쓸 예정

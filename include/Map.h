@@ -70,7 +70,7 @@ namespace UVR_SLAM {
 
 		////맵포인트 관리
 	public:
-		std::mutex mMutexMapUdpate, mMutexMapOptimization;
+		std::mutex mMutexMapUpdate, mMutexMapOptimization;
 		void AddMap(MapPoint* pMP, int label);
 		void RemoveMap(MapPoint* pMP);
 		std::map<MapPoint*, int> GetMap();

@@ -31,13 +31,19 @@ namespace UVR_SLAM {
 	}
 	bool FrameGrid::CalcActivePoints(cv::Mat src, int gthresh, int& localthresh, cv::Point2f& pt) {
 		std::vector<uchar> vecFromMat;
-		cv::Mat mReshaped = src.reshape(0, 1); // spread Input Mat to single row
-		mReshaped.copyTo(vecFromMat); // Copy Input Mat to vector vecFromMat
-		//std::cout << "before::" << (int)vecFromMat[0] <<" "<< (int)vecFromMat[vecFromMat.size() / 2] << " " << (int)vecFromMat[vecFromMat.size() - 1] << std::endl;;
+		//cv::Mat mReshaped = src.reshape(0, 1); // spread Input Mat to single row
+		//mReshaped.copyTo(vecFromMat); // Copy Input Mat to vector vecFromMat
+		for (int y = 0; y < src.rows; y++) {
+			for (int x = 0; x < src.cols; x++) {
+				int val = src.at<uchar>(y, x);
+				if (val == 0)
+					continue;
+				vecFromMat.push_back(val);
+			}
+		}
+		if (vecFromMat.size() < 10)
+			return false;
 		std::nth_element(vecFromMat.begin(), vecFromMat.begin() + vecFromMat.size() / 2, vecFromMat.end());
-		//std::cout <<"gra::"<< (int)vecFromMat[0]<<" "<< (int)vecFromMat[vecFromMat.size() / 2] << " " << (int)vecFromMat[vecFromMat.size() - 1] << std::endl;;
-		
-		
 
 		/*std::cout << "test::" << std::endl;
 		std::cout << "max::"<<maxVal << std::endl;

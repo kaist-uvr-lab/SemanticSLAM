@@ -66,13 +66,19 @@ namespace UVR_SLAM {
 	public:
 		int mnMapPointID;
 		int mnFirstKeyFrameID;
-		int mnLocalBAID;
+		int mnLocalBAID, mnLocalMapID, mnTrackingID;
 		int mnOctave;
+		////마지막 트래킹 정보.
+		Frame* mLastFrame;
+		cv::Mat mLastMatchPatch;
+		cv::Point2f mLastMatchBasePt;
+		cv::Point2f mLastMatchPoint;
+		bool mbLastMatch;
+		CandidatePoint* mpCP; //현재 맵포인트를 만든 CP와 연결함.
 
 	private:
 		Map* mpMap;
 		Frame* mpRefKF;
-		CandidatePoint* mpCP; //현재 맵포인트를 만든 CP와 연결함.
 		std::mutex mMutexMP;
 		bool mbDelete;
 		int mnPlaneID;
@@ -97,15 +103,11 @@ namespace UVR_SLAM {
 
 	//local map 및 최근 트래킹 관련 index 관련
 	public:
-		int GetRecentLocalMapID();
-		void SetRecentLocalMapID(int nLocalMapID);
-		int GetRecentTrackingFrameID();
-		void SetRecentTrackingFrameID(int nFrameID);
 		int GetRecentLayoutFrameID();
 		void SetRecentLayoutFrameID(int nFrameID);
 	private:
-		std::mutex mMutexRecentLocalMapID, mMutexRecentTrackedFrameID, mMutexRecentLayoutFrameID;
-		int mnLocalMapID, mnTrackedFrameID, mnLayoutFrameID;
+		std::mutex mMutexRecentLayoutFrameID;
+		int mnLayoutFrameID;//mnLocalMapID
 	//Object Type
 	public:
 		void SetObjectType(ObjectType nType);

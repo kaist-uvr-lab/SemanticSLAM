@@ -20,7 +20,7 @@ float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::F
 float UVR_SLAM::Frame::mnMinX, UVR_SLAM::Frame::mnMinY, UVR_SLAM::Frame::mnMaxX, UVR_SLAM::Frame::mnMaxY;
 float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeightInv;
 
-UVR_SLAM::Frame::Frame(System* pSys, cv::Mat _src, int w, int h, cv::Mat K, double ts):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
+UVR_SLAM::Frame::Frame(System* pSys, cv::Mat _src, int w, int h, cv::Mat K, double ts):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
 mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMedianDepth(0.0),
 mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts)
 {
@@ -42,17 +42,19 @@ mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), md
 	////////////canny
 	mnFrameID = UVR_SLAM::System::nFrameID++;
 
-	mvPyramidImages.push_back(matOri);
+	////피라미드 적용
+	/*mvPyramidImages.push_back(matOri);
 	int level = 3;
 	for (int i = 1; i < level; i++) {
 		int a = i * 2;
 		cv::Mat resized1, resized2;
 		cv::resize(matOri, resized1, cv::Size(w / a, h / a));
 		mvPyramidImages.push_back(resized1);
-	}
+	}*/
+	////피라미드 적용
 }
 
-UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
+UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
 mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMedianDepth(0.0),
 mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
 {
@@ -76,7 +78,7 @@ mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), m
 	mnFrameID = UVR_SLAM::System::nFrameID++;
 }
 
-UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnRecentTrackedFrameId(0),
+UVR_SLAM::Frame::Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
 mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMedianDepth(0.0),
 mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(0.0)
 {
@@ -91,15 +93,6 @@ mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), m
 
 UVR_SLAM::Frame::~Frame() {
 	close();
-}
-
-void UVR_SLAM::Frame::SetRecentTrackedFrameID(int id) {
-	std::unique_lock<std::mutex>(mMutexTrackedFrame);
-	mnRecentTrackedFrameId = id;
-}
-int UVR_SLAM::Frame::GetRecentTrackedFrameID() {
-	std::unique_lock<std::mutex>(mMutexTrackedFrame);
-	return mnRecentTrackedFrameId;
 }
 
 void UVR_SLAM::Frame::SetInliers(int nInliers){
@@ -278,6 +271,8 @@ int UVR_SLAM::Frame::GetNumInliers() {
 	std::unique_lock<std::mutex> lockMP(mMutexNumInliers);
 	return mnInliers;
 }
+
+
 
 bool UVR_SLAM::Frame::isInImage(float x, float y, float w)
 {
@@ -493,76 +488,9 @@ bool UVR_SLAM::Frame::GetBoolMapping(){
 	return mbMapping;
 }
 
-void UVR_SLAM::Frame::Delete() {
 
-	//커넥션 관련된 뮤텍스 추가해야 할 듯. KF제거시
 
-	if (mnKeyFrameID == 0)
-		return;
 
-	//MP제거
-	auto matchInfo = this->mpMatchInfo;
-	auto vpCPs = matchInfo->mvpMatchingCPs;
-	auto vPTs = matchInfo->mvMatchingPts;
-	for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
-		auto pCPi = vpCPs[i];
-		pCPi->DisconnectFrame(matchInfo);
-		auto pMPi = pCPi->GetMP();
-		if (!pMPi || pMPi->isDeleted())
-			continue;
-		pMPi->DisconnectFrame(matchInfo);
-	}
-	//KF제거
-	for (auto iter = mmKeyFrameCount.begin(), iend = mmKeyFrameCount.end(); iter != iend; iter++) {
-		auto pKFi = iter->first;
-		pKFi->RemoveKF(this);
-	}
-	mmpConnectedKFs.clear();
-	////DB 제거
-	mpSystem->mpMap->RemoveFrame(this);
-}
-
-void UVR_SLAM::Frame::AddKF(UVR_SLAM::Frame* pKF, int weight){
-	mmpConnectedKFs.insert(std::make_pair(weight,pKF));
-}
-void UVR_SLAM::Frame::RemoveKF(Frame* pKF) {
-	if (mmKeyFrameCount.count(pKF)) {
-		int c = mmKeyFrameCount[pKF];
-		RemoveKF(pKF, c);
-	}
-}
-void UVR_SLAM::Frame::RemoveKF(UVR_SLAM::Frame* pKF, int weight){
-	//mmpConnectedKFs.erase(pKF);
-	auto range = mmpConnectedKFs.equal_range(weight);
-	for (auto iter = range.first; iter != range.second; iter++) {
-		UVR_SLAM::Frame* pKFi = iter->second;
-		if (pKFi == pKF) {
-			mmpConnectedKFs.erase(iter);
-			return;
-		}
-	}
-}
-std::vector<UVR_SLAM::Frame*> UVR_SLAM::Frame::GetConnectedKFs(int n){
-	//return std::vector<UVR_SLAM::Frame*>(mmpConnectedKFs.begin(), mmpConnectedKFs.end());
-	std::vector<UVR_SLAM::Frame*> tempKFs;
-	for (std::multimap<int, UVR_SLAM::Frame*, std::greater<int>>::iterator iter = mmpConnectedKFs.begin(); iter != mmpConnectedKFs.end(); iter++) {
-		UVR_SLAM::Frame* pKFi = iter->second;
-		tempKFs.push_back(pKFi);
-	}
-	if (n == 0 || tempKFs.size() < n) {
-		return std::vector<UVR_SLAM::Frame*>(tempKFs.begin(), tempKFs.end());
-	}
-	return std::vector<UVR_SLAM::Frame*>(tempKFs.begin(), tempKFs.begin() + n);
-}
-
-std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> UVR_SLAM::Frame::GetConnectedKFsWithWeight() {
-	/*std::multimap<int, UVR_SLAM::Frame*> tempKFs;
-	for (std::multimap<int, UVR_SLAM::Frame*, std::greater<int>>::iterator iter = mmpConnectedKFs.begin(); iter != mmpConnectedKFs.end(); iter++) {
-		UVR_SLAM::Frame* pKFi = iter->second;
-		tempKFs.insert(std::make_pair(iter->first, iter->second));
-	}*/
-	return std::multimap<int, UVR_SLAM::Frame*, std::greater<int>>(mmpConnectedKFs.begin(), mmpConnectedKFs.end());
-}
 
 void UVR_SLAM::Frame::SetLines(std::vector<Line*> lines) {
 	std::unique_lock<std::mutex> lock(mMutexLines);
@@ -930,6 +858,7 @@ void UVR_SLAM::Frame::SetWallParams(std::vector<cv::Mat> vParams){
 void UVR_SLAM::Frame::Reset() {
 	//mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);
 	mnInliers = 0;
+	std::unique_lock<std::mutex> lockMP(mMutexConnection);
 	mmpConnectedKFs.clear();
 }
 
@@ -1233,43 +1162,43 @@ void UVR_SLAM::Frame::SetGrids() {
 	cv::Mat matGradient;
 	ComputeGradientImage(GetOriginalImage(), matGradient);
 	
-	////피라미드 적용 테스트
-	{
-		int level = 3;
-		for (int l = 1; l < level; l++) {
-			cv::Mat matLevelGra;
-			ComputeGradientImage(this->mvPyramidImages[l], matLevelGra);
+	//////피라미드 적용 테스트
+	//{
+	//	int level = 3;
+	//	for (int l = 1; l < level; l++) {
+	//		cv::Mat matLevelGra;
+	//		ComputeGradientImage(this->mvPyramidImages[l], matLevelGra);
 
-			int a = pow(2, l);
-			int w = mnWidth / a;
-			int h = mnHeight / a;
-			
-			for (int x = 0; x < w; x += nSize) {
-				for (int y = 0; y < h; y += nSize) {
-					cv::Point2f ptLeft(x, y);
-					cv::Point2f ptRight(x + nSize, y + nSize);
-					if (ptRight.x > w || ptRight.y > h) {
-						continue;
-					}
-					
-					cv::Rect rect(ptLeft, ptRight);
-					auto pGrid = new FrameGrid(std::move(ptLeft), std::move(rect), l);
-					bool bGrid = false;
-					cv::Mat mGra = matLevelGra(rect).clone();// .clone();
-					cv::Point2f pt;
-					int localthresh;
-					if (pGrid->CalcActivePoints(mGra, thresh, localthresh, pt)) {
-						if (l == 2) {
-							FrameGridLevelKey a(ptLeft, l);
-							mmpFrameLevelGrids.insert(std::make_pair(a, pGrid));
-							mvPyramidPts.push_back(pt);
-						}
-					}//if active
-				}
-			}//이미지
-		}//레벨
-	}
-	////피라미드 적용 테스트
+	//		int a = pow(2, l);
+	//		int w = mnWidth / a;
+	//		int h = mnHeight / a;
+	//		
+	//		for (int x = 0; x < w; x += nSize) {
+	//			for (int y = 0; y < h; y += nSize) {
+	//				cv::Point2f ptLeft(x, y);
+	//				cv::Point2f ptRight(x + nSize, y + nSize);
+	//				if (ptRight.x > w || ptRight.y > h) {
+	//					continue;
+	//				}
+	//				
+	//				cv::Rect rect(ptLeft, ptRight);
+	//				auto pGrid = new FrameGrid(std::move(ptLeft), std::move(rect), l);
+	//				bool bGrid = false;
+	//				cv::Mat mGra = matLevelGra(rect);// .clone();// .clone();
+	//				cv::Point2f pt;
+	//				int localthresh;
+	//				if (pGrid->CalcActivePoints(mGra, thresh, localthresh, pt)) {
+	//					if (l == 2) {
+	//						FrameGridLevelKey a(ptLeft, l);
+	//						mmpFrameLevelGrids.insert(std::make_pair(a, pGrid));
+	//						mvPyramidPts.push_back(pt);
+	//					}
+	//				}//if active
+	//			}
+	//		}//이미지
+	//	}//레벨
+	//}
+	//////피라미드 적용 테스트
 
 
 	////포인트 중복 및 그리드 내 추가 포인트 관련
@@ -1312,7 +1241,7 @@ void UVR_SLAM::Frame::SetGrids() {
 			////LBP 계산
 			
 			////active point 계산
-			if (pGrid->CalcActivePoints(mGra.clone(), thresh, localthresh,pt)) {
+			if (pGrid->CalcActivePoints(mGra, thresh, localthresh,pt)) {
 				bool bOccupied = this->mpMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
 				if (bOccupied)
 					continue;
@@ -1379,13 +1308,14 @@ void UVR_SLAM::Frame::SetGrids() {
 			//cv::circle(testImg, ptLeft, 3, cv::Scalar(255),-1);
 		}
 	}
+
+	////이전 프레임의 인덱스 넣는 과정
 	mpMatchInfo->mvPrevMatchingIdxs = std::vector<int>(mpMatchInfo->mvMatchingIdxs.begin(), mpMatchInfo->mvMatchingIdxs.end());
 	mpMatchInfo->mvMatchingIdxs.resize(mpMatchInfo->mvpMatchingCPs.size());// = std::vector<int>(mpMatchInfo->mvpMatchingCPs.size());
 	for (size_t i = 0, iend = mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++) {
 		mpMatchInfo->mvMatchingIdxs[i] = i;
 	}
-
-	//imshow("label test", testImg); waitKey(1);
+	
 }
 
 cv::Point2f UVR_SLAM::Frame::GetExtendedRect(cv::Point2f pt, int size) {
@@ -1431,4 +1361,93 @@ cv::Mat UVR_SLAM::Frame::ComputeFundamentalMatrix(Frame* pTarget) {
 	cv::Mat t12x = UVR_SLAM::MatrixOperator::GetSkewSymetricMatrix(Trel);
 	t12x.convertTo(Trel, CV_32FC1);
 	return mK.t().inv()*Trel*Rrel*mK.inv();
+}
+
+bool UVR_SLAM::Frame::isDeleted() {
+	std::unique_lock<std::mutex> lockMP(mMutexConnection);
+	return mbDeleted;
+}
+
+void UVR_SLAM::Frame::Delete() {
+
+	//커넥션 관련된 뮤텍스 추가해야 할 듯. KF제거시
+	if (mnKeyFrameID == 0)
+		return;
+
+	std::map<Frame*, int> tempKeyFrameCount;
+	std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> tempConnectedKFs;
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexConnection);
+		tempKeyFrameCount = mmKeyFrameCount;
+		tempConnectedKFs = mmpConnectedKFs;
+		mbDeleted = true;
+		mmKeyFrameCount.clear();
+		mmpConnectedKFs.clear();
+	}
+
+	//MP제거
+	auto matchInfo = this->mpMatchInfo;
+	auto vpCPs = matchInfo->mvpMatchingCPs;
+	auto vPTs = matchInfo->mvMatchingPts;
+	for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
+		auto pCPi = vpCPs[i];
+		pCPi->DisconnectFrame(matchInfo);
+		auto pMPi = pCPi->GetMP();
+		if (!pMPi || pMPi->isDeleted())
+			continue;
+		pMPi->DisconnectFrame(matchInfo);
+	}
+	//KF제거
+	for (auto iter = tempKeyFrameCount.begin(), iend = tempKeyFrameCount.end(); iter != iend; iter++) {
+		auto pKFi = iter->first;
+		pKFi->RemoveKF(this);
+	}
+	//mmpConnectedKFs.clear();
+	////DB 제거
+	mpSystem->mpMap->RemoveFrame(this);
+}
+
+void UVR_SLAM::Frame::AddKF(UVR_SLAM::Frame* pKF, int weight) {
+	std::unique_lock<std::mutex> lockMP(mMutexConnection);
+	mmpConnectedKFs.insert(std::make_pair(weight, pKF));
+}
+void UVR_SLAM::Frame::RemoveKF(Frame* pKF) {
+	std::unique_lock<std::mutex> lockMP(mMutexConnection);
+	if (mmKeyFrameCount.count(pKF)) {
+		int c = mmKeyFrameCount[pKF];
+		RemoveKF(pKF, c);
+	}
+}
+void UVR_SLAM::Frame::RemoveKF(UVR_SLAM::Frame* pKF, int weight) {
+	std::unique_lock<std::mutex> lockMP(mMutexConnection);
+	auto range = mmpConnectedKFs.equal_range(weight);
+	for (auto iter = range.first; iter != range.second; iter++) {
+		UVR_SLAM::Frame* pKFi = iter->second;
+		if (pKFi == pKF) {
+			mmpConnectedKFs.erase(iter);
+			return;
+		}
+	}
+}
+std::vector<UVR_SLAM::Frame*> UVR_SLAM::Frame::GetConnectedKFs(int n) {
+	std::unique_lock<std::mutex> lockMP(mMutexConnection);
+	std::vector<UVR_SLAM::Frame*> tempKFs;
+	for (std::multimap<int, UVR_SLAM::Frame*, std::greater<int>>::iterator iter = mmpConnectedKFs.begin(); iter != mmpConnectedKFs.end(); iter++) {
+		UVR_SLAM::Frame* pKFi = iter->second;
+		tempKFs.push_back(pKFi);
+	}
+	if (n == 0 || tempKFs.size() < n) {
+		return std::vector<UVR_SLAM::Frame*>(tempKFs.begin(), tempKFs.end());
+	}
+	return std::vector<UVR_SLAM::Frame*>(tempKFs.begin(), tempKFs.begin() + n);
+}
+
+std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> UVR_SLAM::Frame::GetConnectedKFsWithWeight() {
+	/*std::multimap<int, UVR_SLAM::Frame*> tempKFs;
+	for (std::multimap<int, UVR_SLAM::Frame*, std::greater<int>>::iterator iter = mmpConnectedKFs.begin(); iter != mmpConnectedKFs.end(); iter++) {
+	UVR_SLAM::Frame* pKFi = iter->second;
+	tempKFs.insert(std::make_pair(iter->first, iter->second));
+	}*/
+	std::unique_lock<std::mutex> lockMP(mMutexConnection);
+	return std::multimap<int, UVR_SLAM::Frame*, std::greater<int>>(mmpConnectedKFs.begin(), mmpConnectedKFs.end());
 }

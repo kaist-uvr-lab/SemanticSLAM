@@ -9,13 +9,13 @@ static int nMapPointID = 0;
 namespace UVR_SLAM {
 	MapPoint::MapPoint()
 		:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
-		, mnFirstKeyFrameID(0), mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(0)
-		, mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0)
+		, mnFirstKeyFrameID(0), mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnOctave(0)
+		, mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0), mbLastMatch(false)
 	{}
 	MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP,cv::Mat _p3D, cv::Mat _desc, int alabel, int octave)
 	: mpMap(pMap), mpRefKF(pRefKF),p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
-	, mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(octave)
-	, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0)
+	, mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnOctave(octave)
+	, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0), mbLastMatch(false)
 	{
 		alabel = label;
 		mnFirstKeyFrameID = mpRefKF->mnKeyFrameID;
@@ -28,8 +28,8 @@ namespace UVR_SLAM {
 	}
 	MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int alabel, int octave)
 	: mpMap(pMap), mpRefKF(pRefKF), p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
-	, mnLocalMapID(0), mnLocalBAID(0), mnTrackedFrameID(-1), mnLayoutFrameID(-1), mnOctave(octave)
-	, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0)
+	, mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnOctave(octave)
+	, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0), mbLastMatch(false)
 	{
 		alabel = label;
 		mnFirstKeyFrameID = mpRefKF->mnKeyFrameID;
@@ -42,23 +42,7 @@ namespace UVR_SLAM {
 	}
 	MapPoint::~MapPoint(){}
 
-	int MapPoint::GetRecentLocalMapID() {
-		std::unique_lock<std::mutex> lockMP(mMutexRecentLocalMapID);
-		return mnLocalMapID;
-	}
-	void MapPoint::SetRecentLocalMapID(int nLocalMapID) {
-		std::unique_lock<std::mutex> lockMP(mMutexRecentLocalMapID);
-		mnLocalMapID = nLocalMapID;
-	}
 	////트래킹 시 중복 체크하는 용도
-	int MapPoint::GetRecentTrackingFrameID() {
-		std::unique_lock<std::mutex> lockMP(mMutexRecentTrackedFrameID);
-		return mnTrackedFrameID;
-	}
-	void MapPoint::SetRecentTrackingFrameID(int nFrameID) {
-		std::unique_lock<std::mutex> lockMP(mMutexRecentTrackedFrameID);
-		mnTrackedFrameID = nFrameID;
-	}
 	int MapPoint::GetRecentLayoutFrameID() {
 		std::unique_lock<std::mutex> lockMP(mMutexRecentLayoutFrameID);
 		return mnLayoutFrameID;

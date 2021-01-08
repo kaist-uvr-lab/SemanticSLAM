@@ -39,7 +39,6 @@ bool UVR_SLAM::Optimization::PointRefinement(UVR_SLAM::Map* pMap, UVR_SLAM::Fram
 	g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
 	optimizer.setAlgorithm(solver);
 
-
 	std::vector<g2o::BAEdgeOnlyMapPoint*> vpEdgesMono;
 	std::vector<UVR_SLAM::Frame*> vpEdgeKFMono;
 	std::vector<int> vnIDXs;
@@ -144,8 +143,7 @@ int UVR_SLAM::Optimization::ObjectPointRefinement(UVR_SLAM::Map* pMap, std::vect
 	optimizer.setAlgorithm(solver);
 
 	auto spKFs = pMap->GetWindowFramesSet(3);
-
-
+	
 	long unsigned int maxKFid = 0;
 	for (int i = 0; i < vpKFs.size(); i++) {
 		auto pKFi = vpKFs[i];
@@ -188,7 +186,7 @@ int UVR_SLAM::Optimization::ObjectPointRefinement(UVR_SLAM::Map* pMap, std::vect
 	const float thHuberMono = sqrt(5.991);*/
 
 	//LOCK
-	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
+	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUpdate);
 
 	////새로 추가된 맵포인트 설정
 	for (size_t i = 0; i<vpObjectMPs.size(); i++)
@@ -370,7 +368,7 @@ int UVR_SLAM::Optimization::PlanarPoseRefinement(UVR_SLAM::Map* pMap, std::vecto
 	const float thHuberStereo = sqrt(7.815);
 
 	//LOCK
-	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
+	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUpdate);
 
 	for (int i = 0; i < vpPlanarMPs.size(); i++)
 	{
@@ -499,9 +497,148 @@ int UVR_SLAM::Optimization::PlanarPoseRefinement(UVR_SLAM::Map* pMap, std::vecto
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////Opticalflow 버전용
+int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool>& vbInliers, std::vector<float> vInvLevelSigma2)
+{
+	//std::unique_lock<std::mutex> lock(pMap->mMutexMapUpdate);
+
+	g2o::SparseOptimizer optimizer;
+	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
+
+	linearSolver = new g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>();
+
+	g2o::BlockSolver_6_3 * solver_ptr = new g2o::BlockSolver_6_3(linearSolver);
+
+	g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+	optimizer.setAlgorithm(solver);
+
+	int nInitialCorrespondences = 0;
+	int nTargetID = pFrame->mnFrameID;
+
+	// Set Frame vertex
+	cv::Mat R, t;
+	pFrame->GetPose(R, t);
+	cv::Mat Tcw = cv::Mat::zeros(4, 4, CV_32FC1);
+	R.copyTo(Tcw.rowRange(0, 3).colRange(0, 3));
+	t.copyTo(Tcw.rowRange(0, 3).col(3));
+	g2o::VertexSE3Expmap * vSE3 = new g2o::VertexSE3Expmap();
+	vSE3->setEstimate(Converter::toSE3Quat(Tcw));
+	vSE3->setId(0);
+	vSE3->setFixed(false);
+	optimizer.addVertex(vSE3);
+
+	// Set MapPoint vertices
+	const int N = vpMPs.size();//vpMPs.size();
+
+	std::vector<g2o::EdgeSE3ProjectXYZOnlyPose*> vpEdgesMono;
+	std::vector<size_t> vnIndexEdgeMono;
+	vpEdgesMono.reserve(N);
+	vnIndexEdgeMono.reserve(N);
+	const float deltaMono = sqrt(5.991);
+	{
+		for (int i = 0; i<N; i++)
+		{
+			auto pMP = vpMPs[i];
+			if (!pMP || pMP->isDeleted()) {
+				continue;
+				vbInliers[i] = false;
+			}
+			nInitialCorrespondences++;
+
+			Eigen::Matrix<double, 2, 1> obs;
+			const cv::Point2f pt = vpPts[i];
+
+			obs << pt.x, pt.y;
+			g2o::EdgeSE3ProjectXYZOnlyPose* e = new g2o::EdgeSE3ProjectXYZOnlyPose();
+
+			e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+			e->setMeasurement(obs);
+			int octave = pMP->mnOctave;
+			const float invSigma2 = vInvLevelSigma2[octave];
+			e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
+			g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+			e->setRobustKernel(rk);
+			rk->setDelta(deltaMono);
+
+			e->fx = pFrame->fx;
+			e->fy = pFrame->fy;
+			e->cx = pFrame->cx;
+			e->cy = pFrame->cy;
+			cv::Mat Xw = pMP->GetWorldPos();
+			e->Xw[0] = Xw.at<float>(0);
+			e->Xw[1] = Xw.at<float>(1);
+			e->Xw[2] = Xw.at<float>(2);
+			//std::cout << Xw.t()<<", "<<pt << std::endl;
+			optimizer.addEdge(e);
+			vpEdgesMono.push_back(e);
+			vnIndexEdgeMono.push_back(i);
+			//vbInliers[i] = true;
+		}
+	}
+	if (nInitialCorrespondences < 10) {
+		std::cout << "PoseOptimization::Error::Init=" << nInitialCorrespondences << "|| CP=" << N << std::endl;
+		return 0;
+	}
+	// We perform 4 optimizations, after each optimization we classify observation as inlier/outlier
+	// At the next optimization, outliers are not included, but at the end they can be classified as inliers again.
+	const float chi2Mono[4] = { 5.991,5.991,5.991,5.991 };
+	const int its[4] = { 10,10,10,10 };
+	int nBad = 0;
+	float maxDepth = pFrame->mfMedianDepth + pFrame->mfRange;
+	for (size_t it = 0; it<4; it++)
+	{
+
+		vSE3->setEstimate(Converter::toSE3Quat(Tcw)); //이건가??
+		optimizer.initializeOptimization(0);
+		optimizer.optimize(its[it]);
+		nBad = 0;
+		for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
+		{
+			g2o::EdgeSE3ProjectXYZOnlyPose* e = vpEdgesMono[i];
+			const size_t idx = vnIndexEdgeMono[i];
+			if (!vbInliers[idx])
+			{
+				e->computeError();
+			}
+
+			const float chi2 = e->chi2();
+			float depth = e->GetDepth();
+			if (chi2>chi2Mono[it] || depth <= 0.0 || depth > maxDepth)
+			{
+				//vpCPs[idx]->GetMP()->mnTrackingID = -1;
+				vbInliers[idx] = false;
+				e->setLevel(1);
+				nBad++;
+			}
+			else
+			{
+				//vpCPs[idx]->GetMP()->mnTrackingID = nTargetID;
+				vbInliers[idx] = true;
+				e->setLevel(0);
+			}
+			if (it == 2)
+				e->setRobustKernel(0);
+		}
+
+	}
+	if (nInitialCorrespondences - nBad < 10) {
+		std::cout << "PoseOptimization::Error::Init=" << nInitialCorrespondences << ", bad=" << nBad << "=CP=" << N << std::endl;
+		return 0;
+	}
+	
+	// Recover optimized pose and return number of inliers
+	g2o::VertexSE3Expmap* vSE3_recov = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(0));
+	g2o::SE3Quat SE3quat_recov = vSE3_recov->estimate();
+	cv::Mat pose = Converter::toCvMat(SE3quat_recov);
+	R = pose.rowRange(0, 3).colRange(0, 3);
+	t = pose.rowRange(0, 3).col(3);
+	pFrame->SetPose(R, t);
+	return nInitialCorrespondences - nBad;
+}
+
+
 int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vector<UVR_SLAM::CandidatePoint*> vpCPs, std::vector<cv::Point2f> vpPts, std::vector<bool>& vbInliers, std::vector<float> vInvLevelSigma2)
 {
-	std::unique_lock<std::mutex> lock(pMap->mMutexMapUdpate);
+	//std::unique_lock<std::mutex> lock(pMap->mMutexMapUpdate);
 
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
@@ -606,12 +743,14 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 			float depth = e->GetDepth();
 			if (chi2>chi2Mono[it] || depth <= 0.0 || depth > maxDepth)
 			{
+				vpCPs[idx]->GetMP()->mnTrackingID = -1;
 				vbInliers[idx] = false;
 				e->setLevel(1);
 				nBad++;
 			}
 			else
 			{
+				vpCPs[idx]->GetMP()->mnTrackingID = nTargetID;
 				vbInliers[idx] = true;
 				e->setLevel(0);
 			}
@@ -824,7 +963,6 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 		if (pKFi->mnKeyFrameID>maxKFid)
 			maxKFid = pKFi->mnKeyFrameID;
 	}
-
 	// Set Fixed KeyFrame vertices
 	for (int i = 0; i < vpFixedKFs.size(); i++)
 	{
@@ -879,6 +1017,8 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 		{
 			auto pMatch = mit->first;
 			auto pKFi = pMatch->mpRefFrame;
+			if (pKFi->isDeleted())
+				std::cout << "BA::deleted kf" << std::endl;
 			if (pKFi->mnLocalBAID != nTargetID)
 				continue;
 			////이거 테스트 필요함.
@@ -913,7 +1053,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 			vpMapPointEdgeMono.push_back(pMP);
 		}
 	}
-
+	
 	bStopBA = pMapOptimizer->isStopBA();
 	if (bStopBA)
 		return;
@@ -952,7 +1092,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 		optimizer.optimize(10);
 
 	}
-
+	
 	std::vector<std::pair<UVR_SLAM::MatchInfo*, MapPoint*> > vToErase;
 	vToErase.reserve(vpEdgesMono.size());
 
@@ -972,10 +1112,11 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 		}
 	}
 	
-	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
-
+	std::unique_lock<std::mutex> lock2(pMap->mMutexMapUpdate);
+	
 	if (!vToErase.empty())
 	{
+	
 		for (size_t i = 0; i<vToErase.size(); i++)
 		{
 			auto pMatch = vToErase[i].first;
@@ -984,7 +1125,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 			pMPi->DisconnectFrame(pMatch);
 		}
 	}
-
+	
 	// Recover optimized data
 
 	//Keyframes
@@ -1011,6 +1152,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 		pMP->SetWorldPos(Converter::toCvMat(vPoint->estimate()));
 		pMP->UpdateNormalAndDepth();
 	}
+	
 }
 void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::MapOptimizer* pMapOptimizer, UVR_SLAM::Frame* pKF, UVR_SLAM::FrameWindow* pWindow) {
 	//// Local KeyFrames: First Breath Search from Current Keyframe
@@ -1669,7 +1811,7 @@ void UVR_SLAM::Optimization::LocalOptimization(System* pSystem, Map* pMap, Frame
 		R = Tcw.rowRange(0, 3).colRange(0, 3);
 		t = Tcw.rowRange(0, 3).col(3);
 		//std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
-		std::unique_lock<std::mutex> lock2(pMap->mMutexMapUdpate);
+		std::unique_lock<std::mutex> lock2(pMap->mMutexMapUpdate);
 		pCurrKF->SetPose(R, t);
 	}
 	cv::Mat Rcw2 = R.row(2);
