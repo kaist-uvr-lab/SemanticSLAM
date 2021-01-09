@@ -15,9 +15,9 @@
 
 static int nPlaneID = 0;
 
-UVR_SLAM::PlaneEstimator::PlaneEstimator() :mbDoingProcess(false), mnProcessType(0), mpLayoutFrame(nullptr){
+UVR_SLAM::PlaneEstimator::PlaneEstimator() :mbDoingProcess(false), mpTempFrame(nullptr), mnProcessType(0), mpLayoutFrame(nullptr){
 }
-UVR_SLAM::PlaneEstimator::PlaneEstimator(System* pSys, std::string strPath,cv::Mat K, cv::Mat K2, int w, int h) : mpSystem(pSys), mK(K), mK2(K2),mbDoingProcess(false), mnWidth(w), mnHeight(h), mnProcessType(0), mpLayoutFrame(nullptr),
+UVR_SLAM::PlaneEstimator::PlaneEstimator(System* pSys, std::string strPath,cv::Mat K, cv::Mat K2, int w, int h) : mpSystem(pSys), mK(K), mK2(K2),mbDoingProcess(false), mpTempFrame(nullptr), mnWidth(w), mnHeight(h), mnProcessType(0), mpLayoutFrame(nullptr),
 mpPrevFrame(nullptr), mpPPrevFrame(nullptr), mpTargetFrame(nullptr)
 {
 	cv::FileStorage fSettings(strPath, cv::FileStorage::READ);
@@ -3395,14 +3395,16 @@ UVR_SLAM::PlaneInformation* UVR_SLAM::PlaneEstimator::GetPlaneParam(){
 	return mpFloorPlaneInformation;
 }
 
-void UVR_SLAM::PlaneEstimator::SetTempPTs(std::vector<UVR_SLAM::FrameGrid*> vGrids, std::vector<cv::Mat> vPts){
+void UVR_SLAM::PlaneEstimator::SetTempPTs(Frame* pKF, std::vector<UVR_SLAM::FrameGrid*> vGrids, std::vector<cv::Mat> vPts){
 	std::unique_lock<std::mutex> lockTemp(mMutexVisPt);
+	mpTempFrame = pKF;
 	mvTempPTs = std::vector<cv::Mat>(vPts.begin(), vPts.end());
 	mvTempGrids = std::vector<UVR_SLAM::FrameGrid*>(vGrids.begin(), vGrids.end());
 }
 
-void UVR_SLAM::PlaneEstimator::GetTempPTs(std::vector<UVR_SLAM::FrameGrid*>& vGrids, std::vector<cv::Mat>& vPts){
+void UVR_SLAM::PlaneEstimator::GetTempPTs(Frame*& pKF, std::vector<UVR_SLAM::FrameGrid*>& vGrids, std::vector<cv::Mat>& vPts){
 	std::unique_lock<std::mutex> lockTemp(mMutexVisPt);
+	pKF = mpTempFrame;
 	vPts = std::vector<cv::Mat>(mvTempPTs.begin(), mvTempPTs.end());
 	vGrids = std::vector<UVR_SLAM::FrameGrid*>(mvTempGrids.begin(), mvTempGrids.end());
 }

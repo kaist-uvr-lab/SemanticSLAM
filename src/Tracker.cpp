@@ -382,21 +382,18 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			}
 			//imshow("local map::p", pImg); imshow("local map::c", cImg); cv::waitKey(1);
 		}
-		std::cout << "tracker:;1::" <<N2<< std::endl;
 		if (N2 > 10) {
 			//mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vTempCurrPts, vbTempInliers, mpSystem->mpORBExtractor->GetInverseScaleSigmaSquares());
 			mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempMPs, vTempCurrPts2, vbTempInliers, mpSystem->mpORBExtractor->GetInverseScaleSigmaSquares());
 		}
-			
-		std::cout << "tracker:;2" << std::endl;
-
+		
 		/////////////////Matching Validation
 		int nFinal = 0;
 		int nFinal2 = 0;
 		auto pMatchInfo = pCurr->mpMatchInfo;
 		int nGridSize = mpSystem->mnRadius * 2;
 		float fGridDistThresh = nGridSize*nGridSize * 4;
-		mpMap->ClearReinit();
+		//mpMap->ClearReinit();
 		for (size_t i = 0, iend = vpTempMPs.size(); i < iend; i++) {
 			if (!vbTempInliers[i])
 				continue;
@@ -445,7 +442,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				pMPi->mLastMatchBasePt = left1;
 				pMPi->mLastFrame = pCurr;
 			}
-			mpMap->AddReinit(pMPi->GetWorldPos());
+			//mpMap->AddReinit(pMPi->GetWorldPos());
 			nFinal2++;
 		}
 
@@ -538,7 +535,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			cv::circle(currImg, currPt, 3, cv::Scalar(255, 0, 0), -1);*/
 		}
 		
-		std::cout << "tracker::3=" <<nFinal<<":"<< nFinal2 << std::endl;
+		std::cout << "tracker::res=" <<nFinal<<":"<<N2<<", "<< nFinal2 << std::endl;
 
 		////트래킹 결과 갱신
 		//int nMP = UpdateMatchingInfo(pCurr, vpTempCPs, vTempCurrPts, vbTempInliers);

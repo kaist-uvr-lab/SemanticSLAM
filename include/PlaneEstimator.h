@@ -178,13 +178,14 @@ namespace UVR_SLAM {
 	////////////////
 	////임시 시각화
 	public:
-		void SetTempPTs(std::vector<UVR_SLAM::FrameGrid*> vGrids, std::vector<cv::Mat> vPts);
-		void GetTempPTs(std::vector<UVR_SLAM::FrameGrid*>& vGrids, std::vector<cv::Mat>& vPts);
+		void SetTempPTs(Frame* pKF, std::vector<UVR_SLAM::FrameGrid*> vGrids, std::vector<cv::Mat> vPts);
+		void GetTempPTs(Frame*& pKF, std::vector<UVR_SLAM::FrameGrid*>& vGrids, std::vector<cv::Mat>& vPts);
 		void GetTempPTs(std::vector<cv::Mat>& vPts);
 	private:
 		std::mutex mMutexVisPt;
 		std::vector<cv::Mat> mvTempPTs;
 		std::vector<UVR_SLAM::FrameGrid*> mvTempGrids;
+		Frame* mpTempFrame;
 	////임시 시각화
 	////////////////
 	};

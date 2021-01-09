@@ -8,6 +8,7 @@
 #include <LocalMapper.h>
 #include <Visualizer.h>
 #include <CandidatePoint.h>
+#include <MapPoint.h>
 #include <FrameGrid.h>
 #include <Map.h>
 #include <LocalBinaryPatternProcessor.h>
@@ -363,7 +364,8 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 				auto pt = iter->first;
 				if (!pGrid)
 					continue;
-
+				/*if (!pGrid->mpCP)
+					continue;*/
 				auto rect = pGrid->rect;
 				float area = (float)rect.area();
 				pGrid->mObjCount.convertTo(pGrid->mObjArea, CV_32FC1);
@@ -418,10 +420,11 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 					std::vector<FrameGrid*> vTempGrids;
 					for (auto iter = vpGrids.begin(), iend = vpGrids.end(); iter != iend; iter++) {
 						auto pGrid = iter->second;
-						if (!pGrid)
+						if (!pGrid->mpCP)
 							continue;
-						//cv::circle(testImg, pGrid->basePt, 3, cv::Scalar(0,0,255));
-
+						auto pMP = pGrid->mpCP->GetMP();
+						if (pMP && !pMP->isDeleted())
+							continue;
 						auto pt = pGrid->basePt;
 						int nCountFloor = pGrid->mObjCount.at<int>(mnLabel_floor);//pGrid->mmObjCounts.count(mnLabel_floor);
 						float fWallArea = pGrid->mObjArea.at<float>(mnLabel_wall);
@@ -437,14 +440,12 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 						if (b){
 							vTempVisPts.push_back(s);
 							vTempGrids.push_back(pGrid);
-							//cv::circle(testImg, pt, 3, cv::Scalar(255));
 						}
 						/*else {
 							cv::circle(testImg, pGrid->basePt, 3, cv::Scalar(0, 255, 255));
 						}*/
 					}
-					mpPlaneEstimator->SetTempPTs(vTempGrids,vTempVisPts);
-					//imshow("Seg::Plane::", testImg); cv::waitKey(1);
+					mpPlaneEstimator->SetTempPTs(mpTargetFrame, vTempGrids,vTempVisPts);
 				}
 			}
 			//////평면 정보로 복원

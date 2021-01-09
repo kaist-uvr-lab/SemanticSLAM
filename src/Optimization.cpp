@@ -131,6 +131,120 @@ bool UVR_SLAM::Optimization::PointRefinement(UVR_SLAM::Map* pMap, UVR_SLAM::Fram
 	}
 	return false;
 }
+bool UVR_SLAM::Optimization::ObjectPointRefinement(UVR_SLAM::Map* pMap, UVR_SLAM::MapPoint* pMP, std::vector<Frame*> vpKFs,
+	std::set<UVR_SLAM::Frame*> spKFs, int thMinKF, float thHuberMono) {
+	g2o::SparseOptimizer optimizer;
+	g2o::BlockSolver_3_2::LinearSolverType * linearSolver;
+
+	linearSolver = new g2o::LinearSolverDense<g2o::BlockSolver_3_2::PoseMatrixType>();
+
+	g2o::BlockSolver_3_2 * solver_ptr = new g2o::BlockSolver_3_2(linearSolver);
+
+	g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+	optimizer.setAlgorithm(solver);
+
+	std::vector<g2o::BAEdgeOnlyMapPoint*> vpEdgesMono;
+	std::vector<UVR_SLAM::Frame*> vpEdgeKFMono;
+	std::vector<int> vnIDXs;
+	g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
+	vPoint->setEstimate(Converter::toVector3d(pMP->GetWorldPos()));
+	const int id = 0;// i + maxKFid + 1;
+	vPoint->setId(id);
+	optimizer.addVertex(vPoint);
+
+	int numEdges = 0;
+	//Set edges
+	auto observations = pMP->GetConnedtedFrames();
+	for (std::map<UVR_SLAM::MatchInfo*, int>::const_iterator mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
+	{
+		auto pMatch = mit->first;
+		auto pKFi = pMatch->mpRefFrame;
+		if (!spKFs.count(pKFi))
+			continue;
+
+		int idx = mit->second;
+		auto pt = pMatch->mvMatchingPts[idx];
+		Eigen::Matrix<double, 2, 1> obs;
+		obs << pt.x, pt.y;
+
+		g2o::BAEdgeOnlyMapPoint* e = new g2o::BAEdgeOnlyMapPoint();
+		e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
+		//e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnKeyFrameID)));
+		e->setMeasurement(obs);
+
+		const float &invSigma2 = pKFi->mvInvLevelSigma2[pMP->mnOctave];
+
+		e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
+
+		g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+		e->setRobustKernel(rk);
+		rk->setDelta(thHuberMono);
+
+		e->fx = pKFi->fx;
+		e->fy = pKFi->fy;
+		e->cx = pKFi->cx;
+		e->cy = pKFi->cy;
+
+		cv::Mat R, t;
+		pKFi->GetPose(R, t);
+		e->SetPose(R, t);
+
+		optimizer.addEdge(e);
+		vpEdgesMono.push_back(e);
+		vpEdgeKFMono.push_back(pKFi);
+		vnIDXs.push_back(idx);
+	}
+	if (vpEdgesMono.size() < 2)
+		return true;
+	optimizer.initializeOptimization();
+	optimizer.optimize(10);
+
+	int nres = 0;
+	std::vector<bool> vbTemp(vpEdgeKFMono.size(), false);
+	for (size_t i = 0, iend = vpEdgesMono.size(); i<iend; i++)
+	{
+		g2o::BAEdgeOnlyMapPoint* e = vpEdgesMono[i];
+
+		if (e->chi2() < 5.991 && e->isDepthPositive())
+		{
+			vbTemp[i] = true;
+			nres++;
+		}
+		else {
+			auto pKFi = vpEdgeKFMono[i]->mpMatchInfo;
+			pMP->DisconnectFrame(pKFi);
+		}
+	}
+
+	g2o::VertexSBAPointXYZ* vPoint2 = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(0));
+	cv::Mat X = (Converter::toCvMat(vPoint2->estimate()));
+	pMP->SetWorldPos(X);
+
+	float ratio = ((float)nres) / vbTemp.size();
+	if (nres >= thMinKF && ratio > 0.5f) {
+		////MP 생성
+		/*g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(0));
+		cv::Mat X = (Converter::toCvMat(vPoint->estimate()));
+		pMP->SetWorldPos(X);*/
+		//auto pMP = new UVR_SLAM::MapPoint(pMap, pCurrKF, pCP, X, cv::Mat(), label, pCP->octave);
+		////std::cout << "ratio::" << ratio << std::endl;
+		//for (size_t i = 0, iend = vpEdgesMono.size(); i < iend; i++)
+		//{
+		//	if (!vbTemp[i])
+		//		continue;
+		//	auto pKFi = vpEdgeKFMono[i];
+		//	pMP->ConnectFrame(pKFi->mpMatchInfo, vnIDXs[i]);
+		//	if (pKFi->mnFrameID != pCurrKF->mnFrameID)
+		//		pCurrKF->mmKeyFrameCount[pKFi]++;
+		//}
+
+		return true;
+		/*pMP->SetOptimization(true);
+		pSystem->mlpNewMPs.push_back(pMP);*/
+	}
+	return false;
+}
+
 int UVR_SLAM::Optimization::ObjectPointRefinement(UVR_SLAM::Map* pMap, std::vector<MapPoint*> vpObjectMPs, std::vector<Frame*> vpKFs) {
 	g2o::SparseOptimizer optimizer;
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
@@ -385,7 +499,7 @@ int UVR_SLAM::Optimization::PlanarPoseRefinement(UVR_SLAM::Map* pMap, std::vecto
 
 		//평면 프로젝션
 		cv::Mat X3D = pMP->GetWorldPos();
-		cv::Mat X3D2 = pMP->GetWorldPos();
+		//cv::Mat X3D2 = pMP->GetWorldPos();
 		/*float dist = pNormal.dot(X3D) + pDist;
 		X3D -= (dist*pNormal);
 		pMP->SetWorldPos(X3D);*/
@@ -465,7 +579,7 @@ int UVR_SLAM::Optimization::PlanarPoseRefinement(UVR_SLAM::Map* pMap, std::vecto
 			//std::cout << "Refinement::" <<pMP->mnMapPointID<<"="<<pMP->GetConnedtedFrames().size()<<"::"<< e->chi2()<< std::endl;
 		}
 	}
-	std::cout << "3::" <<vpPlanarMPs.size()<<" "<<vpEdgesMono.size()<<" "<<vToErase .size()<< std::endl;
+	std::cout << "PlanarRefinement::" <<vpPlanarMPs.size()<<" "<<vpEdgesMono.size()<<" "<<vToErase .size()<< std::endl;
 	
 	if (!vToErase.empty())
 	{

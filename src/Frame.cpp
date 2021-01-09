@@ -1206,8 +1206,6 @@ void UVR_SLAM::Frame::SetGrids() {
 	cv::Point2f gridTempRect(3,3);//nHalf/2, nHalf/2
 	////포인트 중복 및 그리드 내 추가 포인트 관련
 	
-	//cv::Mat testImg = GetOriginalImage().clone();
-
 	for (int x = 0; x < mnWidth; x += nSize) {
 		for (int y = 0; y < mnHeight; y += nSize) {
 			cv::Point2f ptLeft(x, y);
@@ -1252,7 +1250,7 @@ void UVR_SLAM::Frame::SetGrids() {
 				pGrid->pt = pt;
 				pGrid->mpCP = pCP;
 				cv::rectangle(occupied, pt - gridTempRect, pt + gridTempRect, cv::Scalar(255, 0, 0), -1);
-				
+			
 				////seed생성
 				cv::Mat a = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
 				pCP->mpSeed = new Seed(std::move(mpSystem->mInvK*a), mfMedianDepth, mfMinDepth);
@@ -1305,10 +1303,9 @@ void UVR_SLAM::Frame::SetGrids() {
 			//imshow("gra ", mGra); waitKey();
 			mmpFrameGrids.insert(std::make_pair(ptLeft, pGrid));
 			mmbFrameGrids.insert(std::make_pair(ptLeft, bGrid));
-			//cv::circle(testImg, ptLeft, 3, cv::Scalar(255),-1);
+			
 		}
 	}
-
 	////이전 프레임의 인덱스 넣는 과정
 	mpMatchInfo->mvPrevMatchingIdxs = std::vector<int>(mpMatchInfo->mvMatchingIdxs.begin(), mpMatchInfo->mvMatchingIdxs.end());
 	mpMatchInfo->mvMatchingIdxs.resize(mpMatchInfo->mvpMatchingCPs.size());// = std::vector<int>(mpMatchInfo->mvpMatchingCPs.size());

@@ -34,6 +34,8 @@ namespace UVR_SLAM {
 		
 		static int PlanarPoseRefinement(UVR_SLAM::Map* pMap, std::vector<MapPoint*> vpPlanarMPs, std::vector<Frame*> vpKFs);
 		static int ObjectPointRefinement(UVR_SLAM::Map* pMap, std::vector<MapPoint*> vpObjectMPs, std::vector<Frame*> vpKFs);
+		static bool ObjectPointRefinement(UVR_SLAM::Map* pMap, UVR_SLAM::MapPoint* pMP, std::vector<Frame*> vpKFs, 
+			std::set<UVR_SLAM::Frame*> spKFs, int thMinKF, float thHuberMono);
 		static bool PointRefinement(UVR_SLAM::Map* pMap, UVR_SLAM::Frame* pCurrKF, UVR_SLAM::CandidatePoint* pCP, cv::Mat X3D, 
 			std::map<UVR_SLAM::MatchInfo*, int> observations, std::set<UVR_SLAM::Frame*> spKFs, int thMinKF, float thHuberMono);
 		//201225
