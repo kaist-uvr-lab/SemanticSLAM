@@ -1674,7 +1674,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 	cv::Mat prevImg = pPrevKF->GetOriginalImage().clone();
 	cv::Mat currImg = pCurrKF->GetOriginalImage().clone();
 	cv::Point2f ptBottom = cv::Point2f(0, prevImg.rows);
-	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+	cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows); 
 	cv::Rect mergeRect2 = cv::Rect(0, prevImg.rows, prevImg.cols, prevImg.rows);
 	debugMatch = cv::Mat::zeros(prevImg.rows * 2, prevImg.cols, prevImg.type());
 
@@ -1689,7 +1689,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 		int prevIDX = pCurrKF->mpMatchInfo->mvPrevMatchingIdxs[i];//pCPi->GetPointIndexInFrame(pPrevMatch);
 		if (prevIDX == -1)
 			continue;
-		if (pCPi->GetNumSize() < mnThreshMinKF)
+		if (pCPi->GetNumSize() < 2)//mnThreshMinKF
 			continue;
 		auto pMPi = pCPi->GetMP();
 		if (pMPi && !pMPi->isDeleted())

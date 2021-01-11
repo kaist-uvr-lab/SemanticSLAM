@@ -260,8 +260,8 @@ void UVR_SLAM::MapOptimizer::Run() {
 			for (auto iter = mpMapPointCounts.begin(), iend = mpMapPointCounts.end(); iter != iend; iter++) {
 				auto pMPi = iter->first;
 				auto count = iter->second;
-				if (count < mnThreshMinKF)
-					continue;
+				/*if (count < mnThreshMinKF)
+					continue;*/
 				vpOptMPs.push_back(pMPi);
 			}
 

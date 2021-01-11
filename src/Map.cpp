@@ -27,46 +27,71 @@ namespace UVR_SLAM{
 	Frame* Map::AddWindowFrame(Frame* pF){
 		std::unique_lock<std::mutex> lock(mMutexWindowFrames);
 		Frame* res = nullptr;
+
 		if (mQueueFrameWindows1.size() == mnMaxConnectedKFs) {
-			auto pKF = mQueueFrameWindows1.front();
-			//mvpTrajectoryKFs.push_back(pKF);
-			if (pKF->mnKeyFrameID % 2 == 0) {
-				mvpTrajectoryKFs.push_back(pKF);
-				mQueueFrameWindows2.push_back(pKF);
-				res = pKF;
-				//pKF->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
-			}
-			else {
-				//pKF->mpMatchInfo->DisconnectAll();
-			}
+			auto pKF1 = mQueueFrameWindows1.back();
+			mQueueFrameWindows1.pop_back();
 			
-			mQueueFrameWindows1.pop_front();
-			
-			if (mQueueFrameWindows2.size() > mnHalfConnectedKFs) {
-				auto pKF = mQueueFrameWindows2.front();
-				if (pKF->mnKeyFrameID % 4 == 0) {
-					mQueueFrameWindows3.push_back(pKF);
-					//res = pKF;
+			auto pKFs = pF->GetConnectedKFs(10);
+			Frame* pKF2 = nullptr;
+			for(size_t i = 0, iend = pKFs.size(); i < iend; i++){
+				auto pKF = pKFs[i];
+				if (pKF->mnKeyFrameID != pKF1->mnKeyFrameID) {
+					pKF2 = pKF;
+					break;
 				}
-				else {
-					//pKF->mpMatchInfo->DisconnectAll();
+			}
+			for (auto iter = mQueueFrameWindows1.begin(), iend = mQueueFrameWindows1.end(); iter != iend; iter++) {
+				auto pKF = *iter;
+				if (pKF->mnKeyFrameID != pKF1->mnKeyFrameID && pKF->mnKeyFrameID != pKF2->mnKeyFrameID) {
+					mspGraphFrames.insert(pKF);
 				}
-				/*mQueueFrameWindows3.push_back(pKF);
-				res = pKF;*/
-				mQueueFrameWindows2.pop_front();
 			}
-			if (mQueueFrameWindows3.size() > mnQuarterConnectedKFs) {
-				auto pKF = mQueueFrameWindows3.front();
-				//if (pKF->GetKeyFrameID() % 8 == 0) {
-				//	mspGraphFrames.insert(pKF);
-				//}
-				//else {
-				//	//pKF->mpMatchInfo->DisconnectAll();
-				//}
-				mspGraphFrames.insert(pKF);
-				mQueueFrameWindows3.pop_front();
-			}
+			mQueueFrameWindows1.clear();
+			mQueueFrameWindows1.push_back(pKF1);
+			mQueueFrameWindows1.push_back(pKF2);
 		}
+
+		//if (mQueueFrameWindows1.size() == mnMaxConnectedKFs) {
+		//	auto pKF = mQueueFrameWindows1.front();
+		//	//mvpTrajectoryKFs.push_back(pKF);
+		//	if (pKF->mnKeyFrameID % 2 == 0) {
+		//		mvpTrajectoryKFs.push_back(pKF);
+		//		mQueueFrameWindows2.push_back(pKF);
+		//		res = pKF;
+		//		//pKF->SetBowVec(mpSystem->fvoc); //키프레임 파트로 옮기기
+		//	}
+		//	else {
+		//		//pKF->mpMatchInfo->DisconnectAll();
+		//	}
+		//	
+		//	mQueueFrameWindows1.pop_front();
+		//	
+		//	if (mQueueFrameWindows2.size() > mnHalfConnectedKFs) {
+		//		auto pKF = mQueueFrameWindows2.front();
+		//		if (pKF->mnKeyFrameID % 4 == 0) {
+		//			mQueueFrameWindows3.push_back(pKF);
+		//			//res = pKF;
+		//		}
+		//		else {
+		//			//pKF->mpMatchInfo->DisconnectAll();
+		//		}
+		//		/*mQueueFrameWindows3.push_back(pKF);
+		//		res = pKF;*/
+		//		mQueueFrameWindows2.pop_front();
+		//	}
+		//	if (mQueueFrameWindows3.size() > mnQuarterConnectedKFs) {
+		//		auto pKF = mQueueFrameWindows3.front();
+		//		//if (pKF->GetKeyFrameID() % 8 == 0) {
+		//		//	mspGraphFrames.insert(pKF);
+		//		//}
+		//		//else {
+		//		//	//pKF->mpMatchInfo->DisconnectAll();
+		//		//}
+		//		mspGraphFrames.insert(pKF);
+		//		mQueueFrameWindows3.pop_front();
+		//	}
+		//}
 		mQueueFrameWindows1.push_back(pF);
 		
 		return res;

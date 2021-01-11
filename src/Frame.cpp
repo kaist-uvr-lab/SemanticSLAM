@@ -1158,7 +1158,7 @@ void UVR_SLAM::Frame::SetGrids() {
 	int nHalf = mpMatchInfo->mpSystem->mnRadius;
 	int nSize = nHalf * 2;
 	int ksize = 1;
-	int thresh = ksize*10;
+	int thresh = ksize*7;
 	cv::Mat matGradient;
 	ComputeGradientImage(GetOriginalImage(), matGradient);
 	
