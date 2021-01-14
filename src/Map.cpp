@@ -2,6 +2,7 @@
 #include "Frame.h"
 #include "MapPoint.h"
 #include "Plane.h"
+#include "MapGrid.h"
 #include "System.h"
 
 namespace UVR_SLAM{
@@ -266,8 +267,25 @@ std::vector<UVR_SLAM::PlaneProcessInformation*> UVR_SLAM::Map::GetPlaneInfos() {
 
 
 
+///////////////////////////////
+////
 
 
+
+namespace UVR_SLAM {
+	void Map::AddMapGrid(cv::Point3f key) {
+		auto newGrid = new MapGrid();
+		std::unique_lock<std::mutex> lock(mMutexMapGrids);
+		mmpMapGrids[key] = newGrid;
+	}
+	MapGrid* Map::GetMapGrid(cv::Point3f key) {
+		std::unique_lock<std::mutex> lock(mMutexMapGrids);
+		return mmpMapGrids[key];
+	}
+}
+
+////MapGrid
+///////////////////////////////
 
 
 

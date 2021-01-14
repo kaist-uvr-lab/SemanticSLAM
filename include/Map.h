@@ -8,12 +8,23 @@
 #include <list>
 
 namespace UVR_SLAM {
+
+	struct Point3fLess
+	{
+		bool operator()(cv::Point3f const&lhs, cv::Point3f const& rhs) const
+		{
+			return lhs.x == rhs.x ? lhs.y == rhs.y ? lhs.z < rhs.z : lhs.y < rhs.y : lhs.x < rhs.x;
+		}
+	};
+
 	class Frame;
 	class System;
 	class MapPoint;
 	class WallPlane;
 	class PlaneInformation;
 	class PlaneProcessInformation;
+	class MapGrid;
+	
 	class Map {
 		///////////
 	public:
@@ -126,6 +137,16 @@ namespace UVR_SLAM {
 		UVR_SLAM::PlaneInformation* mpFloorPlane;
 		////평면 관리
 		////////////////////////////////
+
+		/////////MapGrid
+		public:
+			void AddMapGrid(cv::Point3f key);
+			MapGrid* GetMapGrid(cv::Point3f key);
+		private:
+			std::mutex mMutexMapGrids;
+			std::map<cv::Point3f, MapGrid*, Point3fLess> mmpMapGrids;
+		/////////MapGrid
+
 	};
 }
 #endif

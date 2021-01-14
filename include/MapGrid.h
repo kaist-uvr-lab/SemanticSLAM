@@ -14,9 +14,18 @@ namespace UVR_SLAM {
 	class MapGrid {
 	public:
 		MapGrid();
-		MapGrid(cv::Point3f init, float size);
+		//MapGrid(cv::Point3f init, float size);
 		virtual ~MapGrid();
 	public:
+		static float mfGridSizeX, mfGridSizeY, mfGridSizeZ;
+		static cv::Point3f GetGridPt(cv::Mat cam_pos);
+		
+		void AddFrame(Frame* pF);
+		std::vector<Frame*> GetFrames();
+	private:
+		std::mutex mMutexFrames;
+		std::vector<Frame*> mvFrames;
+	/*public:
 		float mfSize;
 		cv::Mat Xw;
 		cv::Point3f mInitPt;
@@ -28,9 +37,10 @@ namespace UVR_SLAM {
 		std::vector<UVR_SLAM::MapPoint*> GetMPs();
 		std::map<UVR_SLAM::Frame*, int> GetKFs();
 	private:
-		std::mutex mMutexMapGrid;
+		std::mutex mMutex
+		;
 		std::set<MapPoint*> mspMPs;
-		std::map<UVR_SLAM::Frame*, int> mmCountKeyframes;
+		std::map<UVR_SLAM::Frame*, int> mmCountKeyframes;*/
 	};
 	
 	//////스태틱으로 다루기.

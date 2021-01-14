@@ -56,13 +56,13 @@ namespace UVR_SLAM {
 			return lhs.x == rhs.x ? lhs.y < rhs.y : lhs.x < rhs.x;
 		}
 	};
-	struct Point3fLess
+	/*struct Point3fLess
 	{
 		bool operator()(cv::Point3f const&lhs, cv::Point3f const& rhs) const
 		{
 			return lhs.x == rhs.x ? lhs.y == rhs.y ? lhs.z < rhs.z : lhs.y < rhs.y : lhs.x < rhs.x;
 		}
-	};
+	};*/
 
 	class Initializer;
 	class Optimization;
