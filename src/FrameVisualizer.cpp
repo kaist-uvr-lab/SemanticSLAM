@@ -385,7 +385,6 @@ namespace UVR_SLAM {
 				///////그리드 관련 시각화. 현재 막음
 				////오브젝트 정보가 얼마나 전달이 되는지 확인함.
 				auto mpGrids = pF->mmpFrameGrids;
-				auto mbGrids = pF->mmbFrameGrids;
 				if (mpGrids.size() > 0){
 					int nRectWidth = mpGrids.begin()->second->rect.width;
 					int nRectHeight = mpGrids.begin()->second->rect.height;

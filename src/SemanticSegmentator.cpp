@@ -353,7 +353,6 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 
 			////±×¸®µå Á¤º¸ È¹µæ
 			auto vpGrids = mpTargetFrame->mmpFrameGrids;
-			auto vbGrids = mpTargetFrame->mmbFrameGrids;
 			////±×¸®µå Á¤º¸ È¹µæ
 
 			////Grid area calculation
@@ -420,11 +419,13 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 					std::vector<FrameGrid*> vTempGrids;
 					for (auto iter = vpGrids.begin(), iend = vpGrids.end(); iter != iend; iter++) {
 						auto pGrid = iter->second;
-						if (!pGrid->mpCP)
+						if (pGrid->mvpCPs.size())
+							continue;
+						/*if (!pGrid->mpCP)
 							continue;
 						auto pMP = pGrid->mpCP->GetMP();
 						if (pMP && !pMP->isDeleted())
-							continue;
+							continue;*/
 						auto pt = pGrid->basePt;
 						int nCountFloor = pGrid->mObjCount.at<int>(mnLabel_floor);//pGrid->mmObjCounts.count(mnLabel_floor);
 						float fWallArea = pGrid->mObjArea.at<float>(mnLabel_wall);

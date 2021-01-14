@@ -208,6 +208,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		}
 		pCurr->mfMedianDepth = pPrev->mfMedianDepth;
 		pCurr->mfRange = pPrev->mfRange;
+		float fMaxDepth = pCurr->mfMeanDepth + pCurr->mfRange;
 		////MatchInfo 설정
 		//초기 매칭 테스트
 		std::vector<UVR_SLAM::MapPoint*> vpTempMPs;
@@ -219,10 +220,12 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		
 		std::vector<int> vnTempIDXs, vnMPIDXs;
 		cv::Mat debugImg;
+
+		cv::Point2f ptCheckOverlap(5, 5);
 		cv::Mat overlap = cv::Mat::zeros(pCurr->mnHeight, pCurr->mnWidth, CV_8UC1);
 		//mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempCPs, vTempPrevPts, vTempCurrPts, vbTempInliers, vnTempIDXs);
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vTempCurrPts2, vbTempInliers, 
-			vpTempCPs, vTempPrevPts, vTempCurrPts, vnTempIDXs);
+			vpTempCPs, vTempPrevPts, vTempCurrPts, vnTempIDXs, overlap);
 
 
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
@@ -241,7 +244,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		{
 			//local keyframe
 			int nCurrID = pCurr->mnFrameID;
-			std::vector<Frame*> vpLocalFrames = mpMap->GetWindowFramesVector(1);
+			std::vector<Frame*> vpLocalFrames = mpMap->GetWindowFramesVector(2);
 			/*for (size_t i = 0, iend = vpTempCPs.size(); i < iend; i++) {
 				auto pCPi = vpTempCPs[i];
 				auto pMPi = pCPi->GetMP();
@@ -285,6 +288,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 					continue;
 				cv::Mat proj = mK*(R*pMPi->GetWorldPos() + t);
 				float depth = proj.at<float>(2);
+				if (depth <= 0.0 || depth >fMaxDepth)
+					continue;
 				cv::Point projPt(proj.at<float>(0) / depth, proj.at<float>(1) / depth);
 				if (!pCurr->isInImage(projPt.x, projPt.y, 10.0))
 					continue;
@@ -314,8 +319,12 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				cv::calcOpticalFlowPyrLK(pMPi->mLastMatchPatch, img1, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
 				if (!status[0])
 					continue;
-
 				cv::Point2f currPt = currPts[0] + left1;
+				if (!pCurr->mpMatchInfo->CheckOpticalPointOverlap(overlap, currPt, mpSystem->mnRadius, 10)) {
+					continue;
+				}
+				cv::rectangle(overlap, currPt - ptCheckOverlap, currPt + ptCheckOverlap, cv::Scalar(255, 0, 0), -1);
+				
 				auto prevPt = pMPi->mLastMatchPoint + pMPi->mLastMatchBasePt;
 				//auto pCPi = vpLocalCPs[i];
 				vpTempMPs.push_back(pMPi);
@@ -388,12 +397,13 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		}
 		
 		/////////////////Matching Validation
+		cv::Mat overlapValidation= cv::Mat::zeros(pCurr->mnHeight, pCurr->mnWidth, CV_8UC1);
 		int nFinal = 0;
 		int nFinal2 = 0;
 		auto pMatchInfo = pCurr->mpMatchInfo;
 		int nGridSize = mpSystem->mnRadius * 2;
 		float fGridDistThresh = nGridSize*nGridSize * 4;
-		//mpMap->ClearReinit();
+		mpMap->ClearReinit();
 		for (size_t i = 0, iend = vpTempMPs.size(); i < iend; i++) {
 			if (!vbTempInliers[i])
 				continue;
@@ -402,35 +412,36 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				continue;
 			auto currPt = vTempCurrPts2[i];
 			auto pCPi = vpTempMPs[i]->mpCP;
-
-			////이미 그리드에 포함되어 있는지 확인하는 단계
-			auto gridPt = pPrev->GetGridBasePt(currPt, nGridSize);
-			if (pCurr->mmbFrameGrids[gridPt]) {
+			
+			if (!pMatchInfo->CheckOpticalPointOverlap(overlapValidation, currPt, mpSystem->mnRadius, 10)) {
 				vbTempInliers[i] = false;
 				pCPi->mnTrackingFrameID = -1;
 				continue;
 			}
-			////이미 그리드에 포함되어 있는지 확인하는 단계
-
-			if (pMatchInfo->CheckOpticalPointOverlap(currPt, mpSystem->mnRadius) > -1) {
-				vbTempInliers[i] = false;
-				pCPi->mnTrackingFrameID = -1;
-				continue;
-			}
+			cv::rectangle(overlapValidation, currPt - ptCheckOverlap, currPt + ptCheckOverlap, cv::Scalar(255, 0, 0), -1);
 
 			//////grid 추가
-			cv::Point right2(gridPt.x + nGridSize, gridPt.y + nGridSize);
-			if (right2.x >= mnWidth || right2.y >= mnHeight)
-				continue;
-			auto rect = cv::Rect(gridPt, right2);
-			pCurr->mmbFrameGrids[gridPt] = true;
-			auto currGrid = new FrameGrid(gridPt, rect, 0);
-			pCurr->mmpFrameGrids[gridPt] = currGrid;
-			pCurr->mmpFrameGrids[gridPt]->mpCP = pCPi;
-			pCurr->mmpFrameGrids[gridPt]->pt = currPt;
-
+			auto gridPt = pPrev->GetGridBasePt(currPt, nGridSize);
+			FrameGrid* pGrid;
+			if (!pCurr->mmpFrameGrids.count(gridPt)) {
+				cv::Point right2(gridPt.x + nGridSize, gridPt.y + nGridSize);
+				if (right2.x >= mnWidth || right2.y >= mnHeight)
+					continue;
+				auto rect = cv::Rect(gridPt, right2);
+				pGrid = new FrameGrid(gridPt, rect, 0);
+				pCurr->mmpFrameGrids[gridPt] = pGrid;
+			}
+			else {
+				pGrid = pCurr->mmpFrameGrids[gridPt];
+			}
+			/*pCurr->mmpFrameGrids[gridPt]->mvpCPs.push_back(pCPi);
+			pCurr->mmpFrameGrids[gridPt]->mvPTs.push_back(currPt);*/
+			pGrid->mvpCPs.push_back(pCPi);
+			pGrid->mvPTs.push_back(currPt);
+			//std::cout << pGrid->mvpCPs.size() << ", " << pCurr->mmpFrameGrids[gridPt]->mvpCPs.size() << std::endl;
 			pMatchInfo->AddCP(pCPi, currPt);
 
+			////local map 매칭을 위한 작업
 			cv::Point pt = currPt;
 			cv::Point2f left1(pt.x - nGridSize, pt.y - nGridSize);
 			cv::Point2f right1(pt.x + nGridSize, pt.y + nGridSize);
@@ -442,7 +453,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				pMPi->mLastMatchBasePt = left1;
 				pMPi->mLastFrame = pCurr;
 			}
-			//mpMap->AddReinit(pMPi->GetWorldPos());
+			////local map 매칭을 위한 작업
+			mpMap->AddReinit(pMPi->GetWorldPos());
 			nFinal2++;
 		}
 
@@ -471,30 +483,28 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				continue;
 			}
 
-			////이미 그리드에 포함되어 있는지 확인하는 단계
-			auto gridPt = pPrev->GetGridBasePt(currPt, nGridSize);
-			if (pCurr->mmbFrameGrids[gridPt]) {
+			if (!pMatchInfo->CheckOpticalPointOverlap(overlapValidation, currPt, mpSystem->mnRadius, 10)) {
 				pCP->mnTrackingFrameID = -1;
 				continue;
 			}
-			////이미 그리드에 포함되어 있는지 확인하는 단계
-
-			if (pMatchInfo->CheckOpticalPointOverlap(currPt, mpSystem->mnRadius) > -1) {
-				pCP->mnTrackingFrameID = -1;
-				continue;
-			}
+			cv::rectangle(overlapValidation, currPt - ptCheckOverlap, currPt + ptCheckOverlap, cv::Scalar(255, 0, 0), -1);
 
 			//////grid 추가
-			cv::Point right2(gridPt.x + nGridSize, gridPt.y + nGridSize);
-			if (right2.x >= mnWidth || right2.y >= mnHeight)
-				continue;
-			auto rect = cv::Rect(gridPt, right2);
-			pCurr->mmbFrameGrids[gridPt] = true;
-			auto currGrid = new FrameGrid(gridPt, rect, 0);
-			pCurr->mmpFrameGrids[gridPt] = currGrid;
-			pCurr->mmpFrameGrids[gridPt]->mpCP = pCP;
-			pCurr->mmpFrameGrids[gridPt]->pt = currPt;
-
+			auto gridPt = pPrev->GetGridBasePt(currPt, nGridSize);
+			FrameGrid* pGrid;
+			if (!pCurr->mmpFrameGrids.count(gridPt)) {
+				cv::Point right2(gridPt.x + nGridSize, gridPt.y + nGridSize);
+				if (right2.x >= mnWidth || right2.y >= mnHeight)
+					continue;
+				auto rect = cv::Rect(gridPt, right2);
+				pGrid = new FrameGrid(gridPt, rect, 0);
+				pCurr->mmpFrameGrids[gridPt] = pGrid;
+			}
+			else {
+				pGrid = pCurr->mmpFrameGrids[gridPt];
+			}
+			pGrid->mvpCPs.push_back(pCP);
+			pGrid->mvPTs.push_back(currPt);
 			pMatchInfo->AddCP(pCP, currPt, vnTempIDXs[i]);
 
 			if (bMP) {

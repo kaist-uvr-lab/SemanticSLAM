@@ -201,7 +201,6 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					auto pKFi = *iter;
 
 					auto vpGrids = pKFi->mmpFrameGrids;
-					auto vbGrids = pKFi->mmbFrameGrids;
 
 					for (auto iter = vpGrids.begin(), iend = vpGrids.end(); iter != iend; iter++) {
 						auto pGrid = iter->second;
@@ -209,25 +208,28 @@ void UVR_SLAM::PlaneEstimator::Run() {
 						if (!pGrid)
 							continue;
 						
-						auto pCPi = pGrid->mpCP;
-						if (!pCPi)
-							continue;
-						auto pMPi = pCPi->GetMP();
-						bool bMP = !pMPi || pMPi->isDeleted() || !pMPi->GetQuality();
-						if (bMP)
-							continue;
-						if (spMPs.count(pMPi))
-							continue;
-
 						int nCountFloor = pGrid->mObjCount.at<int>(mnLabel_floor);//pGrid->mmObjCounts.count(mnLabel_floor);
 						float fWallArea = pGrid->mObjArea.at<float>(mnLabel_wall);
 						float fFloorArea = pGrid->mObjArea.at<float>(mnLabel_floor);
 						bool bFloor = nCountFloor > 0 && fFloorArea > fWallArea;
-						if (bFloor) {
-							vpTempFloorMPs.push_back(pMPi);
+
+						for (size_t ci = 0, cend = pGrid->mvpCPs.size(); ci < cend; ci++) {
+							auto pCPi = pGrid->mvpCPs[ci];
+							if (!pCPi)
+								continue;
+							auto pMPi = pCPi->GetMP();
+							bool bMP = !pMPi || pMPi->isDeleted() || !pMPi->GetQuality();
+							if (bMP)
+								continue;
+							if (spMPs.count(pMPi))
+								continue;
+
+							if (bFloor) {
+								vpTempFloorMPs.push_back(pMPi);
+							}
+							vpMPs.push_back(pMPi);
+							spMPs.insert(pMPi);
 						}
-						vpMPs.push_back(pMPi);
-						spMPs.insert(pMPi);
 
 						//int nCountFloor = pGrid->mmObjCounts[mnLabel_floor];
 					}
@@ -291,7 +293,6 @@ void UVR_SLAM::PlaneEstimator::Run() {
 
 			{
 				auto vpGrids = mpTargetFrame->mmpFrameGrids;
-				auto vbGrids = mpTargetFrame->mmbFrameGrids;
 				cv::Mat testImg = mpTargetFrame->GetOriginalImage().clone();
 				std::vector<UVR_SLAM::MapPoint*> vpTempFloorMPs, vpTempOutlierFloorMPs;
 				
@@ -307,13 +308,17 @@ void UVR_SLAM::PlaneEstimator::Run() {
 					int nCountFloor = pGrid->mObjCount.at<int>(mnLabel_floor);
 					if (nCountFloor>0) {
 						
-						cv::circle(testImg, pGrid->pt, 3, color1, -1);
-						auto pCPi = pGrid->mpCP;
-						if (!pCPi)
-							continue;
-						auto pMPi = pCPi->GetMP();
-						if (pMPi) {
-							vpTempFloorMPs.push_back(pMPi);
+						for (size_t ci = 0, cend = pGrid->mvpCPs.size(); ci < cend; ci++) {
+							auto pCPi = pGrid->mvpCPs[ci];
+							auto pt = pGrid->mvPTs[ci];
+							
+							if (!pCPi)
+								continue;
+							cv::circle(testImg, pt, 3, color1, -1);
+							auto pMPi = pCPi->GetMP();
+							if (pMPi) {
+								vpTempFloorMPs.push_back(pMPi);
+							}
 						}
 					}
 					//int nCountFloor = pGrid->mmObjCounts[mnLabel_floor];

@@ -482,7 +482,6 @@ void UVR_SLAM::LocalMapper::Run() {
 							auto pKFi = *iter;
 
 							auto vpGrids = pKFi->mmpFrameGrids;
-							auto vbGrids = pKFi->mmbFrameGrids;
 
 							////평면 정보를 미리 계산해놓기
 							cv::Mat Rinv, Tinv, PlaneInv;
@@ -498,8 +497,9 @@ void UVR_SLAM::LocalMapper::Run() {
 								auto pt = iter->first;
 								if (!pGrid)
 									continue;
-
-								auto pCPi = pGrid->mpCP;
+								if (pGrid->mvpCPs.size() == 0)
+									continue;
+								auto pCPi = pGrid->mvpCPs[0];
 								if (!pCPi)
 									continue;
 								auto pMPi = pCPi->GetMP();
@@ -967,12 +967,14 @@ void UVR_SLAM::LocalMapper::FuseKeyFrame(Frame* pKF1, Frame* pKF2, int nGridSize
 						//pCP->ConnectFrame(pKF1->mpMatchInfo, idxi);
 
 						//////grid 추가
-						auto rect = cv::Rect(currGridBasePt, std::move(cv::Point2f(currGridBasePt.x + nOriGridSize, currGridBasePt.y + nOriGridSize)));
+						////추후 이 함수 다시 이용할 때 수정이 필요함
+						/*auto rect = cv::Rect(currGridBasePt, std::move(cv::Point2f(currGridBasePt.x + nOriGridSize, currGridBasePt.y + nOriGridSize)));
 						pKF1->mmbFrameGrids[currGridBasePt] = true;
 						auto currGrid = new FrameGrid(currGridBasePt, rect, 0);
 						pKF1->mmpFrameGrids[currGridBasePt] = currGrid;
 						pKF1->mmpFrameGrids[currGridBasePt]->mpCP = pCP;
-						pKF1->mmpFrameGrids[currGridBasePt]->pt = currPt;
+						pKF1->mmpFrameGrids[currGridBasePt]->pt = currPt;*/
+						//////grid 추가
 
 						cv::circle(refImg, refPt, 3, cv::Scalar(255, 255, 0), -1);
 						cv::circle(currImg, currPt, 3, cv::Scalar(255, 255, 0), -1);

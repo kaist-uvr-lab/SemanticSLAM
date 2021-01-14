@@ -983,17 +983,14 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 			continue;
 		}
 		auto gridPt = mpRefFrame->GetGridBasePt(pt, nGridSize);
-		if (mpRefFrame->mmbFrameGrids[gridPt])
-			continue;
 		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 		auto pCP = new UVR_SLAM::CandidatePoint(this->mpRefFrame);
 		int idx = this->AddCP(pCP, pt);
 		//pCP->ConnectFrame(this, idx);
 		
 		////grid
-		mpRefFrame->mmbFrameGrids[gridPt] = true;
-		mpRefFrame->mmpFrameGrids[gridPt]->pt = pt;
-		mpRefFrame->mmpFrameGrids[gridPt]->mpCP = pCP;
+		mpRefFrame->mmpFrameGrids[gridPt]->mvpCPs.push_back(pCP);
+		mpRefFrame->mmpFrameGrids[gridPt]->mvPTs.push_back(pt);
 		////grid
 	}
 	for (int i = 0; i < mpRefFrame->mvPts.size(); i+= nIncORB) {
@@ -1004,17 +1001,14 @@ void UVR_SLAM::MatchInfo::SetMatchingPoints() {
 			continue;
 		}
 		auto gridPt = mpRefFrame->GetGridBasePt(pt, nGridSize);
-		if (mpRefFrame->mmbFrameGrids[gridPt])
-			continue;
 		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
 		auto pCP = new UVR_SLAM::CandidatePoint(this->mpRefFrame, mpRefFrame->mvnOctaves[i]);
 		int idx = this->AddCP(pCP, pt);
 		//pCP->ConnectFrame(this, idx);
 
 		////grid
-		mpRefFrame->mmbFrameGrids[gridPt] = true;
-		mpRefFrame->mmpFrameGrids[gridPt]->pt = pt;
-		mpRefFrame->mmpFrameGrids[gridPt]->mpCP = pCP;
+		mpRefFrame->mmpFrameGrids[gridPt]->mvpCPs.push_back(pCP);
+		mpRefFrame->mmpFrameGrids[gridPt]->mvPTs.push_back(pt);
 		////grid
 	}
 }
@@ -1147,163 +1141,54 @@ void UVR_SLAM::Frame::ComputeGradientImage(cv::Mat src, cv::Mat& dst, int ksize)
 
 void UVR_SLAM::Frame::SetGrids() {
 	
-	////LBP
-	/*cv::Mat currFrame = this->matFrame.clone();
-	cv::Mat testImg = this->GetOriginalImage().clone();
-	cv::Mat blurred;
-	cv::GaussianBlur(currFrame, blurred, cv::Size(7, 7), 5, 3, cv::BORDER_CONSTANT);
-	cv::Mat lbpImg = mpSystem->mpLBPProcessor->ConvertDescriptor(blurred);*/
-	////LBP
-
 	int nHalf = mpMatchInfo->mpSystem->mnRadius;
 	int nSize = nHalf * 2;
 	int ksize = 1;
 	int thresh = ksize*7;
 	cv::Mat matGradient;
 	ComputeGradientImage(GetOriginalImage(), matGradient);
-	
-	//////피라미드 적용 테스트
-	//{
-	//	int level = 3;
-	//	for (int l = 1; l < level; l++) {
-	//		cv::Mat matLevelGra;
-	//		ComputeGradientImage(this->mvPyramidImages[l], matLevelGra);
-
-	//		int a = pow(2, l);
-	//		int w = mnWidth / a;
-	//		int h = mnHeight / a;
-	//		
-	//		for (int x = 0; x < w; x += nSize) {
-	//			for (int y = 0; y < h; y += nSize) {
-	//				cv::Point2f ptLeft(x, y);
-	//				cv::Point2f ptRight(x + nSize, y + nSize);
-	//				if (ptRight.x > w || ptRight.y > h) {
-	//					continue;
-	//				}
-	//				
-	//				cv::Rect rect(ptLeft, ptRight);
-	//				auto pGrid = new FrameGrid(std::move(ptLeft), std::move(rect), l);
-	//				bool bGrid = false;
-	//				cv::Mat mGra = matLevelGra(rect);// .clone();// .clone();
-	//				cv::Point2f pt;
-	//				int localthresh;
-	//				if (pGrid->CalcActivePoints(mGra, thresh, localthresh, pt)) {
-	//					if (l == 2) {
-	//						FrameGridLevelKey a(ptLeft, l);
-	//						mmpFrameLevelGrids.insert(std::make_pair(a, pGrid));
-	//						mvPyramidPts.push_back(pt);
-	//					}
-	//				}//if active
-	//			}
-	//		}//이미지
-	//	}//레벨
-	//}
-	//////피라미드 적용 테스트
-
 
 	////포인트 중복 및 그리드 내 추가 포인트 관련
-	cv::Mat occupied = cv::Mat::zeros(mnWidth, mnHeight, CV_8UC1);
+	cv::Mat occupied = cv::Mat::zeros(mnHeight, mnWidth, CV_8UC1);
 	cv::Point2f gridTempRect(3,3);//nHalf/2, nHalf/2
 	////포인트 중복 및 그리드 내 추가 포인트 관련
 	
 	for (int x = 0; x < mnWidth; x += nSize) {
 		for (int y = 0; y < mnHeight; y += nSize) {
 			cv::Point2f ptLeft(x, y);
-			if (mmbFrameGrids[ptLeft]){
-				/*if (!mmpFrameGrids[ptLeft]) {
-					cv::circle(testImg, ptLeft, 3, cv::Scalar(255,0,255), -1);
+			bool bGrid = false;
+			if(mmpFrameGrids.count(ptLeft)){
+				auto prevGrid = mmpFrameGrids[ptLeft];
+				if (!prevGrid)
+				{
+					std::cout << "aaaabbbb" << std::endl;
+					continue;
 				}
-				else {
-					cv::circle(testImg, ptLeft, 3, cv::Scalar(0,0,255), -1);
-				}*/
-				continue;
+				if(prevGrid->mvpCPs.size() > 1)
+					continue;
+				bGrid = true;
 			}
 			
 			cv::Point2f ptRight(x + nSize, y + nSize);
-
-			/*auto prevGridPt = GetGridBasePt(ptLeft, nSize);
-			if (ptLeft.x != prevGridPt.x || ptLeft.y != prevGridPt.y) {
-				std::cout << "setgrids::error" << std::endl;
-			}*/
 			if (ptRight.x > mnWidth || ptRight.y > mnHeight){
-				//cv::circle(testImg, ptLeft, 3, cv::Scalar(255, 255, 0), -1);
 				continue;
 			}
 
 			cv::Rect rect(ptLeft, ptRight);
-			auto pGrid = new FrameGrid(std::move(ptLeft), std::move(rect), 0);
-			bool bGrid = false;
+			FrameGrid* pGrid;
+			if(!bGrid)
+				pGrid = new FrameGrid(std::move(ptLeft), std::move(rect), 0);
+			else {
+				pGrid = mmpFrameGrids[ptLeft];
+			}
 			cv::Mat mGra = matGradient(rect);// .clone();
 			cv::Point2f pt;
 			int localthresh;
-			////LBP 계산
 			
 			////active point 계산
-			if (pGrid->CalcActivePoints(mGra, thresh, localthresh,pt)) {
-				bool bOccupied = this->mpMatchInfo->CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
-				if (bOccupied)
-					continue;
-
-				bGrid = true;
-				auto pCP = new UVR_SLAM::CandidatePoint(mpMatchInfo->mpRefFrame);
-				int idx = mpMatchInfo->AddCP(pCP, pt);
-				pGrid->pt = pt;
-				pGrid->mpCP = pCP;
-				cv::rectangle(occupied, pt - gridTempRect, pt + gridTempRect, cv::Scalar(255, 0, 0), -1);
-			
-				////seed생성
-				cv::Mat a = (cv::Mat_<float>(3, 1) << pt.x, pt.y, 1);
-				pCP->mpSeed = new Seed(std::move(mpSystem->mInvK*a), mfMedianDepth, mfMinDepth);
-				////seed생성
-
-				//////LBP code
-				////픽셀 LBP
-				//pGrid->mCharCode = lbp->run(currFrame, pt);
-				////패치 단위 LBP
-				/*cv::Point2f ptLeft1( pt.x - 10, pt.y - 10);
-				cv::Point2f ptRight1(pt.x + 10, pt.y + 10);
-				bool bLeft = ptLeft1.x >= 0 && ptLeft1.y >= 0;
-				bool bRight = ptRight1.x < mnWidth && ptRight1.y < mnHeight;
-				bool bCode = bLeft && bRight;
-				if (bCode) {
-					cv::Rect rect1(ptLeft1, ptRight1);
-					cv::Mat hist = mpSystem->mpLBPProcessor->ConvertHistogram(lbpImg, rect1);
-					auto id = mpSystem->mpLBPProcessor->GetID(hist);
-					int label = mpSystem->mpDatabase->GetData(id);
-					if(label > 0)
-						cv::circle(testImg, pGrid->pt, 4, ObjectColors::mvObjectLabelColors[label], -1);
-					else
-						cv::circle(testImg, pGrid->pt, 4, cv::Scalar(0,0,0), -1);
-				}*/
-				/*else {
-					pGrid->mHistLBP = cv::Mat::zeros(1, lbp->numPatterns, CV_8UC1);
-				}*/
-				//////LBP code
-
-				////그리드 내의 추가 포인트 처리
-				//for (int gy = 0; gy < mGra.rows; gy++) {
-				//	for (int gx = 0; gx < mGra.cols; gx++) {
-				//		int val = mGra.at<uchar>(gy, gx);
-				//		if(val > localthresh){
-				//			cv::Point2f tpt(gx+pGrid->basePt.x, gy+pGrid->basePt.y);
-				//			if (!mpMatchInfo->CheckOpticalPointOverlap(occupied, tpt, mpSystem->mnRadius)) {
-				//				continue;
-				//			}
-				//			//pGrid->vecPTs.push_back(tpt);//pGrid->basePt
-				//			auto pCP2 = new UVR_SLAM::CandidatePoint(mpMatchInfo);
-				//			int idx2 = mpMatchInfo->AddCP(pCP2, tpt);
-				//			cv::rectangle(occupied, tpt - gridTempRect, tpt + gridTempRect, cv::Scalar(255, 0, 0), -1);
-				//		}//thresh
-				//	}//for x
-				//}//fory
-
-				/*mmpFrameGrids.insert(std::make_pair(ptLeft, pGrid));
-				mmbFrameGrids.insert(std::make_pair(ptLeft, bGrid));*/
+			if (pGrid->CalcActivePoints(mpMatchInfo, mGra, thresh, localthresh,pt, occupied, mpSystem->mnRadius)) {
 			}
-			//imshow("gra ", mGra); waitKey();
 			mmpFrameGrids.insert(std::make_pair(ptLeft, pGrid));
-			mmbFrameGrids.insert(std::make_pair(ptLeft, bGrid));
-			
 		}
 	}
 	////이전 프레임의 인덱스 넣는 과정

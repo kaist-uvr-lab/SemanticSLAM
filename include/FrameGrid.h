@@ -8,7 +8,7 @@
 namespace UVR_SLAM {
 
 	class CandidatePoint;
-	
+	class MatchInfo;
 	class FrameGrid {
 	public:
 		FrameGrid();
@@ -17,21 +17,24 @@ namespace UVR_SLAM {
 		virtual ~FrameGrid();
 	public:
 		cv::Mat CalcGradientImage(cv::Mat src);
-		bool CalcActivePoints(cv::Mat src, int gthresh, int& localthresh, cv::Point2f& pt);
+		bool CalcActivePoints(MatchInfo* pF, cv::Mat src, int gthresh, int& localthresh, cv::Point2f& pt, cv::Mat& occupied, int r);
 	public:
+		std::vector<CandidatePoint*> mvpCPs;
+		std::vector<cv::Point2f> mvPTs;
+		
 		int mnLevel;
 		int mnLabel;
 		int mnPlane;
 		bool mbMatched;
-		CandidatePoint* mpCP;
+		
 		cv::Mat mDescLBP, mHistLBP;
 		cv::Mat mDescLBP2;
 		unsigned char mCharCode;
 		cv::Rect rect;
 		cv::Point2f basePt;
-		cv::Point2f pt;
+		//cv::Point2f pt;
 		int mnMaxIDX;
-		std::vector<cv::Point2f> vecPTs;
+		
 		////새로 추가한 것
 		//오브젝트는 일단 대표 오브젝트만 고려?
 		FrameGrid* mpPrev, *mpNext;

@@ -36,7 +36,7 @@ namespace UVR_SLAM {
 ////200410 Optical flow 적용 버전
 	public:
 		int OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vCurrPtsMP, std::vector<bool>& vbInliers, 
-			std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<cv::Point2f>& vPrevPts, std::vector<cv::Point2f>& vCurrPtsCP, std::vector<int>& vnIDXs);
+			std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<cv::Point2f>& vPrevPts, std::vector<cv::Point2f>& vCurrPtsCP, std::vector<int>& vnIDXs, cv::Mat& overlap);
 
 		
 		

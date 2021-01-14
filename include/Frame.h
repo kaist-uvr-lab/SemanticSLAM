@@ -183,7 +183,7 @@ namespace UVR_SLAM {
 		cv::Point2f GetGridBasePt(cv::Point2f pt, int size);
 
 		std::map<cv::Point2f, FrameGrid*, Point2fLess> mmpFrameGrids;
-		std::map<cv::Point2f, bool, Point2fLess> mmbFrameGrids;
+		//std::map<cv::Point2f, bool, Point2fLess> mmbFrameGrids;
 ////FrameGrid
 
 //////Pyramid test

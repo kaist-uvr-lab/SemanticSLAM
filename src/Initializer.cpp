@@ -71,8 +71,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//////매칭 정보 생성
 		mpInitFrame2->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, mpInitFrame2, mpInitFrame1, mnWidth, mnHeight);
 		int nFeatureSize = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.size();
-		int nThreshInit    = 0.5*nFeatureSize;
-		int nThreshReplace = 0.35*nFeatureSize;
+		int nThreshInit    = 0.40*nFeatureSize; //여기는 텍스트에 파라메터화
+		int nThreshReplace = 0.30*nFeatureSize;
 
 		//////매칭 정보 생성
 		bool bSegment = false;
@@ -93,9 +93,9 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		/////////매칭 확인
 		if (count < nThreshReplace) {
 			while (mpSegmentator->isDoingProcess());
+			std::cout << "Initializer::replace::keyframe1::" << count << ", MIN = " << nThreshInit << ", " << nThreshReplace << "::" << mpInitFrame1->mpMatchInfo->mvMatchingPts.size() << std::endl;
 			delete mpInitFrame1;
 			mpInitFrame1 = nullptr;
-			std::cout << "Initializer::replace::keyframe1::"<< count <<", MIN = "<< nThreshInit <<", "<< nThreshReplace << std::endl;
 			return mbInit;
 		}else if (count < nThreshInit) {
 			std::cout << "Initializer::match::" << count << ", MIN = " << nThreshInit << ", " << nThreshReplace << std::endl;
@@ -182,12 +182,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 				continue;
 			///////////////reprojection error
 			
-			////그리드 체크
-			auto gridPt = mpInitFrame1->GetGridBasePt(pt2, nGridSize);
-			if (mpInitFrame2->mmbFrameGrids[gridPt]) {
-				continue;
-			}
-			
 			int idx = vTempMatchIDXs[i];
 			int idx2 = vTempIndexs[idx];
 			//std::cout << vTempPts1[idx] << ", " << mpInitFrame1->mpMatchInfo->GetCPPt(idx2) <<"::"<< vTempMatchPts1[i] << std::endl;
@@ -203,17 +197,17 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			vTempMappedIDXs.push_back(i);//vTempMatchIDXs[i]
 			
 			////그리드 매칭
-			auto rect = cv::Rect(gridPt, std::move(cv::Point2f(gridPt.x + nGridSize, gridPt.y + nGridSize)));
+			auto gridPt = mpInitFrame1->GetGridBasePt(pt2, nGridSize);
 			auto prevGridPt = mpInitFrame1->GetGridBasePt(pt1, nGridSize);
 			auto prevGrid = mpInitFrame1->mmpFrameGrids[prevGridPt];
 			if (!prevGrid) {
 				std::cout << "initialization::error" << std::endl;
 				continue;
 			}
-			auto prevRect = mpInitFrame1->GetOriginalImage()(prevGrid->rect);
+			/*auto prevRect = mpInitFrame1->GetOriginalImage()(prevGrid->rect);
 			auto currRect = mpInitFrame2->GetOriginalImage()(rect);
 			std::vector<cv::Point2f> vPrevGridPTs, vGridPTs;
-			/*bool bGridMatch = mpMatcher->OpticalGridMatching(prevGrid, prevRect, currRect, vPrevGridPTs, vGridPTs);
+			bool bGridMatch = mpMatcher->OpticalGridMatching(prevGrid, prevRect, currRect, vPrevGridPTs, vGridPTs);
 			if (!bGridMatch)
 				continue;*/
 
@@ -222,14 +216,21 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			//pCP->ConnectFrame(mpInitFrame2->mpMatchInfo, idx3);
 
 			////grid 추가
-			mpInitFrame2->mmbFrameGrids[gridPt] = true;
-			auto currGrid = new FrameGrid(gridPt, rect, 0);
-			//currGrid->vecPTs = vGridPTs;
-			mpInitFrame2->mmpFrameGrids[gridPt] = currGrid;
-			mpInitFrame2->mmpFrameGrids[gridPt]->mpCP = pCP;
-			mpInitFrame2->mmpFrameGrids[gridPt]->pt = pt2;
-			prevGrid->mpNext = currGrid;
-			currGrid->mpPrev = prevGrid;
+			FrameGrid* currGrid;
+			if (!mpInitFrame2->mmpFrameGrids.count(gridPt))
+			{
+				cv::Point2f right2(gridPt.x + nGridSize, gridPt.y + nGridSize);
+				auto rect = cv::Rect(gridPt, std::move(right2));
+				currGrid = new FrameGrid(gridPt, rect, 0);
+				mpInitFrame2->mmpFrameGrids[gridPt] = currGrid;
+			}
+			else {
+				currGrid = mpInitFrame2->mmpFrameGrids[gridPt];
+			}
+			currGrid->mvpCPs.push_back(pCP);
+			currGrid->mvPTs.push_back(pt2);
+			/*prevGrid->mpNext = currGrid;
+			currGrid->mpPrev = prevGrid;*/
 			////grid 추가
 
 

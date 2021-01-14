@@ -1,4 +1,5 @@
 #include <FrameGrid.h>
+#include <Frame.h>
 #include <CandidatePoint.h>
 #include <SegmentationData.h>
 
@@ -29,10 +30,8 @@ namespace UVR_SLAM {
 		matGradient = (matDX + matDY) / 2.0;
 		return matGradient;
 	}
-	bool FrameGrid::CalcActivePoints(cv::Mat src, int gthresh, int& localthresh, cv::Point2f& pt) {
+	bool FrameGrid::CalcActivePoints(MatchInfo* pF, cv::Mat src, int gthresh, int& localthresh, cv::Point2f& pt, cv::Mat& occupied, int r) {
 		std::vector<uchar> vecFromMat;
-		//cv::Mat mReshaped = src.reshape(0, 1); // spread Input Mat to single row
-		//mReshaped.copyTo(vecFromMat); // Copy Input Mat to vector vecFromMat
 		for (int y = 0; y < src.rows; y++) {
 			for (int x = 0; x < src.cols; x++) {
 				int val = src.at<uchar>(y, x);
@@ -41,41 +40,55 @@ namespace UVR_SLAM {
 				vecFromMat.push_back(val);
 			}
 		}
-		if (vecFromMat.size() < 10)
+		if (vecFromMat.size() < 5)
 			return false;
 		std::nth_element(vecFromMat.begin(), vecFromMat.begin() + vecFromMat.size() / 2, vecFromMat.end());
 
-		/*std::cout << "test::" << std::endl;
-		std::cout << "max::"<<maxVal << std::endl;
-		std::cout << "min::" << minVal << std::endl;
-		std::cout << "median::" << (int)vecFromMat[vecFromMat.size() / 2] << std::endl;
-		for (int i = 0; i < vecFromMat.size(); i++) {
-			std::cout <<i<<"="<< vecFromMat.size() / 2 <<"::"<< (int)vecFromMat[i] << std::endl;
-		}*/
+		cv::Point2f gridTempRect(5, 5);
+
 		////median 값 계산
 		int median = (int)vecFromMat[vecFromMat.size() / 2];
 		localthresh = median + gthresh;
 		
 		////그리드 내 모든 포인트를 추가하는 경우
 		int maxval = median;
+		std::vector<std::pair<int, cv::Point2f>> vCandidateCPs;
 		for (int y = 0; y < src.rows; y++) {
 			for (int x = 0; x < src.cols; x++) {
+				if (vCandidateCPs.size() >= 20)
+					break;
 				int val = src.at<uchar>(y, x);
 				if(val > localthresh){
-					cv::Point2f tpt(x, y);
-					//auto tpt = cv::Point2f(gPt.x + basePt.x, gPt.y + basePt.y);
-					auto apt = tpt + basePt;
-					vecPTs.push_back(apt);
-					if (val > maxval) {
-						pt = apt;
-						maxval = val;
-						mnMaxIDX = vecPTs.size() - 1; //vecpt+basept를 하면 됨.
-					}//max
+					
+					cv::Point2f pt(x+ basePt.x, y+ basePt.y);
+					vCandidateCPs.push_back(std::make_pair(val, pt));
+					
 				}//thresh
 			}//for x
 		}//fory
+		std::sort(vCandidateCPs.begin(), vCandidateCPs.end(), [](const std::pair<int, cv::Point2f>&x, const std::pair<int, cv::Point2f>& y) {
+			if (x.first == y.first)
+				return x.second.x != y.second.x ? x.second.x > y.second.x : x.second.y > y.second.y;
+			else
+				return x.first > y.first;
+		});
+		for (size_t i = 0; i < vCandidateCPs.size(); i++) {
+			auto pt = vCandidateCPs[i].second;
+			auto val = vCandidateCPs[i].first;
+			if (mvPTs.size() == 5)
+				break;
+			if (!pF->CheckOpticalPointOverlap(occupied, pt, r, 10)) {
+				continue;
+			}
+			cv::rectangle(occupied, pt - gridTempRect, pt + gridTempRect, cv::Scalar(255, 0, 0), -1);
+			auto pCP = new UVR_SLAM::CandidatePoint(pF->mpRefFrame);
+			int idx = pF->AddCP(pCP, pt);
+			mvPTs.push_back(pt);
+			mvpCPs.push_back(pCP);
+		}
 
-		if (vecPTs.size() > 0)
+		//std::cout << mvPTs.size() << std::endl;
+		if (mvPTs.size() > 0)
 			return true;
 		return false;
 		////그리드 내 모든 포인트를 추가하는 경우

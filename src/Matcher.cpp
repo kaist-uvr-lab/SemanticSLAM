@@ -873,15 +873,15 @@ bool  UVR_SLAM::Matcher::OpticalGridMatching(FrameGrid* grid1, cv::Mat src1, cv:
 	std::vector<float> err;
 	std::vector<cv::Point2f> pts1, pts2;
 
-	if (grid1->vecPTs.size() < 1){
+	if (grid1->mvPTs.size() < 1){
 		std:cout << "????????????????" << std::endl;
 		return false;
 	}
-	cv::calcOpticalFlowPyrLK(src1, src2, grid1->vecPTs, pts2, status, err, cv::Size(searchSize, searchSize), maxLvl);
-	for (size_t i = 0, iend = grid1->vecPTs.size(); i < iend; i++) {
+	cv::calcOpticalFlowPyrLK(src1, src2, grid1->mvPTs, pts2, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	for (size_t i = 0, iend = grid1->mvPTs.size(); i < iend; i++) {
 		if (!status[i])
 			continue;
-		vPrevPTs.push_back(grid1->vecPTs[i]);
+		vPrevPTs.push_back(grid1->mvPTs[i]);
 		vCurrPTs.push_back(pts2[i]);
 	}
 	if (vCurrPTs.size() == 0){
@@ -905,115 +905,116 @@ int UVR_SLAM::Matcher::OpticalGridsMatching(Frame* pFrame1, Frame* pFrame2, std:
 	std::vector<cv::Point2f> pts1, pts2;
 	std::vector<uchar> status;
 	std::vector<float> err;
-	for (auto iter = pFrame1->mmpFrameGrids.begin(), iend = pFrame1->mmpFrameGrids.end(); iter != iend; iter++) {
-		auto rectPt = iter->first;
-		auto pGrid = iter->second;
-		auto bGrid = pFrame1->mmbFrameGrids[rectPt];
-		if (!bGrid)
-			continue;
-		auto rect = pGrid->rect;
-		
-		/*std::vector<uchar> status;
-		std::vector<float> err;*/
-		
-		std::vector<cv::Mat> pyr1, pyr2;
-		/*cv::buildOpticalFlowPyramid(img1(rect), pyr1, cv::Size(searchSize, searchSize), maxLvl);
-		maxLvl = cv::buildOpticalFlowPyramid(img2(rect), pyr2, cv::Size(searchSize, searchSize), maxLvl);*/
-		
-		//if (pGrid->vecPTs.size()<3){
-		//	continue;
-		//}
-		//////여기는 테스트 과정에서 일단 추가한 것. 원래는 없으면 생성하고 만들어야 함.
-		//auto pGrid2 = pFrame2->mmpFrameGrids[rectPt];
-		//if (!pGrid2)
-		//	continue;
-		//cv::calcOpticalFlowPyrLK(img1(rect), img2(rect), pGrid->vecPTs, pts2, status, err, cv::Size(searchSize, searchSize), maxLvl);
-		//cv::calcOpticalFlowPyrLK(img1, img2, pGrid->vecPTs, pts2, status, err, cv::Size(searchSize, searchSize), maxLvl);
-		for (size_t j = 0, jend = pGrid->vecPTs.size(); j < jend; j++) {
-			pts1.push_back(pGrid->vecPTs[j]);
-			//if (!status[j])
-			//	continue;
-			//auto pt1 = pGrid->vecPTs[j];// +pGrid->basePt;
-			//auto pt2 = pts2[j];// +pGrid->basePt;
-			//
-			//pGrid2->vecPTs.push_back(pts2[j]);
 
-			//cv::circle(img1, pt1, 1, cv::Scalar(255, 0, 255), -1);
-			//cv::circle(img2, pt2, 1, cv::Scalar(255, 0, 255), -1);
-			//cv::line(img2, pt1, pt2, cv::Scalar(255, 255, 0), 1);
-		}
+	//for (auto iter = pFrame1->mmpFrameGrids.begin(), iend = pFrame1->mmpFrameGrids.end(); iter != iend; iter++) {
+	//	auto rectPt = iter->first;
+	//	auto pGrid = iter->second;
+	//	auto bGrid = pFrame1->mmbFrameGrids[rectPt];
+	//	if (!bGrid)
+	//		continue;
+	//	auto rect = pGrid->rect;
+	//	
+	//	/*std::vector<uchar> status;
+	//	std::vector<float> err;*/
+	//	
+	//	std::vector<cv::Mat> pyr1, pyr2;
+	//	/*cv::buildOpticalFlowPyramid(img1(rect), pyr1, cv::Size(searchSize, searchSize), maxLvl);
+	//	maxLvl = cv::buildOpticalFlowPyramid(img2(rect), pyr2, cv::Size(searchSize, searchSize), maxLvl);*/
+	//	
+	//	//if (pGrid->vecPTs.size()<3){
+	//	//	continue;
+	//	//}
+	//	//////여기는 테스트 과정에서 일단 추가한 것. 원래는 없으면 생성하고 만들어야 함.
+	//	//auto pGrid2 = pFrame2->mmpFrameGrids[rectPt];
+	//	//if (!pGrid2)
+	//	//	continue;
+	//	//cv::calcOpticalFlowPyrLK(img1(rect), img2(rect), pGrid->vecPTs, pts2, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	//	//cv::calcOpticalFlowPyrLK(img1, img2, pGrid->vecPTs, pts2, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	//	for (size_t j = 0, jend = pGrid->vecPTs.size(); j < jend; j++) {
+	//		pts1.push_back(pGrid->vecPTs[j]);
+	//		//if (!status[j])
+	//		//	continue;
+	//		//auto pt1 = pGrid->vecPTs[j];// +pGrid->basePt;
+	//		//auto pt2 = pts2[j];// +pGrid->basePt;
+	//		//
+	//		//pGrid2->vecPTs.push_back(pts2[j]);
 
-		//auto pt1 = pGrid->pt;
-		//pt1.x -= rect.x;
-		//pt1.y -= rect.y;
-		//pts1.push_back(pt1);
-		//cv::calcOpticalFlowPyrLK(img1(rect), img2(rect), pts1, pts2, status, err, cv::Size(searchSize, searchSize), maxLvl);
-		//if (!status[0]) {
-		//	continue;
-		//}
-		////////포인트 위치 변환
-		//cv::Point2f matchPt1, matchPt2;
-		//matchPt1 = pt1;
-		//matchPt2 = pts2[0];
-		//matchPt1.x += rect.x;
-		//matchPt1.y += rect.y;
-		//matchPt2.x += rect.x;
-		//matchPt2.y += rect.y;
+	//		//cv::circle(img1, pt1, 1, cv::Scalar(255, 0, 255), -1);
+	//		//cv::circle(img2, pt2, 1, cv::Scalar(255, 0, 255), -1);
+	//		//cv::line(img2, pt1, pt2, cv::Scalar(255, 255, 0), 1);
+	//	}
 
-		//cv::rectangle(overlap, matchPt2 - mpSystem->mRectPt, matchPt2 + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
-		//cv::circle(img1, matchPt1, 2, cv::Scalar(255, 0, 255), -1);
-		//cv::circle(img2, matchPt2, 2, cv::Scalar(255, 0, 255), -1);
-		//cv::line(img2, matchPt1, matchPt2, cv::Scalar(255, 255, 0), 1);
+	//	//auto pt1 = pGrid->pt;
+	//	//pt1.x -= rect.x;
+	//	//pt1.y -= rect.y;
+	//	//pts1.push_back(pt1);
+	//	//cv::calcOpticalFlowPyrLK(img1(rect), img2(rect), pts1, pts2, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	//	//if (!status[0]) {
+	//	//	continue;
+	//	//}
+	//	////////포인트 위치 변환
+	//	//cv::Point2f matchPt1, matchPt2;
+	//	//matchPt1 = pt1;
+	//	//matchPt2 = pts2[0];
+	//	//matchPt1.x += rect.x;
+	//	//matchPt1.y += rect.y;
+	//	//matchPt2.x += rect.x;
+	//	//matchPt2.y += rect.y;
 
-		//////포인트 위치 변환
-		//if (!pFrame1->mpMatchInfo->CheckOpticalPointOverlap(overlap, matchPt2, mpSystem->mnRadius)) {
-		//	continue;
-		//}
-		////정식 매칭에서 수행 예정
-		//auto gridPt = pFrame1->GetGridBasePt(matchPt2, nGridSize);
-		//if (pFrame2->mmbFrameGrids[gridPt]) {
-		//	continue;
-		//}
-		//auto pCPi = pGrid->mpCP;
-		//if (pCPi->mnTrackingFrameID == nCurrFrameID) {
-		//	std::cout << "tracking::" << pCPi->mnCandidatePointID << ", " << nCurrFrameID << std::endl;
-		//	continue;
-		//}
+	//	//cv::rectangle(overlap, matchPt2 - mpSystem->mRectPt, matchPt2 + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
+	//	//cv::circle(img1, matchPt1, 2, cv::Scalar(255, 0, 255), -1);
+	//	//cv::circle(img2, matchPt2, 2, cv::Scalar(255, 0, 255), -1);
+	//	//cv::line(img2, matchPt1, matchPt2, cv::Scalar(255, 255, 0), 1);
 
-		//////grid
-		//pFrame2->mmbFrameGrids[gridPt] = true;
-		//pFrame2->mmpFrameGrids[gridPt] = new FrameGrid(gridPt, nGridSize);
-		//pFrame2->mmpFrameGrids[gridPt]->mpCP = pCPi;
-		//pFrame2->mmpFrameGrids[gridPt]->pt = matchPt2;
-		//////grid
-		//pCPi->mnTrackingFrameID = nCurrFrameID;
-		///*vpCPs.push_back(pCPi);
-		//vpPts.push_back(currPts[i]);*/
-		////정식 매칭에서 수행 예정
-		
-		
-	}
-	cv::calcOpticalFlowPyrLK(img1, img2, pts1, pts2, status, err, cv::Size(searchSize, searchSize), maxLvl);
-	for (size_t j = 0, jend = pts1.size(); j < jend; j++) {
-		if (!status[j])
-			continue;
-		auto pt1 = pts1[j];// +pGrid->basePt;
-		auto pt2 = pts2[j];// +pGrid->basePt;
-		
-		cv::circle(img1, pt1, 1, cv::Scalar(255, 0, 255), -1);
-		cv::circle(img2, pt2, 1, cv::Scalar(255, 0, 255), -1);
-		cv::line(img2, pt1, pt2, cv::Scalar(255, 255, 0), 1);
-	}
-	cv::Mat debugMatch = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
-	img1.copyTo(debugMatch(mergeRect1));
-	img2.copyTo(debugMatch(mergeRect2));
+	//	//////포인트 위치 변환
+	//	//if (!pFrame1->mpMatchInfo->CheckOpticalPointOverlap(overlap, matchPt2, mpSystem->mnRadius)) {
+	//	//	continue;
+	//	//}
+	//	////정식 매칭에서 수행 예정
+	//	//auto gridPt = pFrame1->GetGridBasePt(matchPt2, nGridSize);
+	//	//if (pFrame2->mmbFrameGrids[gridPt]) {
+	//	//	continue;
+	//	//}
+	//	//auto pCPi = pGrid->mpCP;
+	//	//if (pCPi->mnTrackingFrameID == nCurrFrameID) {
+	//	//	std::cout << "tracking::" << pCPi->mnCandidatePointID << ", " << nCurrFrameID << std::endl;
+	//	//	continue;
+	//	//}
 
-	cv::moveWindow("Output::MatchTest", mpSystem->mnDisplayX, mpSystem->mnDisplayY);
-	cv::imshow("Output::MatchTest", debugMatch);
-	cv::waitKey(1);
+	//	//////grid
+	//	//pFrame2->mmbFrameGrids[gridPt] = true;
+	//	//pFrame2->mmpFrameGrids[gridPt] = new FrameGrid(gridPt, nGridSize);
+	//	//pFrame2->mmpFrameGrids[gridPt]->mpCP = pCPi;
+	//	//pFrame2->mmpFrameGrids[gridPt]->pt = matchPt2;
+	//	//////grid
+	//	//pCPi->mnTrackingFrameID = nCurrFrameID;
+	//	///*vpCPs.push_back(pCPi);
+	//	//vpPts.push_back(currPts[i]);*/
+	//	////정식 매칭에서 수행 예정
+	//	
+	//	
+	//}
+	//cv::calcOpticalFlowPyrLK(img1, img2, pts1, pts2, status, err, cv::Size(searchSize, searchSize), maxLvl);
+	//for (size_t j = 0, jend = pts1.size(); j < jend; j++) {
+	//	if (!status[j])
+	//		continue;
+	//	auto pt1 = pts1[j];// +pGrid->basePt;
+	//	auto pt2 = pts2[j];// +pGrid->basePt;
+	//	
+	//	cv::circle(img1, pt1, 1, cv::Scalar(255, 0, 255), -1);
+	//	cv::circle(img2, pt2, 1, cv::Scalar(255, 0, 255), -1);
+	//	cv::line(img2, pt1, pt2, cv::Scalar(255, 255, 0), 1);
+	//}
+	//cv::Mat debugMatch = cv::Mat::zeros(img1.rows * 2, img1.cols, img1.type());
+	//img1.copyTo(debugMatch(mergeRect1));
+	//img2.copyTo(debugMatch(mergeRect2));
+
+	//cv::moveWindow("Output::MatchTest", mpSystem->mnDisplayX, mpSystem->mnDisplayY);
+	//cv::imshow("Output::MatchTest", debugMatch);
+	//cv::waitKey(1);
 }
 int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std::vector<UVR_SLAM::MapPoint*>& vpMPs, std::vector<cv::Point2f>& vCurrPtsMP, std::vector<bool>& vbInliers,
-	std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<cv::Point2f>& vPrevPts, std::vector<cv::Point2f>& vCurrPtsCP, std::vector<int>& vnIDXs) {
+	std::vector<UVR_SLAM::CandidatePoint*>& vpCPs, std::vector<cv::Point2f>& vPrevPts, std::vector<cv::Point2f>& vCurrPtsCP, std::vector<int>& vnIDXs, cv::Mat& overlap) {
 
 	std::vector<cv::Mat> currPyr, prevPyr;
 	std::vector<uchar> status;
@@ -1026,16 +1027,16 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 	std::vector<cv::Point2f> prevPts, currPts;
 	prevPts = prev->mpMatchInfo->mvMatchingPts;
 	cv::calcOpticalFlowPyrLK(prevImg, currImg, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
-	cv::Mat overlap = cv::Mat::zeros(mHeight, mWidth, CV_8UC1);
 
 	int nCurrFrameID = curr->mnFrameID;
 	int res = 0;
 	int nBad = 0;
 	int nGridSize = mpSystem->mnRadius * 2;
 	
+	cv::Point2f ptCheckOverlap(5, 5);
 	for (size_t i = 0, iend = prevPts.size(); i < iend; i++) {
 
-		if (status[i] == 0) {
+		if (!status[i]) {
 			continue;
 		}
 		if (!prev->isInImage(currPts[i].x, currPts[i].y, 20))
@@ -1046,6 +1047,9 @@ int UVR_SLAM::Matcher::OpticalMatchingForTracking(Frame* prev, Frame* curr, std:
 			std::cout << "tracking::matching::" << pCPi->mnCandidatePointID << ", " << nCurrFrameID << std::endl;
 			continue;
 		}
+		if (!curr->mpMatchInfo->CheckOpticalPointOverlap(overlap, currPts[i], 1, 10))
+			continue;
+		cv::rectangle(overlap, currPts[i] - ptCheckOverlap, currPts[i] + ptCheckOverlap, cv::Scalar(255, 0, 0), -1);
 
 		pCPi->mnTrackingFrameID = nCurrFrameID;
 		auto pMPi = pCPi->GetMP();
