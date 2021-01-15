@@ -35,6 +35,9 @@ namespace UVR_SLAM {
 		bool isInFrame(MatchInfo* pF);
 		int GetPointIndexInFrame(MatchInfo* pF);
 
+		void SetMapGridID(int id);
+		int GetMapGridID();
+
 		void UpdateNormalAndDepth();
 		int PredictScale(const float &currentDist, Frame* pKF);
 		
@@ -67,6 +70,7 @@ namespace UVR_SLAM {
 		int mnMapPointID;
 		int mnFirstKeyFrameID;
 		int mnLocalBAID, mnLocalMapID, mnTrackingID;
+		
 		int mnOctave;
 		////마지막 트래킹 정보.
 		Frame* mLastFrame;
@@ -75,7 +79,10 @@ namespace UVR_SLAM {
 		cv::Point2f mLastMatchPoint;
 		bool mbLastMatch;
 		CandidatePoint* mpCP; //현재 맵포인트를 만든 CP와 연결함.
-
+	private:
+		////map grid
+		int mnMapGridID;
+		std::mutex mMutexMapGrid;
 	private:
 		Map* mpMap;
 		Frame* mpRefKF;
@@ -84,7 +91,6 @@ namespace UVR_SLAM {
 		int mnPlaneID;
 		MapPointType mnType;
 		
-
 		float mfDepth;
 		bool mbSeen;
 		bool mbNewMP;

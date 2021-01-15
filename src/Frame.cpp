@@ -14,6 +14,7 @@
 #include <Database.h>
 #include <System.h>
 #include <Map.h>
+#include <MapGrid.h>
 
 bool UVR_SLAM::Frame::mbInitialComputations = true;
 float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
@@ -886,6 +887,7 @@ UVR_SLAM::MatchInfo::~MatchInfo(){}
 
 void UVR_SLAM::MatchInfo::UpdateKeyFrame() {
 	int nCurrID = this->mpRefFrame->mnKeyFrameID;
+	auto pMap = this->mpRefFrame->mpSystem->mpMap;
 	for (size_t i = 0, iend = mvpMatchingCPs.size(); i < iend; i++) {
 		if (!mvbMapPointInliers[i])
 			continue;
@@ -897,6 +899,19 @@ void UVR_SLAM::MatchInfo::UpdateKeyFrame() {
 			continue;
 		//this->AddMP(pMPi, i);
 		pMPi->ConnectFrame(this, i);
+
+		//update map grid;
+		auto key = MapGrid::ComputeKey(pMPi->GetWorldPos());
+		auto pMapGrid = pMap->GetMapGrid(key);
+		if (pMapGrid) {
+			if (pMapGrid->mnMapGridID != pMPi->GetMapGridID()) {
+				pMapGrid->AddMapPoint(pMPi);
+			}
+		}
+		else {
+			pMapGrid = pMap->AddMapGrid(key);
+			pMapGrid->AddMapPoint(pMPi);
+		}
 	}
 }
 

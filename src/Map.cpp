@@ -273,14 +273,31 @@ std::vector<UVR_SLAM::PlaneProcessInformation*> UVR_SLAM::Map::GetPlaneInfos() {
 
 
 namespace UVR_SLAM {
-	void Map::AddMapGrid(cv::Point3f key) {
+	MapGrid* Map::AddMapGrid(cv::Point3f key) {
 		auto newGrid = new MapGrid();
 		std::unique_lock<std::mutex> lock(mMutexMapGrids);
 		mmpMapGrids[key] = newGrid;
+		return newGrid;
 	}
 	MapGrid* Map::GetMapGrid(cv::Point3f key) {
 		std::unique_lock<std::mutex> lock(mMutexMapGrids);
-		return mmpMapGrids[key];
+		if (mmpMapGrids.count(key))
+			return mmpMapGrids[key];
+		else
+			return nullptr;
+	}
+	std::vector<MapGrid*> Map::GetMapGrids() {
+		std::map<cv::Point3f, MapGrid*, Point3fLess> temp;
+		std::vector<MapGrid*> res;
+		{
+			std::unique_lock<std::mutex> lock(mMutexMapGrids);
+			temp = mmpMapGrids;
+		}
+		for (auto iter = temp.begin(), iend = temp.end(); iter != iend; iter++) {
+			auto pGrid = iter->second;
+			res.push_back(pGrid);
+		}
+		return res;
 	}
 }
 

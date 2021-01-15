@@ -17,14 +17,22 @@ namespace UVR_SLAM {
 		//MapGrid(cv::Point3f init, float size);
 		virtual ~MapGrid();
 	public:
+		int mnTrackingID;
+		int mnMapGridID;
+		cv::Scalar mGridColor;
 		static float mfGridSizeX, mfGridSizeY, mfGridSizeZ;
-		static cv::Point3f GetGridPt(cv::Mat cam_pos);
+		static cv::Point3f ComputeKey(cv::Mat cam_pos);
+		static cv::Point3f ComputeKey(cv::Mat cam_pos, float& x, float& y, float& z);
 		
-		void AddFrame(Frame* pF);
-		std::vector<Frame*> GetFrames();
+		void AddKeyFrame(Frame* pKF);
+		std::vector<Frame*> GetKeyFrames();
+		void AddMapPoint(MapPoint* pMP);
+		void RemoveMapPoint(MapPoint*);
+		std::vector<MapPoint*> GetMapPoints();
 	private:
-		std::mutex mMutexFrames;
-		std::vector<Frame*> mvFrames;
+		std::mutex mMutexKeyFrames, mMutexMapPoints;
+		std::vector<Frame*> mvpKeyFrames;
+		std::set<MapPoint*> mspMapPoints;
 	/*public:
 		float mfSize;
 		cv::Mat Xw;

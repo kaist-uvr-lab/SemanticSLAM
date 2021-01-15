@@ -1,6 +1,7 @@
 #include <MapPoint.h>
 #include <Map.h>
 #include <Frame.h>
+#include <MapGrid.h>
 #include <FrameWindow.h>
 #include <SegmentationData.h>
 #include <CandidatePoint.h>
@@ -9,12 +10,12 @@ static int nMapPointID = 0;
 namespace UVR_SLAM {
 	MapPoint::MapPoint()
 		:p3D(cv::Mat::zeros(3, 1, CV_32FC1)), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
-		, mnFirstKeyFrameID(0), mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnOctave(0)
+		, mnFirstKeyFrameID(0), mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnMapGridID(0), mnOctave(0)
 		, mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0), mbLastMatch(false)
 	{}
 	MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP,cv::Mat _p3D, cv::Mat _desc, int alabel, int octave)
 	: mpMap(pMap), mpRefKF(pRefKF),p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
-	, mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnOctave(octave)
+	, mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnMapGridID(0), mnOctave(octave)
 	, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0), mbLastMatch(false)
 	{
 		alabel = label;
@@ -28,7 +29,7 @@ namespace UVR_SLAM {
 	}
 	MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int alabel, int octave)
 	: mpMap(pMap), mpRefKF(pRefKF), p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(ntype)
-	, mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnOctave(octave)
+	, mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnMapGridID(0), mnOctave(octave)
 	, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0), mbLastMatch(false)
 	{
 		alabel = label;
@@ -140,6 +141,15 @@ namespace UVR_SLAM {
 			return res->second;
 	}
 
+	void MapPoint::SetMapGridID(int id) {
+		std::unique_lock<std::mutex> lock(mMutexMapGrid);
+		mnMapGridID = id;
+	}
+	int MapPoint::GetMapGridID() {
+		std::unique_lock<std::mutex> lock(mMutexMapGrid);
+		return mnMapGridID;
+	}
+
 	//결합되어 삭제되는 맵포인트가 실행됨
 	void MapPoint::Fuse(UVR_SLAM::MapPoint* pMP) {
 		if (this->mnMapPointID == pMP->mnMapPointID)
@@ -238,6 +248,7 @@ namespace UVR_SLAM {
 	}
 
 	void MapPoint::Delete() {
+		cv::Mat apos;
 		{
 			std::unique_lock<std::mutex> lockMP(mMutexMP);
 			mbDelete = true;
@@ -248,11 +259,17 @@ namespace UVR_SLAM {
 			//}
 			mnConnectedFrames = 0;
 			mmpFrames.clear();
+			apos = p3D;
 		}
 		////CP 처리
 		mpCP->ResetMapPoint();
 		//맵처리
 		mpMap->RemoveMap(this);
+		//그리드 처리
+		auto key = MapGrid::ComputeKey(apos);
+		auto pMapGrid = mpMap->GetMapGrid(key);
+		if(pMapGrid)
+			pMapGrid->RemoveMapPoint(this);
 	}
 	void MapPoint::SetDescriptor(cv::Mat _desc){
 		std::unique_lock<std::mutex> lockMP(mMutexMP);

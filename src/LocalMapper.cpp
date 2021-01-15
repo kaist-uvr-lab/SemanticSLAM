@@ -2,6 +2,7 @@
 #include <CandidatePoint.h>
 #include <Frame.h>
 #include <FrameGrid.h>
+#include <MapGrid.h>
 #include <System.h>
 #include <Map.h>
 
@@ -427,7 +428,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			if (bNeedNewKF) {
 				ProcessNewKeyFrame();
 				mpTargetFrame->mpMatchInfo->UpdateKeyFrame();
-
+				NewMapPointMarginalization();
 				ComputeNeighborKFs(mpTempFrame);
 				//int Nkf = 0;
 				//for (auto biter = mpCandiateKFs.begin(), eiter = mpCandiateKFs.end(); biter != eiter; biter++) {
@@ -1028,13 +1029,21 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 			bBad = true;
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
-		else if (nDiffKF < nNumRequireKF && pMP->GetNumConnectedFrames()-mnThreshMinKF+1 < nDiffKF) {
+		else if (nDiffKF >= 2 && pMP->GetNumConnectedFrames()<=2) {
 			bBad = true;
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
 		else if (nDiffKF >= nNumRequireKF) {
 			lit = mpSystem->mlpNewMPs.erase(lit);
 			pMP->SetNewMP(false);
+
+			////맵그리드에 추가
+			/*auto key = MapGrid::ComputeKey(pMP->GetWorldPos());
+			auto pMapGrid = mpMap->GetMapGrid(key);
+			if(!pMapGrid){
+				pMapGrid = mpMap->AddMapGrid(key);
+			}
+			pMapGrid->AddMapPoint(pMP);*/
 		}
 		else
 			lit++;
@@ -1808,6 +1817,7 @@ int UVR_SLAM::LocalMapper::MappingProcess(Map* pMap, Frame* pCurrKF, Frame* pPre
 			bool bSuccess = Optimization::PointRefinement(mpMap, pCurrKF, pCPi, X3D, pCPi->GetFrames(), spKFs, mnThreshMinKF, thHuber);
 			if(bSuccess){
 				N2++;
+				mpSystem->mlpNewMPs.push_back(pCPi->GetMP());
 				//mpMap->AddReinit(pCPi->GetMP()->GetWorldPos());
 			}
 		}

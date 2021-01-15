@@ -15,6 +15,7 @@
 #include <CandidatePoint.h>
 #include <MapPoint.h>
 #include <FrameGrid.h>
+#include <MapGrid.h>
 #include <DepthFilter.h>
 #include <ZMSSD.h>
 #include "lbplibrary.hpp"
@@ -242,6 +243,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		int N2 = 0;
 		////local map
 		{
+			std::chrono::high_resolution_clock::time_point t_grid_start = std::chrono::high_resolution_clock::now();
 			//local keyframe
 			int nCurrID = pCurr->mnFrameID;
 			std::vector<Frame*> vpLocalFrames = mpMap->GetWindowFramesVector(2);
@@ -263,6 +265,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			}*/
 			
 			std::vector<MapPoint*> vpLocalMap;
+			std::vector<MapGrid*> vpLocalMapGrid;
 			for (size_t i = 0, iend = vpLocalFrames.size(); i < iend; i++) {
 				auto pKFi = vpLocalFrames[i];
 				auto vpCPs = pKFi->mpMatchInfo->mvpMatchingCPs;
@@ -273,9 +276,89 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 						continue;
 					pMPi->mnLocalMapID = nCurrID;
 					vpLocalMap.push_back(pMPi);
+
+					//grid 추가
+					float nx, ny, nz;
+					auto key = MapGrid::ComputeKey(pMPi->GetWorldPos(), nx, ny, nz);
+					/*MapGrid* pMapGrid;
+					pMapGrid = mpMap->GetMapGrid(key);
+					if (pMapGrid){
+						if (pMapGrid->mnTrackingID == nCurrID)
+							continue;
+						pMapGrid->mnTrackingID = nCurrID;
+						vpLocalMapGrid.push_back(pMapGrid);
+
+					}*/
+					////////////////////
+					////인접한 그리드 추가
+					for (char c = 0, cend = 8; c < cend; c++) {
+						char c1 = 1;
+						char c2 = 2;
+						char c3 = 4;
+
+						float x = key.x;
+						float y = key.y;
+						float z = key.z;
+						if (c & c1) {
+							x += nx;
+						}
+						if (c & c2) {
+							y += ny;
+						}
+						if (c & c3) {
+							z += nz;
+						}
+						cv::Point3f newKey(x, y, z);
+						MapGrid* pMapGrid;
+						pMapGrid = mpMap->GetMapGrid(newKey);
+						if (pMapGrid && pMapGrid->mnTrackingID != nCurrID) {
+							pMapGrid->mnTrackingID = nCurrID;
+							vpLocalMapGrid.push_back(pMapGrid);
+						}
+					}
+					////인접한 그리드 추가
+					////////////////////
+
 				}
 			}
-			
+
+			////현재 프레임 내의 MP로부터 그리드 추가 과정
+			//for (size_t i = 0, iend = vpTempMPs.size(); i < iend; i++) {
+			//	auto pMPi = vpTempMPs[i];
+			//	if (!pMPi || pMPi->isDeleted())
+			//		continue;
+			//	//grid 추가
+			//	auto key = MapGrid::ComputeKey(pMPi->GetWorldPos());
+			//	MapGrid* pMapGrid;
+			//	pMapGrid = mpMap->GetMapGrid(key);
+			//	if (pMapGrid){
+			//		if (pMapGrid->mnTrackingID == nCurrID)
+			//			continue;
+			//		pMapGrid->mnTrackingID = nCurrID;
+			//		vpLocalMapGrid.push_back(pMapGrid);
+			//	}
+			//}
+			////현재 프레임 내의 MP로부터 그리드 추가 과정
+
+			////그리드로부터 MP 추가 과정
+			for (size_t i = 0, iend = vpLocalMapGrid.size(); i < iend; i++) {
+				auto pMapGrid = vpLocalMapGrid[i];
+				auto vpMPs = pMapGrid->GetMapPoints();
+				int nGridID = pMapGrid->mnMapGridID;
+				for (size_t i2 = 0, iend2 = vpMPs.size(); i2 < iend2; i2++) {
+					auto pMPi = vpMPs[i2];
+					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalMapID == nCurrID || pMPi->mnTrackingID == nCurrID || pMPi->GetMapGridID() != nGridID)
+						continue;
+					pMPi->mnLocalMapID = nCurrID;
+					vpLocalMap.push_back(pMPi);
+				}
+			}
+			std::chrono::high_resolution_clock::time_point t_grid_end = std::chrono::high_resolution_clock::now();
+			auto du_grid = std::chrono::duration_cast<std::chrono::milliseconds>(t_grid_end - t_grid_start).count();
+			double t_grid = du_grid / 1000.0;
+			////그리드로부터 MP 추가 과정
+
+			////Local Map과 현재 프레임 매칭 과정
 			int nGridSize = mpSystem->mnRadius * 2;
 			int maxLvl = 0;
 			int searchSize = 5;
@@ -293,6 +376,9 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				cv::Point projPt(proj.at<float>(0) / depth, proj.at<float>(1) / depth);
 				if (!pCurr->isInImage(projPt.x, projPt.y, 10.0))
 					continue;
+				if (!pCurr->mpMatchInfo->CheckOpticalPointOverlap(overlap, projPt, mpSystem->mnRadius, 10)) {
+					continue;
+				}
 				cv::Point2f left1(projPt.x - nGridSize, projPt.y - nGridSize);
 				if (left1.x < 0 || left1.y < 0)
 					continue;
@@ -312,10 +398,10 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 
 				/*if(pMPi->mLastMatchPatch.empty())
 				std::cout << "??????" << std::endl;*/
-				if (pMPi->mLastMatchPatch.channels() != 3 || pMPi->mLastMatchPatch.rows != nGridSize * 2)
+				/*if (pMPi->mLastMatchPatch.channels() != 3 || pMPi->mLastMatchPatch.rows != nGridSize * 2)
 					std::cout << "??????" << std::endl;
 				if(img1.size() != pMPi->mLastMatchPatch.size())
-					std::cout << "??????" << img1.size <<"::"<<pMPi->mLastMatchPatch.size()<< std::endl;
+					std::cout << "??????" << img1.size <<"::"<<pMPi->mLastMatchPatch.size()<< std::endl;*/
 				cv::calcOpticalFlowPyrLK(pMPi->mLastMatchPatch, img1, prevPts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
 				if (!status[0])
 					continue;
@@ -379,8 +465,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				//
 				//pCurr->mpMatchInfo->AddCP(pCPi, currPt);
 
-				
-				
 				/*if (pMPi->isInFrame(mpRefKF->mpMatchInfo)) {
 					int pidx = pMPi->GetPointIndexInFrame(mpRefKF->mpMatchInfo);
 					cv::Point2f prevPt = mpRefKF->mpMatchInfo->mvMatchingPts[pidx];
@@ -390,11 +474,17 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				}*/
 			}
 			//imshow("local map::p", pImg); imshow("local map::c", cImg); cv::waitKey(1);
+
+			std::chrono::high_resolution_clock::time_point t_local_end = std::chrono::high_resolution_clock::now();
+			auto du_local = std::chrono::duration_cast<std::chrono::milliseconds>(t_local_end - t_grid_end).count();
+			double t_local = du_local / 1000.0;
+			std::cout << t_grid << ", " << t_local <<"::"<< vpLocalMap .size()<<", "<< vpLocalMapGrid .size()<< std::endl;
 		}
 		if (N2 > 10) {
 			//mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vTempCurrPts, vbTempInliers, mpSystem->mpORBExtractor->GetInverseScaleSigmaSquares());
 			mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempMPs, vTempCurrPts2, vbTempInliers, mpSystem->mpORBExtractor->GetInverseScaleSigmaSquares());
 		}
+		////Local Map과 현재 프레임 매칭 과정
 		
 		/////////////////Matching Validation
 		cv::Mat overlapValidation= cv::Mat::zeros(pCurr->mnHeight, pCurr->mnWidth, CV_8UC1);
@@ -405,10 +495,11 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		float fGridDistThresh = nGridSize*nGridSize * 4;
 		mpMap->ClearReinit();
 		for (size_t i = 0, iend = vpTempMPs.size(); i < iend; i++) {
-			if (!vbTempInliers[i])
-				continue;
 			auto pMPi = vpTempMPs[i];
 			if (!pMPi || pMPi->isDeleted())
+				continue;
+			pMPi->IncreaseVisible();
+			if (!vbTempInliers[i])
 				continue;
 			auto currPt = vTempCurrPts2[i];
 			auto pCPi = vpTempMPs[i]->mpCP;
@@ -419,6 +510,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				continue;
 			}
 			cv::rectangle(overlapValidation, currPt - ptCheckOverlap, currPt + ptCheckOverlap, cv::Scalar(255, 0, 0), -1);
+
+			pMPi->IncreaseFound();
 
 			//////grid 추가
 			auto gridPt = pPrev->GetGridBasePt(currPt, nGridSize);

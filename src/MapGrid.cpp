@@ -7,31 +7,103 @@
 //////////////////////////////////////////////
 ////»ý¼ºÀÚ
 namespace UVR_SLAM {
+	//0.5
+	float MapGrid::mfGridSizeX = 0.2f;
+	float MapGrid::mfGridSizeY = 0.2f;
+	float MapGrid::mfGridSizeZ = 0.2f;
 
-	float MapGrid::mfGridSizeX = 1.0f;
-	float MapGrid::mfGridSizeY = 1.0f;
-	float MapGrid::mfGridSizeZ = 1.0f;
-	
-	MapGrid::~MapGrid() {}
-	MapGrid::MapGrid() {}
+	float fHalfX = MapGrid::mfGridSizeX * 0.5f;
+	float fHalfY = MapGrid::mfGridSizeY * 0.5f;
+	float fHalfZ = MapGrid::mfGridSizeZ * 0.5f;
 
-	cv::Point3f MapGrid::GetGridPt(cv::Mat cam_pos){
+	cv::RNG rng(12345);
+
+	MapGrid::MapGrid() :mnTrackingID(-1), mnMapGridID(++System::nMapGridID){
+		mGridColor = cv::Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
+	}
+
+	MapGrid::~MapGrid(){}
+
+	cv::Point3f MapGrid::ComputeKey(cv::Mat cam_pos) {
 		int a = cam_pos.at<float>(0) / mfGridSizeX;
 		int b = cam_pos.at<float>(1) / mfGridSizeY;
 		int c = cam_pos.at<float>(2) / mfGridSizeZ;
-		return std::move(cv::Point3f(a*mfGridSizeX, b*mfGridSizeY, c*mfGridSizeZ));
+		float nx = a*mfGridSizeX;
+		float ny = b*mfGridSizeY;
+		float nz = c*mfGridSizeZ;
+		return std::move(cv::Point3f(nx, ny, nz));
 	}
-	void MapGrid::AddFrame(Frame* pF){
-		std::unique_lock<std::mutex> lock(mMutexFrames);
-		mvFrames.push_back(pF);
+
+	cv::Point3f MapGrid::ComputeKey(cv::Mat cam_pos, float& x, float& y, float& z){
+		int a = cam_pos.at<float>(0) / mfGridSizeX;
+		int b = cam_pos.at<float>(1) / mfGridSizeY;
+		int c = cam_pos.at<float>(2) / mfGridSizeZ;
+		float nx = a*mfGridSizeX;
+		float ny = b*mfGridSizeY;
+		float nz = c*mfGridSizeZ;
+		float dx = cam_pos.at<float>(0) - nx;
+		float dy = cam_pos.at<float>(1) - ny;
+		float dz = cam_pos.at<float>(2) - nz;
+
+		bool bx = dx > fHalfX;
+		bool by = dy > fHalfY;
+		bool bz = dz > fHalfZ;
+
+		if (dx > fHalfX) {
+			x = mfGridSizeX;
+		}
+		else {
+			x = -mfGridSizeX;
+		}
+
+		if (dy > fHalfY) {
+			y = mfGridSizeY;
+		}
+		else {
+			y = -mfGridSizeY;
+		}
+
+		if (dz > fHalfZ) {
+			z = mfGridSizeZ;
+		}
+		else {
+			z = -mfGridSizeZ;
+		}
+
+		return std::move(cv::Point3f(nx, ny, nz));
 	}
-	std::vector<Frame*> MapGrid::GetFrames(){
+
+	void MapGrid::AddKeyFrame(Frame* pF){
+		std::unique_lock<std::mutex> lock(mMutexKeyFrames);
+		mvpKeyFrames.push_back(pF);
+	}
+	std::vector<Frame*> MapGrid::GetKeyFrames(){
 		std::vector<Frame*> res;
 		{
-			std::unique_lock<std::mutex> lock(mMutexFrames);
-			res = mvFrames;
+			std::unique_lock<std::mutex> lock(mMutexKeyFrames);
+			res = mvpKeyFrames;
 		}
 		return std::vector<Frame*>(res.begin(), res.end());
+	}
+	void MapGrid::AddMapPoint(MapPoint* pMP) {
+		std::unique_lock<std::mutex> lock(mMutexMapPoints);
+		mspMapPoints.insert(pMP);
+		pMP->SetMapGridID(this->mnMapGridID);
+		//pMP->mnMapGridID = this->mnMapGridID;
+	}
+	std::vector<MapPoint*> MapGrid::GetMapPoints() {
+		std::set<MapPoint*> res;
+		{
+			std::unique_lock<std::mutex> lock(mMutexMapPoints);
+			res = mspMapPoints;
+		}
+		return std::vector<MapPoint*>(res.begin(), res.end());
+	}
+	void MapGrid::RemoveMapPoint(MapPoint* pMP){
+		std::unique_lock<std::mutex> lock(mMutexMapPoints);
+		if (mspMapPoints.count(pMP)) {
+			mspMapPoints.erase(pMP);
+		}
 	}
 }
 

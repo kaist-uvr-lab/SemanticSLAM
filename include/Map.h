@@ -6,16 +6,9 @@
 #include <opencv2/core.hpp>
 #include <mutex>
 #include <list>
+#include <PointLess.h>
 
 namespace UVR_SLAM {
-
-	struct Point3fLess
-	{
-		bool operator()(cv::Point3f const&lhs, cv::Point3f const& rhs) const
-		{
-			return lhs.x == rhs.x ? lhs.y == rhs.y ? lhs.z < rhs.z : lhs.y < rhs.y : lhs.x < rhs.x;
-		}
-	};
 
 	class Frame;
 	class System;
@@ -140,8 +133,9 @@ namespace UVR_SLAM {
 
 		/////////MapGrid
 		public:
-			void AddMapGrid(cv::Point3f key);
+			MapGrid* AddMapGrid(cv::Point3f key);
 			MapGrid* GetMapGrid(cv::Point3f key);
+			std::vector<MapGrid*> GetMapGrids();
 		private:
 			std::mutex mMutexMapGrids;
 			std::map<cv::Point3f, MapGrid*, Point3fLess> mmpMapGrids;
