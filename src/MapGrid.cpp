@@ -18,7 +18,7 @@ namespace UVR_SLAM {
 
 	cv::RNG rng(12345);
 
-	MapGrid::MapGrid() :mnTrackingID(-1), mnMapGridID(++System::nMapGridID){
+	MapGrid::MapGrid() :mnTrackingID(-1), mnLocalBAID(-1), mnMapGridID(++System::nMapGridID){
 		mGridColor = cv::Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
 	}
 

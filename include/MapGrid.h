@@ -18,6 +18,7 @@ namespace UVR_SLAM {
 		virtual ~MapGrid();
 	public:
 		int mnTrackingID;
+		int mnLocalBAID;
 		int mnMapGridID;
 		cv::Scalar mGridColor;
 		static float mfGridSizeX, mfGridSizeY, mfGridSizeZ;

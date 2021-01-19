@@ -21,6 +21,8 @@
 #include <ctime>
 #include <direct.h>
 
+#include <FeatureMatchingWebAPI.h>
+
 UVR_SLAM::LocalMapper::LocalMapper(){}
 UVR_SLAM::LocalMapper::LocalMapper(System* pSystem, std::string strPath, int w, int h):mnWidth(w), mnHeight(h), mbStopBA(false), mbDoingProcess(false), mbStopLocalMapping(false), mpTempFrame(nullptr),mpTargetFrame(nullptr), mpPrevKeyFrame(nullptr), mpPPrevKeyFrame(nullptr){
 	mpSystem = pSystem;
@@ -731,6 +733,37 @@ void UVR_SLAM::LocalMapper::Run() {
 				}
 				else {
 					mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
+
+					std::chrono::high_resolution_clock::time_point feature_start = std::chrono::high_resolution_clock::now();
+					std::vector<cv::Point2f> vSuperPoitns, vSuperPoitns2;
+					std::vector<int> vMatches;
+					FeatureMatchingWebAPI::RequestDetect("143.248.96.81", 35005, mpTargetFrame->matFrame, 0, vSuperPoitns);
+					auto vNeighKFs = mpTargetFrame->GetConnectedKFs(15);
+					int nLast = vNeighKFs.size() - 1;
+					if(nLast > 10){
+						FeatureMatchingWebAPI::RequestDetect("143.248.96.81", 35005, vNeighKFs[10]->matFrame, 1, vSuperPoitns2);
+						FeatureMatchingWebAPI::RequestMatch("143.248.96.81", 35005, vMatches);
+					}
+					std::chrono::high_resolution_clock::time_point feature_end = std::chrono::high_resolution_clock::now();
+					auto du_feature = std::chrono::duration_cast<std::chrono::milliseconds>(feature_end - feature_start).count();
+					float t_feature = du_feature / 1000.0;
+					std::cout << "as;dlfj;asdlkfjasdf::" << t_feature << std::endl;
+
+					if (vMatches.size() > 0) {
+						cv::Mat aimg = mpTargetFrame->GetOriginalImage().clone();
+						cv::Mat bimg = vNeighKFs[10]->GetOriginalImage().clone();
+						for (size_t i = 0, iend = vMatches.size(); i < iend; i++) {
+							if (vMatches[i] == -1)
+								continue;
+							int idx = vMatches[i];
+							cv::circle(aimg, vSuperPoitns[i], 3, cv::Scalar(255, 0, 255), -1);
+							cv::circle(bimg, vSuperPoitns2[idx], 3, cv::Scalar(255, 0, 255), -1);
+						}
+						imshow("SuperPoint1", aimg);
+						imshow("SuperPoint2", bimg);
+						cv::waitKey(1);
+					}
+					
 				}
 			}
 			

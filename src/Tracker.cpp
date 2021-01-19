@@ -410,7 +410,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 					continue;
 				}
 				cv::rectangle(overlap, currPt - ptCheckOverlap, currPt + ptCheckOverlap, cv::Scalar(255, 0, 0), -1);
-				
 				auto prevPt = pMPi->mLastMatchPoint + pMPi->mLastMatchBasePt;
 				//auto pCPi = vpLocalCPs[i];
 				vpTempMPs.push_back(pMPi);
@@ -510,7 +509,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				continue;
 			}
 			cv::rectangle(overlapValidation, currPt - ptCheckOverlap, currPt + ptCheckOverlap, cv::Scalar(255, 0, 0), -1);
-
+			pMPi->mnTrackingID = pCurr->mnFrameID;
 			pMPi->IncreaseFound();
 
 			//////grid Ãß°¡

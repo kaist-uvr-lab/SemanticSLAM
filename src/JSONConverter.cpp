@@ -3,69 +3,69 @@
 #include <chrono>
 
 
-static const std::string base64_chars =
-"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-"abcdefghijklmnopqrstuvwxyz"
-"0123456789+/";
+//static const std::string base64_chars =
+//"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+//"abcdefghijklmnopqrstuvwxyz"
+//"0123456789+/";
 
-static inline bool is_base64(unsigned char c)
-{
-	return (isalnum(c) || (c == '+') || (c == '/'));
-}
+//static inline bool is_base64(unsigned char c)
+//{
+//	return (isalnum(c) || (c == '+') || (c == '/'));
+//}
 
-std::string base64_encode(uchar const* bytes_to_encode, unsigned int in_len)
-{
-	std::string ret;
-
-	int i = 0;
-	int j = 0;
-	unsigned char char_array_3[3];
-	unsigned char char_array_4[4];
-
-	while (in_len--)
-	{
-		char_array_3[i++] = *(bytes_to_encode++);
-		if (i == 3)
-		{
-			char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-			char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-			char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
-			char_array_4[3] = char_array_3[2] & 0x3f;
-
-			for (i = 0; (i <4); i++)
-			{
-				ret += base64_chars[char_array_4[i]];
-			}
-			i = 0;
-		}
-	}
-
-	if (i)
-	{
-		for (j = i; j < 3; j++)
-		{
-			char_array_3[j] = '\0';
-		}
-
-		char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-		char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-		char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
-		char_array_4[3] = char_array_3[2] & 0x3f;
-
-		for (j = 0; (j < i + 1); j++)
-		{
-			ret += base64_chars[char_array_4[j]];
-		}
-
-		while ((i++ < 3))
-		{
-			ret += '=';
-		}
-	}
-
-	return ret;
-
-}
+//std::string base64_encode(uchar const* bytes_to_encode, unsigned int in_len)
+//{
+//	std::string ret;
+//
+//	int i = 0;
+//	int j = 0;
+//	unsigned char char_array_3[3];
+//	unsigned char char_array_4[4];
+//
+//	while (in_len--)
+//	{
+//		char_array_3[i++] = *(bytes_to_encode++);
+//		if (i == 3)
+//		{
+//			char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+//			char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+//			char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+//			char_array_4[3] = char_array_3[2] & 0x3f;
+//
+//			for (i = 0; (i <4); i++)
+//			{
+//				ret += base64_chars[char_array_4[i]];
+//			}
+//			i = 0;
+//		}
+//	}
+//
+//	if (i)
+//	{
+//		for (j = i; j < 3; j++)
+//		{
+//			char_array_3[j] = '\0';
+//		}
+//
+//		char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+//		char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+//		char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+//		char_array_4[3] = char_array_3[2] & 0x3f;
+//
+//		for (j = 0; (j < i + 1); j++)
+//		{
+//			ret += base64_chars[char_array_4[j]];
+//		}
+//
+//		while ((i++ < 3))
+//		{
+//			ret += '=';
+//		}
+//	}
+//
+//	return ret;
+//
+//}
 
 
 std::string JSONConverter::ConvertImageToJSONStr(int nFrameID, cv::Mat img) {
@@ -87,16 +87,14 @@ std::string JSONConverter::ConvertImageToJSONStr(int nFrameID, cv::Mat img) {
 	std::vector<cv::Mat> channels;
 	cv::split(img, channels);
 
-
-	
 	//cv::base64_encode
 
-	std::vector<uchar> data1(channels[0].ptr(), channels[0].ptr() + total);
+	/*std::vector<uchar> data1(channels[0].ptr(), channels[0].ptr() + total);
 	std::vector<uchar> data2(channels[1].ptr(), channels[1].ptr() + total);
 	std::vector<uchar> data3(channels[2].ptr(), channels[2].ptr() + total);
 	std::string s1(data1.begin(), data1.end());
 	std::string s2(data2.begin(), data2.end());
-	std::string s3(data3.begin(), data3.end());
+	std::string s3(data3.begin(), data3.end());*/
 
 	std::stringstream ss;
 	
@@ -112,7 +110,7 @@ std::string JSONConverter::ConvertImageToJSONStr(int nFrameID, cv::Mat img) {
 	bool code = cv::imencode(".jpg", img, buf, std::vector<int>(params, params + 2));
 	uchar* result = reinterpret_cast<uchar*> (&buf[0]);
 
-	std::string strimg = base64_encode(result, buf.size());
+	std::string strimg = Base64Encoder::base64_encode(result, buf.size());
 	ss << strimg;
 	ss << "\"";
 	
@@ -212,13 +210,7 @@ cv::Mat JSONConverter::ConvertStringToLabel(const char* data, int N) {
 	return res;
 }
 
-const char* JSONConverter::headers[] = {
-	"Connection", "close",
-	//"Content-type", "application/json",
-	"Content-type", "application/json",
-	"Accept", "text/plain",
-	0
-};
+
 //const char* JSONConverter::headers[] = {
 //	"Connection", "close",
 //	"Content-type", "application/json",
@@ -281,7 +273,7 @@ bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& 
 	mpConnection->setcallbacks(OnBegin, OnData, OnComplete, 0);
 	mpConnection->request("POST",
 		"/api/predict",
-		headers,
+		Base64Encoder::headers,
 		(const unsigned char*)strJSON.c_str(),
 		strlen(strJSON.c_str())
 	);

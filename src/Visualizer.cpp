@@ -341,6 +341,7 @@ void UVR_SLAM::Visualizer::Run() {
 				for (auto iter = mvpMapGrid.begin(), iend = mvpMapGrid.end(); iter != iend; iter++) {
 					auto pGrid = *iter;
 					auto color = pGrid->mGridColor;
+					cv::Scalar color2(0, 0, 0);
 					auto vpMPs = pGrid->GetMapPoints();
 					auto nGridID = pGrid->mnMapGridID;
 					for (size_t i = 0, ii = vpMPs.size(); i < ii; i++) {
@@ -351,6 +352,18 @@ void UVR_SLAM::Visualizer::Run() {
 						cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
 						tpt += mVisMidPt;
 						cv::circle(tempVis, tpt, 2, color, -1);
+
+						if (pGrid->mnTrackingID < pMatchInfo->mpRefFrame->mnFrameID)
+						{
+							cv::circle(tempVis, tpt, 2, color2, -1);
+						}
+
+						int diff = pGrid->mnTrackingID - pMPi->mnTrackingID;
+						if(diff > 100 && pMPi->GetFVRatio() < 0.5f){
+							//std::cout << "ratio : " << pMPi->GetFVRatio() << "::" << pMPi->mnTrackingID << std::endl;
+							pMPi->Delete();
+							//cv::circle(tempVis, tpt, 2, color2, -1);
+						}
 					}
 				}
 				//auto mmpMap = mpMap->GetMap();

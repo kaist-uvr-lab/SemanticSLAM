@@ -114,6 +114,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			std::set<Frame*> spTempKFs, spGraphFrames;
 			std::vector<UVR_SLAM::Frame*> vpOptKFs, vpTempKFs;
 			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
+			std::vector<MapGrid*> vpLocalMapGrid;
 			auto vpGraphKFs = mpMap->GetGraphFrames();
 
 			
@@ -124,17 +125,156 @@ void UVR_SLAM::MapOptimizer::Run() {
 			//////기존의 방식
 			{
 				////기본 MP획득
+				////MP, KF, Fixed KF를 완성해야 함.
+				//for (size_t i = 0, iend = mpTargetFrame->mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++) {
+				//	auto pCPi = mpTargetFrame->mpMatchInfo->mvpMatchingCPs[i];
+				//	auto pMPi = pCPi->GetMP();
+				//	if (!pMPi || pMPi->isDeleted() || !pMPi->GetQuality() || pMPi->GetNumConnectedFrames() < mnThreshMinKF)
+				//		continue;
+				//	if (pMPi->mnLocalBAID == nTargetID) {
+				//		continue;
+				//	}
+				//	pMPi->mnLocalBAID = nTargetID;
+				//	vpOptMPs.push_back(pMPi);
+				//}
+
+				//////현재 타겟 프레임과 연결된 프레임들을 이용해 로컬맵 확장 및 키프레임, 픽스드 프레임 확장
+				//mpTargetFrame->mnLocalBAID = nTargetID;
+				//vpOptKFs.push_back(mpTargetFrame);
+
+				//auto vpNeighKFs = mpTargetFrame->GetConnectedKFs(15);
+				//for (auto iter = vpNeighKFs.begin(), iend = vpNeighKFs.end(); iter != iend; iter++) {
+				//	auto pKFi = *iter;
+				//	if (pKFi->isDeleted())
+				//		continue;
+				//	auto matchInfo = pKFi->mpMatchInfo;
+				//	auto vpCPs = matchInfo->mvpMatchingCPs;
+				//	auto vPTs = matchInfo->mvMatchingPts;
+				//	int N1 = 0;
+				//	for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
+				//		auto pCPi = vpCPs[i];
+				//		auto pMPi = pCPi->GetMP();
+				//		if (!pMPi || pMPi->isDeleted() || pMPi->GetNumConnectedFrames() < mnThreshMinKF || pMPi->mnLocalBAID == nTargetID || !pMPi->GetQuality())
+				//			continue;
+				//		N1++;
+				//		pMPi->mnLocalBAID = nTargetID;
+				//		vpOptMPs.push_back(pMPi);
+				//	}
+				//	vpOptKFs.push_back(pKFi);
+				//	pKFi->mnLocalBAID = nTargetID;
+				//}//for vpmps, vpkfs
+
+				////Fixed KFs
+				//for (size_t i = 0, iend = vpOptMPs.size(); i < iend; i++) {
+				//	auto pMPi = vpOptMPs[i];
+				//	auto mmpFrames = pMPi->GetConnedtedFrames();
+				//	for (auto iter = mmpFrames.begin(), iter_end = mmpFrames.end(); iter != iter_end; iter++) {
+				//		auto pKFi = (iter->first)->mpRefFrame;
+				//		if (pKFi->isDeleted())
+				//			continue;
+				//		if (pKFi->mnLocalBAID == nTargetID)
+				//			continue;
+				//		mpGraphFrameCounts[pKFi]++;
+				//		/*pKFi->mnLocalBAID = nTargetID;
+				//		vpFixedKFs.push_back(pKFi);*/
+				//	}
+				//}//for fixed iter
+
+				//std::vector<std::pair<int, Frame*>> vPairFixedKFs;
+				//for (auto iter = mpGraphFrameCounts.begin(), iend = mpGraphFrameCounts.end(); iter != iend; iter++) {
+				//	auto pKFi = iter->first;
+				//	auto count = iter->second;
+				//	if (count < 10)
+				// 		continue;
+				//	vPairFixedKFs.push_back(std::make_pair(count, pKFi));
+				//}
+				//std::sort(vPairFixedKFs.begin(), vPairFixedKFs.end(), std::greater<>());
+				//for (size_t i = 0, iend = vPairFixedKFs.size(); i < iend; i++) {
+				//	auto pair = vPairFixedKFs[i];
+				//	if (vpFixedKFs.size() == 10)
+				// 		break;
+				//	auto pKFi = pair.second;
+				//	pKFi->mnFixedBAID = nTargetID;
+				//	pKFi->mnLocalBAID = nTargetID;
+				//	vpFixedKFs.push_back(pKFi);
+				//}
+
+				////그리드 방식
 				for (size_t i = 0, iend = mpTargetFrame->mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++) {
 					auto pCPi = mpTargetFrame->mpMatchInfo->mvpMatchingCPs[i];
 					auto pMPi = pCPi->GetMP();
-					if (!pMPi || pMPi->isDeleted() || !pMPi->GetQuality() || pMPi->GetNumConnectedFrames() < mnThreshMinKF)
+					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID)
 						continue;
-					if (pMPi->mnLocalBAID == nTargetID) {
-						continue;
-					}
 					pMPi->mnLocalBAID = nTargetID;
 					vpOptMPs.push_back(pMPi);
+
+					////////////////////
+					//////grid 추가
+					float nx, ny, nz;
+					auto key = MapGrid::ComputeKey(pMPi->GetWorldPos(), nx, ny, nz);
+					
+					////인접한 그리드 추가
+					for (char c = 0, cend = 8; c < cend; c++) {
+						char c1 = 1;
+						char c2 = 2;
+						char c3 = 4;
+
+						float x = key.x;
+						float y = key.y;
+						float z = key.z;
+						if (c & c1) {
+							x += nx;
+						}
+						if (c & c2) {
+							y += ny;
+						}
+						if (c & c3) {
+							z += nz;
+						}
+						cv::Point3f newKey(x, y, z);
+						MapGrid* pMapGrid;
+						pMapGrid = mpMap->GetMapGrid(newKey);
+						if (pMapGrid && pMapGrid->mnLocalBAID != nTargetID) {
+							pMapGrid->mnLocalBAID = nTargetID;
+							vpLocalMapGrid.push_back(pMapGrid);
+						}
+					}
+					////인접한 그리드 추가
+					//////grid 추가
+					////////////////////
 				}
+
+				////그리드로부터 MP 추가 과정
+				for (size_t i = 0, iend = vpLocalMapGrid.size(); i < iend; i++) {
+					auto pMapGrid = vpLocalMapGrid[i];
+					auto vpMPs = pMapGrid->GetMapPoints();
+					int nGridID = pMapGrid->mnMapGridID;
+					for (size_t i2 = 0, iend2 = vpMPs.size(); i2 < iend2; i2++) {
+						auto pMPi = vpMPs[i2];
+						if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID || pMPi->GetMapGridID() != nGridID)
+							continue;
+						pMPi->mnLocalBAID = nTargetID;
+						vpOptMPs.push_back(pMPi);
+					}
+				}
+				////그리드로부터 MP 추가 과정
+
+				////MP로부터 KF 수 확인하기
+				std::set<Frame*> testKFs;
+				int nMinKFID = 10000000;
+				for (size_t i = 0, iend = vpOptMPs.size(); i < iend; i++) {
+					auto pMPi = vpOptMPs[i];
+					auto observations = pMPi->GetConnedtedFrames();
+					for (auto iter = observations.begin(), iterend = observations.end(); iter != iterend; iter++) {
+						auto pKFi = iter->first->mpRefFrame;
+						if (!testKFs.count(pKFi)) {
+							testKFs.insert(pKFi);
+							if (pKFi->mnKeyFrameID < nMinKFID)
+								nMinKFID = pKFi->mnKeyFrameID;
+						}
+					}
+				}
+				std::cout << "LocalBA::FrameTest::"<< nMinKFID<<"::" << testKFs.size() << std::endl;
 
 				////현재 타겟 프레임과 연결된 프레임들을 이용해 로컬맵 확장 및 키프레임, 픽스드 프레임 확장
 				mpTargetFrame->mnLocalBAID = nTargetID;
@@ -152,7 +292,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 					for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
 						auto pCPi = vpCPs[i];
 						auto pMPi = pCPi->GetMP();
-						if (!pMPi || pMPi->isDeleted() || pMPi->GetNumConnectedFrames() < mnThreshMinKF || pMPi->mnLocalBAID == nTargetID || !pMPi->GetQuality())
+						if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID)
 							continue;
 						N1++;
 						pMPi->mnLocalBAID = nTargetID;
@@ -162,7 +302,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 					pKFi->mnLocalBAID = nTargetID;
 				}//for vpmps, vpkfs
 
-				//Fixed KFs
+				 //Fixed KFs
 				for (size_t i = 0, iend = vpOptMPs.size(); i < iend; i++) {
 					auto pMPi = vpOptMPs[i];
 					auto mmpFrames = pMPi->GetConnedtedFrames();
@@ -178,19 +318,22 @@ void UVR_SLAM::MapOptimizer::Run() {
 					}
 				}//for fixed iter
 
+				////fixed kf를 정렬
 				std::vector<std::pair<int, Frame*>> vPairFixedKFs;
 				for (auto iter = mpGraphFrameCounts.begin(), iend = mpGraphFrameCounts.end(); iter != iend; iter++) {
 					auto pKFi = iter->first;
 					auto count = iter->second;
 					if (count < 10)
-				 		continue;
+						continue;
 					vPairFixedKFs.push_back(std::make_pair(count, pKFi));
 				}
 				std::sort(vPairFixedKFs.begin(), vPairFixedKFs.end(), std::greater<>());
+
+				////상위 N개의 Fixed KF만 추가
 				for (size_t i = 0, iend = vPairFixedKFs.size(); i < iend; i++) {
 					auto pair = vPairFixedKFs[i];
 					if (vpFixedKFs.size() == 10)
-				 		break;
+						break;
 					auto pKFi = pair.second;
 					pKFi->mnFixedBAID = nTargetID;
 					pKFi->mnLocalBAID = nTargetID;

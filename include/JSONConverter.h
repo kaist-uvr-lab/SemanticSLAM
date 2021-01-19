@@ -8,6 +8,7 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 
+#include <Base64Encoder.h>
 #include "happyhttp.h"
 #include <cstdio>
 #include <cstring>
@@ -23,7 +24,7 @@ public:
 	static cv::Mat ConvertStringToLabel(const char* data, int N);
 	static bool RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& dst, int mnFrameID, int& stat);
 public:
-	const static char* headers[];
+	
 private:
 };
 
