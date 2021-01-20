@@ -240,12 +240,11 @@ void OnComplete(const happyhttp::Response* r, void* userdata)
 }
 
 
-void JSONConverter::Init() {
-	//WINSOCK for RESTAPI
-	WSAData wsaData;
-	int code = WSAStartup(MAKEWORD(1, 1), &wsaData);
-	
-}
+//void JSONConverter::Init() {
+//	//WINSOCK for RESTAPI
+//	WSAData wsaData;
+//	int code = WSAStartup(MAKEWORD(1, 1), &wsaData);
+//}
 
 bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& dst,int mnFrameID, int& stat) {
 	

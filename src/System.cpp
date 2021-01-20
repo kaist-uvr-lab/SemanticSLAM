@@ -19,6 +19,7 @@
 #include <MapPoint.h>
 #include <LocalBinaryPatternProcessor.h>
 #include <Database.h>
+#include <Base64Encoder.h>
 
 int UVR_SLAM::System::nKeyFrameID = 1;
 int UVR_SLAM::System::nFrameID = 1;
@@ -229,6 +230,8 @@ void UVR_SLAM::System::Init() {
 	mpInitializer->Init();
 	mpTracker->Init();
 	mpMatcher->Init();
+
+	Base64Encoder::Init();
 
 	////¾²·¹µå
 	mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);

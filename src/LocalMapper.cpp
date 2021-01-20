@@ -21,6 +21,7 @@
 #include <ctime>
 #include <direct.h>
 
+
 #include <FeatureMatchingWebAPI.h>
 
 UVR_SLAM::LocalMapper::LocalMapper(){}
@@ -143,6 +144,8 @@ void UVR_SLAM::LocalMapper::Run() {
 
 	int numLM = 0;
 	float totalLM = 0.f;
+
+	std::string ipaa = "127.0.0.1";
 
 	while (1) {
 
@@ -307,6 +310,9 @@ void UVR_SLAM::LocalMapper::Run() {
 					//FuseKeyFrame(mpTempFrame, mpPrevKeyFrame, mpSystem->mnRadius * 2);
 					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
 					std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
+					std::vector<cv::Point2f> aaaa;
+					FeatureMatchingWebAPI::RequestDetect(ipaa, 35005, mpTempFrame->matFrame, 0, aaaa);
+					mpTempFrame->mvEdgePts = std::vector<cv::Point2f>(aaaa.begin(), aaaa.end());
 					mpTempFrame->SetGrids();
 					//mpTargetFrame->mpMatchInfo->SetMatchingPoints();
 					mpSystem->mbCreateCP = true;
@@ -737,12 +743,14 @@ void UVR_SLAM::LocalMapper::Run() {
 					std::chrono::high_resolution_clock::time_point feature_start = std::chrono::high_resolution_clock::now();
 					std::vector<cv::Point2f> vSuperPoitns, vSuperPoitns2;
 					std::vector<int> vMatches;
-					FeatureMatchingWebAPI::RequestDetect("143.248.96.81", 35005, mpTargetFrame->matFrame, 0, vSuperPoitns);
+					
+					FeatureMatchingWebAPI::RequestDetect(ipaa, 35005, mpTargetFrame->matFrame, 0, vSuperPoitns);
+
 					auto vNeighKFs = mpTargetFrame->GetConnectedKFs(15);
 					int nLast = vNeighKFs.size() - 1;
 					if(nLast > 10){
-						FeatureMatchingWebAPI::RequestDetect("143.248.96.81", 35005, vNeighKFs[10]->matFrame, 1, vSuperPoitns2);
-						FeatureMatchingWebAPI::RequestMatch("143.248.96.81", 35005, vMatches);
+						FeatureMatchingWebAPI::RequestDetect(ipaa, 35005, vNeighKFs[4]->matFrame, 1, vSuperPoitns2);
+						FeatureMatchingWebAPI::RequestMatch(ipaa, 35005, vMatches);
 					}
 					std::chrono::high_resolution_clock::time_point feature_end = std::chrono::high_resolution_clock::now();
 					auto du_feature = std::chrono::duration_cast<std::chrono::milliseconds>(feature_end - feature_start).count();
@@ -751,7 +759,7 @@ void UVR_SLAM::LocalMapper::Run() {
 
 					if (vMatches.size() > 0) {
 						cv::Mat aimg = mpTargetFrame->GetOriginalImage().clone();
-						cv::Mat bimg = vNeighKFs[10]->GetOriginalImage().clone();
+						cv::Mat bimg = vNeighKFs[4]->GetOriginalImage().clone();
 						for (size_t i = 0, iend = vMatches.size(); i < iend; i++) {
 							if (vMatches[i] == -1)
 								continue;

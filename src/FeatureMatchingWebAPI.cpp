@@ -104,7 +104,7 @@ bool FeatureMatchingWebAPI::RequestDetect(std::string ip, int port, cv::Mat src,
 	std::string strJSON = ConvertImageToString(src, type);
 
 	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
-
+	
 	mpConnection->setcallbacks(FeatueOnBegin, FeatueOnData, FeatureDetectOnComplete, 0);
 	mpConnection->request("POST",
 		"/api/detect",

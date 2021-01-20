@@ -228,6 +228,43 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vTempCurrPts2, vbTempInliers, 
 			vpTempCPs, vTempPrevPts, vTempCurrPts, vnTempIDXs, overlap);
 
+		{
+			std::cout << mpRefKF->mnKeyFrameID <<", "<<mpRefKF->mvEdgePts.size()<< std::endl;
+			if (mpRefKF->mvEdgePts.size() > 10) {
+				int maxLvl = 3;
+				int searchSize = 21;
+				//int searchSize = 21 + 10*(curr->GetFrameID() - prev->GetFrameID()-1);
+				std::vector<uchar> status;
+				std::vector<float> err;
+				std::vector<cv::Point2f> currPts;
+
+				cv::Mat refImg = mpRefKF->GetOriginalImage().clone();
+				cv::Mat currImg = pCurr->GetOriginalImage().clone();
+				cv::Rect mergeRect1 = cv::Rect(0, 0, refImg.cols, refImg.rows);
+				cv::Rect mergeRect2 = cv::Rect(refImg.cols, 0, refImg.cols, refImg.rows);
+				cv::Mat debugMatch = cv::Mat::zeros(refImg.rows, refImg.cols*2, refImg.type());
+				cv::Point2f ptBottom = cv::Point2f(refImg.cols,0);
+				refImg.copyTo(debugMatch(mergeRect1));
+				currImg.copyTo(debugMatch(mergeRect2));
+				cv::calcOpticalFlowPyrLK(refImg, currImg, mpRefKF->mvEdgePts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+				//바운더리 에러도 고려해야 함.
+
+				int res = 0;
+				int nBad = 0;
+
+				for (int i = 0; i < mpRefKF->mvEdgePts.size(); i++) {
+					if (status[i] == 0) {
+						continue;
+					}
+					cv::circle(debugMatch, mpRefKF->mvEdgePts[i], 3, cv::Scalar(255, 255, 0), -1);
+					cv::circle(debugMatch, currPts[i] + ptBottom, 3, cv::Scalar(255, 255, 0), -1);
+					cv::line(debugMatch, mpRefKF->mvEdgePts[i], currPts[i]+ ptBottom, cv::Scalar(255, 255, 0),1 );
+				}
+				//imshow("super::ref", refImg);
+				imshow("superpoint::opticalflow", debugMatch); cv::waitKey(1);
+			}
+		}
+
 
 		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
 		{

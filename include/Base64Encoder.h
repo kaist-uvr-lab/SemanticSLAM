@@ -9,6 +9,7 @@
 class Base64Encoder {
 public:
 	const static char* headers[];
+	static void Init();
 	const static std::string base64_chars;// = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 	static std::string base64_encode(unsigned char const* bytes_to_encode, unsigned int in_len)
 	{

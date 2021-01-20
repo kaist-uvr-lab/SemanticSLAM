@@ -18,7 +18,7 @@
 
 class JSONConverter {
 public:
-	static void Init();
+	//static void Init();
 	static std::string ConvertImageToJSONStr(int nFrameID, cv::Mat img);
 	static cv::Mat ConvertStringToImage(const char* data, int N);
 	static cv::Mat ConvertStringToLabel(const char* data, int N);

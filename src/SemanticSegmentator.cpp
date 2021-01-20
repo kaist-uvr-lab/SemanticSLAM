@@ -105,7 +105,7 @@ unsigned long long ConvertID(cv::Mat hist, int numPatterns, int numIDs) {
 
 void UVR_SLAM::SemanticSegmentator::Run() {
 
-	JSONConverter::Init();
+	//Base64Encoder::Init();
 	
 	////LBP param
 	lbplibrary::LBP* lbp = new lbplibrary::SCSLBP(2, 4);
