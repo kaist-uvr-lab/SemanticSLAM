@@ -11,6 +11,7 @@
 #include <FrameGrid.h>
 #include <direct.h>
 #include <DepthFilter.h>
+#include <FeatureMatchingWebAPI.h>
 
 //추후 파라메터화. 귀찮아.
 int N_matching_init_therah = 120; //80
@@ -351,6 +352,10 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 		mpInitFrame1->AddKF(mpInitFrame2, tempMPs.size()); //여기도
 		mpInitFrame2->AddKF(mpInitFrame1, tempMPs.size());
+
+		FeatureMatchingWebAPI::RequestDetect("127.0.01", 35005, mpInitFrame1->matFrame, mpInitFrame1->mnFrameID, mpInitFrame1->mvEdgePts);
+		FeatureMatchingWebAPI::RequestDetect("127.0.01", 35005, mpInitFrame2->matFrame, mpInitFrame2->mnFrameID, mpInitFrame2->mvEdgePts);
+
 		////////////////////시각화에 카메라 포즈를 출력하기 위해
 		mpMap->mpFirstKeyFrame = mpInitFrame1;
 		

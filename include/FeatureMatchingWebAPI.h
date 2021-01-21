@@ -15,8 +15,9 @@
 class FeatureMatchingWebAPI{
 public:
 	//static std::string ConvertImageToString(cv::Mat img, int type);
-	static bool RequestDetect(std::string ip, int port, cv::Mat src, int type, std::vector<cv::Point2f>& vPTs);
-	static bool RequestMatch(std::string ip, int port, std::vector<int>& vMatches);
+	static bool Reset(std::string ip, int port);
+	static bool RequestDetect(std::string ip, int port, cv::Mat src, int id, std::vector<cv::Point2f>& vPTs);
+	static bool RequestMatch(std::string ip, int port, int id1, int id2, std::vector<int>& vMatches);
 private:
 
 };

@@ -4,9 +4,7 @@ int feaeture_count = 0;
 std::stringstream ssWebData;
 std::vector<cv::Point2f> resPts;
 std::vector<int> resMatches;
-std::string ConvertImageToString(cv::Mat img, int type) {
-	
-	std::string json;
+std::string ConvertImageToString(cv::Mat img, int id) {
 	int r = img.rows;
 	int c = img.cols;
 	int total = r*c;
@@ -24,9 +22,16 @@ std::string ConvertImageToString(cv::Mat img, int type) {
 	std::string strimg = Base64Encoder::base64_encode(result, buf.size());
 	ss << strimg;
 	ss << "\"";
-	ss << ",\"w\":" << (int)c << ",\"h\":" << (int)r << ",\"c\":" << (int)img.channels() << ",\"t\":" << (int)type << "}";
+	ss << ",\"w\":" << (int)c << ",\"h\":" << (int)r << ",\"c\":" << (int)img.channels() << ",\"id\":" << (int)id << "}";
 	return ss.str();
 }
+
+std::string ConvertNumberToString(int id1, int id2) {
+	std::stringstream ss;
+	ss << "{\"id1\":" << (int)id1 << ",\"id2\":" << (int)id2  << "}";
+	return ss.str();
+}
+
 
 std::vector<cv::Point2f> ConvertStringToPoints(const char* data, int N) {
 	rapidjson::Document document;
@@ -99,9 +104,29 @@ void FeatureMatchOnComplete(const happyhttp::Response* r, void* userdata)
 {
 	resMatches = ConvertStringToLabels(ssWebData.str().c_str(), feaeture_count);
 }
+void FeatureResetOnComplete(const happyhttp::Response* r, void* userdata)
+{
+}
+bool FeatureMatchingWebAPI::Reset(std::string ip, int port) {
+	std::string strJSON = "";
 
-bool FeatureMatchingWebAPI::RequestDetect(std::string ip, int port, cv::Mat src, int type, std::vector<cv::Point2f>& vPTs){
-	std::string strJSON = ConvertImageToString(src, type);
+	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
+
+	mpConnection->setcallbacks(FeatueOnBegin, FeatueOnData, FeatureResetOnComplete, 0);
+	mpConnection->request("POST",
+		"/api/reset",
+		Base64Encoder::headers,
+		(const unsigned char*)strJSON.c_str(),
+		strlen(strJSON.c_str())
+	);
+
+	while (mpConnection->outstanding())
+		mpConnection->pump();
+
+	return false;
+}
+bool FeatureMatchingWebAPI::RequestDetect(std::string ip, int port, cv::Mat src, int id, std::vector<cv::Point2f>& vPTs){
+	std::string strJSON = ConvertImageToString(src, id);
 
 	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
 	
@@ -122,8 +147,8 @@ bool FeatureMatchingWebAPI::RequestDetect(std::string ip, int port, cv::Mat src,
 	return false;
 }
 
-bool FeatureMatchingWebAPI::RequestMatch(std::string ip, int port, std::vector<int>& vMatches) {
-	std::string strJSON = "";
+bool FeatureMatchingWebAPI::RequestMatch(std::string ip, int port, int id1, int id2, std::vector<int>& vMatches) {
+	std::string strJSON = ConvertNumberToString(id1, id2);
 
 	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
 
