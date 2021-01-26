@@ -13,6 +13,7 @@
 #include <Map.h>
 #include <LocalBinaryPatternProcessor.h>
 #include <Database.h>
+#include <FeatureMatchingWebAPI.h>
 //#include "lbplibrary.hpp"
 
 std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
@@ -175,6 +176,140 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			
 			SetBoolDoingProcess(true);
 			ProcessNewKeyFrame();
+			if (mpSystem->mbInitialized)
+			{
+				cv::Mat depthImg;
+				//FeatureMatchingWebAPI::RequestDepthEstimate(ipaa, 35005, mpTargetFrame->GetOriginalImage(), mpTargetFrame->mnFrameID, depthImg);
+				bool bRes =  FeatureMatchingWebAPI::RequestDepthEstimate(ip, port, mpTargetFrame->mnFrameID, depthImg);
+				if (bRes) {
+
+					std::vector<std::tuple<cv::Point2f, float, int>> vecTuples;
+
+					/*std::vector<cv::Point2f> vPTs;
+					std::vector<float> vDepths;*/
+					cv::Mat R, t;
+					mpTargetFrame->GetPose(R, t);
+
+					cv::Mat Rcw2 = R.row(2);
+					Rcw2 = Rcw2.t();
+					float zcw = t.at<float>(2);
+					auto vpCPs = mpTargetFrame->mpMatchInfo->mvpMatchingCPs;
+					for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
+						auto pCPi = vpCPs[i];
+						auto pMPi = pCPi->GetMP();
+						if (!pMPi || pMPi->isDeleted())
+							continue;
+						auto pt = mpTargetFrame->mpMatchInfo->mvMatchingPts[i];
+						cv::Mat x3Dw = pMPi->GetWorldPos();
+						float z = (float)Rcw2.dot(x3Dw) + zcw;
+						std::tuple<cv::Point2f, float, int> data = std::make_tuple(std::move(pt), 1.0/z, pMPi->GetNumConnectedFrames());//cv::Point2f(pt.x / 2, pt.y / 2)
+						vecTuples.push_back(data);
+						/*vDepths.push_back(1.0 / z);
+						vPTs.push_back();*/
+					}
+
+					std::sort(vecTuples.begin(), vecTuples.end(),
+						[](std::tuple<cv::Point2f, float, int> const &t1, std::tuple<cv::Point2f, float, int> const &t2) {
+							if (std::get<2>(t1) == std::get<2>(t2)) {
+								return std::get<0>(t1).x != std::get<0>(t2).x ? std::get<0>(t1).x > std::get<0>(t2).x : std::get<0>(t1).y > std::get<0>(t2).y;
+							}
+							else {
+								return std::get<2>(t1) > std::get<2>(t2);
+							}
+						}
+					);
+					////AX=B
+					/*
+					x1 1       p1
+					x2 1	   p2
+					*/
+					////a*1/d+b = 1/P  -> (1/P-b)/a = 1/d
+					int nTotal = 40;
+					if (vecTuples.size() > nTotal) {
+						int nData = nTotal;
+						cv::Mat A = cv::Mat::ones(nData, 2, CV_32FC1);
+						cv::Mat B = cv::Mat::zeros(nData, 1, CV_32FC1);
+						/*for (size_t i = 0, iend = vecTuples.size(); i < iend; i++) {
+							auto data = vecTuples[i];
+							auto nConnected = std::get<2>(data);
+							std::cout << i << "::" << nConnected << std::endl;
+						}*/
+						for (size_t i = 0; i < nData; i++) {
+							auto data = vecTuples[i];
+							auto pt = std::get<0>(data);
+							auto invdepth = std::get<1>(data);
+							auto nConnected = std::get<2>(data);
+
+							float p = depthImg.at<float>(pt);
+							A.at<float>(i, 0) = invdepth;
+							B.at<float>(i) = p;
+						}
+						
+						cv::Mat X = A.inv(cv::DECOMP_QR)*B;
+						float a = X.at<float>(0);
+						float b = X.at<float>(1);
+
+						/*for (size_t i = nData, iend = vecTuples.size(); i < iend; i++) {
+							auto data = vecTuples[i];
+							auto pt = std::get<0>(data);
+							auto invdepth = std::get<1>(data);
+							auto nConnected = std::get<2>(data);
+
+							float p = depthImg.at<float>(pt);
+							cv::Mat tempa = cv::Mat::ones(1, 2, CV_32FC1);
+							tempa.at<float>(i, 0) = invdepth;
+							cv::Mat tempb = cv::Mat::ones(1, 1, CV_32FC1);
+							tempb.at<float>(i) = p;
+							A.push_back(tempa); B.push_back(tempb);
+						}
+						std::cout << "AAA= " << cv::sum(A*X - B) << std::endl;*/
+
+						depthImg = (depthImg - b) / a;
+						for (int x = 0, cols = depthImg.cols; x < cols; x++) {
+							for (int y = 0, rows = depthImg.rows; y < rows; y++) {
+								float val = 1.0 / depthImg.at<float>(y, x);
+								/*if (val < 0.0001)
+									val = 0.5;*/
+								depthImg.at<float>(y, x) = val;
+							}
+						}
+						//복원 확인
+						cv::Mat Rinv, Tinv;
+						mpTargetFrame->GetInversePose(Rinv, Tinv);
+						mpMap->ClearTempMPs();
+						for (size_t i = 0, iend = vecTuples.size(); i < iend; i++) {
+							auto data = vecTuples[i];
+							auto pt = std::get<0>(data);
+							float depth = depthImg.at<float>(pt);
+							if (depth < 0.0001)
+								continue;
+							cv::Mat a = Rinv*(mpSystem->mInvK*(cv::Mat_<float>(3, 1) << pt.x, pt.y, 1.0)*depth)+Tinv;
+							mpMap->AddTempMP(a);
+						}
+					}
+
+					if (depthImg.empty())
+						std::cout << "????????????????????????????????????????????????????????????????????????asdfasdfasdfasdf" << std::endl;
+					//cv::normalize(depthImg, depthImg, 0.0, 1.0, cv::NORM_MINMAX);
+					/*cv::Mat refImg = mpTargetFrame->GetOriginalImage().clone();
+					cv::resize(refImg, refImg, depthImg.size());
+					cv::normalize(depthImg, depthImg, 0.0, 255.0, cv::NORM_MINMAX);
+					cv::cvtColor(depthImg, depthImg, cv::COLOR_GRAY2BGR);
+					depthImg.convertTo(depthImg, CV_8UC3);
+					std::cout << depthImg.channels() << ", " << depthImg.type() << std::endl;
+					cv::Rect mergeRect1 = cv::Rect(0, 0, refImg.cols, refImg.rows);
+					cv::Rect mergeRect2 = cv::Rect(refImg.cols, 0, refImg.cols, refImg.rows);
+					cv::Mat debugMatch = cv::Mat::zeros(refImg.rows, refImg.cols * 2, refImg.type());
+					refImg.copyTo(debugMatch(mergeRect1));
+					depthImg.copyTo(debugMatch(mergeRect2));*/
+					cv::imshow("depth::", depthImg);
+					cv::waitKey(1);
+				}
+			}
+			
+			SetBoolDoingProcess(false);
+			continue;
+
 			//std::cout << "segmentation::start::" << std::endl;
 			
 			std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();

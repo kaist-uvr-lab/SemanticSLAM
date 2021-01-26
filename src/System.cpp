@@ -97,6 +97,10 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	mnRadius = fs["Image.radius"];
 	mnThreshMinKF = fs["Tracker.MinKF"];
 	mRectPt = cv::Point2f(mnRadius, mnRadius);
+
+	ip = fs["Segmentator.ip"];
+	port = fs["Segmentator.port"];
+
 	//fs["IP"] >> ip;
 	//fs["port"] >> port;
 	//std::cout << ip << "::" << port << std::endl;

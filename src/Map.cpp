@@ -355,4 +355,15 @@ void UVR_SLAM::Map::ClearReinit(){
 void UVR_SLAM::Map::AddReinit(cv::Mat m){
 	mvReinit.push_back(m);
 }
+std::vector<cv::Mat> UVR_SLAM::Map::GetTempMPs() {
+	std::unique_lock<std::mutex> lock(mMutexReinit);
+	return std::vector<cv::Mat>(mvTempMPs.begin(), mvTempMPs.end());
+}
+void UVR_SLAM::Map::ClearTempMPs() {
+	std::unique_lock<std::mutex> lock(mMutexReinit);
+	mvTempMPs.clear();
+}
+void UVR_SLAM::Map::AddTempMP(cv::Mat m) {
+	mvTempMPs.push_back(m);
+}
 //////////Reinit test code

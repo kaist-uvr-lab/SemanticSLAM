@@ -19,7 +19,8 @@ namespace UVR_SLAM {
 	class MapGrid;
 	
 	class Map {
-		///////////
+		/////////////////////////////////////
+		//////임시 포인트 확인용
 	public:
 		std::vector<cv::Mat> GetReinit();
 		void ClearReinit();
@@ -28,6 +29,15 @@ namespace UVR_SLAM {
 		std::mutex mMutexReinit;
 		std::vector<cv::Mat> mvReinit;
 		/////////
+	public:
+		std::vector<cv::Mat> GetTempMPs();
+		void ClearTempMPs();
+		void AddTempMP(cv::Mat m);
+	private:
+		std::vector<cv::Mat> mvTempMPs;
+		//////임시 포인트 확인용
+		/////////////////////////////////////
+		
 	public:
 		//keyframes
 		//전체 맵포인트

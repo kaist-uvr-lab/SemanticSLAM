@@ -145,9 +145,10 @@ void UVR_SLAM::LocalMapper::Run() {
 	int numLM = 0;
 	float totalLM = 0.f;
 
-	std::string ipaa = "127.0.0.1";
+	std::string ip = mpSystem->ip;
+	int port = mpSystem->port;
 
-	FeatureMatchingWebAPI::Reset(ipaa, 35005);
+	FeatureMatchingWebAPI::Reset(ip, port);
 
 	while (1) {
 
@@ -300,7 +301,7 @@ void UVR_SLAM::LocalMapper::Run() {
 					//				}
 					//				auto pPrevGrid = vpTempGrids[i];
 					//				pPrevGrid->mObjCount.at<int>(mnLabel_floor)++;
-					//				pGrid->mObjCount = pPrevGrid->mObjCount.clone();
+					//				pGrid->mObjCount = pPrevGrid->mObjCount.clone();                                   
 					//				pGrid->mObjArea = pPrevGrid->mObjArea.clone();*/
 					//			}
 					//			cv::imshow("plane test projection", debugging); cv::waitKey(1);
@@ -312,7 +313,9 @@ void UVR_SLAM::LocalMapper::Run() {
 					//FuseKeyFrame(mpTempFrame, mpPrevKeyFrame, mpSystem->mnRadius * 2);
 					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
 					std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
-					FeatureMatchingWebAPI::RequestDetect(ipaa, 35005, mpTempFrame->matFrame, mpTempFrame->mnFrameID, mpTempFrame->mvEdgePts);
+					FeatureMatchingWebAPI::SendImage(ip, port, mpTempFrame->matFrame, mpTempFrame->mnFrameID);
+					FeatureMatchingWebAPI::RequestDetect(ip, port, mpTempFrame->mnFrameID, mpTempFrame->mvEdgePts);
+					//FeatureMatchingWebAPI::RequestDetect(ipaa, 35005, mpTempFrame->matFrame, mpTempFrame->mnFrameID, mpTempFrame->mvEdgePts);
 					//mpTempFrame->mvEdgePts = std::vector<cv::Point2f>(aaaa.begin(), aaaa.end());
 
 					mpTempFrame->SetGrids();
@@ -325,7 +328,7 @@ void UVR_SLAM::LocalMapper::Run() {
 					float t_test1 = du_test1 / 1000.0;
 					numActive++;
 					totalActive += t_test1;
-					lock.unlock();
+					lock.unlock(); 
 					mpSystem->cvUseCreateCP.notify_all();
 
 					///////////¸ÅÄª Å×½ºÆ®
@@ -743,7 +746,6 @@ void UVR_SLAM::LocalMapper::Run() {
 					mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
 
 					std::chrono::high_resolution_clock::time_point feature_start = std::chrono::high_resolution_clock::now();
-					std::vector<cv::Point2f> vSuperPoitns, vSuperPoitns2;
 					std::vector<int> vMatches, vMatches2;
 					
 					//FeatureMatchingWebAPI::RequestDetect(ipaa, 35005, mpTargetFrame->matFrame, mpTargetFrame->mnFrameID, 0, vSuperPoitns);
@@ -752,28 +754,38 @@ void UVR_SLAM::LocalMapper::Run() {
 					int nLast = vNeighKFs.size() - 1;
 					if(nLast > 10){
 						//FeatureMatchingWebAPI::RequestDetect(ipaa, 35005, vNeighKFs[4]->matFrame, vNeighKFs[4]->mnFrameID, 1, vSuperPoitns2);
-						FeatureMatchingWebAPI::RequestMatch(ipaa, 35005, mpTargetFrame->mnFrameID, vNeighKFs[4]->mnFrameID, vMatches);
-						FeatureMatchingWebAPI::RequestMatch(ipaa, 35005, mpTargetFrame->mnFrameID, vNeighKFs[8]->mnFrameID, vMatches2);
+						FeatureMatchingWebAPI::RequestMatch(ip, port, mpTargetFrame->mnFrameID, vNeighKFs[4]->mnFrameID, vMatches);
+						FeatureMatchingWebAPI::RequestMatch(ip, port, mpTargetFrame->mnFrameID, vNeighKFs[8]->mnFrameID, vMatches2);
 					}
+					
 					std::chrono::high_resolution_clock::time_point feature_end = std::chrono::high_resolution_clock::now();
 					auto du_feature = std::chrono::duration_cast<std::chrono::milliseconds>(feature_end - feature_start).count();
 					float t_feature = du_feature / 1000.0;
-					std::cout << "as;dlfj;asdlkfjasdf::" << t_feature << std::endl;
+					std::cout << "as;dlfj;asdlkfjaasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfsdf::" << t_feature << std::endl;
 
 					if (vMatches.size() > 0) {
-						/*cv::Mat aimg = mpTargetFrame->GetOriginalImage().clone();
-						cv::Mat bimg = vNeighKFs[4]->GetOriginalImage().clone();
-						for (size_t i = 0, iend = vMatches.size(); i < iend; i++) {
-							if (vMatches[i] == -1)
+						auto pKF = vNeighKFs[8];
+						auto pMatch = vMatches2;
+						cv::Mat aimg = mpTargetFrame->GetOriginalImage().clone();
+						cv::Mat bimg = pKF->GetOriginalImage().clone();
+						cv::Rect mergeRect1 = cv::Rect(0, 0, aimg.cols, aimg.rows);
+						cv::Rect mergeRect2 = cv::Rect(aimg.cols, 0, aimg.cols, aimg.rows);
+						cv::Mat debug_glue = cv::Mat::zeros(aimg.rows, aimg.cols * 2, aimg.type());
+						cv::Point2f ptBottom = cv::Point2f(aimg.cols, 0);
+						aimg.copyTo(debug_glue(mergeRect1));
+						bimg.copyTo(debug_glue(mergeRect2));
+						for (size_t i = 0, iend = pMatch.size(); i < iend; i++) {
+							if (pMatch[i] == -1)
 								continue;
-							int idx = vMatches[i];
-							cv::circle(aimg, vSuperPoitns[i], 3, cv::Scalar(255, 0, 255), -1);
-							cv::circle(bimg, vSuperPoitns2[idx], 3, cv::Scalar(255, 0, 255), -1);
+							int idx = pMatch[i];
+							cv::circle(debug_glue, mpTargetFrame->mvEdgePts[i], 3, cv::Scalar(255, 255, 0), -1);
+							cv::circle(debug_glue, pKF->mvEdgePts[idx]+ ptBottom, 3, cv::Scalar(255, 255, 0), -1);
+							cv::line(debug_glue, mpTargetFrame->mvEdgePts[i], pKF->mvEdgePts[idx] + ptBottom, cv::Scalar(255, 255, 0), 1);
 						}
-						imshow("SuperPoint1", aimg);
-						imshow("SuperPoint2", bimg);
-						cv::waitKey(1);*/
+						imshow("SuperPoint::SuperGlue", debug_glue);
+						cv::waitKey(1);
 					}
+					
 					
 				}
 			}

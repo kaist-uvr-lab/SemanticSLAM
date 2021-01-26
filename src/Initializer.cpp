@@ -61,7 +61,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame1->SetBowVec(mpSystem->fvoc);
 		mpInitFrame1->mpMatchInfo->SetMatchingPoints();*/
 		mpInitFrame1->SetGrids();
-		mpSegmentator->InsertKeyFrame(mpInitFrame1);
+		//mpSegmentator->InsertKeyFrame(mpInitFrame1);
 		return mbInit;
 	}
 	else {
@@ -85,15 +85,16 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		std::vector<std::pair<cv::Point2f, cv::Point2f>> tempMatches2, resMatches;
 		cv::Mat debugging;
 		
+		std::cout << "initinitninit1" << std::endl;
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
 		int count = mpMatcher->OpticalMatchingForInitialization(mpInitFrame1, mpInitFrame2, vTempPts1, vTempPts2, vTempInliers, vTempIndexs, debugging);
 		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 		double tttt = duration / 1000.0;
-
+		std::cout << "initinitninit2" << std::endl;
 		/////////매칭 확인
 		if (count < nThreshReplace) {
-			while (mpSegmentator->isDoingProcess());
+			//while (mpSegmentator->isDoingProcess());
 			std::cout << "Initializer::replace::keyframe1::" << count << ", MIN = " << nThreshInit << ", " << nThreshReplace << "::" << mpInitFrame1->mpMatchInfo->mvMatchingPts.size() << std::endl;
 			delete mpInitFrame1;
 			mpInitFrame1 = nullptr;
@@ -114,7 +115,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		////E  찾기 : OpenCV
 		cv::Mat E12 = cv::findEssentialMat(vTempPts1, vTempPts2, mK, cv::FM_RANSAC, 0.999, 1.0, vFInliers);
 		////E  찾기 : OpenCV
-
+		std::cout << "initinitninit3" << std::endl;
 		//////F, E를 통한 매칭 결과 반영
 		for (unsigned long i = 0; i < vFInliers.size(); i++) {
 			if (vFInliers[i]) {
@@ -126,7 +127,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 		count = resMatches.size();
 		//////F, E를 통한 매칭 결과 반영
-
+		std::cout << "initinitninit4" << std::endl;
 		///////삼각화 : OpenCV
 		cv::Mat R1, t1;
 		cv::Mat matTriangulateInliers;
@@ -137,7 +138,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		R1.convertTo(R1, CV_32FC1);
 		t1.convertTo(t1, CV_32FC1);
 		///////////////////////Fundamental Matrix Decomposition & Triangulation
-
+		std::cout << "initinitninit5" << std::endl;
 		////////////삼각화 결과에 따른 초기화 판단
 		if (res2 < 0.9*count) {
 			mpTempFrame = mpInitFrame2;
@@ -154,7 +155,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		int nGridSize = mpSystem->mnRadius * 2;
 		int res3 = 0;
 		for (int i = 0; i < matTriangulateInliers.rows; i++) {
-			int val = matTriangulateInliers.at<uchar>(i);
+			int val = matTriangulateInliers.at<uchar>(i); 
 			if (val == 0)
 				continue;
 			///////////////뎁스값 체크
@@ -247,7 +248,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 		//mpInitFrame1->mpMatchInfo->UpdateFrame();
 		//mpInitFrame2->mpMatchInfo->UpdateFrame();
-		
+		std::cout << "initinitninit6" << std::endl;
 		cv::resize(debugging, debugging, cv::Size(debugging.cols / 2, debugging.rows / 2));
 		cv::Rect rect1(0, 0, mnWidth / 2, mnHeight / 2);
 		cv::Rect rect2(0, mnHeight/2, mnWidth / 2, mnHeight / 2);
@@ -307,7 +308,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		////맵포인트 정보 설정
 
 		/////////////레이아웃 추정
-		mpSegmentator->InsertKeyFrame(mpInitFrame2);
+		//mpSegmentator->InsertKeyFrame(mpInitFrame1);
+		//mpSegmentator->InsertKeyFrame(mpInitFrame2);
 		/////////////레이아웃 추정
 
 		////CP 추가
@@ -352,9 +354,12 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 
 		mpInitFrame1->AddKF(mpInitFrame2, tempMPs.size()); //여기도
 		mpInitFrame2->AddKF(mpInitFrame1, tempMPs.size());
-
-		FeatureMatchingWebAPI::RequestDetect("127.0.01", 35005, mpInitFrame1->matFrame, mpInitFrame1->mnFrameID, mpInitFrame1->mvEdgePts);
-		FeatureMatchingWebAPI::RequestDetect("127.0.01", 35005, mpInitFrame2->matFrame, mpInitFrame2->mnFrameID, mpInitFrame2->mvEdgePts);
+		std::string ip = mpSystem->ip;
+		int port = mpSystem->port;
+		FeatureMatchingWebAPI::SendImage(ip, port, mpInitFrame1->matFrame, mpInitFrame1->mnFrameID);
+		FeatureMatchingWebAPI::SendImage(ip, port, mpInitFrame2->matFrame, mpInitFrame2->mnFrameID);
+		FeatureMatchingWebAPI::RequestDetect(ip, port, mpInitFrame1->mnFrameID, mpInitFrame1->mvEdgePts);
+		FeatureMatchingWebAPI::RequestDetect(ip, port, mpInitFrame2->mnFrameID, mpInitFrame2->mvEdgePts);
 
 		////////////////////시각화에 카메라 포즈를 출력하기 위해
 		mpMap->mpFirstKeyFrame = mpInitFrame1;
