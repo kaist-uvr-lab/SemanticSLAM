@@ -514,14 +514,13 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::circle(tempVis, tpt, 2, color, -1);
 			}
 			{
-				cv::Scalar color = cv::Scalar(125, 125, 125);
+				cv::Scalar color = cv::Scalar(0, 0, 0);
 				vReinit = mpMap->GetTempMPs();
 				for (int i = 0; i < vReinit.size(); i++) {
 					cv::Mat x3D = vReinit[i];
 					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
 					tpt += mVisMidPt;
-				
-					cv::circle(tempVis, tpt, 2, color, -1);
+					cv::circle(tempVis, tpt, 4, color, -1);
 				}
 			}
 			/////pose recovery test

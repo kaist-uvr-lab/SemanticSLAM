@@ -88,7 +88,7 @@ std::vector<int> ConvertStringToLabels(const char* data, int N) {
 		const rapidjson::Value& a = document["res"];
 		int n = document["n"].GetInt();
 		for (size_t i = 0; i < n; i++) {
-			res.push_back(a[i].GetFloat());
+			res.push_back(a[i].GetInt());
 		}
 	}
 	return res;

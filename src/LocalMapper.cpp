@@ -752,10 +752,12 @@ void UVR_SLAM::LocalMapper::Run() {
 
 					auto vNeighKFs = mpTargetFrame->GetConnectedKFs(15);
 					int nLast = vNeighKFs.size() - 1;
-					if(nLast > 10){
+					int nID = 2;
+					int nMinKF = 3;
+					if(nLast > nID){
 						//FeatureMatchingWebAPI::RequestDetect(ipaa, 35005, vNeighKFs[4]->matFrame, vNeighKFs[4]->mnFrameID, 1, vSuperPoitns2);
-						FeatureMatchingWebAPI::RequestMatch(ip, port, mpTargetFrame->mnFrameID, vNeighKFs[4]->mnFrameID, vMatches);
-						FeatureMatchingWebAPI::RequestMatch(ip, port, mpTargetFrame->mnFrameID, vNeighKFs[8]->mnFrameID, vMatches2);
+						FeatureMatchingWebAPI::RequestMatch(ip, port, mpTargetFrame->mnFrameID, vNeighKFs[nID]->mnFrameID, vMatches);
+						//FeatureMatchingWebAPI::RequestMatch(ip, port, mpTargetFrame->mnFrameID, vNeighKFs[8]->mnFrameID, vMatches2);
 					}
 					
 					std::chrono::high_resolution_clock::time_point feature_end = std::chrono::high_resolution_clock::now();
@@ -764,8 +766,25 @@ void UVR_SLAM::LocalMapper::Run() {
 					std::cout << "as;dlfj;asdlkfjaasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfsdf::" << t_feature << std::endl;
 
 					if (vMatches.size() > 0) {
-						auto pKF = vNeighKFs[8];
-						auto pMatch = vMatches2;
+						auto pKF = vNeighKFs[nID];
+						auto pMatch = vMatches;
+
+						//입력 프레임에서 현재 프레임으로 프로젝션되는 매트릭스
+						cv::Mat Rrel, Trel;
+						mpTargetFrame->GetRelativePoseFromTargetFrame(pKF, Rrel, Trel);
+
+						////생성 테스트 관련
+						cv::Mat Rcurr, Tcurr, Pcurr;
+						mpTargetFrame->GetPose(Rcurr, Tcurr);
+						cv::hconcat(Rcurr, Tcurr, Pcurr);
+						cv::Mat Rprev, Tprev, Pprev;
+						pKF->GetPose(Rprev, Tprev);
+						cv::hconcat(Rprev, Tprev, Pprev);
+						Pcurr = mK*Pcurr;
+						Pprev = mK*Pprev;
+						cv::Mat Rtcurr = Rcurr.t();
+						cv::Mat Rtprev = Rprev.t();
+
 						cv::Mat aimg = mpTargetFrame->GetOriginalImage().clone();
 						cv::Mat bimg = pKF->GetOriginalImage().clone();
 						cv::Rect mergeRect1 = cv::Rect(0, 0, aimg.cols, aimg.rows);
@@ -774,12 +793,85 @@ void UVR_SLAM::LocalMapper::Run() {
 						cv::Point2f ptBottom = cv::Point2f(aimg.cols, 0);
 						aimg.copyTo(debug_glue(mergeRect1));
 						bimg.copyTo(debug_glue(mergeRect2));
+						mpMap->ClearTempMPs();
 						for (size_t i = 0, iend = pMatch.size(); i < iend; i++) {
 							if (pMatch[i] == -1)
 								continue;
 							int idx = pMatch[i];
-							cv::circle(debug_glue, mpTargetFrame->mvEdgePts[i], 3, cv::Scalar(255, 255, 0), -1);
-							cv::circle(debug_glue, pKF->mvEdgePts[idx]+ ptBottom, 3, cv::Scalar(255, 255, 0), -1);
+
+							auto prevPt = pKF->mvEdgePts[idx];
+							auto currPt = mpTargetFrame->mvEdgePts[i];
+
+							cv::Mat ray = mpSystem->mInvK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
+							float z_min, z_max;
+							z_min = 0.01f;
+							z_max = 1.0f;
+							cv::Point2f XimgMin, XimgMax;
+							mpMatcher->ComputeEpiLinePoint(XimgMin, XimgMax, ray, z_min, z_max, Rrel, Trel, mK); //ray,, Rrel, Trel
+							cv::Mat lineEqu = mpMatcher->ComputeLineEquation(XimgMin, XimgMax);
+							bool bEpiConstraints = mpMatcher->CheckLineDistance(lineEqu, currPt, 1.0);
+							if (!bEpiConstraints) {
+								continue;
+							}
+
+							////parallax check
+							cv::Mat xn1 = (cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
+							cv::Mat xn2 = (cv::Mat_<float>(3, 1) << currPt.x, currPt.y, 1.0);
+							cv::Mat ray1 = Rtprev*mInvK*xn1;
+							cv::Mat ray2 = Rtcurr*mInvK*xn2;
+							float cosParallaxRays = ray1.dot(ray2) / (cv::norm(ray1)*cv::norm(ray2));
+
+							////projection
+							bool bParallax = cosParallaxRays < 0.999;
+							/*if (!bParallax)
+								std::cout << "parallax!!!!!!" << std::endl;*/
+
+							cv::Mat A(4, 4, CV_32F);
+							A.row(0) = prevPt.x*Pprev.row(2) - Pprev.row(0);
+							A.row(1) = prevPt.y*Pprev.row(2) - Pprev.row(1);
+							A.row(2) = currPt.x*Pcurr.row(2) - Pcurr.row(0);
+							A.row(3) = currPt.y*Pcurr.row(2) - Pcurr.row(1);
+
+							cv::Mat u, w, vt;
+							cv::SVD::compute(A, w, u, vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+							cv::Mat x3D = vt.row(3).t();
+							x3D = x3D.rowRange(0, 3) / x3D.at<float>(3);
+							cv::Point2f pt1, pt2;
+							bool bDepth1, bDepth2;
+							bool bDist1, bDist2;
+							float thresh = 4.0;
+							{
+								cv::Mat Xcam = Rprev * x3D + Tprev;
+								cv::Mat Ximg = mK*Xcam;
+								float fDepth = Ximg.at < float>(2);
+								bDepth1 = fDepth > 0.0;
+								pt1 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
+								auto diffPt = pt1 - prevPt;
+								float dist = diffPt.dot(diffPt);
+								bDist1 = dist < thresh;
+							}
+							{
+								cv::Mat Xcam = Rcurr * x3D + Tcurr;
+								cv::Mat Ximg = mK*Xcam;
+								float fDepth = Ximg.at < float>(2);
+								bDepth2 = fDepth > 0.0;
+								pt2 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
+								auto diffPt = pt2 - currPt;
+								float dist = diffPt.dot(diffPt);
+								bDist2 = dist < thresh;
+							}
+							if (!bParallax) {
+								cv::circle(debug_glue, currPt, 3, cv::Scalar(255, 0, 255), -1);
+								cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(255, 0, 255), -1);
+							}else if (bParallax && bDist1 && bDepth1 && bDist2 && bDepth2) {
+								cv::circle(debug_glue, currPt, 3, cv::Scalar(0, 255, 255), -1);
+								cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(0, 255, 255), -1);
+								mpMap->AddTempMP(x3D);
+							}
+							else {
+								cv::circle(debug_glue, currPt, 3, cv::Scalar(0, 255, 0), -1);
+								cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(0, 255, 0), -1);
+							}
 							cv::line(debug_glue, mpTargetFrame->mvEdgePts[i], pKF->mvEdgePts[idx] + ptBottom, cv::Scalar(255, 255, 0), 1);
 						}
 						imshow("SuperPoint::SuperGlue", debug_glue);

@@ -228,9 +228,27 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		mnPointMatching = mpMatcher->OpticalMatchingForTracking(pPrev, pCurr, vpTempMPs, vTempCurrPts2, vbTempInliers, 
 			vpTempCPs, vTempPrevPts, vTempCurrPts, vnTempIDXs, overlap);
 
+		
+
+
+		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
 		{
-			std::cout << mpRefKF->mnKeyFrameID <<", "<<mpRefKF->mvEdgePts.size()<< std::endl;
+			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
+			mpSystem->cvUseCreateMP.wait(lock, [&] {return mpSystem->mbCreateMP; });
+		}
+		cv::Mat prevR, prevT;
+		pPrev->GetPose(prevR, prevT);
+		pCurr->SetPose(prevR, prevT);
+		//mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vTempCurrPts, vbTempInliers, mpSystem->mpORBExtractor->GetInverseScaleSigmaSquares());
+		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempMPs, vTempCurrPts2, vbTempInliers, mpSystem->mpORBExtractor->GetInverseScaleSigmaSquares());
+
+		{
 			if (mpRefKF->mvEdgePts.size() > 10) {
+
+				//입력 프레임에서 현재 프레임으로 프로젝션되는 매트릭스
+				cv::Mat Rrel, Trel;
+				pCurr->GetRelativePoseFromTargetFrame(mpRefKF, Rrel, Trel);
+
 				int maxLvl = 3;
 				int searchSize = 21;
 				//int searchSize = 21 + 10*(curr->GetFrameID() - prev->GetFrameID()-1);
@@ -242,8 +260,8 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 				cv::Mat currImg = pCurr->GetOriginalImage().clone();
 				cv::Rect mergeRect1 = cv::Rect(0, 0, refImg.cols, refImg.rows);
 				cv::Rect mergeRect2 = cv::Rect(refImg.cols, 0, refImg.cols, refImg.rows);
-				cv::Mat debugMatch = cv::Mat::zeros(refImg.rows, refImg.cols*2, refImg.type());
-				cv::Point2f ptBottom = cv::Point2f(refImg.cols,0);
+				cv::Mat debugMatch = cv::Mat::zeros(refImg.rows, refImg.cols * 2, refImg.type());
+				cv::Point2f ptBottom = cv::Point2f(refImg.cols, 0);
 				refImg.copyTo(debugMatch(mergeRect1));
 				currImg.copyTo(debugMatch(mergeRect2));
 				cv::calcOpticalFlowPyrLK(refImg, currImg, mpRefKF->mvEdgePts, currPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
@@ -256,18 +274,39 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 					if (status[i] == 0) {
 						continue;
 					}
-					cv::circle(debugMatch, mpRefKF->mvEdgePts[i], 3, cv::Scalar(255, 255, 0), -1);
-					cv::circle(debugMatch, currPts[i] + ptBottom, 3, cv::Scalar(255, 255, 0), -1);
-					cv::line(debugMatch, mpRefKF->mvEdgePts[i], currPts[i]+ ptBottom, cv::Scalar(255, 255, 0),1 );
+
+					auto prevPt = mpRefKF->mvEdgePts[i];
+					auto currPt = currPts[i];
+
+					cv::Mat ray = mpSystem->mInvK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
+					float z_min, z_max;
+					z_min = 0.01f;
+					z_max = 1.0f;
+					cv::Point2f XimgMin, XimgMax;
+					mpMatcher->ComputeEpiLinePoint(XimgMin, XimgMax, ray, z_min, z_max, Rrel, Trel, mK); //ray,, Rrel, Trel
+					cv::Mat lineEqu = mpMatcher->ComputeLineEquation(XimgMin, XimgMax);
+					bool bEpiConstraints = mpMatcher->CheckLineDistance(lineEqu, currPt, 1.0);
+					if (!bEpiConstraints) {
+						continue;
+					}
+
+					cv::circle(debugMatch, mpRefKF->mvEdgePts[i], 3, cv::Scalar(0, 255, 255), -1);
+					cv::circle(debugMatch, currPts[i] + ptBottom, 3, cv::Scalar(0, 255, 255), -1);
+					cv::line(debugMatch, mpRefKF->mvEdgePts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0), 1);
 				}
 				//imshow("super::ref", refImg);
 				imshow("superpoint::opticalflow", debugMatch); cv::waitKey(1);
 			}
 			if (mpRefKF) {
 				auto vNeighKFs = mpRefKF->GetConnectedKFs();
-				if (vNeighKFs.size() > 3) {
-					auto targetKF = vNeighKFs[3];
+				if (vNeighKFs.size() > 2) {
+					auto targetKF = vNeighKFs[1];
 					if (targetKF->mvEdgePts.size() > 10) {
+
+						//입력 프레임에서 현재 프레임으로 프로젝션되는 매트릭스
+						cv::Mat Rrel, Trel;
+						pCurr->GetRelativePoseFromTargetFrame(targetKF, Rrel, Trel);
+
 						int maxLvl = 3;
 						int searchSize = 21;
 						//int searchSize = 21 + 10*(curr->GetFrameID() - prev->GetFrameID()-1);
@@ -293,8 +332,24 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 							if (status[i] == 0) {
 								continue;
 							}
-							cv::circle(debugMatch, targetKF->mvEdgePts[i], 3, cv::Scalar(255, 255, 0), -1);
-							cv::circle(debugMatch, currPts[i] + ptBottom, 3, cv::Scalar(255, 255, 0), -1);
+
+							auto prevPt = targetKF->mvEdgePts[i];
+							auto currPt = currPts[i];
+
+							cv::Mat ray = mpSystem->mInvK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
+							float z_min, z_max;
+							z_min = 0.01f;
+							z_max = 1.0f;
+							cv::Point2f XimgMin, XimgMax;
+							mpMatcher->ComputeEpiLinePoint(XimgMin, XimgMax, ray, z_min, z_max, Rrel, Trel, mK); //ray,, Rrel, Trel
+							cv::Mat lineEqu = mpMatcher->ComputeLineEquation(XimgMin, XimgMax);
+							bool bEpiConstraints = mpMatcher->CheckLineDistance(lineEqu, currPt, 1.0);
+							if (!bEpiConstraints) {
+								continue;
+							}
+
+							cv::circle(debugMatch, targetKF->mvEdgePts[i], 3, cv::Scalar(0, 255, 255), -1);
+							cv::circle(debugMatch, currPts[i] + ptBottom, 3, cv::Scalar(0, 255, 255), -1);
 							cv::line(debugMatch, targetKF->mvEdgePts[i], currPts[i] + ptBottom, cv::Scalar(255, 255, 0), 1);
 						}
 						//imshow("super::ref", refImg);
@@ -304,17 +359,6 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			}
 		}
 
-
-		std::chrono::high_resolution_clock::time_point tracking_a = std::chrono::high_resolution_clock::now();
-		{
-			std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateMP);
-			mpSystem->cvUseCreateMP.wait(lock, [&] {return mpSystem->mbCreateMP; });
-		}
-		cv::Mat prevR, prevT;
-		pPrev->GetPose(prevR, prevT);
-		pCurr->SetPose(prevR, prevT);
-		//mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempCPs, vTempCurrPts, vbTempInliers, mpSystem->mpORBExtractor->GetInverseScaleSigmaSquares());
-		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempMPs, vTempCurrPts2, vbTempInliers, mpSystem->mpORBExtractor->GetInverseScaleSigmaSquares());
 
 		int N2 = 0;
 		////local map
@@ -626,6 +670,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 			nFinal2++;
 		}
 
+		//입력 프레임에서 현재 프레임으로 프로젝션되는 매트릭스
 		cv::Mat Rrel, Trel;
 		pCurr->GetRelativePoseFromTargetFrame(pPrev, Rrel, Trel);
 		

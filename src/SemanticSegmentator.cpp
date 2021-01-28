@@ -276,7 +276,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 						//복원 확인
 						cv::Mat Rinv, Tinv;
 						mpTargetFrame->GetInversePose(Rinv, Tinv);
-						mpMap->ClearTempMPs();
+						//mpMap->ClearTempMPs();
 						for (size_t i = 0, iend = vecTuples.size(); i < iend; i++) {
 							auto data = vecTuples[i];
 							auto pt = std::get<0>(data);
@@ -284,7 +284,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 							if (depth < 0.0001)
 								continue;
 							cv::Mat a = Rinv*(mpSystem->mInvK*(cv::Mat_<float>(3, 1) << pt.x, pt.y, 1.0)*depth)+Tinv;
-							mpMap->AddTempMP(a);
+							//mpMap->AddTempMP(a);
 						}
 					}
 
