@@ -116,6 +116,25 @@ namespace UVR_SLAM {
 		Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat mK);
 		virtual ~Frame();
 		void close();
+
+	public:
+		void AddMapPoint(MapPoint* pMP, int idx);
+		MapPoint* GetMapPoint(int idx);
+		void EraseMapPoint(int idx);
+		void SetMapPoints(int n);
+		std::vector<MapPoint*> GetMapPoints();
+
+	public:
+		std::vector<cv::Point2f> mvPts; //키포인트의 포인트만 별도로 빼냄.
+	private:
+		std::mutex mMutexMPs;
+		std::vector<MapPoint*> mvpMPs;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 	public:
 		void process(cv::Ptr<cv::Feature2D> detector);
 		fbow::fBow GetBowVec();
@@ -216,16 +235,24 @@ namespace UVR_SLAM {
 		////200410
 		////Optical flow를 적용한 방식
 		//이미지 픽셀에 키포인트 순서를 저장.
-		std::vector<cv::Point2f> mvPts; //키포인트의 포인트만 별도로 빼냄.
+		
 		std::vector<int> mvnOctaves;
 		//매칭 정보를 저장
 		///////////////////////////////
 		std::vector<cv::KeyPoint> mvKeyPoints, mvKeyPointsUn, mvkInliers, mvTempKPs;
 		cv::Mat matDescriptor;
 		cv::Mat undistorted;
-		fbow::fBow mBowVec;
+		
 		int mnFrameID;  //프레임 아이디로 저장
 		int mnKeyFrameID;
+
+		////loop closing
+		int mnLoopClosingID;
+		fbow::fBow mBowVec;
+		fbow::fBow2 mFeatureVec;
+		int mnLoopBowWords;
+		float mfLoopScore;
+		////loop closing
 	public:
 		//objectype
 		cv::Mat matFrame;

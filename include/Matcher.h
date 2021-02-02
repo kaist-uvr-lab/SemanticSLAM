@@ -32,6 +32,13 @@ namespace UVR_SLAM {
 ////201114 Epipolar constraints
 ///////////////////////////////////////////////////////////
 
+//////////////////////////////////////////////////////////
+////210128 옵티컬 플로우 기반 매칭
+		int OpticalFlowMatching(cv::Mat img1, cv::Mat img2, std::vector<cv::Point2f> vecPoints, std::vector<cv::Point2f>& vecMatchPoints1, std::vector<cv::Point2f>& vecMatchPoints2, std::vector<int>& vecIndexes);
+		int OpticalFlowMatching(int nFrameID, cv::Mat img1, cv::Mat img2, std::vector<cv::Point2f> vecPoints, std::vector<MapPoint*> vecMPs, std::vector<cv::Point2f>& vecMatchPoints1, std::vector<cv::Point2f>& vecMatchPoints2, std::vector<MapPoint*>& vecMatchMPs, std::vector<bool>& vecInliers, cv::Mat& overlap);
+//////////////////////////////////////////////////////////
+
+
 ///////////////////////////////////////////////////////////
 ////200410 Optical flow 적용 버전
 	public:

@@ -13,7 +13,9 @@
 #include <Map.h>
 #include <LocalBinaryPatternProcessor.h>
 #include <Database.h>
+#include <future>
 #include <FeatureMatchingWebAPI.h>
+#include <WebAPI.h>
 //#include "lbplibrary.hpp"
 
 std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
@@ -172,139 +174,181 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 
 	while (1) {
 		std::string mStrDirPath;
+
+		auto lambda_api_match = [](std::string ip, int port, int id1, int id2) {
+			std::vector<int> matches;
+			cv::Mat res;
+			WebAPI* api = new WebAPI(ip, port);
+			std::cout << "lambda = " << id1 << ", " << id2 << "= start" << std::endl;
+			WebAPIDataConverter::ConvertStringToLabels(api->Send("match", WebAPIDataConverter::ConvertNumberToString(id1, id2)).c_str(), matches);
+			std::cout << "lambda = " << id1 << ", " << id2 << "= end = " << matches.size() << std::endl;
+
+			////디버깅
+			/*cv::Mat aimg = f1->GetOriginalImage().clone();
+			cv::Mat bimg = f2->GetOriginalImage().clone();
+			cv::Point2f ptBottom = cv::Point2f(aimg.cols, 0);
+			cv::Rect mergeRect1 = cv::Rect(0, 0, aimg.cols, aimg.rows);
+			cv::Rect mergeRect2 = cv::Rect(aimg.cols, 0, aimg.cols, aimg.rows);
+			res = cv::Mat::zeros(aimg.rows, aimg.cols * 2, aimg.type());
+			aimg.copyTo(res(mergeRect1));
+			bimg.copyTo(res(mergeRect2));*/
+			////디버깅
+
+			//for (size_t i = 0, iend = matches.size(); i < iend ; i++) {
+			//	int idx = matches[i];
+			//	if (idx < 0)
+			//		continue;
+			//	auto prevPt = f2->mvPts[idx];
+			//	auto currPt = f1->mvPts[i];
+			//	/*cv::circle(res, currPt, 3, cv::Scalar(0, 255, 0), -1);
+			//	cv::circle(res, prevPt + ptBottom, 3, cv::Scalar(0, 255, 0), -1);
+			//	cv::line(res, currPt, prevPt + ptBottom, cv::Scalar(255, 255, 0), 1);*/
+			//}
+
+			return res;
+		};
+
 		if (CheckNewKeyFrames()) {
 			
 			SetBoolDoingProcess(true);
 			ProcessNewKeyFrame();
 			if (mpSystem->mbInitialized)
 			{
-				cv::Mat depthImg;
-				//FeatureMatchingWebAPI::RequestDepthEstimate(ipaa, 35005, mpTargetFrame->GetOriginalImage(), mpTargetFrame->mnFrameID, depthImg);
-				bool bRes =  FeatureMatchingWebAPI::RequestDepthEstimate(ip, port, mpTargetFrame->mnFrameID, depthImg);
-				if (bRes) {
 
-					std::vector<std::tuple<cv::Point2f, float, int>> vecTuples;
+				//////thread로 api 전송 테스트 = 성공
+				/*std::vector<int> testMatches1, testMatches2;
+				auto f1 = std::async([](std::string ip, int port, int id1, int id2, std::vector<int>& matches) {
+				WebAPI* api = new WebAPI(ip, port);
+				WebAPIDataConverter::ConvertStringToLabels(api->Send("match", WebAPIDataConverter::ConvertNumberToString(id1, id2)).c_str(), matches);
+				}, ip, port, mpTargetFrame->mnFrameID, mpPrevKeyFrame->mnFrameID, testMatches1);
+				if (mpPPrevKeyFrame)
+				auto f1 = std::async([](std::string ip, int port, int id1, int id2, std::vector<int>& matches) {
+				WebAPI* api = new WebAPI(ip, port);
+				WebAPIDataConverter::ConvertStringToLabels(api->Send("match", WebAPIDataConverter::ConvertNumberToString(id1, id2)).c_str(), matches);
+				}, ip, port, mpTargetFrame->mnFrameID, mpPPrevKeyFrame->mnFrameID, testMatches2);*/
+				//////thread로 api 전송 테스트 = 성공
 
-					/*std::vector<cv::Point2f> vPTs;
-					std::vector<float> vDepths;*/
-					cv::Mat R, t;
-					mpTargetFrame->GetPose(R, t);
+				std::chrono::high_resolution_clock::time_point s_start = std::chrono::high_resolution_clock::now();
 
-					cv::Mat Rcw2 = R.row(2);
-					Rcw2 = Rcw2.t();
-					float zcw = t.at<float>(2);
-					auto vpCPs = mpTargetFrame->mpMatchInfo->mvpMatchingCPs;
-					for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
-						auto pCPi = vpCPs[i];
-						auto pMPi = pCPi->GetMP();
-						if (!pMPi || pMPi->isDeleted())
-							continue;
-						auto pt = mpTargetFrame->mpMatchInfo->mvMatchingPts[i];
-						cv::Mat x3Dw = pMPi->GetWorldPos();
-						float z = (float)Rcw2.dot(x3Dw) + zcw;
-						std::tuple<cv::Point2f, float, int> data = std::make_tuple(std::move(pt), 1.0/z, pMPi->GetNumConnectedFrames());//cv::Point2f(pt.x / 2, pt.y / 2)
-						vecTuples.push_back(data);
-						/*vDepths.push_back(1.0 / z);
-						vPTs.push_back();*/
-					}
+				//auto vpKFs = mpTargetFrame->GetConnectedKFs(8);
+				//std::vector<cv::Mat> vRes;
+				//for (size_t i = 0, iend = vpKFs.size(); i < iend; i+=2)
+				//{
+				//	auto pKF = vpKFs[i];
+				//	/*std::vector<int> matches;
+				//	auto f1 = std::async([](std::string ip, int port, int id1, int id2, std::vector<int>& matches) {
+				//		WebAPI* api = new WebAPI(ip, port);
+				//		WebAPIDataConverter::ConvertStringToLabels(api->Send("match", WebAPIDataConverter::ConvertNumberToString(id1, id2)).c_str(), matches);
+				//	}, ip, port, mpTargetFrame->mnFrameID, pKF->mnFrameID, matches);
+				//	f1.get();*/
+				//	auto f = std::async(std::launch::async, lambda_api_match, ip, port, mpTargetFrame->mnFrameID, pKF->mnFrameID);
+				//	//vRes.push_back(f.get());
+				//	//std::cout <<i<< "= match num = " << f.get().size() << std::endl;
+				//}
 
-					std::sort(vecTuples.begin(), vecTuples.end(),
-						[](std::tuple<cv::Point2f, float, int> const &t1, std::tuple<cv::Point2f, float, int> const &t2) {
-							if (std::get<2>(t1) == std::get<2>(t2)) {
-								return std::get<0>(t1).x != std::get<0>(t2).x ? std::get<0>(t1).x > std::get<0>(t2).x : std::get<0>(t1).y > std::get<0>(t2).y;
-							}
-							else {
-								return std::get<2>(t1) > std::get<2>(t2);
-							}
-						}
-					);
-					////AX=B
-					/*
-					x1 1       p1
-					x2 1	   p2
-					*/
-					////a*1/d+b = 1/P  -> (1/P-b)/a = 1/d
-					int nTotal = 40;
-					if (vecTuples.size() > nTotal) {
-						int nData = nTotal;
-						cv::Mat A = cv::Mat::ones(nData, 2, CV_32FC1);
-						cv::Mat B = cv::Mat::zeros(nData, 1, CV_32FC1);
-						/*for (size_t i = 0, iend = vecTuples.size(); i < iend; i++) {
-							auto data = vecTuples[i];
-							auto nConnected = std::get<2>(data);
-							std::cout << i << "::" << nConnected << std::endl;
-						}*/
-						for (size_t i = 0; i < nData; i++) {
-							auto data = vecTuples[i];
-							auto pt = std::get<0>(data);
-							auto invdepth = std::get<1>(data);
-							auto nConnected = std::get<2>(data);
-
-							float p = depthImg.at<float>(pt);
-							A.at<float>(i, 0) = invdepth;
-							B.at<float>(i) = p;
-						}
-						
-						cv::Mat X = A.inv(cv::DECOMP_QR)*B;
-						float a = X.at<float>(0);
-						float b = X.at<float>(1);
-
-						/*for (size_t i = nData, iend = vecTuples.size(); i < iend; i++) {
-							auto data = vecTuples[i];
-							auto pt = std::get<0>(data);
-							auto invdepth = std::get<1>(data);
-							auto nConnected = std::get<2>(data);
-
-							float p = depthImg.at<float>(pt);
-							cv::Mat tempa = cv::Mat::ones(1, 2, CV_32FC1);
-							tempa.at<float>(i, 0) = invdepth;
-							cv::Mat tempb = cv::Mat::ones(1, 1, CV_32FC1);
-							tempb.at<float>(i) = p;
-							A.push_back(tempa); B.push_back(tempb);
-						}
-						std::cout << "AAA= " << cv::sum(A*X - B) << std::endl;*/
-
-						depthImg = (depthImg - b) / a;
-						for (int x = 0, cols = depthImg.cols; x < cols; x++) {
-							for (int y = 0, rows = depthImg.rows; y < rows; y++) {
-								float val = 1.0 / depthImg.at<float>(y, x);
-								/*if (val < 0.0001)
-									val = 0.5;*/
-								depthImg.at<float>(y, x) = val;
-							}
-						}
-						//복원 확인
-						cv::Mat Rinv, Tinv;
-						mpTargetFrame->GetInversePose(Rinv, Tinv);
-						//mpMap->ClearTempMPs();
-						for (size_t i = 0, iend = vecTuples.size(); i < iend; i++) {
-							auto data = vecTuples[i];
-							auto pt = std::get<0>(data);
-							float depth = depthImg.at<float>(pt);
-							if (depth < 0.0001)
-								continue;
-							cv::Mat a = Rinv*(mpSystem->mInvK*(cv::Mat_<float>(3, 1) << pt.x, pt.y, 1.0)*depth)+Tinv;
-							//mpMap->AddTempMP(a);
-						}
-					}
-
-					if (depthImg.empty())
-						std::cout << "????????????????????????????????????????????????????????????????????????asdfasdfasdfasdf" << std::endl;
-					//cv::normalize(depthImg, depthImg, 0.0, 1.0, cv::NORM_MINMAX);
-					/*cv::Mat refImg = mpTargetFrame->GetOriginalImage().clone();
-					cv::resize(refImg, refImg, depthImg.size());
-					cv::normalize(depthImg, depthImg, 0.0, 255.0, cv::NORM_MINMAX);
-					cv::cvtColor(depthImg, depthImg, cv::COLOR_GRAY2BGR);
-					depthImg.convertTo(depthImg, CV_8UC3);
-					std::cout << depthImg.channels() << ", " << depthImg.type() << std::endl;
-					cv::Rect mergeRect1 = cv::Rect(0, 0, refImg.cols, refImg.rows);
-					cv::Rect mergeRect2 = cv::Rect(refImg.cols, 0, refImg.cols, refImg.rows);
-					cv::Mat debugMatch = cv::Mat::zeros(refImg.rows, refImg.cols * 2, refImg.type());
-					refImg.copyTo(debugMatch(mergeRect1));
-					depthImg.copyTo(debugMatch(mergeRect2));*/
-					cv::imshow("depth::", depthImg);
+				/*if (vRes.size() > 1) {
+					cv::imshow("test1::", vRes[0]);
+					cv::imshow("test2::", vRes[vRes.size()-1]);
 					cv::waitKey(1);
-				}
+				}*/
+				
+
+				std::chrono::high_resolution_clock::time_point s_end = std::chrono::high_resolution_clock::now();
+				auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(s_end - s_start).count();
+				float tttt = duration / 1000.0;
+				//std::cout << "match time = " << tttt << std::endl;
+
+				//////////////Depth 추정
+				//cv::Mat depthImg;
+				//auto f1 = std::async([](std::string ip, int port, Frame* pF, cv::Mat& depthImg, cv::Mat invK, Map* map) {
+				//	WebAPI* api = new WebAPI(ip, port);
+				//	WebAPIDataConverter::ConvertStringToDepthImage(api->Send("depthestimate", WebAPIDataConverter::ConvertNumberToString(pF->mnFrameID)).c_str(), depthImg);
+				//	std::cout << "depth estimation = " << pF->mnFrameID << std::endl;
+
+				//	std::vector<std::tuple<cv::Point2f, float, int>> vecTuples;
+
+				//	cv::Mat R, t;
+				//	pF->GetPose(R, t);
+
+				//	////depth 정보 저장 및 포인트와 웨이트 정보를 튜플로 저장
+				//	cv::Mat Rcw2 = R.row(2);
+				//	Rcw2 = Rcw2.t();
+				//	float zcw = t.at<float>(2);
+				//	auto vpMPs = pF->GetMapPoints();
+				//	for (size_t i = 0, iend = vpMPs.size(); i < iend; i++) {
+				//		auto pMPi = vpMPs[i];
+				//		if (!pMPi || pMPi->isDeleted())
+				//			continue;
+				//		auto pt = pF->mvPts[i];
+				//		cv::Mat x3Dw = pMPi->GetWorldPos();
+				//		float z = (float)Rcw2.dot(x3Dw) + zcw;
+				//		std::tuple<cv::Point2f, float, int> data = std::make_tuple(std::move(pt), 1.0 / z, pMPi->GetNumConnectedFrames());//cv::Point2f(pt.x / 2, pt.y / 2)
+				//		vecTuples.push_back(data);
+				//	}
+
+				//	////웨이트와 포인트 정보로 정렬
+				//	std::sort(vecTuples.begin(), vecTuples.end(),
+				//		[](std::tuple<cv::Point2f, float, int> const &t1, std::tuple<cv::Point2f, float, int> const &t2) {
+				//		if (std::get<2>(t1) == std::get<2>(t2)) {
+				//			return std::get<0>(t1).x != std::get<0>(t2).x ? std::get<0>(t1).x > std::get<0>(t2).x : std::get<0>(t1).y > std::get<0>(t2).y;
+				//		}
+				//		else {
+				//			return std::get<2>(t1) > std::get<2>(t2);
+				//		}
+				//	}
+				//	);
+
+				//	////파라메터 검색 및 뎁스 정보 복원
+				//	int nTotal = 40;
+				//	if (vecTuples.size() > nTotal) {
+				//		int nData = nTotal;
+				//		cv::Mat A = cv::Mat::ones(nData, 2, CV_32FC1);
+				//		cv::Mat B = cv::Mat::zeros(nData, 1, CV_32FC1);
+				//		
+				//		for (size_t i = 0; i < nData; i++) {
+				//			auto data = vecTuples[i];
+				//			auto pt = std::get<0>(data);
+				//			auto invdepth = std::get<1>(data);
+				//			auto nConnected = std::get<2>(data);
+
+				//			float p = depthImg.at<float>(pt);
+				//			A.at<float>(i, 0) = invdepth;
+				//			B.at<float>(i) = p;
+				//		}
+
+				//		cv::Mat X = A.inv(cv::DECOMP_QR)*B;
+				//		float a = X.at<float>(0);
+				//		float b = X.at<float>(1);
+
+				//		depthImg = (depthImg - b) / a;
+				//		for (int x = 0, cols = depthImg.cols; x < cols; x++) {
+				//			for (int y = 0, rows = depthImg.rows; y < rows; y++) {
+				//				float val = 1.0 / depthImg.at<float>(y, x);
+				//				/*if (val < 0.0001)
+				//				val = 0.5;*/
+				//				depthImg.at<float>(y, x) = val;
+				//			}
+				//		}
+				//		//복원 확인
+				//		cv::Mat Rinv, Tinv;
+				//		pF->GetInversePose(Rinv, Tinv);
+				//		map->ClearTempMPs();
+				//		for (size_t i = 0, iend = vecTuples.size(); i < iend; i++) {
+				//			auto data = vecTuples[i];
+				//			auto pt = std::get<0>(data);
+				//			float depth = depthImg.at<float>(pt);
+				//			if (depth < 0.0001)
+				//				continue;
+				//			cv::Mat a = Rinv*(invK*(cv::Mat_<float>(3, 1) << pt.x, pt.y, 1.0)*depth) + Tinv;
+				//			map->AddTempMP(a);
+				//		}
+				//		imshow("depth test::", depthImg);
+				//		cv::waitKey(1);
+				//	}
+
+				//}, ip, port, mpTargetFrame, depthImg, mpSystem->mInvK, mpMap);
+				//f1.get();
+				//////////////Depth 추정
 			}
 			
 			SetBoolDoingProcess(false);

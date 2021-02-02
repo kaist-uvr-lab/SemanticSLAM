@@ -32,6 +32,92 @@ void UVR_SLAM::Matcher::Init() {
 }
 const double nn_match_ratio = 0.7f; // Nearest-neighbour matching ratio
 
+namespace UVR_SLAM {
+	int Matcher::OpticalFlowMatching(cv::Mat img1, cv::Mat img2, std::vector<cv::Point2f> vecPoints, std::vector<cv::Point2f>& vecMatchPoints1, std::vector<cv::Point2f>& vecMatchPoints2, std::vector<int>& vecIndexes) {
+		int maxLvl = 3;
+		int searchSize = 21;
+		std::vector<uchar> status;
+		std::vector<float> err;
+		std::vector<cv::Point2f> tempPts;
+		cv::calcOpticalFlowPyrLK(img1, img2, vecPoints, tempPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+
+		int nRes = 0;
+		for (int i = 0; i < vecPoints.size(); i++) {
+			if (status[i] == 0) {
+				continue;
+			}
+			vecMatchPoints1.push_back(vecPoints[i]);
+			vecMatchPoints2.push_back(tempPts[i]);
+			vecIndexes.push_back(i);
+			nRes++;
+		}
+		return nRes;
+	}
+
+	int Matcher::OpticalFlowMatching(int nFrameID, cv::Mat img1, cv::Mat img2, std::vector<cv::Point2f> vecPoints, std::vector<MapPoint*> vecMPs, std::vector<cv::Point2f>& vecMatchPoints1, std::vector<cv::Point2f>& vecMatchPoints2, std::vector<MapPoint*>& vecMatchMPs, std::vector<bool>& vecInliers, cv::Mat& overlap){
+		int maxLvl = 3;
+		int searchSize = 21;
+		std::vector<uchar> status;
+		std::vector<float> err;
+		std::vector<cv::Point2f> tempPts;
+		cv::calcOpticalFlowPyrLK(img1, img2, vecPoints, tempPts, status, err, cv::Size(searchSize, searchSize), maxLvl);
+
+		int nRes = 0;
+		cv::Point2f ptCheckOverlap(1, 1);
+		for (int i = 0; i < vecPoints.size(); i++) {
+			if (status[i] == 0) {
+				continue;
+			}
+			
+			if (tempPts[i].x < 5.0 || tempPts[i].x >= img1.cols - 5.0 || tempPts[i].y < 5.0 || tempPts[i].y >= img1.rows - 5.0) {
+				continue;
+			}
+			if (overlap.at<uchar>(tempPts[i]) > 0) {
+				continue;
+			}
+			cv::rectangle(overlap, tempPts[i] - ptCheckOverlap, tempPts[i] + ptCheckOverlap, cv::Scalar(255, 0, 0), -1);
+			auto pMPi = vecMPs[i];
+			if (!pMPi || pMPi->isDeleted())
+				continue;
+			
+			vecMatchPoints1.push_back(vecPoints[i]);
+			vecMatchPoints2.push_back(tempPts[i]);
+			vecInliers.push_back(true);
+			vecMatchMPs.push_back(vecMPs[i]);
+			nRes++;
+		}
+		return nRes;
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 //////////////////////////////////////////////////////////////////
 ////////////일단 남겨놓긴 함. 근데 사용 안함
 ////////Fundamental Matrix를 위해 이용

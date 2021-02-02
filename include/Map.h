@@ -22,6 +22,12 @@ namespace UVR_SLAM {
 		/////////////////////////////////////
 		//////임시 포인트 확인용
 	public:
+		std::vector<cv::Point2f> GetTrackingPoints();
+		void SetTrackingPoints(std::vector<cv::Point2f> vPTs);
+	private:
+		std::mutex mMutexTrackingPTs;
+		std::vector<cv::Point2f> mvTrackingPTs;
+	public:
 		std::vector<cv::Mat> GetReinit();
 		void ClearReinit();
 		void AddReinit(cv::Mat m);

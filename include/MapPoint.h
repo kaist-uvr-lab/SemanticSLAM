@@ -24,9 +24,31 @@ namespace UVR_SLAM {
 	public:
 		//초기 포즈 만들 때는 double형으로 형변환
 		MapPoint();
+		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, int alabel = -1, int octave = 0);
 		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP, cv::Mat _p3D, cv::Mat _desc, int label, int nOctave = 0);
 		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP, cv::Mat _p3D, cv::Mat _desc, MapPointType ntype, int label, int nOctave = 0);
 		virtual ~MapPoint();
+	public:
+
+		std::map<Frame*, int> GetObservations();
+		void AddObservation(Frame* pF, int idx);
+		void EraseObservation(Frame* pF);
+		void DeleteMapPoint();
+		bool isInFrame(Frame* pF);
+
+	private:
+
+		std::mutex mMutexFeatures;
+		std::map<UVR_SLAM::Frame*, int> mmpObservations;
+
+
+
+
+
+
+
+
+		///////////////////////////////////////////////////////////////////////////////////////////////
 	public:
 		void SetWorldPos(cv::Mat X);
 		cv::Mat GetWorldPos();
@@ -100,7 +122,7 @@ namespace UVR_SLAM {
 		cv::Mat desc;
 		
 		std::map<UVR_SLAM::Frame*, cv::Point2f> mmpDenseFrames;
-		std::mutex mMutexFeatures;
+		
 		int mnVisible;
 		int mnFound;
 

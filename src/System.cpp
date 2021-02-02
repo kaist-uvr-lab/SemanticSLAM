@@ -19,7 +19,8 @@
 #include <MapPoint.h>
 #include <LocalBinaryPatternProcessor.h>
 #include <Database.h>
-#include <Base64Encoder.h>
+#include <KeyframeDatabase.h>
+#include <WebAPI.h>
 
 int UVR_SLAM::System::nKeyFrameID = 1;
 int UVR_SLAM::System::nFrameID = 1;
@@ -43,7 +44,6 @@ UVR_SLAM::System::~System() {}
 
 void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	FileStorage fs(strPath, FileStorage::READ);
-
 	float fx = fs["Camera.fx"];
 	float fy = fs["Camera.fy"];
 	float cx = fs["Camera.cx"];
@@ -113,18 +113,23 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 }
 
 bool UVR_SLAM::System::LoadVocabulary() {
-	fvoc = new fbow::Vocabulary();
 	
-	fvoc->readFromFile(strVOCPath);
-	std::string desc_name = fvoc->getDescName();
-	auto voc_words = fbow::VocabularyCreator::getVocabularyLeafNodes(*fvoc);
-	
-	if (voc_words.type() != fvoc->getDescType()) {
-		std::cerr << "Invalid types for features according to the voc" << std::endl;
-		return false;
-	}
-	std::cout << "voc desc name=" << desc_name << std::endl;
-	std::cout << "number of words=" << voc_words.rows << std::endl;
+	mpDBoWVoc = new DBoW3::Vocabulary();
+	std::cout << "1" << std::endl;
+	mpDBoWVoc->load(strVOCPath);
+	std::cout << "1" << std::endl;
+	////mpDBoWVoc->GetL
+	//fvoc = new fbow::Vocabulary();
+	//fvoc->readFromFile(strVOCPath);
+	//std::string desc_name = fvoc->getDescName();
+	//mBowWords = fbow::VocabularyCreator::getVocabularyLeafNodes(*fvoc);
+
+	//if (mBowWords.type() != fvoc->getDescType()) {
+	//	std::cerr << "Invalid types for features according to the voc" << std::endl;
+	//	return false;
+	//}
+	//std::cout << "voc desc name=" << desc_name << std::endl;
+	//std::cout << "number of words=" << mBowWords.rows << std::endl;
 	return true;
 	
 }
@@ -222,6 +227,9 @@ void UVR_SLAM::System::Init() {
 	mpLBPProcessor = new UVR_SLAM::LocalBinaryPatternProcessor(2, 4, 10, 10);
 	mpDatabase = new UVR_SLAM::Database();
 
+	//keyframe database
+	mpKeyframeDatabase = new UVR_SLAM::KeyframeDatabase(this, fvoc, mBowWords);
+
 	/////초기화
 	mpSegmentator->Init();
 	mpPlaneEstimator->Init();
@@ -234,8 +242,11 @@ void UVR_SLAM::System::Init() {
 	mpInitializer->Init();
 	mpTracker->Init();
 	mpMatcher->Init();
+	mpKeyframeDatabase->Init();
 
-	Base64Encoder::Init();
+	WebAPI::Init();
+	WebAPI* mpAPI = new WebAPI(ip, port);
+	mpAPI->Send("reset", "");
 
 	////쓰레드
 	mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);
@@ -292,6 +303,7 @@ void UVR_SLAM::System::Reset() {
 	mpInitializer->Reset();
 	mpPlaneEstimator->Reset();
 	mpLocalMapper->Reset();
+	mpKeyframeDatabase->Reset();
 	mpMap->ClearWalls();
 	mlpNewMPs.clear();
 	//mpLocalMapper->mlpNewMPs.clear();

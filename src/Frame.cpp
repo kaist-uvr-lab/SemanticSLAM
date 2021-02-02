@@ -151,6 +151,48 @@ void UVR_SLAM::Frame::close() {
 	std::set<UVR::KeyFrame*>().swap(mspKFs);
 	*/
 }
+
+namespace UVR_SLAM {
+	void Frame::AddMapPoint(MapPoint* pMP,int idx){
+		std::unique_lock<std::mutex>(mMutexMPs);
+		mvpMPs[idx] = pMP;
+	}
+	void Frame::EraseMapPoint(int idx){
+		std::unique_lock<std::mutex>(mMutexMPs);
+		mvpMPs[idx] = nullptr;
+	}
+	MapPoint* Frame::GetMapPoint(int idx){
+		std::unique_lock<std::mutex>(mMutexMPs);
+		return mvpMPs[idx];
+	}
+	void Frame::SetMapPoints(int n) {
+		std::unique_lock<std::mutex>(mMutexMPs);
+		mvpMPs = std::vector<MapPoint*>(n, nullptr);
+	}
+	std::vector<MapPoint*> Frame::GetMapPoints(){
+		std::unique_lock<std::mutex>(mMutexMPs);
+		return mvpMPs;
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////
 float UVR_SLAM::Frame::GetDepth(cv::Mat X3D) {
 	cv::Mat Rcw2;
 	float zcw;
@@ -513,7 +555,9 @@ fbow::fBow UVR_SLAM::Frame::GetBowVec() {
 	return mBowVec;
 }
 void UVR_SLAM::Frame::SetBowVec(fbow::Vocabulary* pfvoc) {
+	std::cout << "1" << std::endl;
 	mBowVec = pfvoc->transform(matDescriptor);
+	std::cout << "2" << std::endl;
 }
 
 double UVR_SLAM::Frame::Score(UVR_SLAM::Frame* pF) {
@@ -587,7 +631,7 @@ void UVR_SLAM::Frame::DetectFeature() {
 		matDescriptor.push_back(tempDesc.row(i));
 		//200410 추가
 		mvnOctaves.push_back(mvTempKPs[i].octave);
-		mvPts.push_back(mvTempKPs[i].pt);
+		//mvPts.push_back(mvTempKPs[i].pt);
 		//200410 추가
 	}
 	////여기에서 중복되는 키포인트들 제거하기

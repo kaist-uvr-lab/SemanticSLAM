@@ -4,6 +4,7 @@
 #include <FrameGrid.h>
 #include <MapGrid.h>
 #include <System.h>
+#include <ORBextractor.h>
 #include <Map.h>
 
 #include <MapPoint.h>
@@ -20,9 +21,9 @@
 #include <opencv2/core/mat.hpp>
 #include <ctime>
 #include <direct.h>
+#include <future>
 
-
-#include <FeatureMatchingWebAPI.h>
+#include <WebAPI.h>
 
 UVR_SLAM::LocalMapper::LocalMapper(){}
 UVR_SLAM::LocalMapper::LocalMapper(System* pSystem, std::string strPath, int w, int h):mnWidth(w), mnHeight(h), mbStopBA(false), mbDoingProcess(false), mbStopLocalMapping(false), mpTempFrame(nullptr),mpTargetFrame(nullptr), mpPrevKeyFrame(nullptr), mpPPrevKeyFrame(nullptr){
@@ -61,8 +62,8 @@ void UVR_SLAM::LocalMapper::Init() {
 }
 
 void UVR_SLAM::LocalMapper::SetInitialKeyFrame(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2) {
-	mpPrevKeyFrame = pKF1;
-	mpTargetFrame = pKF2;
+	//mpPrevKeyFrame = pKF1;
+	mpTargetFrame = pKF1;
 }
 void UVR_SLAM::LocalMapper::InsertKeyFrame(UVR_SLAM::Frame *pKF, bool bNeedCP, bool bNeedMP, bool bNeedPoseHandle, bool bNeedNewKF)
 {
@@ -148,7 +149,21 @@ void UVR_SLAM::LocalMapper::Run() {
 	std::string ip = mpSystem->ip;
 	int port = mpSystem->port;
 
-	FeatureMatchingWebAPI::Reset(ip, port);
+	//FeatureMatchingWebAPI::Reset(ip, port);
+
+	auto lambda_api_detect = [](std::string ip, int port, Frame* pCurr) {
+		//std::cout << "api::superpoint=" <<pCurr->mnFrameID << "=start" << std::endl;
+		//std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+		WebAPI* mpAPI = new WebAPI(ip, port);
+		mpAPI->Send("receiveimage", WebAPIDataConverter::ConvertImageToString(pCurr->GetOriginalImage(), pCurr->mnFrameID));
+		WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("detect", WebAPIDataConverter::ConvertNumberToString(pCurr->mnFrameID)).c_str(), pCurr->mvPts, pCurr->matDescriptor);
+		pCurr->SetMapPoints(pCurr->mvPts.size());
+		/*std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+		auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+		float t_test1 = du_test1 / 1000.0;*/
+		//std::cout << "api::superpoint=" << t_test1 << std::endl;
+	};
+	cv::Ptr<cv::DescriptorMatcher> matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::FLANNBASED);
 
 	while (1) {
 
@@ -170,6 +185,522 @@ void UVR_SLAM::LocalMapper::Run() {
 				bPoseHandle = mbNeedPoseHandle;
 			}
 
+			////포인트 검출 전에는 키프레임이 아님
+			auto f = std::async(std::launch::async, lambda_api_detect, ip, port, mpTempFrame);
+
+			mpMap->ClearTempMPs();
+			if (bNeedNewKF) {
+				////교체 신호를 줘야 교체
+				////포인트 검출 과정
+				
+				//ProcessNewKeyFrame();
+				int nFrameID = mpTargetFrame->mnFrameID;
+
+				std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
+				/*WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
+				mpAPI->Send("receiveimage", WebAPIDataConverter::ConvertImageToString(mpTargetFrame->GetOriginalImage(), mpTargetFrame->mnFrameID));
+				WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("detect", WebAPIDataConverter::ConvertNumberToString(mpTargetFrame->mnFrameID)).c_str(), mpTargetFrame->mvPts, mpTargetFrame->matDescriptor);
+				mpTargetFrame->SetMapPoints(mpTargetFrame->mvPts.size());*/
+
+				{
+
+					int nParallax = 0;
+					int nCreate = 0;
+					int nDepth = 0;
+					int nProjection = 0;
+					////KFcurr-1의 포즈 리커버리
+					if (mpPrevKeyFrame) {
+
+						/*std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
+						mpSystem->mbCreateCP = false;*/
+						
+						std::vector < cv::Point2f> vTempPts;
+						std::vector<MapPoint*> vpTempMPs;
+						std::vector<bool> vbTempInliers;
+
+						////매핑X, 오직 KFcurr-1과 KFcurr-2을 비교하여 정보 갱신하는 것
+						std::vector< std::vector<cv::DMatch> > knn_matches;
+						matcher->knnMatch(mpTargetFrame->matDescriptor, mpPrevKeyFrame->matDescriptor, knn_matches, 2);
+						const float ratio_thresh = 0.7f;
+						std::vector<cv::DMatch> good_matches;
+						std::vector<bool> vecBoolOverlap(mpPrevKeyFrame->matDescriptor.rows, false);
+						for (size_t i = 0; i < knn_matches.size(); i++)
+						{
+							if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
+							{
+								int idx1 = knn_matches[i][0].queryIdx;
+								int idx2 = knn_matches[i][0].trainIdx;
+								auto currPt = mpTargetFrame->mvPts[idx1];
+								auto prevPt = mpPrevKeyFrame->mvPts[idx2];
+								if (vecBoolOverlap[idx2])
+								{
+									continue;
+								}
+								vecBoolOverlap[idx2] = true;
+
+								auto pMPi1 = mpPrevKeyFrame->GetMapPoint(idx2);
+								bool bMP1 = pMPi1 && !pMPi1->isDeleted();
+
+								if (bMP1 && pMPi1->mnLocalMapID != nFrameID) {
+									pMPi1->mnLocalMapID = nFrameID;
+									mpTargetFrame->AddMapPoint(pMPi1, idx1);
+									pMPi1->AddObservation(mpTargetFrame, idx1);
+
+									vpTempMPs.push_back(pMPi1);
+									vTempPts.push_back(mpTargetFrame->mvPts[idx1]);
+									vbTempInliers.push_back(true);
+								}
+							}//if knn match
+						}//for
+						int nPoseRecovery = Optimization::PoseOptimization(mpMap, mpTargetFrame, vpTempMPs, vTempPts, vbTempInliers, mpSystem->mpORBExtractor->GetInverseScaleSigmaSquares());
+						mpMap->AddWindowFrame(mpTargetFrame);
+						for (size_t i = 0; i < vbTempInliers.size(); i++)
+						{
+							vpTempMPs[i]->IncreaseVisible();
+							if (vbTempInliers[i])
+								vpTempMPs[i]->IncreaseFound();
+						}
+						std::cout << "Poser Recovery = " << mpTargetFrame->mnFrameID << "=" << nPoseRecovery << ", " << vpTempMPs.size() << std::endl;
+						/*mpSystem->mbCreateCP = true;
+						lock.unlock();
+						mpSystem->cvUseCreateCP.notify_all();*/
+
+						////키프레임 설정. 이 후에 이것들은 매핑에 포함하지 않기 위함.
+						mpTargetFrame->mnLocalMapFrameID = mpTargetFrame->mnKeyFrameID;
+						//mpPPrevKeyFrame->mnLocalMapFrameID = mpPrevKeyFrame->mnKeyFrameID;
+					
+						auto vpKFs = mpMap->GetWindowFramesVector(1);
+						auto pKFtarget = mpTargetFrame;
+						for (int k = 0, kend = vpKFs.size()-2; k < kend; k++) {
+						//for (int k = vpKFs.size() - 1, kend = k - 6; k > kend && k >= 0; k--) {
+							auto pKF = vpKFs[k];
+
+							/*if (pKF->mnLocalMapFrameID == pKFtarget->mnKeyFrameID)
+							continue;
+							pKF->mnLocalMapFrameID = pKFtarget->mnKeyFrameID;*/
+
+							////생성 테스트 관련
+							cv::Mat Rcurr, Tcurr, Pcurr;
+							pKFtarget->GetPose(Rcurr, Tcurr);
+							cv::hconcat(Rcurr, Tcurr, Pcurr);
+							cv::Mat Rprev, Tprev, Pprev;
+							pKF->GetPose(Rprev, Tprev);
+							cv::hconcat(Rprev, Tprev, Pprev);
+							Pcurr = mK*Pcurr;
+							Pprev = mK*Pprev;
+							cv::Mat Rtcurr = Rcurr.t();
+							cv::Mat Rtprev = Rprev.t();
+
+							std::vector< std::vector<cv::DMatch> > knn_matches;
+							matcher->knnMatch(pKFtarget->matDescriptor, pKF->matDescriptor, knn_matches, 2);
+
+							const float ratio_thresh = 0.7f;
+							std::vector<cv::DMatch> good_matches;
+
+							mpMap->ClearTempMPs();
+							std::vector<bool> vecBoolOverlap(pKF->matDescriptor.rows, false);
+							
+							for (size_t i = 0; i < knn_matches.size(); i++)
+							{
+								if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
+								{
+									int idx1 = knn_matches[i][0].queryIdx;
+									int idx2 = knn_matches[i][0].trainIdx;
+									auto currPt = pKFtarget->mvPts[idx1];
+									auto prevPt = pKF->mvPts[idx2];
+									if (vecBoolOverlap[idx2])
+									{
+										continue;
+									}
+									vecBoolOverlap[idx2] = true;
+
+									auto pMPi1 = pKF->GetMapPoint(idx2);
+									bool bMP1 = pMPi1 && !pMPi1->isDeleted();
+									auto pMPi2 = pKFtarget->GetMapPoint(idx1);
+									bool bMP2 = pMPi2 && !pMPi2->isDeleted();
+
+									if (bMP1 && !bMP2 && pMPi1->mnLocalMapID != nFrameID) {
+										pMPi1->mnLocalMapID = nFrameID;
+										pKFtarget->AddMapPoint(pMPi1, idx1);
+										pMPi1->AddObservation(pKFtarget, idx1);
+										pMPi1->IncreaseFound();
+										pMPi1->IncreaseVisible();
+									}
+									if (!bMP1 && bMP2) {
+										pKF->AddMapPoint(pMPi2, idx2);
+										pMPi2->AddObservation(pKF, idx2);
+										pMPi2->IncreaseFound();
+										pMPi2->IncreaseVisible();
+									}
+									if (!bMP1 && !bMP2) {
+										////parallax check
+										cv::Mat xn1 = (cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
+										cv::Mat xn2 = (cv::Mat_<float>(3, 1) << currPt.x, currPt.y, 1.0);
+										cv::Mat ray1 = Rtprev*mInvK*xn1;
+										cv::Mat ray2 = Rtcurr*mInvK*xn2;
+										float cosParallaxRays = ray1.dot(ray2) / (cv::norm(ray1)*cv::norm(ray2));
+
+										////projection
+										bool bParallax = cosParallaxRays < 0.9998;
+										/*if (!bParallax)
+										std::cout << "parallax!!!!!!" << std::endl;*/
+
+										cv::Mat A(4, 4, CV_32F);
+										A.row(0) = prevPt.x*Pprev.row(2) - Pprev.row(0);
+										A.row(1) = prevPt.y*Pprev.row(2) - Pprev.row(1);
+										A.row(2) = currPt.x*Pcurr.row(2) - Pcurr.row(0);
+										A.row(3) = currPt.y*Pcurr.row(2) - Pcurr.row(1);
+
+										cv::Mat u, w, vt;
+										cv::SVD::compute(A, w, u, vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+										cv::Mat x3D = vt.row(3).t();
+										x3D = x3D.rowRange(0, 3) / x3D.at<float>(3);
+										cv::Point2f pt1, pt2;
+										bool bDepth1, bDepth2;
+										bool bDist1, bDist2;
+										float thresh = 9.0;
+										{
+											cv::Mat Xcam = Rprev * x3D + Tprev;
+											cv::Mat Ximg = mK*Xcam;
+											float fDepth = Ximg.at < float>(2);
+											bDepth1 = fDepth > 0.0;
+											pt1 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
+											auto diffPt = pt1 - prevPt;
+											float dist = diffPt.dot(diffPt);
+											bDist1 = dist < thresh;
+										}
+										{
+											cv::Mat Xcam = Rcurr * x3D + Tcurr;
+											cv::Mat Ximg = mK*Xcam;
+											float fDepth = Ximg.at < float>(2);
+											bDepth2 = fDepth > 0.0;
+											pt2 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
+											auto diffPt = pt2 - currPt;
+											float dist = diffPt.dot(diffPt);
+											bDist2 = dist < thresh;
+										}
+										if (!bParallax) {
+											//cv::circle(debug_glue, currPt, 3, cv::Scalar(255, 0, 255), -1);
+											//cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(255, 0, 255), -1);
+											nParallax++;
+										}
+										else if (!bDepth1 || !bDepth2){
+											nDepth++;
+										}
+										else if (!bDist1 || !bDist2) {
+											nProjection++;
+										}
+										else if (bDist1 && bDepth1 && bDist2 && bDepth2) { //bParallax && 
+											//cv::circle(debug_glue, currPt, 3, cv::Scalar(0, 255, 255), -1);
+											//cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(0, 255, 255), -1);
+											//mpMap->AddTempMP(x3D);
+
+											auto pNewMP = new UVR_SLAM::MapPoint(mpMap, pKFtarget, x3D, cv::Mat(), 0);
+											pNewMP->SetOptimization(true);
+											mpSystem->mlpNewMPs.push_back(pNewMP);
+
+											pKFtarget->AddMapPoint(pNewMP, idx1);
+											pNewMP->AddObservation(pKFtarget, idx1);
+
+											pKF->AddMapPoint(pNewMP, idx2);
+											pNewMP->AddObservation(pKF, idx2);
+
+											pNewMP->IncreaseFound(2);
+											pNewMP->IncreaseVisible(2);
+											mpMap->AddTempMP(x3D);
+											nCreate++;
+										}
+										else {
+										}
+									}//if !bMP1 && !bMP2
+
+
+									 /*if (testaaa.count(knn_matches[i][0].trainIdx)) {
+									 std::cout << "181818118181811818" << std::endl;
+									 }
+									 testaaa.insert(knn_matches[i][0].trainIdx);*/
+									 /*cv::circle(debug_glue, currPt, 3, cv::Scalar(0, 0, 255), -1);
+									 cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(0, 0, 255), -1);
+									 cv::line(debug_glue, currPt, prevPt + ptBottom, cv::Scalar(0, 0, 255), 1);*/
+								}//if match
+							}//for match
+
+							 //if(k == vpKFs.size() - 1){
+							 //	
+							 //	////포즈 다시 최적화
+							 //	std::vector < cv::Point2f> vTempPts;
+							 //	std::vector<MapPoint*> vpTempMPs;
+							 //	std::vector<bool> vbTempInliers;
+							 //	for (size_t i = 0, iend = pKFtarget->mvPts.size(); i < iend; i++) {
+							 //		auto pMPi = pKFtarget->GetMapPoint(i);
+							 //		if (pMPi && !pMPi->isDeleted()) {
+							 //			vpTempMPs.push_back(pMPi);
+							 //			vTempPts.push_back(pKFtarget->mvPts[i]);
+							 //			vbTempInliers.push_back(true);
+							 //		}
+							 //	}
+
+							 //	Optimization::PoseOptimization(mpMap, pKFtarget, vpTempMPs, vTempPts, vbTempInliers, mpSystem->mpORBExtractor->GetInverseScaleSigmaSquares());
+							 //	mpMap->AddWindowFrame(pKFtarget);
+							 //	pKFtarget->GetPose(Rcurr, Tcurr);
+							 //	cv::hconcat(Rcurr, Tcurr, Pcurr);
+							 //	////포즈 다시 최적화
+							 //}
+						}//for window keyframes
+
+						NewMapPointMarginalization();
+						ComputeNeighborKFs(mpTargetFrame);
+						ConnectNeighborKFs(mpTargetFrame, mpTargetFrame->mmKeyFrameCount, 20);
+						std::cout << "LM::" << mpTargetFrame->mnKeyFrameID << "=" << mpTargetFrame->GetConnectedKFs().size() <<"="<< nCreate <<", "<< nProjection <<", "<<nDepth<<", "<< nParallax << std::endl;// << "::" << nNew << ", " << nConnect << ", " << nFuse << "::" << nFail << std::endl;
+
+						mpLoopCloser->InsertKeyFrame(mpTargetFrame);
+						mpSegmentator->InsertKeyFrame(mpTargetFrame);
+
+						//mpMap->AddWindowFrame(mpTargetFrame);
+						if (mpMapOptimizer->isDoingProcess()) {
+							//std::cout << "lm::ba::busy" << std::endl;
+							mpMapOptimizer->StopBA(true);
+						}
+						else {
+							mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
+						}
+					}//if prev keyframe
+				}////mapping
+				
+				f.get();
+				ProcessNewKeyFrame();
+
+				std::chrono::high_resolution_clock::time_point lm_end = std::chrono::high_resolution_clock::now();
+
+				
+				//std::cout << "api test = " << mpTargetFrame->mnFrameID << "=" << mpTargetFrame->matDescriptor.rows << std::endl;
+
+				//////기존 MP 연결 과정 & 생성
+				//auto vpKFs = mpMap->GetWindowFramesVector(1);
+				//int nNew = 0;
+				//int nConnect = 0;
+				//int nFuse = 0;
+				//int nFail = 0;
+				////for (int k = vpKFs.size()-1, kend = k-3; k > kend && k >= 0; k--) {
+				//int kend = vpKFs.size();
+				//int k = kend - 3;;
+				//if (k < 0)
+				//	k = 0;
+				//for (;k < kend; k++) {
+				//	auto pKF = vpKFs[k];
+				//	std::cout << "LM::" << pKF->mnFrameID << std::endl;
+				//	std::vector<int> vMatches;
+				//	FeatureMatchingWebAPI::RequestMatch(ip, port, mpTargetFrame->mnFrameID, pKF->mnFrameID, vMatches);
+
+				//	//입력 프레임에서 현재 프레임으로 프로젝션되는 매트릭스
+				//	cv::Mat Rrel, Trel;
+				//	mpTargetFrame->GetRelativePoseFromTargetFrame(pKF, Rrel, Trel);
+
+				//	////생성 테스트 관련
+				//	cv::Mat Rcurr, Tcurr, Pcurr;
+				//	mpTargetFrame->GetPose(Rcurr, Tcurr);
+				//	cv::hconcat(Rcurr, Tcurr, Pcurr);
+				//	cv::Mat Rprev, Tprev, Pprev;
+				//	pKF->GetPose(Rprev, Tprev);
+				//	cv::hconcat(Rprev, Tprev, Pprev);
+				//	Pcurr = mK*Pcurr;
+				//	Pprev = mK*Pprev;
+				//	cv::Mat Rtcurr = Rcurr.t();
+				//	cv::Mat Rtprev = Rprev.t();
+
+				//	////디버깅
+				//	cv::Mat aimg = mpTargetFrame->GetOriginalImage().clone();
+				//	cv::Mat bimg = pKF->GetOriginalImage().clone();
+				//	cv::Point2f ptBottom = cv::Point2f(aimg.cols, 0);
+				//	cv::Rect mergeRect1 = cv::Rect(0, 0, aimg.cols, aimg.rows);
+				//	cv::Rect mergeRect2 = cv::Rect(aimg.cols, 0, aimg.cols, aimg.rows);
+				//	cv::Mat debug_glue = cv::Mat::zeros(aimg.rows, aimg.cols * 2, aimg.type());
+				//	aimg.copyTo(debug_glue(mergeRect1));
+				//	bimg.copyTo(debug_glue(mergeRect2));
+				//	////디버깅
+
+				//	auto vpMPs = pKF->GetMapPoints();
+
+				//	for (size_t i = 0, iend = vMatches.size(); i < iend; i++) {
+				//		if (vMatches[i] == -1)
+				//			continue;
+				//		int idx = vMatches[i];
+				//		auto pMPi = vpMPs[idx];
+				//		bool bMP1 = pMPi && !pMPi->isDeleted();
+				//		auto pMPi2 = mpTargetFrame->GetMapPoint(i);
+				//		bool bMP2 = pMPi2 && !pMPi2->isDeleted();
+
+				//		////constraints
+				//		auto prevPt = pKF->mvPts[idx];
+				//		auto currPt = mpTargetFrame->mvPts[i];
+				//		cv::Mat ray = mpSystem->mInvK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
+				//		float z_min, z_max;
+				//		z_min = 0.01f;
+				//		z_max = 1.0f;
+				//		cv::Point2f XimgMin, XimgMax;
+				//		mpMatcher->ComputeEpiLinePoint(XimgMin, XimgMax, ray, z_min, z_max, Rrel, Trel, mK); //ray,, Rrel, Trel
+				//		cv::Mat lineEqu = mpMatcher->ComputeLineEquation(XimgMin, XimgMax);
+				//		bool bEpiConstraints = mpMatcher->CheckLineDistance(lineEqu, currPt, 1.2);
+				//		if (!bEpiConstraints) {
+				//			cv::circle(debug_glue, currPt, 3, cv::Scalar(0, 0, 255), -1);
+				//			cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(0, 0, 255), -1);
+				//			cv::line(debug_glue, currPt, prevPt + ptBottom, cv::Scalar(0, 0, 255), 1);
+				//			//continue;
+				//		}
+				//		////constraints
+
+				//		if (bMP1 && !bMP2 && pMPi->mnLocalMapID != nFrameID) {
+				//			pMPi->mnLocalMapID = nFrameID;
+				//			mpTargetFrame->AddMapPoint(pMPi, i);
+				//			pMPi->AddObservation(mpTargetFrame, i);
+				//		}
+				//		if (!bMP1 && bMP2) {
+				//			nConnect++;
+				//			pKF->AddMapPoint(pMPi2, idx);
+				//			pMPi2->AddObservation(pKF, idx);
+				//		}
+				//		if (bMP1 && bMP2 && pMPi != pMPi2) {
+				//			nFuse++;
+				//			/*if (pMPi->GetObservations().size() > pMPi2->GetObservations().size()) {
+				//				pMPi2->Fuse(pMPi);
+				//			}
+				//			else {
+				//				pMPi->Fuse(pMPi2);
+				//			}*/
+				//			//pMPi->DeleteMapPoint();
+				//		}
+				//		if (!bMP1 && !bMP2) {
+				//			////parallax check
+				//			cv::Mat xn1 = (cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
+				//			cv::Mat xn2 = (cv::Mat_<float>(3, 1) << currPt.x, currPt.y, 1.0);
+				//			cv::Mat ray1 = Rtprev*mInvK*xn1;
+				//			cv::Mat ray2 = Rtcurr*mInvK*xn2;
+				//			float cosParallaxRays = ray1.dot(ray2) / (cv::norm(ray1)*cv::norm(ray2));
+
+				//			////projection
+				//			bool bParallax = cosParallaxRays < 0.999;
+				//			/*if (!bParallax)
+				//			std::cout << "parallax!!!!!!" << std::endl;*/
+
+				//			cv::Mat A(4, 4, CV_32F);
+				//			A.row(0) = prevPt.x*Pprev.row(2) - Pprev.row(0);
+				//			A.row(1) = prevPt.y*Pprev.row(2) - Pprev.row(1);
+				//			A.row(2) = currPt.x*Pcurr.row(2) - Pcurr.row(0);
+				//			A.row(3) = currPt.y*Pcurr.row(2) - Pcurr.row(1);
+
+				//			cv::Mat u, w, vt;
+				//			cv::SVD::compute(A, w, u, vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+				//			cv::Mat x3D = vt.row(3).t();
+				//			x3D = x3D.rowRange(0, 3) / x3D.at<float>(3);
+				//			cv::Point2f pt1, pt2;
+				//			bool bDepth1, bDepth2;
+				//			bool bDist1, bDist2;
+				//			float thresh = 4.0;
+				//			{
+				//				cv::Mat Xcam = Rprev * x3D + Tprev;
+				//				cv::Mat Ximg = mK*Xcam;
+				//				float fDepth = Ximg.at < float>(2);
+				//				bDepth1 = fDepth > 0.0;
+				//				pt1 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
+				//				auto diffPt = pt1 - prevPt;
+				//				float dist = diffPt.dot(diffPt);
+				//				bDist1 = dist < thresh;
+				//			}
+				//			{
+				//				cv::Mat Xcam = Rcurr * x3D + Tcurr;
+				//				cv::Mat Ximg = mK*Xcam;
+				//				float fDepth = Ximg.at < float>(2);
+				//				bDepth2 = fDepth > 0.0;
+				//				pt2 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
+				//				auto diffPt = pt2 - currPt;
+				//				float dist = diffPt.dot(diffPt);
+				//				bDist2 = dist < thresh;
+				//			}
+				//			if (!bParallax) {
+				//				//cv::circle(debug_glue, currPt, 3, cv::Scalar(255, 0, 255), -1);
+				//				//cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(255, 0, 255), -1);
+				//			}
+				//			else if (bParallax && bDist1 && bDepth1 && bDist2 && bDepth2) {
+				//				//cv::circle(debug_glue, currPt, 3, cv::Scalar(0, 255, 255), -1);
+				//				//cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(0, 255, 255), -1);
+				//				//mpMap->AddTempMP(x3D);
+
+				//				auto pNewMP = new UVR_SLAM::MapPoint(mpMap, mpTargetFrame, x3D, cv::Mat(), 0);
+				//				pNewMP->SetOptimization(true);
+				//				mpSystem->mlpNewMPs.push_back(pNewMP);
+				//				mpTargetFrame->AddMapPoint(pNewMP, i);
+				//				pNewMP->AddObservation(mpTargetFrame, i);
+
+				//				pKF->AddMapPoint(pNewMP, idx);
+				//				pNewMP->AddObservation(pKF, idx);
+
+				//				pNewMP->IncreaseFound(2);
+				//				pNewMP->IncreaseVisible(2);
+				//				nNew++;
+				//				mpMap->AddTempMP(x3D);
+
+				//			}
+				//			else {
+				//				//cv::circle(debug_glue, currPt, 3, cv::Scalar(0, 255, 0), -1);
+				//				//cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(0, 255, 0), -1);
+				//				nFail++;
+				//			}
+				//		}//if !bMP1 && !bMP2
+				//		cv::circle(debug_glue, currPt, 3, cv::Scalar(0, 255, 0), -1);
+				//		cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(0, 255, 0), -1);
+				//		cv::line(debug_glue, currPt, prevPt + ptBottom, cv::Scalar(255, 255, 0), 1);
+				//	}//for match
+				//	if(k == vpKFs.size() - 1){
+				//		mpMap->AddWindowFrame(mpTargetFrame);
+				//		cv::imshow("SuperPoint::SuperGlue", debug_glue);
+				//		cv::waitKey(1);
+				//	}
+				//}//for k
+				//////기존 MP 연결 과정 & 생성
+
+				
+
+				auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(lm_end - lm_start).count();
+				float t_test1 = du_test1 / 1000.0;
+
+				std::stringstream ssa;
+				ssa << "LocalMapping : " << mpTargetFrame->mnKeyFrameID << "::" << t_test1 << std::endl;;// << ", " << nMinKF << ", " << nMaxKF;
+				mpSystem->SetLocalMapperString(ssa.str());
+			}
+			SetDoingProcess(false);
+			continue;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 			auto mpTargetMatchInfo = mpTempFrame->mpMatchInfo;
 			int nTargetID = mpTempFrame->mnFrameID;
 			
@@ -181,13 +712,14 @@ void UVR_SLAM::LocalMapper::Run() {
 			int mnLabel_ceil = 6;
 			int mnLabel_wall = 1;
 
+			
 			if (bNeedCP) {
 				/*mpTargetFrame->DetectFeature();
 				mpTargetFrame->DetectEdge();
 				mpTargetFrame->SetBowVec(mpSystem->fvoc);*/
 				
 				{
-					mpSegmentator->InsertKeyFrame(mpTempFrame);
+					//mpSegmentator->InsertKeyFrame(mpTempFrame);
 
 					///////CP 테스트
 					//{
@@ -313,8 +845,8 @@ void UVR_SLAM::LocalMapper::Run() {
 					//FuseKeyFrame(mpTempFrame, mpPrevKeyFrame, mpSystem->mnRadius * 2);
 					std::unique_lock<std::mutex> lock(mpSystem->mMutexUseCreateCP);
 					std::chrono::high_resolution_clock::time_point lm_start = std::chrono::high_resolution_clock::now();
-					FeatureMatchingWebAPI::SendImage(ip, port, mpTempFrame->matFrame, mpTempFrame->mnFrameID);
-					FeatureMatchingWebAPI::RequestDetect(ip, port, mpTempFrame->mnFrameID, mpTempFrame->mvEdgePts);
+					/*FeatureMatchingWebAPI::SendImage(ip, port, mpTempFrame->matFrame, mpTempFrame->mnFrameID);
+					FeatureMatchingWebAPI::RequestDetect(ip, port, mpTempFrame->mnFrameID, mpTempFrame->mvEdgePts, mpTempFrame->matDescriptor);*/
 					//FeatureMatchingWebAPI::RequestDetect(ipaa, 35005, mpTempFrame->matFrame, mpTempFrame->mnFrameID, mpTempFrame->mvEdgePts);
 					//mpTempFrame->mvEdgePts = std::vector<cv::Point2f>(aaaa.begin(), aaaa.end());
 
@@ -443,6 +975,7 @@ void UVR_SLAM::LocalMapper::Run() {
 				mpTargetFrame->mpMatchInfo->UpdateKeyFrame();
 				NewMapPointMarginalization();
 				ComputeNeighborKFs(mpTempFrame);
+				
 				//int Nkf = 0;
 				//for (auto biter = mpCandiateKFs.begin(), eiter = mpCandiateKFs.end(); biter != eiter; biter++) {
 				//	auto count = biter->second;
@@ -756,7 +1289,7 @@ void UVR_SLAM::LocalMapper::Run() {
 					int nMinKF = 3;
 					if(nLast > nID){
 						//FeatureMatchingWebAPI::RequestDetect(ipaa, 35005, vNeighKFs[4]->matFrame, vNeighKFs[4]->mnFrameID, 1, vSuperPoitns2);
-						FeatureMatchingWebAPI::RequestMatch(ip, port, mpTargetFrame->mnFrameID, vNeighKFs[nID]->mnFrameID, vMatches);
+						//FeatureMatchingWebAPI::RequestMatch(ip, port, mpTargetFrame->mnFrameID, vNeighKFs[nID]->mnFrameID, vMatches);
 						//FeatureMatchingWebAPI::RequestMatch(ip, port, mpTargetFrame->mnFrameID, vNeighKFs[8]->mnFrameID, vMatches2);
 					}
 					
@@ -793,7 +1326,7 @@ void UVR_SLAM::LocalMapper::Run() {
 						cv::Point2f ptBottom = cv::Point2f(aimg.cols, 0);
 						aimg.copyTo(debug_glue(mergeRect1));
 						bimg.copyTo(debug_glue(mergeRect2));
-						mpMap->ClearTempMPs();
+						//mpMap->ClearTempMPs();
 						for (size_t i = 0, iend = pMatch.size(); i < iend; i++) {
 							if (pMatch[i] == -1)
 								continue;
@@ -866,7 +1399,7 @@ void UVR_SLAM::LocalMapper::Run() {
 							}else if (bParallax && bDist1 && bDepth1 && bDist2 && bDepth2) {
 								cv::circle(debug_glue, currPt, 3, cv::Scalar(0, 255, 255), -1);
 								cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(0, 255, 255), -1);
-								mpMap->AddTempMP(x3D);
+								//mpMap->AddTempMP(x3D);
 							}
 							else {
 								cv::circle(debug_glue, currPt, 3, cv::Scalar(0, 255, 0), -1);
@@ -902,17 +1435,15 @@ void UVR_SLAM::LocalMapper::Run() {
 void UVR_SLAM::LocalMapper::ComputeNeighborKFs(Frame* pKF) {
 	
 	int nTargetID = pKF->mnFrameID;
-	auto pMatch = pKF->mpMatchInfo;
-	
-	for (size_t i = 0, iend = pMatch->mvpMatchingCPs.size(); i < iend; i++) {
-		auto pCPi = pMatch->mvpMatchingCPs[i];
-		auto pMPi = pCPi->GetMP();
+	auto vpMPs = pKF->GetMapPoints();
+	for (size_t i = 0, iend = pKF->mvPts.size(); i < iend; i++) {
+		auto pMPi = vpMPs[i];
 		if (!pMPi || pMPi->isDeleted()) {
 			continue;
 		}
-		auto mmpMP = pMPi->GetConnedtedFrames();//GetConnedtedFrames
+		auto mmpMP = pMPi->GetObservations();//GetConnedtedFrames
 		for (auto biter = mmpMP.begin(), eiter = mmpMP.end(); biter != eiter; biter++) {
-			UVR_SLAM::Frame* pCandidateKF = biter->first->mpRefFrame;
+			UVR_SLAM::Frame* pCandidateKF = biter->first;
 			if (nTargetID == pCandidateKF->mnFrameID)
 				continue;
 			pKF->mmKeyFrameCount[pCandidateKF]++;
@@ -1161,8 +1692,8 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 	//std::cout << "Maginalization::Start" << std::endl;
 	//mvpDeletedMPs.clear();
 	int nMarginalized = 0;
-	int nNumRequireKF = mnThreshMinKF;
-	float mfRatio = 0.5f;
+	int nNumRequireKF = 3;
+	float mfRatio = 0.25f;
 
 	std::list<UVR_SLAM::MapPoint*>::iterator lit = mpSystem->mlpNewMPs.begin();
 	while (lit != mpSystem->mlpNewMPs.end()) {
@@ -1177,7 +1708,7 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 			bBad = true;
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
-		else if (nDiffKF >= 2 && pMP->GetNumConnectedFrames()<=2) {
+		else if (nDiffKF >= 2 && pMP->GetObservations().size()<=2) {
 			bBad = true;
 			lit = mpSystem->mlpNewMPs.erase(lit);
 		}
@@ -1196,7 +1727,7 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 		else
 			lit++;
 		if (bBad) {
-			pMP->Delete();
+			pMP->DeleteMapPoint();
 		}
 	}
 	return;

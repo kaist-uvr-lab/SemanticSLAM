@@ -653,8 +653,8 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 		{
 			auto pMP = vpMPs[i];
 			if (!pMP || pMP->isDeleted()) {
-				continue;
 				vbInliers[i] = false;
+				continue;
 			}
 			nInitialCorrespondences++;
 
@@ -716,7 +716,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 
 			const float chi2 = e->chi2();
 			float depth = e->GetDepth();
-			if (chi2>chi2Mono[it] || depth <= 0.0 || depth > maxDepth)
+			if (chi2>chi2Mono[it] || depth <= 0.0)// || depth > maxDepth)
 			{
 				//vpCPs[idx]->GetMP()->mnTrackingID = -1;
 				vbInliers[idx] = false;
@@ -1124,13 +1124,12 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 		vPoint->setMarginalized(true);
 		optimizer.addVertex(vPoint);
 
-		const auto observations = pMP->GetConnedtedFrames();
+		const auto observations = pMP->GetObservations();
 
 		//Set edges
-		for (std::map<UVR_SLAM::MatchInfo*, int>::const_iterator mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
+		for (std::map<UVR_SLAM::Frame*, int>::const_iterator mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
 		{
-			auto pMatch = mit->first;
-			auto pKFi = pMatch->mpRefFrame;
+			auto pKFi = mit->first;
 			if (pKFi->isDeleted())
 				std::cout << "BA::deleted kf" << std::endl;
 			if (pKFi->mnLocalBAID != nTargetID)
@@ -1139,7 +1138,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 			/*if (pKFi->GetKeyFrameID() > maxKFid)
 				continue;*/
 			int idx = mit->second;
-			auto pt = pMatch->mvMatchingPts[idx];
+			auto pt = pKFi->mvPts[idx];
 			Eigen::Matrix<double, 2, 1> obs;
 			obs << pt.x, pt.y;
 
@@ -1160,7 +1159,6 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 			e->fy = pKFi->fy;
 			e->cx = pKFi->cx;
 			e->cy = pKFi->cy;
-
 			optimizer.addEdge(e);
 			vpEdgesMono.push_back(e);
 			vpEdgeKFMono.push_back(pKFi);
@@ -1207,7 +1205,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 
 	}
 	
-	std::vector<std::pair<UVR_SLAM::MatchInfo*, MapPoint*> > vToErase;
+	std::vector<std::pair<UVR_SLAM::Frame*, MapPoint*> > vToErase;
 	vToErase.reserve(vpEdgesMono.size());
 
 	// Check inlier observations       
@@ -1222,7 +1220,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 		if (e->chi2()>5.991 || !e->isDepthPositive())
 		{
 			UVR_SLAM::Frame* pKFi = vpEdgeKFMono[i];
-			vToErase.push_back(std::make_pair(pKFi->mpMatchInfo, pMP));
+			vToErase.push_back(std::make_pair(pKFi, pMP));
 		}
 	}
 	
@@ -1233,10 +1231,9 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 	
 		for (size_t i = 0; i<vToErase.size(); i++)
 		{
-			auto pMatch = vToErase[i].first;
+			auto pKF = vToErase[i].first;
 			MapPoint* pMPi = vToErase[i].second;
-			//pMatch->RemoveMP();
-			pMPi->DisconnectFrame(pMatch);
+			pMPi->EraseObservation(pKF);
 		}
 	}
 	
@@ -1264,7 +1261,7 @@ void UVR_SLAM::Optimization::OpticalLocalBundleAdjustment(UVR_SLAM::Map* pMap, U
 
 		g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(pMP->mnMapPointID + maxKFid + 1));
 		pMP->SetWorldPos(Converter::toCvMat(vPoint->estimate()));
-		pMP->UpdateNormalAndDepth();
+		//pMP->UpdateNormalAndDepth();
 	}
 	
 }

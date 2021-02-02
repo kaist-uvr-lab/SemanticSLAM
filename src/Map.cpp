@@ -344,6 +344,14 @@ void UVR_SLAM::Map::AddWallPlane(WallPlane* pWall){
 }
 
 //////////Reinit test code
+std::vector<cv::Point2f> UVR_SLAM::Map::GetTrackingPoints() {
+	std::unique_lock<std::mutex> lock(mMutexTrackingPTs);
+	return mvTrackingPTs;
+}
+void UVR_SLAM::Map::SetTrackingPoints(std::vector<cv::Point2f> vPTs) {
+	std::unique_lock<std::mutex> lock(mMutexTrackingPTs);
+	mvTrackingPTs = vPTs;
+}
 std::vector<cv::Mat> UVR_SLAM::Map::GetReinit(){
 	std::unique_lock<std::mutex> lock(mMutexReinit);
 	return std::vector<cv::Mat>(mvReinit.begin(), mvReinit.end());

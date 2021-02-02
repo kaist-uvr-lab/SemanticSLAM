@@ -11,7 +11,7 @@
 #include <FrameGrid.h>
 #include <direct.h>
 #include <DepthFilter.h>
-#include <FeatureMatchingWebAPI.h>
+#include <WebAPI.h>
 
 //추후 파라메터화. 귀찮아.
 int N_matching_init_therah = 120; //80
@@ -62,6 +62,14 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame1->mpMatchInfo->SetMatchingPoints();*/
 		mpInitFrame1->SetGrids();
 		//mpSegmentator->InsertKeyFrame(mpInitFrame1);
+		WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
+		std::string input = WebAPIDataConverter::ConvertImageToString(mpInitFrame1->GetOriginalImage(), mpInitFrame1->mnFrameID);
+		mpAPI->Send("receiveimage", input);
+		std::string input2 = WebAPIDataConverter::ConvertNumberToString(mpInitFrame1->mnFrameID);
+		WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("detect", input2).c_str(), mpInitFrame1->mvPts, mpInitFrame1->matDescriptor);
+		//FeatureMatchingWebAPI::SendImage(mpSystem->ip, mpSystem->port, mpInitFrame1->matFrame, mpInitFrame1->mnFrameID);
+		//FeatureMatchingWebAPI::RequestDetect(mpSystem->ip, mpSystem->port, mpInitFrame1->mnFrameID, mpInitFrame1->mvPts, mpInitFrame1->matDescriptor);
+		mpInitFrame1->SetMapPoints(mpInitFrame1->mvPts.size());
 		return mbInit;
 	}
 	else {
@@ -71,22 +79,22 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame2 = pFrame;
 		//////매칭 정보 생성
 		mpInitFrame2->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, mpInitFrame2, mpInitFrame1, mnWidth, mnHeight);
-		int nFeatureSize = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.size();
+		int nFeatureSize = mpInitFrame1->mvPts.size();
 		int nThreshInit    = 0.40*nFeatureSize; //여기는 텍스트에 파라메터화
 		int nThreshReplace = 0.30*nFeatureSize;
+		int nMatchingThresh = nFeatureSize*0.70;//mpInitFrame1->mpMatchInfo->mvTempPts.size()*0.6; 0.32, 
 
 		//////매칭 정보 생성
 		bool bSegment = false;
 		int nSegID = mpInitFrame1->mnFrameID;
-		int nMatchingThresh = nFeatureSize*0.70;//mpInitFrame1->mpMatchInfo->mvTempPts.size()*0.6; 0.32, 
+		
 		std::vector<cv::Point2f> vTempPts1, vTempPts2;
 		std::vector<bool> vTempInliers;
 		std::vector<int> vTempIndexs;
 		std::vector<std::pair<cv::Point2f, cv::Point2f>> tempMatches2, resMatches;
-		cv::Mat debugging;
 		
 		std::chrono::high_resolution_clock::time_point tracking_start = std::chrono::high_resolution_clock::now();
-		int count = mpMatcher->OpticalMatchingForInitialization(mpInitFrame1, mpInitFrame2, vTempPts1, vTempPts2, vTempInliers, vTempIndexs, debugging);
+		int count = mpMatcher->OpticalFlowMatching(mpInitFrame1->GetOriginalImage(), mpInitFrame2->GetOriginalImage(), mpInitFrame1->mvPts, vTempPts1, vTempPts2, vTempIndexs);
 		std::chrono::high_resolution_clock::time_point tracking_end = std::chrono::high_resolution_clock::now();
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 		double tttt = duration / 1000.0;
@@ -144,6 +152,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 		////////////삼각화 결과에 따른 초기화 판단
 
+		UVR_SLAM::System::nKeyFrameID = 0;
+		mpInitFrame1->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 		//////////////////////////////////////
 		cv::Point2f ptBottom(0, mnHeight);
 		std::vector<UVR_SLAM::MapPoint*> tempMPs;
@@ -185,34 +195,27 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			int idx2 = vTempIndexs[idx];
 			//std::cout << vTempPts1[idx] << ", " << mpInitFrame1->mpMatchInfo->GetCPPt(idx2) <<"::"<< vTempMatchPts1[i] << std::endl;
 
-			res3++;
-			auto pCP = mpInitFrame1->mpMatchInfo->mvpMatchingCPs[idx2];
 			int label1 = mpInitFrame1->matLabeled.at<uchar>(pt1.y / 2, pt1.x / 2);
-			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpInitFrame2, pCP, X3D, cv::Mat(), label1);
+			auto pMP = new UVR_SLAM::MapPoint(mpMap, mpInitFrame1, X3D, cv::Mat(), label1);
 			pMP->SetOptimization(true);
 			tempMPs.push_back(pMP);
 			vTempMappedPts1.push_back(vTempMatchPts1[i]);
 			vTempMappedPts2.push_back(vTempMatchPts2[i]);
 			vTempMappedIDXs.push_back(i);//vTempMatchIDXs[i]
 			
+			mpInitFrame1->AddMapPoint(pMP, idx2);
+			pMP->AddObservation(mpInitFrame1, idx2);
+			pMP->IncreaseVisible();
+			pMP->IncreaseFound();
+			mpSystem->mlpNewMPs.push_back(pMP);
 			////그리드 매칭
-			auto gridPt = mpInitFrame1->GetGridBasePt(pt2, nGridSize);
+			/*auto gridPt = mpInitFrame1->GetGridBasePt(pt2, nGridSize);
 			auto prevGridPt = mpInitFrame1->GetGridBasePt(pt1, nGridSize);
 			auto prevGrid = mpInitFrame1->mmpFrameGrids[prevGridPt];
 			if (!prevGrid) {
 				std::cout << "initialization::error" << std::endl;
 				continue;
 			}
-			/*auto prevRect = mpInitFrame1->GetOriginalImage()(prevGrid->rect);
-			auto currRect = mpInitFrame2->GetOriginalImage()(rect);
-			std::vector<cv::Point2f> vPrevGridPTs, vGridPTs;
-			bool bGridMatch = mpMatcher->OpticalGridMatching(prevGrid, prevRect, currRect, vPrevGridPTs, vGridPTs);
-			if (!bGridMatch)
-				continue;*/
-
-			//InitFrame2에 CP를 추가
-			int idx3 = mpInitFrame2->mpMatchInfo->AddCP(pCP, vTempMatchPts2[i]);
-			//pCP->ConnectFrame(mpInitFrame2->mpMatchInfo, idx3);
 
 			////grid 추가
 			FrameGrid* currGrid;
@@ -228,6 +231,8 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			}
 			currGrid->mvpCPs.push_back(pCP);
 			currGrid->mvPTs.push_back(pt2);
+			*/
+
 			/*prevGrid->mpNext = currGrid;
 			currGrid->mpPrev = prevGrid;*/
 			////grid 추가
@@ -237,27 +242,17 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 			/*pMP->ConnectFrame(mpInitFrame1->mpMatchInfo, idx2);
 			pMP->ConnectFrame(mpInitFrame2->mpMatchInfo, idx3);*/
 
-			cv::circle(debugging, pt1, 2, cv::Scalar(0, 255, 0), -1);
-			cv::circle(debugging, pt2+ ptBottom, 2, cv::Scalar(0, 255, 0), -1);
-			cv::line(debugging, pt1, projected1, cv::Scalar(255, 0, 0));
-			cv::line(debugging, pt2 + ptBottom, projected2 + ptBottom, cv::Scalar(255, 0, 0));
-
 		}
 		//mpInitFrame1->mpMatchInfo->UpdateFrame();
 		//mpInitFrame2->mpMatchInfo->UpdateFrame();
+		std::cout << "-2::"<< tempMPs.size() << std::endl;
 		
-		cv::resize(debugging, debugging, cv::Size(debugging.cols / 2, debugging.rows / 2));
-		cv::Rect rect1(0, 0, mnWidth / 2, mnHeight / 2);
-		cv::Rect rect2(0, mnHeight/2, mnWidth / 2, mnHeight / 2);
-		mpVisualizer->SetOutputImage(debugging(rect1), 0);
-		mpVisualizer->SetOutputImage(debugging(rect2), 1);
-
-		cv::waitKey(1);
 		//////////////////////////////////////
 		/////median depth 
 		float medianDepth;
+		std::cout << "d" << std::endl;
 		mpInitFrame1->ComputeSceneMedianDepth(tempMPs, R1, t1, medianDepth);
-		
+		std::cout << "a" << std::endl;
 		float invMedianDepth = 1.0f / medianDepth;
 		if (medianDepth < 0.0) {
 			mpTempFrame = mpInitFrame2;
@@ -273,7 +268,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		}
 		t1 *= invMedianDepth;
 		//////////////////////////////////////
-
+		std::cout << "b" << std::endl;
 		//////////////////////////키프레임 생성
 		mpInitFrame2->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
 		//////////카메라 자세 변환 안하는 경우
@@ -284,34 +279,50 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//mpInitFrame1->SetPose(cv::Mat::eye(3, 3, CV_32FC1)*Rcw, cv::Mat::zeros(3, 1, CV_32FC1));
 		//mpInitFrame2->SetPose(R1*Rcw, t1); //두번째 프레임은 median depth로 변경해야 함.
 		//////////카메라 자세 변환 하는 경우
-
-		UVR_SLAM::System::nKeyFrameID = 0;
-		mpInitFrame1->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
-		mpInitFrame2->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
+		std::cout << "c" << std::endl;
+		
+		//mpInitFrame2->mnKeyFrameID = UVR_SLAM::System::nKeyFrameID++;
 		
 		////맵포인트 정보 설정
-		for (int i = 0; i < tempMPs.size(); i++) {
-			UVR_SLAM::MapPoint* pNewMP = tempMPs[i];
-			auto pt1 = vTempMappedPts1[i];
-			auto pt2 = vTempMappedPts2[i];
-			int idx2 = vTempMappedIDXs[i];
-			
-			pNewMP->mnFirstKeyFrameID = mpInitFrame2->mnKeyFrameID;
-			////이 사이는 이제 이용 안하는데??
-			pNewMP->IncreaseVisible(2);
-			pNewMP->IncreaseFound(2);
-			mpSystem->mlpNewMPs.push_back(pNewMP);
-		}
+		//std::cout << "-1" << std::endl;
+		//std::vector<int> vMatches;
+		//FeatureMatchingWebAPI::SendImage(mpSystem->ip, mpSystem->port, mpInitFrame2->matFrame, mpInitFrame2->mnFrameID);
+		//std::cout << "0" << std::endl;
+		//FeatureMatchingWebAPI::RequestDetect(mpSystem->ip, mpSystem->port, mpInitFrame2->mnFrameID, mpInitFrame2->mvPts);
+		//std::cout << "1" << std::endl;
+		//FeatureMatchingWebAPI::RequestMatch(mpSystem->ip, mpSystem->port, mpInitFrame1->mnFrameID, mpInitFrame2->mnFrameID, vMatches);
+		//mpInitFrame2->SetMapPoints(mpInitFrame2->mvPts.size());
+		//std::cout << "2" << std::endl;
+		//for (int i = 0; i < vMatches.size(); i++) {
+
+		//	auto pMP = mpInitFrame1->GetMapPoint(i);
+		//	if (!pMP)
+		//		continue;
+		//	mpSystem->mlpNewMPs.push_back(pMP);
+		//	if (vMatches[i] == -1)
+		//		continue;
+		//	int idx = vMatches[i];
+		//	mpInitFrame2->AddMapPoint(pMP, idx);
+
+		//	pMP->AddObservation(mpInitFrame2, idx);
+
+		//	pMP->mnFirstKeyFrameID = mpInitFrame2->mnKeyFrameID;
+		//	////이 사이는 이제 이용 안하는데??
+		//	pMP->IncreaseVisible(2);
+		//	pMP->IncreaseFound(2);
+		//	
+		//}
+		std::cout << "3" << std::endl;
 		////맵포인트 정보 설정
 
 		/////////////레이아웃 추정
 		mpSegmentator->InsertKeyFrame(mpInitFrame1);
-		mpSegmentator->InsertKeyFrame(mpInitFrame2);
+		//mpSegmentator->InsertKeyFrame(mpInitFrame2);
 		/////////////레이아웃 추정
 
 		////CP 추가
 		mpInitFrame1->ComputeSceneDepth();
-		mpInitFrame2->ComputeSceneDepth();
+		//mpInitFrame2->ComputeSceneDepth();
 		////시드를 프레임마다 생성할 시
 		//for (auto iter = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.begin(), iend = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.end(); iter != iend; iter++) {
 		//	auto pCPi = *iter;
@@ -327,42 +338,43 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//}
 		////시드를 프레임마다 생성할 시
 
-		mpInitFrame2->SetGrids();
-		/*mpInitFrame1->mpMatchInfo->UpdateKeyFrame();
-		mpInitFrame2->mpMatchInfo->UpdateKeyFrame();*/
-		if(mpInitFrame2->mpMatchInfo->mvpMatchingCPs.size() < mpSystem->mnMaxMP){
-			/*mpInitFrame2->DetectFeature();
-			mpInitFrame2->DetectEdge();
-			mpInitFrame2->SetBowVec(mpSystem->fvoc);
-			mpInitFrame2->mpMatchInfo->SetMatchingPoints();*/
-			std::cout <<"INITIALIZER::TEST::"<< mpInitFrame2->mpMatchInfo->mvpMatchingCPs.size() << std::endl;
-		}
-		////CP 추가
+		//mpInitFrame2->SetGrids();
+		///*mpInitFrame1->mpMatchInfo->UpdateKeyFrame();
+		//mpInitFrame2->mpMatchInfo->UpdateKeyFrame();*/
+		//if(mpInitFrame2->mpMatchInfo->mvpMatchingCPs.size() < mpSystem->mnMaxMP){
+		//	/*mpInitFrame2->DetectFeature();
+		//	mpInitFrame2->DetectEdge();
+		//	mpInitFrame2->SetBowVec(mpSystem->fvoc);
+		//	mpInitFrame2->mpMatchInfo->SetMatchingPoints();*/
+		//	std::cout <<"INITIALIZER::TEST::"<< mpInitFrame2->mpMatchInfo->mvpMatchingCPs.size() << std::endl;
+		//}
+		//////CP 추가
 
 		////////////////////시각화에 카메라 포즈를 출력하기 위해
 		///////////이것도 차후 없애야 함.
 		////여기서 무슨일 하는지 정리 후 삭제
 		///////////10개 중에 한개씩 저장. 그냥 평면 값 비교하기 위해
+		
 		mpLocalMapper->SetInitialKeyFrame(mpInitFrame1, mpInitFrame2);
-		mpInitFrame1->mpMatchInfo->UpdateKeyFrame();
-		mpInitFrame2->mpMatchInfo->UpdateKeyFrame();
+		
+		//mpInitFrame1->mpMatchInfo->UpdateKeyFrame();
+		//mpInitFrame2->mpMatchInfo->UpdateKeyFrame();
 		mpMap->AddWindowFrame(mpInitFrame1);
-		mpMap->AddWindowFrame(mpInitFrame2);
+		//mpMap->AddWindowFrame(mpInitFrame2);
 
-		mpInitFrame1->AddKF(mpInitFrame2, tempMPs.size()); //여기도
-		mpInitFrame2->AddKF(mpInitFrame1, tempMPs.size());
+		//mpInitFrame1->AddKF(mpInitFrame2, tempMPs.size()); //여기도
+		//mpInitFrame2->AddKF(mpInitFrame1, tempMPs.size());
 		std::string ip = mpSystem->ip;
 		int port = mpSystem->port;
-		FeatureMatchingWebAPI::SendImage(ip, port, mpInitFrame1->matFrame, mpInitFrame1->mnFrameID);
-		FeatureMatchingWebAPI::SendImage(ip, port, mpInitFrame2->matFrame, mpInitFrame2->mnFrameID);
-		FeatureMatchingWebAPI::RequestDetect(ip, port, mpInitFrame1->mnFrameID, mpInitFrame1->mvEdgePts);
-		FeatureMatchingWebAPI::RequestDetect(ip, port, mpInitFrame2->mnFrameID, mpInitFrame2->mvEdgePts);
-
+		
+		
 		////////////////////시각화에 카메라 포즈를 출력하기 위해
 		mpMap->mpFirstKeyFrame = mpInitFrame1;
 		
+
+		mpLocalMapper->InsertKeyFrame(mpInitFrame2, false, false, false, true);
+		std::cout << "Initializer::AddKeyFrame::" << mpInitFrame2->mnFrameID << std::endl;
 		mbInit = true;
-		mpInitFrame1->mpMatchInfo->mMatchedImage = debugging.clone();
 		std::cout << "Initializer::Success::" << tempMPs .size()<< std::endl << std::endl << std::endl;
 		//////////////////////////키프레임 생성
 		

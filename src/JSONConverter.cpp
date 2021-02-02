@@ -222,22 +222,22 @@ int count = 0;
 std::stringstream ss;
 cv::Mat res;
 
-void OnBegin(const happyhttp::Response* r, void* userdata)
-{
-	ss.str("");
-	count = 0;
-}
-
-void OnData(const happyhttp::Response* r, void* userdata, const unsigned char* data, int n)
-{
-	ss.write((const char*)data, n);
-	count += n;
-}
-
-void OnComplete(const happyhttp::Response* r, void* userdata)
-{
-	res = JSONConverter::ConvertStringToLabel(ss.str().c_str(), count);
-}
+//void OnBegin(const happyhttp::Response* r, void* userdata)
+//{
+//	ss.str("");
+//	count = 0;
+//}
+//
+//void OnData(const happyhttp::Response* r, void* userdata, const unsigned char* data, int n)
+//{
+//	ss.write((const char*)data, n);
+//	count += n;
+//}
+//
+//void OnComplete(const happyhttp::Response* r, void* userdata)
+//{
+//	res = JSONConverter::ConvertStringToLabel(ss.str().c_str(), count);
+//}
 
 
 //void JSONConverter::Init() {
@@ -269,13 +269,13 @@ bool JSONConverter::RequestPOST(std::string ip, int port, cv::Mat img, cv::Mat& 
 	stat = 1;
 	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
 
-	mpConnection->setcallbacks(OnBegin, OnData, OnComplete, 0);
-	mpConnection->request("POST",
+	//mpConnection->setcallbacks(OnBegin, OnData, OnComplete, 0);
+	/*mpConnection->request("POST",
 		"/api/predict",
 		Base64Encoder::headers,
 		(const unsigned char*)strJSON.c_str(),
 		strlen(strJSON.c_str())
-	);
+	);*/
 
 	while (mpConnection->outstanding())
 		mpConnection->pump();

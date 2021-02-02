@@ -12,7 +12,7 @@ https://www.ics.uci.edu/~magda/Courses/ics167/chatroom_demo/server/base64.cpp
 
 class Base64Encoder {
 public:
-	const static char* headers[];
+	
 	static void Init();
 	const static std::string base64_chars;
 	

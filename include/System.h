@@ -5,7 +5,7 @@
 
 #include <queue>
 #include <thread>
-#include <fbow.h>
+#include <DBoW3.h>
 #include <mutex>
 #include <ConcurrentList.h>
 #include <condition_variable>
@@ -14,42 +14,8 @@
 #include <opencv2/features2d.hpp>
 //#include <opencv2/calib3d.hpp>
 
-namespace fbow {
-	class VocabularyCreator {
-	public:
-
-		static    cv::Mat getVocabularyLeafNodes(fbow::Vocabulary &voc) {
-
-			//analyze all blocks and count  the leafs
-			uint32_t nleafs = 0;
-			for (uint32_t b = 0; b<voc._params._nblocks; b++) {
-				fbow::Vocabulary::Block block = voc.getBlock(b);
-				int nnodes = block.getN();
-				for (int n = 0; n<nnodes; n++)
-					if (block.getBlockNodeInfo(n)->isleaf()) nleafs++;
-			}
-			//reserve memory
-			cv::Mat features;
-			if (voc.getDescType() == CV_8UC1)
-				features.create(nleafs, voc.getDescSize(), CV_8UC1);
-			else
-				features.create(nleafs, voc.getDescSize() / sizeof(float), CV_32FC1);
-			//start copy data
-			nleafs = 0;
-			for (uint32_t b = 0; b<voc._params._nblocks; b++) {
-				fbow::Vocabulary::Block block = voc.getBlock(b);
-				int nnodes = block.getN();
-				for (int n = 0; n<nnodes; n++)
-					if (block.getBlockNodeInfo(n)->isleaf())  block.getFeature(n, features.row(nleafs++));
-			}
-			return features;
-		}
-	};
-}
 
 namespace UVR_SLAM {
-
-	
 
 	class Initializer;
 	class Optimization;
@@ -69,6 +35,7 @@ namespace UVR_SLAM {
 	class Map;
 	class Database;
 	class LocalBinaryPatternProcessor;
+	class KeyframeDatabase;
 	class System {
 	public:
 
@@ -95,6 +62,7 @@ namespace UVR_SLAM {
 		FrameVisualizer* mpFrameVisualizer;
 		LocalBinaryPatternProcessor* mpLBPProcessor;
 		Database* mpDatabase;
+		KeyframeDatabase* mpKeyframeDatabase;
 	public:
 		////parameter 파일 관련
 		std::string mstrFilePath;
@@ -158,6 +126,8 @@ namespace UVR_SLAM {
 		std::list<UVR_SLAM::MapPoint*> mlpNewMPs;
 		std::string strVOCPath;
 		fbow::Vocabulary* fvoc;
+		DBoW3::Vocabulary* mpDBoWVoc;
+		cv::Mat mBowWords;
 		cv::Mat mK, mInvK, mD;
 		cv::Mat mKforPL;
 		bool mbInitialized;

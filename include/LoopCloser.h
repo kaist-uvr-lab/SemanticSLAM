@@ -5,11 +5,14 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <mutex>
+#include "g2o/types/types_seven_dof_expmap.h"
 
 namespace UVR_SLAM {
 	class Frame;
 	class System;
 	class Map;
+	class KeyframeDatabase;
+	class Matcher;
 
 	class LoopCloser {
 	public:
@@ -31,9 +34,11 @@ namespace UVR_SLAM {
 		std::mutex mMutexNewKFs, mMutexLoopClosing, mMutexProcessing;
 		int mnWidth;
 		int mnHeight;
-		cv::Mat mK;
+		cv::Mat mK, mInvK;
 		System* mpSystem;
 		Map* mpMap;
+		KeyframeDatabase* mpKeyFrameDatabase;
+		Matcher* mpMatcher;
 		bool mbProcessing;
 		float mfTime;
 		Frame* mpTargetFrame;

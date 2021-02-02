@@ -13,6 +13,125 @@ namespace UVR_SLAM {
 		, mnFirstKeyFrameID(0), mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnMapGridID(0), mnOctave(0)
 		, mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0), mbLastMatch(false)
 	{}
+	MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, int alabel, int octave)
+		: mpMap(pMap), mpRefKF(pRefKF), p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
+		, mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnMapGridID(0), mnOctave(octave)
+		, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0), mbLastMatch(false)
+	{
+		alabel = label;
+		mnFirstKeyFrameID = mpRefKF->mnKeyFrameID;
+		mnLastMatchingFrameID = mnLastVisibleFrameID = mnFirstKeyFrameID;
+		
+		//맵처리
+		mpMap->AddMap(this, label);
+	}
+
+	cv::Mat MapPoint::GetWorldPos() {
+		std::unique_lock<std::mutex> lockMP(mMutexMP);
+		return p3D.clone();
+	}
+	void MapPoint::SetWorldPos(cv::Mat X) {
+		std::unique_lock<std::mutex> lockMP(mMutexMP);
+		p3D = X.clone();
+	}
+
+	bool MapPoint::isDeleted() {
+		std::unique_lock<std::mutex> lockMP(mMutexMP);
+		return mbDelete;
+	}
+
+	void MapPoint::IncreaseVisible(int n)
+	{
+		std::unique_lock<std::mutex> lock(mMutexMP);
+		mnVisible += n;
+	}
+
+	void MapPoint::IncreaseFound(int n)
+	{
+		std::unique_lock<std::mutex> lock(mMutexMP);
+		mnFound += n;
+	}
+
+	float MapPoint::GetFVRatio() {
+		std::unique_lock<std::mutex> lock(mMutexMP);
+		if (mnVisible == 0)
+			return 0.0;
+		return ((float)mnFound) / mnVisible;
+	}
+
+	std::map<Frame*, int> MapPoint::GetObservations() {
+		std::unique_lock<std::mutex> lockMP(mMutexMP);
+		return std::map<Frame*, int>(mmpObservations.begin(), mmpObservations.end());
+	}
+
+	void MapPoint::AddObservation(UVR_SLAM::Frame* pF, int idx) {
+
+		std::unique_lock<std::mutex> lockMP(mMutexMP);
+		if (!mmpObservations.count(pF)) {
+			mmpObservations[pF] = idx;
+			mnConnectedFrames++;
+		}
+	}
+	void MapPoint::EraseObservation(UVR_SLAM::Frame* pF) {
+		bool bDelete = false;
+		{
+			std::unique_lock<std::mutex> lockMP(mMutexMP);
+			if (mmpObservations.count(pF)) {
+				mmpObservations.erase(pF);
+				mnConnectedFrames--;
+				if (pF == mpRefKF) {
+					mpRefKF = mmpObservations.begin()->first;
+				}
+				if (mnConnectedFrames < 3) {
+					mbDelete = true;
+					bDelete = true;
+				}
+			}
+		}
+		if (bDelete) {
+			DeleteMapPoint();
+		}
+	}
+
+	void MapPoint::DeleteMapPoint() {
+		cv::Mat apos;
+		std::map<Frame*, int> observations;
+		{
+			std::unique_lock<std::mutex> lockMP(mMutexMP);
+			mbDelete = true;
+			observations = mmpObservations;
+			mmpObservations.clear();
+			apos = p3D;
+		}
+		
+		for (auto iter = observations.begin(), iend = observations.end(); iter != iend; iter++) {
+			auto pKF = iter->first;
+			auto idx = iter->second;
+			pKF->EraseMapPoint(idx);
+		}
+
+		//맵처리
+		mpMap->RemoveMap(this);
+		//그리드 처리
+		/*auto key = MapGrid::ComputeKey(apos);
+		auto pMapGrid = mpMap->GetMapGrid(key);
+		if (pMapGrid)
+			pMapGrid->RemoveMapPoint(this);*/
+	}
+	bool MapPoint::isInFrame(UVR_SLAM::Frame* pF) {
+		std::unique_lock<std::mutex> lock(mMutexMP);
+		return mmpObservations.count(pF) > 0;
+	}
+
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
 	MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP,cv::Mat _p3D, cv::Mat _desc, int alabel, int octave)
 	: mpMap(pMap), mpRefKF(pRefKF),p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(++nMapPointID), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
 	, mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnMapGridID(0), mnOctave(octave)
@@ -42,6 +161,7 @@ namespace UVR_SLAM {
 		mpMap->AddMap(this, label);
 	}
 	MapPoint::~MapPoint(){}
+
 
 	////트래킹 시 중복 체크하는 용도
 	int MapPoint::GetRecentLayoutFrameID() {
@@ -73,14 +193,7 @@ namespace UVR_SLAM {
 		return mnType;
 	}
 
-	cv::Mat MapPoint::GetWorldPos() {
-		std::unique_lock<std::mutex> lockMP(mMutexMP);
-		return p3D.clone();
-	}
-	void MapPoint::SetWorldPos(cv::Mat X) {
-		std::unique_lock<std::mutex> lockMP(mMutexMP);
-		p3D = X.clone();
-	}
+	
 	int MapPoint::GetLabel() {
 		std::unique_lock<std::mutex> lockMP(mMutexLabel);
 		return label;
@@ -109,23 +222,7 @@ namespace UVR_SLAM {
 	//	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	//	mbDelete = b;
 	//}
-	bool MapPoint::isDeleted(){
-		std::unique_lock<std::mutex> lockMP(mMutexMP);
-		return mbDelete;
-	}
-
-
-	void MapPoint::IncreaseVisible(int n)
-	{
-		std::unique_lock<std::mutex> lock(mMutexMP);
-		mnVisible += n;
-	}
-
-	void MapPoint::IncreaseFound(int n)
-	{
-		std::unique_lock<std::mutex> lock(mMutexMP);
-		mnFound += n;
-	}
+	
 
 	bool MapPoint::isInFrame(UVR_SLAM::MatchInfo* pF) {
 		std::unique_lock<std::mutex> lock(mMutexMP);
@@ -155,41 +252,40 @@ namespace UVR_SLAM {
 		if (this->mnMapPointID == pMP->mnMapPointID)
 			return;
 		int nvisible, nfound;
-		std::map<MatchInfo*, int> obs;
+		std::map<Frame*, int> obs;
 		{
 			//std::unique_lock<std::mutex> lock(mMutexFeatures);
 			std::unique_lock<std::mutex> lock2(mMutexMP);
-			obs = mmpFrames;
+			obs = mmpObservations;
 			mmpFrames.clear();
 			nvisible = mnVisible;
 			nfound = mnFound;
 			mbDelete = true;
 			//std::cout << "MapPoint::Fuse::" << obs.size() << std::endl;
 		}
-		for (std::map<MatchInfo*, int>::iterator mit = obs.begin(), mend = obs.end(); mit != mend; mit++)
+		for (std::map<Frame*, int>::iterator mit = obs.begin(), mend = obs.end(); mit != mend; mit++)
 		{
 			// Replace measurement in keyframe
-			MatchInfo* pKF = mit->first;
-
+			Frame* pKF = mit->first;
+			int idx = mit->second;
 			if (!pMP->isInFrame(pKF))
 			{
-				pMP->ConnectFrame(pKF, mit->second);
+				pMP->AddObservation(pKF, idx);
+				pKF->AddMapPoint(pMP, idx);
+				//pMP->ConnectFrame(pKF, mit->second);
 			}
 			else
 			{
+				std::cout << "Fuse?????????????" << std::endl;
 				//pKF->RemoveMP();
 			}
 		}
 		pMP->IncreaseFound(nfound);
 		pMP->IncreaseVisible(nvisible);
+		//DeleteMapPoint();
 	}
 
-	float MapPoint::GetFVRatio() {
-		std::unique_lock<std::mutex> lock(mMutexFeatures);
-		if (mnVisible == 0)
-			return 0.0;
-		return ((float)mnFound) / mnVisible;
-	}
+	
 
 	std::map<MatchInfo*, int> MapPoint::GetConnedtedFrames() {
 		std::unique_lock<std::mutex> lockMP(mMutexMP);

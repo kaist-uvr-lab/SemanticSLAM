@@ -3,6 +3,7 @@
 int feaeture_count = 0;
 std::stringstream ssWebData, ssDepthEstimateData;
 std::vector<cv::Point2f> resPts;
+cv::Mat resDesc;
 std::vector<int> resMatches;
 cv::Mat resDepth;
 
@@ -57,6 +58,14 @@ std::vector<cv::Point2f> ConvertStringToPoints(const char* data, int N) {
 		for (size_t i = 0; i < n; i++) {
 			cv::Point2f pt(a[i][0].GetFloat(), a[i][1].GetFloat());
 			res.push_back(pt);
+		}
+
+		resDesc = cv::Mat::zeros(n, 256, CV_32FC1);
+		const rapidjson::Value& b = document["desc"];
+		for (size_t j = 0; j < 256; j++) {
+			for (size_t i = 0; i < n; i++) {
+				resDesc.at<float>(i, j) = b[j][i].GetFloat();
+			}
 		}
 		//std::cout << "detect::" << n << std::endl;
 		//int w = document["w"].GetInt();
@@ -196,13 +205,13 @@ bool FeatureMatchingWebAPI::Reset(std::string ip, int port) {
 
 	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
 
-	mpConnection->setcallbacks(FeatueOnBegin, FeatueOnData, FeatureResetOnComplete, 0);
-	mpConnection->request("POST",
+	mpConnection->setcallbacks(FeatueOnBeginAA, FeatueOnData, FeatureResetOnComplete, 0);
+	/*mpConnection->request("POST",
 		"/api/reset",
 		Base64Encoder::headers,
 		(const unsigned char*)strJSON.c_str(),
 		strlen(strJSON.c_str())
-	);
+	);*/
 
 	while (mpConnection->outstanding())
 		mpConnection->pump();
@@ -216,12 +225,12 @@ bool FeatureMatchingWebAPI::SendImage(std::string ip, int port, cv::Mat src, int
 	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
 
 	mpConnection->setcallbacks(FeatueOnBegin, FeatueOnData, FeatureResetOnComplete, 0);
-	mpConnection->request("POST",
+	/*mpConnection->request("POST",
 		"/api/receiveimage",
 		Base64Encoder::headers,
 		(const unsigned char*)strJSON.c_str(),
 		strlen(strJSON.c_str())
-	);
+	);*/
 
 	while (mpConnection->outstanding())
 		mpConnection->pump();
@@ -229,23 +238,24 @@ bool FeatureMatchingWebAPI::SendImage(std::string ip, int port, cv::Mat src, int
 	return true;
 }
 
-bool FeatureMatchingWebAPI::RequestDetect(std::string ip, int port, int id, std::vector<cv::Point2f>& vPTs) {
+bool FeatureMatchingWebAPI::RequestDetect(std::string ip, int port, int id, std::vector<cv::Point2f>& vPTs, cv::Mat& desc) {
 	std::string strJSON = ConvertNumberToString(id);
 
 	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
 
 	mpConnection->setcallbacks(FeatueOnBegin, FeatueOnData, FeatureDetectOnComplete, 0);
-	mpConnection->request("POST",
+	/*mpConnection->request("POST",
 		"/api/detect",
 		Base64Encoder::headers,
 		(const unsigned char*)strJSON.c_str(),
 		strlen(strJSON.c_str())
-	);
+	);*/
 
 	while (mpConnection->outstanding())
 		mpConnection->pump();
 
 	vPTs = resPts;
+	desc = resDesc.clone();
 	//dst = res.clone();
 
 	return false;
@@ -257,12 +267,12 @@ bool FeatureMatchingWebAPI::RequestMatch(std::string ip, int port, int id1, int 
 	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
 
 	mpConnection->setcallbacks(FeatueOnBegin, FeatueOnData, FeatureMatchOnComplete, 0);
-	mpConnection->request("POST",
+	/*mpConnection->request("POST",
 		"/api/match",
 		Base64Encoder::headers,
 		(const unsigned char*)strJSON.c_str(),
 		strlen(strJSON.c_str())
-	);
+	);*/
 
 	while (mpConnection->outstanding())
 		mpConnection->pump();
@@ -279,12 +289,12 @@ bool FeatureMatchingWebAPI::RequestDepthEstimate(std::string ip, int port, int i
 	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
 
 	mpConnection->setcallbacks(DepthOnBegin, DepthOnData, DepthEstimateOnComplete, 0);
-	mpConnection->request("POST",
+	/*mpConnection->request("POST",
 		"/api/depthestimate",
 		Base64Encoder::headers,
 		(const unsigned char*)strJSON.c_str(),
 		strlen(strJSON.c_str())
-	);
+	);*/
 
 	while (mpConnection->outstanding())
 		mpConnection->pump();
@@ -302,12 +312,12 @@ bool FeatureMatchingWebAPI::RequestDetect(std::string ip, int port, cv::Mat src,
 	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
 	
 	mpConnection->setcallbacks(FeatueOnBegin, FeatueOnData, FeatureDetectOnComplete, 0);
-	mpConnection->request("POST",
+	/*mpConnection->request("POST",
 		"/api/detect",
 		Base64Encoder::headers,
 		(const unsigned char*)strJSON.c_str(),
 		strlen(strJSON.c_str())
-	);
+	);*/
 
 	while (mpConnection->outstanding())
 		mpConnection->pump();
@@ -325,12 +335,12 @@ bool FeatureMatchingWebAPI::RequestDepthEstimate(std::string ip, int port, cv::M
 	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
 
 	mpConnection->setcallbacks(DepthOnBegin, DepthOnData, DepthEstimateOnComplete, 0);
-	mpConnection->request("POST",
+	/*mpConnection->request("POST",
 		"/api/depthestimate",
 		Base64Encoder::headers,
 		(const unsigned char*)strJSON.c_str(),
 		strlen(strJSON.c_str())
-	);
+	);*/
 
 	while (mpConnection->outstanding())
 		mpConnection->pump();
