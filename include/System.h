@@ -5,13 +5,14 @@
 
 #include <queue>
 #include <thread>
-#include <DBoW3.h>
+
 #include <mutex>
 #include <ConcurrentList.h>
 #include <condition_variable>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/features2d.hpp>
+#include "DBoW3.h"
 //#include <opencv2/calib3d.hpp>
 
 
@@ -125,9 +126,7 @@ namespace UVR_SLAM {
 		//ConcurrentList<UVR_SLAM::MapPoint*> mlpNewMPs;
 		std::list<UVR_SLAM::MapPoint*> mlpNewMPs;
 		std::string strVOCPath;
-		fbow::Vocabulary* fvoc;
 		DBoW3::Vocabulary* mpDBoWVoc;
-		cv::Mat mBowWords;
 		cv::Mat mK, mInvK, mD;
 		cv::Mat mKforPL;
 		bool mbInitialized;

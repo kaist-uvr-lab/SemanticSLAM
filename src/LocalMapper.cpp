@@ -188,7 +188,7 @@ void UVR_SLAM::LocalMapper::Run() {
 			////포인트 검출 전에는 키프레임이 아님
 			auto f = std::async(std::launch::async, lambda_api_detect, ip, port, mpTempFrame);
 
-			mpMap->ClearTempMPs();
+			//mpMap->ClearTempMPs();
 			if (bNeedNewKF) {
 				////교체 신호를 줘야 교체
 				////포인트 검출 과정
@@ -297,7 +297,7 @@ void UVR_SLAM::LocalMapper::Run() {
 							const float ratio_thresh = 0.7f;
 							std::vector<cv::DMatch> good_matches;
 
-							mpMap->ClearTempMPs();
+							//mpMap->ClearTempMPs();
 							std::vector<bool> vecBoolOverlap(pKF->matDescriptor.rows, false);
 							
 							for (size_t i = 0; i < knn_matches.size(); i++)
@@ -407,7 +407,7 @@ void UVR_SLAM::LocalMapper::Run() {
 
 											pNewMP->IncreaseFound(2);
 											pNewMP->IncreaseVisible(2);
-											mpMap->AddTempMP(x3D);
+											//mpMap->AddTempMP(x3D);
 											nCreate++;
 										}
 										else {

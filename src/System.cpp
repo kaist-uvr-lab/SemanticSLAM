@@ -19,6 +19,7 @@
 #include <MapPoint.h>
 #include <LocalBinaryPatternProcessor.h>
 #include <Database.h>
+#include <Vocabulary.h>
 #include <KeyframeDatabase.h>
 #include <WebAPI.h>
 
@@ -114,22 +115,9 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 
 bool UVR_SLAM::System::LoadVocabulary() {
 	
-	mpDBoWVoc = new DBoW3::Vocabulary();
-	std::cout << "1" << std::endl;
+	mpDBoWVoc = new Vocabulary();
 	mpDBoWVoc->load(strVOCPath);
-	std::cout << "1" << std::endl;
-	////mpDBoWVoc->GetL
-	//fvoc = new fbow::Vocabulary();
-	//fvoc->readFromFile(strVOCPath);
-	//std::string desc_name = fvoc->getDescName();
-	//mBowWords = fbow::VocabularyCreator::getVocabularyLeafNodes(*fvoc);
-
-	//if (mBowWords.type() != fvoc->getDescType()) {
-	//	std::cerr << "Invalid types for features according to the voc" << std::endl;
-	//	return false;
-	//}
-	//std::cout << "voc desc name=" << desc_name << std::endl;
-	//std::cout << "number of words=" << mBowWords.rows << std::endl;
+	
 	return true;
 	
 }
@@ -228,7 +216,7 @@ void UVR_SLAM::System::Init() {
 	mpDatabase = new UVR_SLAM::Database();
 
 	//keyframe database
-	mpKeyframeDatabase = new UVR_SLAM::KeyframeDatabase(this, fvoc, mBowWords);
+	mpKeyframeDatabase = new UVR_SLAM::KeyframeDatabase(this, mpDBoWVoc);
 
 	/////ÃÊ±âÈ­
 	mpSegmentator->Init();

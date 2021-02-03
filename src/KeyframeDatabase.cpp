@@ -5,9 +5,10 @@
 
 namespace UVR_SLAM {
 	int nFail = 0;
-	KeyframeDatabase::KeyframeDatabase(System* pSys, fbow::Vocabulary* voc, cv::Mat words) :fvoc(voc), mBowWords(words) {
+	int nSuccess = 0;
+	KeyframeDatabase::KeyframeDatabase(System* pSys, DBoW3::Vocabulary* voc) :mpVocabulary(voc){
 		mpSystem = pSys;
-		mvInvertedFile.resize(mBowWords.rows);
+		mvInvertedFile.resize(mpVocabulary->size());
 	}
 	KeyframeDatabase::~KeyframeDatabase() {}
 
@@ -19,10 +20,11 @@ namespace UVR_SLAM {
 		std::unique_lock<std::mutex> lock(mMutex);
 		for (auto iter = pKF->mBowVec.begin(); iter != pKF->mBowVec.end(); iter++) {
 			if (iter->first >= mvInvertedFile.size()) {
-				std::cout << "KFDB::Add::Fail::" << ++nFail << std::endl;
+				std::cout << "KFDB::Add::Fail::" << ++nFail <<", "<< nSuccess <<":"<<iter->first<<", "<<mvInvertedFile.size()<< std::endl;
 				continue;
 			}
-			std::cout << "adddata" << std::endl;
+			//std::cout << "adddata" << std::endl;
+			nSuccess++;
 			mvInvertedFile[iter->first].push_back(pKF);
 		}
 	}
@@ -45,7 +47,7 @@ namespace UVR_SLAM {
 	}
 	void KeyframeDatabase::Reset() {
 		mvInvertedFile.clear();
-		mvInvertedFile.resize(mBowWords.rows);
+		mvInvertedFile.resize(mpVocabulary->size());
 	}
 
 	std::vector<Frame*> KeyframeDatabase::DetectLoopCandidates(Frame* pKF, float minScore) {
@@ -56,7 +58,7 @@ namespace UVR_SLAM {
 		////lock
 		{
 			std::unique_lock<std::mutex>(mMutex);
-			auto mBowVec = pKF->GetBowVec();
+			auto mBowVec = pKF->mBowVec;
 
 			for (auto iter = mBowVec.begin(), iend = mBowVec.end(); iter != iend; iter++) {
 				if (iter->first >= mvInvertedFile.size()) {
@@ -103,7 +105,7 @@ namespace UVR_SLAM {
 			auto pKFi = *iter;
 			if (pKFi->mnLoopBowWords < nMinRequireWords)
 				continue;
-			float score = pKF->Score(pKFi);
+			float score = mpVocabulary->score(pKF->mBowVec, pKFi->mBowVec);
 			pKFi->mfLoopScore = score;
 			if (score >= minScore) {
 				lPairTempKFs.push_back(std::make_pair(score, pKFi));

@@ -6,6 +6,7 @@
 #include <opencv2/core.hpp>
 #include <mutex>
 #include "g2o/types/types_seven_dof_expmap.h"
+#include "DBoW3.h"
 
 namespace UVR_SLAM {
 	class Frame;
@@ -15,6 +16,11 @@ namespace UVR_SLAM {
 	class Matcher;
 
 	class LoopCloser {
+	public:
+		typedef std::pair<std::set<Frame*>, int> ConsistentGroup;
+		typedef std::map<Frame*, g2o::Sim3, std::less<Frame*>,
+			Eigen::aligned_allocator<std::pair<const Frame*, g2o::Sim3> > > KeyFrameAndPose;
+
 	public:
 		LoopCloser();
 		LoopCloser(System* pSys, int w, int h, cv::Mat K);
@@ -28,8 +34,16 @@ namespace UVR_SLAM {
 		void ProcessNewKeyFrame();
 		void Run();
 
+		bool DetectLoop();
+		bool ComputeSim3();
+		void CorrectLoop();
+		void SearchAndFuse(const KeyFrameAndPose &CorrectedPosesMap);
+
+	public:
+		int mLastLoopKFid;
 	private:
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
+		
 	private:
 		std::mutex mMutexNewKFs, mMutexLoopClosing, mMutexProcessing;
 		int mnWidth;
@@ -38,6 +52,7 @@ namespace UVR_SLAM {
 		System* mpSystem;
 		Map* mpMap;
 		KeyframeDatabase* mpKeyFrameDatabase;
+		DBoW3::Vocabulary* mpVoc;
 		Matcher* mpMatcher;
 		bool mbProcessing;
 		float mfTime;

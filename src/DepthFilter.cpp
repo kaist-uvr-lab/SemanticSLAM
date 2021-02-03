@@ -15,7 +15,7 @@ namespace UVR_SLAM {
 	float Seed::ComputeDepth(cv::Point2f& est, cv::Point2f src, cv::Mat R, cv::Mat t, cv::Mat K) {
 		float sig_sqrt = sqrt(sigma2);
 		float z_inv_min = mu + sig_sqrt;
-		float z_inv_max = max(mu - sig_sqrt, 0.00000001f);
+		float z_inv_max = std::max(mu - sig_sqrt, 0.00000001f);
 		float z_min = 1. / z_inv_min;
 		float z_max = 1. / z_inv_max;
 
@@ -171,136 +171,136 @@ namespace UVR_SLAM {
 	}
 	void DepthFilter::Update(Frame* pF, Frame* pPrev) {
 
-		std::cout << "DepthFilter::Update::start" << std::endl;
-		float thresh = 100.; //200.0
-		auto pMatch = pF->mpMatchInfo;
-		auto vpCPs = pMatch->mvpMatchingCPs;
-		auto vPTs = pMatch->mvMatchingPts;
+		//std::cout << "DepthFilter::Update::start" << std::endl;
+		//float thresh = 100.; //200.0
+		//auto pMatch = pF->mpMatchInfo;
+		//auto vpCPs = pMatch->mvpMatchingCPs;
+		//auto vPTs = pMatch->mvMatchingPts;
 
-		cv::Mat Rcurr, Tcurr, Pcurr;
-		pF->GetPose(Rcurr, Tcurr);
-		cv::hconcat(Rcurr, Tcurr, Pcurr);
-		cv::Mat Rinvcurr = Rcurr.t();
-		cv::Mat Tinvcurr = -Rinvcurr*Tcurr;
-		//mpSystem->mpMap->ClearReinit();
+		//cv::Mat Rcurr, Tcurr, Pcurr;
+		//pF->GetPose(Rcurr, Tcurr);
+		//cv::hconcat(Rcurr, Tcurr, Pcurr);
+		//cv::Mat Rinvcurr = Rcurr.t();
+		//cv::Mat Tinvcurr = -Rinvcurr*Tcurr;
+		////mpSystem->mpMap->ClearReinit();
 
-		cv::Mat testImg = pF->GetOriginalImage().clone();
-		cv::Mat testImg2 = pPrev->GetOriginalImage().clone();
+		//cv::Mat testImg = pF->GetOriginalImage().clone();
+		//cv::Mat testImg2 = pPrev->GetOriginalImage().clone();
 
-		int nFail = 0;
-		int nCandidate = 0;
-		for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
-			auto pCPi = vpCPs[i];
-			auto pMPi = pCPi->GetMP();
-			
-			/*if (pMPi && !pMPi->isDeleted())
-				continue;*/
+		//int nFail = 0;
+		//int nCandidate = 0;
+		//for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
+		//	auto pCPi = vpCPs[i];
+		//	auto pMPi = pCPi->GetMP();
+		//	
+		//	/*if (pMPi && !pMPi->isDeleted())
+		//		continue;*/
 
-			auto pSeed = pCPi->mpSeed;
-			if (!pSeed) {
-				continue;
-			}
-			nCandidate++;
-			auto pt = vPTs[i];
-			cv::Mat X3D;
-			float z;
-			bool bNewMP = pCPi->CreateMapPoint(X3D, z, K, invK, Pcurr, Rcurr, Tcurr, pt);
-			/*if (!bNewMP){
-				nFail++;
-				continue;
-			}*/
-			float invz = 1. / z;
-			float z_inv_min = pSeed->mu + sqrt(pSeed->sigma2);
-			float z_inv_max = max(pSeed->mu - sqrt(pSeed->sigma2), 0.00000001f);
-			
-			float z_min = 1. / z_inv_min;
-			float z_max = 1. / z_inv_max;
+		//	auto pSeed = pCPi->mpSeed;
+		//	if (!pSeed) {
+		//		continue;
+		//	}
+		//	nCandidate++;
+		//	auto pt = vPTs[i];
+		//	cv::Mat X3D;
+		//	float z;
+		//	bool bNewMP = pCPi->CreateMapPoint(X3D, z, K, invK, Pcurr, Rcurr, Tcurr, pt);
+		//	/*if (!bNewMP){
+		//		nFail++;
+		//		continue;
+		//	}*/
+		//	float invz = 1. / z;
+		//	float z_inv_min = pSeed->mu + sqrt(pSeed->sigma2);
+		//	float z_inv_max = std::max(pSeed->mu - sqrt(pSeed->sigma2), 0.00000001f);
+		//	
+		//	float z_min = 1. / z_inv_min;
+		//	float z_max = 1. / z_inv_max;
 
-			//if (invz > z_inv_min || invz < z_inv_max){
-			//	//std::cout << z << " " << 1. / z_inv_min << ", " << 1. / z_inv_max <<"::"<<invz<<", "<<z_inv_min<<", "<<z_inv_max<< std::endl;
-			//	continue;
-			//}
+		//	//if (invz > z_inv_min || invz < z_inv_max){
+		//	//	//std::cout << z << " " << 1. / z_inv_min << ", " << 1. / z_inv_max <<"::"<<invz<<", "<<z_inv_min<<", "<<z_inv_max<< std::endl;
+		//	//	continue;
+		//	//}
 
-			pSeed->count++;
-			cv::Mat Rref, Tref;
-			pCPi->mpRefKF->GetPose(Rref, Tref);
-			cv::Mat Trefcurr = Rref*Tinvcurr + Tref;
-			cv::Mat Rrefcurr = Rref*Rinvcurr;
-			cv::Mat Rinv = Rrefcurr.t();
-			cv::Mat Tinv = -Rinv*Trefcurr;
-			cv::Mat tempRay1 = Rinv*(pSeed->ray*1./ pSeed->mu)+ Tinv;
-			cv::Mat tempRay2 = Rinv*(pSeed->ray*z_min) + Tinv;
-			cv::Mat tempRay3 = Rinv*(pSeed->ray*z_max) + Tinv;
+		//	pSeed->count++;
+		//	cv::Mat Rref, Tref;
+		//	pCPi->mpRefKF->GetPose(Rref, Tref);
+		//	cv::Mat Trefcurr = Rref*Tinvcurr + Tref;
+		//	cv::Mat Rrefcurr = Rref*Rinvcurr;
+		//	cv::Mat Rinv = Rrefcurr.t();
+		//	cv::Mat Tinv = -Rinv*Trefcurr;
+		//	cv::Mat tempRay1 = Rinv*(pSeed->ray*1./ pSeed->mu)+ Tinv;
+		//	cv::Mat tempRay2 = Rinv*(pSeed->ray*z_min) + Tinv;
+		//	cv::Mat tempRay3 = Rinv*(pSeed->ray*z_max) + Tinv;
 
-			cv::Mat proj1 = K*tempRay1; //mu
-			cv::Mat proj2 = K*tempRay2; //min
-			cv::Mat proj3 = K*tempRay3; //max
+		//	cv::Mat proj1 = K*tempRay1; //mu
+		//	cv::Mat proj2 = K*tempRay2; //min
+		//	cv::Mat proj3 = K*tempRay3; //max
 
-			cv::Point2f projPt1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
-			cv::Point2f projPt2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
-			cv::Point2f projPt3(proj3.at<float>(0) / proj3.at<float>(2), proj3.at<float>(1) / proj3.at<float>(2));
+		//	cv::Point2f projPt1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
+		//	cv::Point2f projPt2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
+		//	cv::Point2f projPt3(proj3.at<float>(0) / proj3.at<float>(2), proj3.at<float>(1) / proj3.at<float>(2));
 
-			/*if (tempRay1.at<float>(2) < 0.0)
-			{
-				continue;
-			}
-			if (!pF->isInImage(projPt1.x, projPt1.y)) {
-				continue;
-			}*/
-			int idx = pCPi->GetPointIndexInFrame(pPrev->mpMatchInfo);
-			if(idx > -1 && !std::isnan(z_min) && !std::isnan(z_max) && z_min > 0.){
-				cv::line(testImg, projPt2, projPt3, cv::Scalar(255, 255, 0), 3);
-				cv::line(testImg, projPt1, pt, cv::Scalar(0, 255, 0), 1);
-				cv::circle(testImg, projPt1, 3, cv::Scalar(0, 255, 255), -1);
-				cv::circle(testImg, pt, 2, cv::Scalar(255, 0, 255), -1);
+		//	/*if (tempRay1.at<float>(2) < 0.0)
+		//	{
+		//		continue;
+		//	}
+		//	if (!pF->isInImage(projPt1.x, projPt1.y)) {
+		//		continue;
+		//	}*/
+		//	int idx = pCPi->GetPointIndexInFrame(pPrev->mpMatchInfo);
+		//	if(idx > -1 && !std::isnan(z_min) && !std::isnan(z_max) && z_min > 0.){
+		//		cv::line(testImg, projPt2, projPt3, cv::Scalar(255, 255, 0), 3);
+		//		cv::line(testImg, projPt1, pt, cv::Scalar(0, 255, 0), 1);
+		//		cv::circle(testImg, projPt1, 3, cv::Scalar(0, 255, 255), -1);
+		//		cv::circle(testImg, pt, 2, cv::Scalar(255, 0, 255), -1);
 
-				cv::Point2f prevPt = pPrev->mpMatchInfo->mvMatchingPts[idx];
-				cv::circle(testImg2, prevPt, 2, cv::Scalar(255, 0, 255), -1);
-			}
-			float tau = pSeed->ComputeTau(Trefcurr, z);
-			float tau_inverse = 0.5 * (1.0 / max(0.0000001, z - tau) - 1.0 / (z + tau));
-			UpdateSeed(pSeed, invz, tau_inverse*tau_inverse);
+		//		cv::Point2f prevPt = pPrev->mpMatchInfo->mvMatchingPts[idx];
+		//		cv::circle(testImg2, prevPt, 2, cv::Scalar(255, 0, 255), -1);
+		//	}
+		//	float tau = pSeed->ComputeTau(Trefcurr, z);
+		//	float tau_inverse = 0.5 * (1.0 / std::max(0.0000001, z - tau) - 1.0 / (z + tau));
+		//	UpdateSeed(pSeed, invz, tau_inverse*tau_inverse);
 
-			float val = sqrt(pSeed->sigma2);
-			bool bConverged = val < pSeed->z_range/ thresh;
+		//	float val = sqrt(pSeed->sigma2);
+		//	bool bConverged = val < pSeed->z_range/ thresh;
 
-			//std::cout << "depth test::" << pSeed->count << "::" << val << "=" << pSeed->z_range / thresh << std::endl; //1./z << ", " << z_inv_min << ", " << z_inv_max << std::endl;
+		//	//std::cout << "depth test::" << pSeed->count << "::" << val << "=" << pSeed->z_range / thresh << std::endl; //1./z << ", " << z_inv_min << ", " << z_inv_max << std::endl;
 
-			/*if(bConverged){
-				std::cout << "depth filter : " << pSeed->count <<"::"<< val <<"="<< pSeed->z_range/ thresh << std::endl;
-				cv::Mat Rrefinv = Rref.t();
-				cv::Mat Trefinv = -Rrefinv*Tref;
-				cv::Mat Xw = Rrefinv*(pSeed->ray*(1. / pSeed->mu)) + Trefinv;
-				int label = pCPi->GetLabel();
-				mpSystem->mpMap->AddReinit(X3D);
-				auto pMP = new UVR_SLAM::MapPoint(mpSystem->mpMap, pF, pCPi, X3D, cv::Mat(), label, pCPi->octave);
-				pMP->SetOptimization(true);
-				mpSystem->mlpNewMPs.push_back(pMP);
+		//	/*if(bConverged){
+		//		std::cout << "depth filter : " << pSeed->count <<"::"<< val <<"="<< pSeed->z_range/ thresh << std::endl;
+		//		cv::Mat Rrefinv = Rref.t();
+		//		cv::Mat Trefinv = -Rrefinv*Tref;
+		//		cv::Mat Xw = Rrefinv*(pSeed->ray*(1. / pSeed->mu)) + Trefinv;
+		//		int label = pCPi->GetLabel();
+		//		mpSystem->mpMap->AddReinit(X3D);
+		//		auto pMP = new UVR_SLAM::MapPoint(mpSystem->mpMap, pF, pCPi, X3D, cv::Mat(), label, pCPi->octave);
+		//		pMP->SetOptimization(true);
+		//		mpSystem->mlpNewMPs.push_back(pMP);
 
-				auto mmpFrames = pCPi->GetFrames();
-				for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
-					auto pMatch = iter->first;
-					auto pKF = pMatch->mpRefFrame;
-					int idx = iter->second;
-					pMP->ConnectFrame(pMatch, idx);
-				}
+		//		auto mmpFrames = pCPi->GetFrames();
+		//		for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
+		//			auto pMatch = iter->first;
+		//			auto pKF = pMatch->mpRefFrame;
+		//			int idx = iter->second;
+		//			pMP->ConnectFrame(pMatch, idx);
+		//		}
 
-			}*/
-			//update 함수 && convergence test && triangulation
-		}//for
-		
-		std::cout << "DepthFilter::Update::end::" << nFail << ", " << nCandidate << std::endl;
+		//	}*/
+		//	//update 함수 && convergence test && triangulation
+		//}//for
+		//
+		//std::cout << "DepthFilter::Update::end::" << nFail << ", " << nCandidate << std::endl;
 
-		/*cv::Mat resized;
-		cv::resize(testImg, resized, cv::Size(testImg.cols / 2, testImg.rows / 2));
-		mpSystem->mpVisualizer->SetOutputImage(resized, 1);
-		cv::moveWindow("Output::DepthFilter", mpSystem->mnDisplayX, mpSystem->mnDisplayY);
-		cv::Mat debugImg = cv::Mat::zeros(testImg.rows * 2, testImg.cols, testImg.type());
-		cv::Rect mergeRect1 = cv::Rect(0, 0, testImg.cols, testImg.rows);
-		cv::Rect mergeRect2 = cv::Rect(0, testImg.rows, testImg.cols, testImg.rows);
-		testImg.copyTo(debugImg(mergeRect1));
-		testImg2.copyTo(debugImg(mergeRect2));
-		imshow("Output::DepthFilter", debugImg);
-		cv::waitKey(1);*/
+		///*cv::Mat resized;
+		//cv::resize(testImg, resized, cv::Size(testImg.cols / 2, testImg.rows / 2));
+		//mpSystem->mpVisualizer->SetOutputImage(resized, 1);
+		//cv::moveWindow("Output::DepthFilter", mpSystem->mnDisplayX, mpSystem->mnDisplayY);
+		//cv::Mat debugImg = cv::Mat::zeros(testImg.rows * 2, testImg.cols, testImg.type());
+		//cv::Rect mergeRect1 = cv::Rect(0, 0, testImg.cols, testImg.rows);
+		//cv::Rect mergeRect2 = cv::Rect(0, testImg.rows, testImg.cols, testImg.rows);
+		//testImg.copyTo(debugImg(mergeRect1));
+		//testImg2.copyTo(debugImg(mergeRect2));
+		//imshow("Output::DepthFilter", debugImg);
+		//cv::waitKey(1);*/
 	}
 }

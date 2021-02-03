@@ -42,24 +42,27 @@ void WebAPIDataConverter::ConvertStringToPoints(const char* data, std::vector<cv
 	if (document.Parse(data).HasParseError()) {
 		std::cout << "return JSON parsing error" << std::endl;
 	}
-	//cv::Mat res = cv::Mat::zeros(0, 0, CV_8UC1);
-	if (document.HasMember("res") && document["res"].IsArray()) {
+	if (document.HasMember("res") && document["res"].IsString()) {
 
-		const rapidjson::Value& a = document["res"];
 		int n = document["n"].GetInt();
-		for (size_t i = 0; i < n; i++) {
-			cv::Point2f pt(a[i][0].GetFloat(), a[i][1].GetFloat());
-			vPTs.push_back(pt);
-		}
-
 		desc = cv::Mat::zeros(n, 256, CV_32FC1);
-		const rapidjson::Value& b = document["desc"];
-		for (size_t j = 0; j < 256; j++) {
-			for (size_t i = 0; i < n; i++) {
-				desc.at<float>(i, j) = b[j][i].GetFloat();
-			}
+		auto resstrkpts = Base64Encoder::base64_decode(std::string(document["res"].GetString()));// , n2);
+		float* tempFloat1 = (float*)malloc(n * 2 * sizeof(float));
+		std::memcpy(tempFloat1, resstrkpts.c_str(), n * 2 * sizeof(float));
+		for (int i = 0; i < n; i++) {
+			vPTs.push_back(std::move(cv::Point2f(tempFloat1[2*i], tempFloat1[2 * i+1])));
 		}
+		std::free(tempFloat1);
 
+		auto resstr = Base64Encoder::base64_decode(std::string(document["desc"].GetString()));
+		float* tempFloat2 = (float*)malloc(n *256* sizeof(float));
+		std::memcpy(tempFloat2, resstr.c_str(), n * 256* sizeof(float));
+		for (int i = 0, iend = n * 256; i < iend; i++) {
+			int x = i % n;
+			int y = i / n;
+			desc.at<float>(x, y) = tempFloat2[i];
+		}
+		std::free(tempFloat2);
 	}
 }
 
@@ -84,18 +87,29 @@ void WebAPIDataConverter::ConvertStringToDepthImage(const char* data, cv::Mat& r
 		std::cout << "Depth Estimate JSON parsing error" << std::endl;
 	}
 	if (document["b"].GetBool()) {
-		if (document.HasMember("res") && document["res"].IsArray()) {
+		if (document.HasMember("res") && document["res"].IsString()) {
 
-			const rapidjson::Value& a = document["res"];
+			
 			int w = document["w"].GetInt();
 			int h = document["h"].GetInt();
-
 			res = cv::Mat::zeros(h, w, CV_32FC1);
+
+			auto resstr = Base64Encoder::base64_decode(std::string(document["res"].GetString()));
+			float* tempFloat2 = (float*)malloc(w* h * sizeof(float));
+			std::memcpy(tempFloat2, resstr.c_str(), w * h * sizeof(float));
+			for (int i = 0, iend = w * h; i < iend; i++) {
+				int x = i % w;
+				int y = i / w;
+				res.at<float>(y, x) = tempFloat2[i];
+			}
+			std::free(tempFloat2);
+
+			/*const rapidjson::Value& a = document["res"];
 			for (int y = 0; y < h; y++) {
 				for (int x = 0; x < w; x++) {
 					res.at<float>(y, x) = 1.0 / a[y][x].GetFloat();
 				}
-			}
+			}*/
 
 		}
 		else {

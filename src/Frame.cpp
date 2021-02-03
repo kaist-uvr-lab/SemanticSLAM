@@ -15,6 +15,8 @@
 #include <System.h>
 #include <Map.h>
 #include <MapGrid.h>
+#include <Vocabulary.h>
+#include <Converter.h>
 
 bool UVR_SLAM::Frame::mbInitialComputations = true;
 float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
@@ -551,19 +553,15 @@ std::vector<UVR_SLAM::Line*> UVR_SLAM::Frame::Getlines() {
 //	return std::vector<UVR_SLAM::Frame*>(mvpKFs.begin(), mvpKFs.begin()+n);
 //}
 /////////////////////////////////
-fbow::fBow UVR_SLAM::Frame::GetBowVec() {
-	return mBowVec;
-}
-void UVR_SLAM::Frame::SetBowVec(fbow::Vocabulary* pfvoc) {
-	std::cout << "1" << std::endl;
-	mBowVec = pfvoc->transform(matDescriptor);
-	std::cout << "2" << std::endl;
-}
 
-double UVR_SLAM::Frame::Score(UVR_SLAM::Frame* pF) {
-	return fbow::fBow::score(mBowVec, pF->GetBowVec());
+void UVR_SLAM::Frame::Frame::ComputeBoW()
+{
+	if (mBowVec.empty())
+	{
+		std::vector<cv::Mat> vCurrentDesc = Converter::toDescriptorVector(matDescriptor);
+		mpSystem->mpDBoWVoc->transform(vCurrentDesc, mBowVec, mFeatVec, 0);  // 5 is better
+	}
 }
-
 
 ///////////////////////////////
 void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)

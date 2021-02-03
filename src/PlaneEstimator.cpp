@@ -469,13 +469,13 @@ void UVR_SLAM::PlaneEstimator::Run() {
 			std::vector<UVR_SLAM::MapPoint*> vpFloorMPs, vpCeilMPs, vpWallMPs;
 			auto vTempIndices1 = std::vector<int>(vIndices.begin(), vIndices.end());
 			std::shuffle(vTempIndices1.begin(), vTempIndices1.begin()+mvpFloorMPs.size(), g);
-			int nFloorSize = min(2500, mvpFloorMPs.size());
+			int nFloorSize = std::min(2500, (int)mvpFloorMPs.size());
 			for (int i = 0; i < nFloorSize; i++) {
 				vpFloorMPs.push_back(mvpFloorMPs[vTempIndices1[i]]);
 			}
 			auto vTempIndices2 = std::vector<int>(vIndices.begin(), vIndices.end());
 			std::shuffle(vTempIndices2.begin(), vTempIndices2.begin() + mvpCeilMPs.size(), g);
-			int nCeilSize = min(2500, mvpCeilMPs.size());
+			int nCeilSize = std::min(2500, (int)mvpCeilMPs.size());
 			for (int i = 0; i < nCeilSize; i++) {
 				vpCeilMPs.push_back(mvpCeilMPs[vTempIndices2[i]]);
 			}

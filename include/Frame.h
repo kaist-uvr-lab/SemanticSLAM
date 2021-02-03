@@ -7,7 +7,8 @@
 #ifndef UVR_SLAM_FRAME_H
 #define UVR_SLAM_FRAME_H
 #pragma once
-#include <fbow.h> //include windows header.
+
+#include <DBoW3.h>
 #include <System.h>
 #include <map>
 #include <functional>
@@ -31,6 +32,7 @@ namespace UVR_SLAM {
 	const unsigned char FLAG_INIT_FRAME = 0x8;
 
 	//class MapPoint;
+	
 	class MapPoint;
 	class CandidatePoint;
 	class ORBextractor;
@@ -136,10 +138,20 @@ namespace UVR_SLAM {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 	public:
-		void process(cv::Ptr<cv::Feature2D> detector);
-		fbow::fBow GetBowVec();
+		//////BOW
+		////DBOW
+		DBoW3::BowVector mBowVec;
+		DBoW3::FeatureVector mFeatVec;
+		void ComputeBoW();
+
+		////FBOW
+		void process(cv::Ptr<cv::Feature2D> detector); //????????이거 이용중인가?
+		/*fbow::fBow GetBowVec();
 		void SetBowVec(fbow::Vocabulary* pfvoc);
 		double Score(UVR_SLAM::Frame* pF);
+		fbow::fBow mBowVec;
+		fbow::fBow2 mFeatureVec;*/
+		////FBOW
 	public:
 		Frame *mpPrev, *mpNext;
 		cv::Mat GetFrame();
@@ -248,8 +260,7 @@ namespace UVR_SLAM {
 
 		////loop closing
 		int mnLoopClosingID;
-		fbow::fBow mBowVec;
-		fbow::fBow2 mFeatureVec;
+		
 		int mnLoopBowWords;
 		float mfLoopScore;
 		////loop closing

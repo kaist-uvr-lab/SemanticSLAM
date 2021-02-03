@@ -2,7 +2,7 @@
 #define KEYFRAME_DATABASE_H
 #pragma once
 
-#include "fbow.h"
+#include <DBoW3.h>
 #include <list>
 #include <mutex>
 
@@ -16,7 +16,7 @@ namespace UVR_SLAM {
 	class KeyframeDatabase {
 
 	public:
-		KeyframeDatabase(System* pSys, fbow::Vocabulary* voc, cv::Mat words);
+		KeyframeDatabase(System* pSys, DBoW3::Vocabulary* voc);
 		virtual ~KeyframeDatabase();
 	public:
 		void Init();
@@ -27,10 +27,9 @@ namespace UVR_SLAM {
 		std::vector<Frame*> DetectLoopCandidates(Frame* pKF, float minScore);
 
 	private:
-		fbow::Vocabulary* fvoc;
+		DBoW3::Vocabulary* mpVocabulary;
 		System* mpSystem;
 		Map* mpMap;
-		cv::Mat mBowWords;
 		std::vector<std::list<Frame*>> mvInvertedFile;
 		std::mutex mMutex;
 	};
