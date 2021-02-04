@@ -12,8 +12,9 @@
 #include <Plane.h>
 #include <Visualizer.h>
 #include <Map.h>
+#include <DBoW3.h>
 
-UVR_SLAM::Matcher::Matcher(){}
+UVR_SLAM::Matcher::Matcher():TH_HIGH(100), TH_LOW(50), HISTO_LENGTH(30) {}
 UVR_SLAM::Matcher::Matcher(System* pSys, cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h)
 	:mpSystem(pSys), mWidth(w), mHeight(h), TH_HIGH(100), TH_LOW(50), HISTO_LENGTH(30), mfNNratio(0.7), mbCheckOrientation(true), matcher(_matcher)
 {
@@ -33,6 +34,7 @@ void UVR_SLAM::Matcher::Init() {
 const double nn_match_ratio = 0.7f; // Nearest-neighbour matching ratio
 
 namespace UVR_SLAM {
+
 	int Matcher::OpticalFlowMatching(cv::Mat img1, cv::Mat img2, std::vector<cv::Point2f> vecPoints, std::vector<cv::Point2f>& vecMatchPoints1, std::vector<cv::Point2f>& vecMatchPoints2, std::vector<int>& vecIndexes) {
 		int maxLvl = 3;
 		int searchSize = 21;
@@ -87,6 +89,149 @@ namespace UVR_SLAM {
 			nRes++;
 		}
 		return nRes;
+	}
+
+	float Matcher::SuperPointDescriptorDistance(const cv::Mat &a, const cv::Mat &b) {
+		float dist = (float)cv::norm(a, b, cv::NORM_L2);
+		return dist;
+	}
+	////BoW를 이용한 매칭.
+	//mbCheckOrientation는 미구현
+	int Matcher::BagOfWordsMatching(Frame* pF1, Frame* pF2, std::vector<MapPoint*>& vpMatches12) {
+		const vector<cv::Point2f> &vKeysUn1 = pF1->mvPts;
+		const DBoW3::FeatureVector &vFeatVec1 = pF1->mFeatVec;
+		const vector<MapPoint*> vpMapPoints1 = pF1->GetMapPoints();
+		const cv::Mat &Descriptors1 = pF1->matDescriptor;
+
+		const vector<cv::Point2f> &vKeysUn2 = pF2->mvPts;
+		const DBoW3::FeatureVector &vFeatVec2 = pF2->mFeatVec;
+		const vector<MapPoint*> vpMapPoints2 = pF2->GetMapPoints();
+		const cv::Mat &Descriptors2 = pF2->matDescriptor;
+
+		vpMatches12 = vector<MapPoint*>(vpMapPoints1.size(), static_cast<MapPoint*>(NULL));
+		vector<bool> vbMatched2(vpMapPoints2.size(), false);
+
+		/*vector<int> rot
+		Hist[HISTO_LENGTH];
+		for (int i = 0; i<HISTO_LENGTH; i++)
+			rotHist[i].reserve(500);*/
+
+		const float factor = 1.0f / HISTO_LENGTH;
+
+		int nmatches = 0;
+
+		DBoW3::FeatureVector::const_iterator f1it = vFeatVec1.begin();
+		DBoW3::FeatureVector::const_iterator f2it = vFeatVec2.begin();
+		DBoW3::FeatureVector::const_iterator f1end = vFeatVec1.end();
+		DBoW3::FeatureVector::const_iterator f2end = vFeatVec2.end();
+
+		////두 프레임 사이의 일치하는 BoW끼리만 매칭하도록 함.
+		////이건 세그멘테이션 아이디가 같은 것끼리만 매칭하도록 하는 것과 동일.
+		while (f1it != f1end && f2it != f2end)
+		{
+			if (f1it->first == f2it->first)
+			{
+				for (size_t i1 = 0, iend1 = f1it->second.size(); i1<iend1; i1++)
+				{
+					const size_t idx1 = f1it->second[i1];
+
+					MapPoint* pMP1 = vpMapPoints1[idx1];
+					if (!pMP1)
+						continue;
+					if (pMP1->isDeleted())
+						continue;
+
+					const cv::Mat &d1 = Descriptors1.row(idx1);
+
+					float bestDist1 = 256.0;
+					int bestIdx2 = -1;
+					float bestDist2 = 256.0;
+
+					for (size_t i2 = 0, iend2 = f2it->second.size(); i2<iend2; i2++)
+					{
+						const size_t idx2 = f2it->second[i2];
+
+						MapPoint* pMP2 = vpMapPoints2[idx2];
+
+						if (vbMatched2[idx2] || !pMP2)
+							continue;
+
+						if (pMP2->isDeleted())
+							continue;
+
+						const cv::Mat &d2 = Descriptors2.row(idx2);
+
+						float dist = SuperPointDescriptorDistance(d1, d2);
+
+						if (dist<bestDist1)
+						{
+							bestDist2 = bestDist1;
+							bestDist1 = dist;
+							bestIdx2 = idx2;
+						}
+						else if (dist<bestDist2)
+						{
+							bestDist2 = dist;
+						}
+					}
+
+					if (bestDist1<(float)TH_LOW)
+					{
+						if (static_cast<float>(bestDist1)<mfNNratio*static_cast<float>(bestDist2))
+						{
+							vpMatches12[idx1] = vpMapPoints2[bestIdx2];
+							vbMatched2[bestIdx2] = true;
+
+							/*if (mbCheckOrientation)
+							{
+								float rot = vKeysUn1[idx1].angle - vKeysUn2[bestIdx2].angle;
+								if (rot<0.0)
+									rot += 360.0f;
+								int bin = round(rot*factor);
+								if (bin == HISTO_LENGTH)
+									bin = 0;
+								assert(bin >= 0 && bin<HISTO_LENGTH);
+								rotHist[bin].push_back(idx1);
+							}*/
+							nmatches++;
+						}
+					}
+				}
+
+				f1it++;
+				f2it++;
+			}
+			else if (f1it->first < f2it->first)
+			{
+				f1it = vFeatVec1.lower_bound(f2it->first);
+			}
+			else
+			{
+				f2it = vFeatVec2.lower_bound(f1it->first);
+			}
+		}
+
+		/*if (mbCheckOrientation)
+		{
+			int ind1 = -1;
+			int ind2 = -1;
+			int ind3 = -1;
+
+			ComputeThreeMaxima(rotHist, HISTO_LENGTH, ind1, ind2, ind3);
+
+			for (int i = 0; i<HISTO_LENGTH; i++)
+			{
+				if (i == ind1 || i == ind2 || i == ind3)
+					continue;
+				for (size_t j = 0, jend = rotHist[i].size(); j<jend; j++)
+				{
+					vpMatches12[rotHist[i][j]] = static_cast<MapPoint*>(NULL);
+					nmatches--;
+				}
+			}
+		}*/
+
+		return nmatches;
 	}
 }
 
@@ -600,6 +745,8 @@ float UVR_SLAM::Matcher::CheckFundamental(UVR_SLAM::Frame* pInit, UVR_SLAM::Fram
 
 	return score;
 }
+
+
 
 int UVR_SLAM::Matcher::DescriptorDistance(const cv::Mat &a, const cv::Mat &b)
 {

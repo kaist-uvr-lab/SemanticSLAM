@@ -17,11 +17,13 @@ namespace UVR_SLAM {
 	class Map;
 	class System;
 	class Matcher {
+	
 	public:
 		Matcher();
 		Matcher(System* pSys, cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h);
 		virtual ~Matcher();
 		void Init();
+
 ///////////////////////////////////////////////////////////
 ////201114 Epipolar constraints
 	public:
@@ -34,10 +36,14 @@ namespace UVR_SLAM {
 
 //////////////////////////////////////////////////////////
 ////210128 옵티컬 플로우 기반 매칭
+		////초기화
 		int OpticalFlowMatching(cv::Mat img1, cv::Mat img2, std::vector<cv::Point2f> vecPoints, std::vector<cv::Point2f>& vecMatchPoints1, std::vector<cv::Point2f>& vecMatchPoints2, std::vector<int>& vecIndexes);
+		////트래킹
 		int OpticalFlowMatching(int nFrameID, cv::Mat img1, cv::Mat img2, std::vector<cv::Point2f> vecPoints, std::vector<MapPoint*> vecMPs, std::vector<cv::Point2f>& vecMatchPoints1, std::vector<cv::Point2f>& vecMatchPoints2, std::vector<MapPoint*>& vecMatchMPs, std::vector<bool>& vecInliers, cv::Mat& overlap);
 //////////////////////////////////////////////////////////
 
+		int BagOfWordsMatching(Frame* pF1, Frame* pF2, std::vector<MapPoint*>& vpMatches12);
+		float SuperPointDescriptorDistance(const cv::Mat &a, const cv::Mat &b);
 
 ///////////////////////////////////////////////////////////
 ////200410 Optical flow 적용 버전
@@ -91,9 +97,9 @@ namespace UVR_SLAM {
 		cv::Ptr<cv::DescriptorMatcher> matcher;
 		bool mbCheckOrientation;
 		float mfNNratio; //projection maching에서 이용
-		int TH_HIGH;     //projection maching에서 이용
-		int TH_LOW;
-		int HISTO_LENGTH;
+		const int TH_HIGH;     //projection maching에서 이용
+		const int TH_LOW;
+		const int HISTO_LENGTH;
 	};
 }
 #endif

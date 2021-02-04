@@ -52,7 +52,7 @@ namespace UVR_SLAM {
 
 	std::vector<Frame*> KeyframeDatabase::DetectLoopCandidates(Frame* pKF, float minScore) {
 		//std::cout << "DetectLoopCandidates::Start" << std::endl;
-		auto spKFs = mpMap->GetWindowFramesSet();
+		auto spKFs = pKF->GetConnectedKeyFrameSet();
 		std::list<Frame*> lpWordKFs;
 		int mnLoopID = pKF->mnKeyFrameID;
 		////lock

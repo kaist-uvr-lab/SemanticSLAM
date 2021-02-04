@@ -123,6 +123,15 @@ namespace UVR_SLAM {
 		return mmpObservations.count(pF) > 0;
 	}
 
+	int MapPoint::GetIndexInKeyFrame(Frame* pF) {
+		std::unique_lock<std::mutex> lock(mMutexMP);
+		if (mmpObservations.count(pF)) {
+			return mmpObservations[pF];
+		}
+		else
+			return -1;
+	}
+
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 

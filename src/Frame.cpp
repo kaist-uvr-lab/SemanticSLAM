@@ -1380,6 +1380,17 @@ std::vector<UVR_SLAM::Frame*> UVR_SLAM::Frame::GetConnectedKFs(int n) {
 	}
 	return std::vector<UVR_SLAM::Frame*>(tempKFs.begin(), tempKFs.begin() + n);
 }
+std::set<UVR_SLAM::Frame*> UVR_SLAM::Frame::GetConnectedKeyFrameSet(int n) {
+	std::unique_lock<std::mutex> lockMP(mMutexConnection);
+	std::set<UVR_SLAM::Frame*> tempKFs;
+	for (std::multimap<int, UVR_SLAM::Frame*, std::greater<int>>::iterator iter = mmpConnectedKFs.begin(); iter != mmpConnectedKFs.end(); iter++) {
+		if (n != 0 && tempKFs.size() == n)
+			break;
+		UVR_SLAM::Frame* pKFi = iter->second;
+		tempKFs.insert(pKFi);
+	}
+	return std::set<UVR_SLAM::Frame*>(tempKFs.begin(), tempKFs.end());
+}
 
 std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> UVR_SLAM::Frame::GetConnectedKFsWithWeight() {
 	/*std::multimap<int, UVR_SLAM::Frame*> tempKFs;

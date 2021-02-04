@@ -54,6 +54,7 @@ namespace UVR_SLAM {
 		cv::Mat GetWorldPos();
 		void SetNewMP(bool _b);
 		bool isNewMP();
+		int GetIndexInKeyFrame(Frame* pF);
 		bool isInFrame(MatchInfo* pF);
 		int GetPointIndexInFrame(MatchInfo* pF);
 
@@ -92,6 +93,7 @@ namespace UVR_SLAM {
 		int mnMapPointID;
 		int mnFirstKeyFrameID;
 		int mnLocalBAID, mnLocalMapID, mnTrackingID;
+		int mnLoopID;
 		
 		int mnOctave;
 		////마지막 트래킹 정보.

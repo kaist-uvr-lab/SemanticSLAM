@@ -259,6 +259,15 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 				//float tttt = duration / 1000.0;
 				//std::cout << "match time = " << tttt << std::endl;
 
+				//////////////Segmentation
+				//auto fseg = std::async([](std::string ip, int port, int id) {
+				//	WebAPI* api = new WebAPI(ip, port);
+				//	//api->Send("receiveimage", WebAPIDataConverter::ConvertImageToString(pF->GetOriginalImage(), pF->mnFrameID));
+				//	api->Send("segment", WebAPIDataConverter::ConvertNumberToString(id));
+				//	//WebAPIDataConverter::ConvertStringToDepthImage(api->Send("depthestimate", WebAPIDataConverter::ConvertNumberToString(pF->mnFrameID)).c_str(), depthImg);
+				//}, "143.248.96.81", port, mpTargetFrame->mnFrameID);
+				//////////////Segmentation
+
 				//////////////Depth ÃßÁ¤
 				cv::Mat depthImg;
 				auto f1 = std::async([](std::string ip, int port, Frame* pF, cv::Mat& depthImg, cv::Mat invK, Map* map) {

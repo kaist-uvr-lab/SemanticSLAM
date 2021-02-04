@@ -8,6 +8,7 @@
 #include <opencv2/core.hpp>
 //#include <Vertex.h>
 #include <InitialData.h>
+#include <LoopCloser.h>
 
 namespace UVR_SLAM {
 	//class Edge;
@@ -25,6 +26,20 @@ namespace UVR_SLAM {
 	class PlaneProcessInformation;
 	class Optimization {
 	public:
+		/////////////////
+		////Loop Closing 관련
+		// if bFixScale is true, 6DoF optimization (stereo,rgbd), 7DoF otherwise (mono)
+		void static OptimizeEssentialGraph(Map* pMap, Frame* pLoopKF, Frame* pCurKF,
+			const LoopCloser::KeyFrameAndPose &NonCorrectedSim3,
+			const LoopCloser::KeyFrameAndPose &CorrectedSim3,
+			const std::map<Frame *, std::set<Frame *> > &LoopConnections,
+			const bool &bFixScale);
+
+		// if bFixScale is true, optimize SE3 (stereo,rgbd), Sim3 otherwise (mono)
+		static int OptimizeSim3(Frame* pKF1, Frame* pKF2, std::vector<MapPoint *> &vpMatches1,
+			g2o::Sim3 &g2oS12, const float th2, const bool bFixScale);
+		////Loop Closing 관련
+
 		/////////
 		//201225
 		static int PoseOptimization(UVR_SLAM::Map* pMap, Frame *pFrame, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool>& vbInliers, std::vector<float> vInvLevelSigma2);

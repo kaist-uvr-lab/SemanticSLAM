@@ -12,6 +12,7 @@ namespace UVR_SLAM {
 	class Frame;
 	class System;
 	class Map;
+	class MapPoint;
 	class KeyframeDatabase;
 	class Matcher;
 
@@ -44,8 +45,23 @@ namespace UVR_SLAM {
 	private:
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
 		
+		// Loop detector parameters
+		float mnCovisibilityConsistencyTh;
+
+		// Loop detector variables
+		Frame* mpTargetFrame;
+		Frame* mpMatchedKF;
+		std::vector<ConsistentGroup> mvConsistentGroups;
+		std::vector<Frame*> mvpEnoughConsistentCandidates;
+		std::vector<Frame*> mvpCurrentConnectedKFs;
+		std::vector<MapPoint*> mvpCurrentMatchedPoints;
+		std::vector<MapPoint*> mvpLoopMapPoints;
+		cv::Mat mScw;
+		g2o::Sim3 mg2oScw;
+
 	private:
 		std::mutex mMutexNewKFs, mMutexLoopClosing, mMutexProcessing;
+		bool mbFixScale;//monocular이면 false, 스테레오와 뎁스카메라는 픽스
 		int mnWidth;
 		int mnHeight;
 		cv::Mat mK, mInvK;
@@ -56,7 +72,6 @@ namespace UVR_SLAM {
 		Matcher* mpMatcher;
 		bool mbProcessing;
 		float mfTime;
-		Frame* mpTargetFrame;
 	};
 }
 #endif

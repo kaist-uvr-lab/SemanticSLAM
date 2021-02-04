@@ -199,12 +199,16 @@ namespace UVR_SLAM {
 		/////////////////////////////
 
 		///
-		void Delete();
+		void Delete();	//KF 삭제는 2가지 장치로 구성됨. mbNotErase가 false이고, mbToBeErased가 true가 되어야 함. setbadflag와 seterase가 둘다 호출이 되어야 함. setbadflag는 mbnoterase가 false여야 동작하며, 이게 트루인 경우에는 mbtobeerase만 변경. mbtobeerase는 setbadflag에서만 변경함. 
+						//mbnoterase는 loop 프레임 찾을 때 제대 매칭이 안된 경우 seterase에서만 false로 설정함.
+						//setbadflag는 리던던트 포인트가 많은 경우에만 호출
+						//seterase와 setnoterase 루프 클로징에서 호출.
 		void AddKF(UVR_SLAM::Frame* pKF, int weight);
 		void RemoveKF(Frame* pKF);
 		void RemoveKF(UVR_SLAM::Frame* pKF, int weight);
 		//std::vector<UVR_SLAM::Frame*> GetConnectedKFs();
 		std::vector<UVR_SLAM::Frame*> GetConnectedKFs(int n = 0);
+		std::set<UVR_SLAM::Frame*> GetConnectedKeyFrameSet(int n = 0);
 		std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> GetConnectedKFsWithWeight();
 ////////////////
 ////FrameGrid

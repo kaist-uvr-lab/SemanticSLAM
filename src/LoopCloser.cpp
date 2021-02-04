@@ -1,13 +1,25 @@
 #include "LoopCloser.h"
 #include "Frame.h"
+#include <MapPoint.h>
 #include "System.h"
+#include <Converter.h>
 #include <Matcher.h>
 #include <KeyframeDatabase.h>
+#include <Sim3Solver.h>
+#include <Optimization.h>
 #include "Map.h"
+
+/*
+프레임의 seterase, setnoterase, setbadflag 관련된 처리가 아직 안되어있음.
+matcher의 SearchBySim3 구현
+CorrectLoop 관련 구현 필요
+SearchAndFuse 구현 필요
+matcher의 fuse 구현 필요
+*/
 
 namespace UVR_SLAM {
 	LoopCloser::LoopCloser() {}
-	LoopCloser::LoopCloser(System* pSys, int w, int h, cv::Mat K):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mbProcessing(false){
+	LoopCloser::LoopCloser(System* pSys, int w, int h, cv::Mat K):mpSystem(pSys), mbFixScale(false), mnWidth(w), mnHeight(h), mK(K), mbProcessing(false), mnCovisibilityConsistencyTh(3){
 	}
 	LoopCloser::~LoopCloser() {}
 	void LoopCloser::Init() {
@@ -26,8 +38,10 @@ namespace UVR_SLAM {
 				ProcessNewKeyFrame();
 
 				if (DetectLoop()) {
+					std::cout << "Loop Frame Detection!!" << std::endl;
 					if (ComputeSim3())
 					{
+						std::cout << "Loop Closing!!" << std::endl;
 						CorrectLoop();
 					}
 				}
@@ -95,15 +109,274 @@ namespace UVR_SLAM {
 		}
 
 		auto vpCandidateKFs = mpKeyFrameDatabase->DetectLoopCandidates(mpTargetFrame, minScore);
-		
-		
+		if(vpCandidateKFs.empty())
+		{
+			
+			mvConsistentGroups.clear();
+			//mpKeyFrameDB->add(mpCurrentKF);
+			//mpCurrentKF->SetErase();
+			return false;
+		}
+		mvpEnoughConsistentCandidates.clear();
+
+		//하나의 ConsistentGroup은 frame의 집합과 int(해당 그룹과 연결된 그룹의 수를 의미)로 구성. ConsistentGroup의 벡터
+		//mvConsistentGroup 내의 각 그룹들은 서로 연결되지 않음.
+		//갑자기 한번 많이 매칭된 프레임이 아닌 지속적으로 매칭이 되어야 루프 프레임을 선택. 다만, 무조건 동일한 프레임이 아닌 다른 프레임과 연결된 경우에도 가능함.
+		std::vector<ConsistentGroup> vCurrentConsistentGroups;
+		std::vector<bool> vbConsistentGroup(mvConsistentGroups.size(), false);
+		for (size_t i = 0, iend = vpCandidateKFs.size(); i<iend; i++)
+		{
+			Frame* pCandidateKF = vpCandidateKFs[i];
+			
+			//bow vector를 이용해서 획득한 후보 키프레임 들의 연결된 프레임을 본인 포함해서 캔디데이트 그룹으로 설정
+			//이게 현재 키프레임에 대한 ConsistentGroup,이며 프레임 집합
+			std::set<Frame*> spCandidateGroup = pCandidateKF->GetConnectedKeyFrameSet();
+			spCandidateGroup.insert(pCandidateKF);
+
+			bool bEnoughConsistent = false;
+			bool bConsistentForSomeGroup = false;
+			//현재 연결된 모든 ConsistentGroup를 체크함.
+			for (size_t iG = 0, iendG = mvConsistentGroups.size(); iG<iendG; iG++)
+			{
+				//현재 검색하고자 하는 ConsistentGroup의 프레임 집합
+				std::set<Frame*> sPreviousGroup = mvConsistentGroups[iG].first;
+
+				bool bConsistent = false;
+				for (std::set<Frame*>::iterator sit = spCandidateGroup.begin(), send = spCandidateGroup.end(); sit != send; sit++)
+				{
+					//이전 ConsistentGroup 그룹 중에 현재 키프레임의 ConsistentGroup과 겹치는게 있는지 찾고 있으면 바로 스탑
+					if (sPreviousGroup.count(*sit))
+					{
+						bConsistent = true;
+						bConsistentForSomeGroup = true;
+						break;
+					}
+				}
+				//ConsistentGroup을 찾은 경우
+				if (bConsistent)
+				{
+					//현재 키프레임의 ConsistentGroup 벡터에 연결 정보를 갱신한 후 추가. 
+					//후보 프레임이 일정 조건을 찾으면 방금 찾은 그룹에 아예 추가. 이 과정은 후보 프레임들마다 딱 한번만 수행 됨
+					//3개의 프레임과 연결되면 됨.
+					int nPreviousConsistency = mvConsistentGroups[iG].second;
+					int nCurrentConsistency = nPreviousConsistency + 1;
+					if (!vbConsistentGroup[iG])
+					{
+						ConsistentGroup cg = make_pair(spCandidateGroup, nCurrentConsistency);
+						vCurrentConsistentGroups.push_back(cg);
+						vbConsistentGroup[iG] = true; //this avoid to include the same group more than once
+					}
+					if (nCurrentConsistency >= mnCovisibilityConsistencyTh && !bEnoughConsistent)
+					{
+						mvpEnoughConsistentCandidates.push_back(pCandidateKF);
+						bEnoughConsistent = true; //this avoid to insert the same candidate more than once
+					}
+				}
+			}
+
+			//현재 검색중인 후보 프레임과 연결되는 ConsistentGroup이 없으면 0으로 설정
+			// If the group is not consistent with any previous group insert with consistency counter set to zero
+			if (!bConsistentForSomeGroup)
+			{
+				ConsistentGroup cg = make_pair(spCandidateGroup, 0);
+				vCurrentConsistentGroups.push_back(cg);
+			}
+		}
+
+		// Update Covisibility Consistent Groups
+		mvConsistentGroups = vCurrentConsistentGroups;
+
+
+		// Add Current Keyframe to database
+		if (mvpEnoughConsistentCandidates.empty())
+		{
+			//mpCurrentKF->SetErase();
+			return false;
+		}
+		else
+		{
+			return true;
+		}
+
+		//mpCurrentKF->SetErase();
 		return false;
 	}
 	bool LoopCloser::ComputeSim3() {
-		return false;
+		
+		////후보 루프 프레임의 Sim3 계산
+		const int nInitialCandidates = mvpEnoughConsistentCandidates.size();
+		std::vector<Sim3Solver*> vpSim3Solvers;
+		vpSim3Solvers.resize(nInitialCandidates);
+
+		//map point의 2차원 벡터로 현재 타겟 프레임과 후보 루프 프레임 사이의 매칭 정보를 저장함.
+		//따라서 타겟 프레임의 포인트 사이즈 x 후보 루프 프레임 수가 크기가 됨
+		std::vector<std::vector<MapPoint*> > vvpMapPointMatches;
+		vvpMapPointMatches.resize(nInitialCandidates);
+		
+		std::vector<bool> vbDiscarded;
+		vbDiscarded.resize(nInitialCandidates);
+
+		int nCandidates = 0; //candidates with enough matches
+
+		for (int i = 0; i<nInitialCandidates; i++)
+		{
+			Frame* pKF = mvpEnoughConsistentCandidates[i];
+
+			// avoid that local mapping erase it while it is being processed in this thread
+			//pKF->SetNotErase();
+
+			if (pKF->isDeleted())
+			{
+				vbDiscarded[i] = true;
+				continue;
+			}
+
+			////bow 기반 매칭
+			int nmatches = mpMatcher->BagOfWordsMatching(mpTargetFrame, pKF, vvpMapPointMatches[i]);
+			if (nmatches<20)
+			{
+				vbDiscarded[i] = true;
+				continue;
+			}
+			else
+			{
+				//두 프레임의 자세와 매칭 정보를 RANSAC을 이용해서 Sim3Solver 설정
+				Sim3Solver* pSolver = new Sim3Solver(mpTargetFrame, pKF, vvpMapPointMatches[i], mbFixScale);
+				pSolver->SetRansacParameters(0.99, 20, 300);
+				vpSim3Solvers[i] = pSolver;
+			}
+
+			nCandidates++;
+		}
+		bool bMatch = false;
+
+		// Perform alternatively RANSAC iterations for each candidate
+		// until one is succesful or all fail
+		while (nCandidates>0 && !bMatch)
+		{
+			for (int i = 0; i<nInitialCandidates; i++)
+			{
+				if (vbDiscarded[i])
+					continue;
+
+				Frame* pKF = mvpEnoughConsistentCandidates[i];
+
+				// Perform 5 Ransac Iterations
+				std::vector<bool> vbInliers;
+				int nInliers;
+				bool bNoMore;
+
+				Sim3Solver* pSolver = vpSim3Solvers[i];
+				cv::Mat Scm = pSolver->iterate(5, bNoMore, vbInliers, nInliers);
+
+				// If Ransac reachs max. iterations discard keyframe
+				if (bNoMore)
+				{
+					vbDiscarded[i] = true;
+					nCandidates--;
+				}
+
+				// If RANSAC returns a Sim3, perform a guided matching and optimize with all correspondences
+				if (!Scm.empty())
+				{
+					std::vector<MapPoint*> vpMapPointMatches(vvpMapPointMatches[i].size(), static_cast<MapPoint*>(NULL));
+					for (size_t j = 0, jend = vbInliers.size(); j<jend; j++)
+					{
+						if (vbInliers[j])
+							vpMapPointMatches[j] = vvpMapPointMatches[i][j];
+					}
+
+					cv::Mat R = pSolver->GetEstimatedRotation();
+					cv::Mat t = pSolver->GetEstimatedTranslation();
+					const float s = pSolver->GetEstimatedScale();
+					
+					//matcher.SearchBySim3(mpTargetFrame, pKF, vpMapPointMatches, s, R, t, 7.5);
+
+					g2o::Sim3 gScm(Converter::toMatrix3d(R), Converter::toVector3d(t), s);
+					const int nInliers = Optimization::OptimizeSim3(mpTargetFrame, pKF, vpMapPointMatches, gScm, 10, mbFixScale);
+
+					// If optimization is succesful stop ransacs and continue
+					if (nInliers >= 20)
+					{
+						bMatch = true;
+						mpMatchedKF = pKF;
+						g2o::Sim3 gSmw(Converter::toMatrix3d(pKF->GetRotation()), Converter::toVector3d(pKF->GetTranslation()), 1.0);
+						mg2oScw = gScm*gSmw;
+						mScw = Converter::toCvMat(mg2oScw);
+
+						mvpCurrentMatchedPoints = vpMapPointMatches;
+						break;
+					}
+				}
+			}
+		}
+
+		////Erase 관련 
+		if (!bMatch)
+		{
+			/*for (int i = 0; i<nInitialCandidates; i++)
+				mvpEnoughConsistentCandidates[i]->SetErase();
+			mpCurrentKF->SetErase();*/
+			return false;
+		}
+
+		// Retrieve MapPoints seen in Loop Keyframe and neighbors
+		std::vector<Frame*> vpLoopConnectedKFs = mpMatchedKF->GetConnectedKFs();
+		vpLoopConnectedKFs.push_back(mpMatchedKF);
+		mvpLoopMapPoints.clear();
+		for (std::vector<Frame*>::iterator vit = vpLoopConnectedKFs.begin(); vit != vpLoopConnectedKFs.end(); vit++)
+		{
+			Frame* pKF = *vit;
+			std::vector<MapPoint*> vpMapPoints = pKF->GetMapPoints();
+			for (size_t i = 0, iend = vpMapPoints.size(); i<iend; i++)
+			{
+				MapPoint* pMP = vpMapPoints[i];
+				if (pMP)
+				{
+					if (!pMP->isDeleted() && pMP->mnLoopID != mpTargetFrame->mnKeyFrameID)
+					{
+						mvpLoopMapPoints.push_back(pMP);
+						pMP->mnLoopID = mpTargetFrame->mnKeyFrameID;
+					}
+				}
+			}
+		}
+
+		//// Find more matches projecting with the computed Sim3
+		//matcher.SearchByProjection(mpCurrentKF, mScw, mvpLoopMapPoints, mvpCurrentMatchedPoints, 10);
+
+		//// If enough matches accept Loop
+		int nTotalMatches = 0;
+		for (size_t i = 0; i<mvpCurrentMatchedPoints.size(); i++)
+		{
+			if (mvpCurrentMatchedPoints[i])
+				nTotalMatches++;
+		}
+
+		if (nTotalMatches >= 40)
+		{
+			/*for (int i = 0; i<nInitialCandidates; i++)
+				if (mvpEnoughConsistentCandidates[i] != mpMatchedKF)
+					mvpEnoughConsistentCandidates[i]->SetErase();*/
+			return true;
+		}
+		else
+		{
+			/*for (int i = 0; i<nInitialCandidates; i++)
+				mvpEnoughConsistentCandidates[i]->SetErase();
+			mpCurrentKF->SetErase();*/
+			return false;
+		}
 	}
 	void LoopCloser::CorrectLoop() {
 		
+		////로컬 매핑에 스탑 요청
+
+		////GBA 동작 멈추기 && 구현하기
+
+		////KF update connection 구현 및 관리 필요
+
+
 	}
 	void LoopCloser::SearchAndFuse(const KeyFrameAndPose &CorrectedPosesMap) {
 
