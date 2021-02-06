@@ -1,12 +1,11 @@
 #include <WebAPI.h>
 #include <winsock2.h>
 
-WebAPI::WebAPI(std::string a, int b):ip(a), port(b), count(0), datastream(""){}
+WebAPI::WebAPI(std::string a, int b):ip(a), port(b), datastream(""){}
 WebAPI::~WebAPI() {}
 
 const char* WebAPI::headers[] = {
 	"Connection", "close",
-	//"Content-type", "application/json",
 	"Content-type", "application/json",
 	"Accept", "text/plain",
 	0
@@ -20,9 +19,6 @@ void WebAPI::Init() {
 
 void OnBegin(const happyhttp::Response* r, void* userdata)
 {
-	/*datastream.str("");
-	count = 0;*/
-	//((std::stringstream)*userdata)
 	static_cast<std::stringstream*>(userdata)->str("");
 }
 
