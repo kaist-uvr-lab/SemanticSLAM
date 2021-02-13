@@ -39,10 +39,6 @@ UVR_SLAM::SemanticSegmentator::SemanticSegmentator(System* pSys, const std::stri
 	mbOn = static_cast<int>(fSettings["Segmentator.on"]) != 0;
 	ip = fSettings["Segmentator.ip"];
 	port = fSettings["Segmentator.port"];
-	mnWidth = fSettings["Image.width"];
-	mnHeight = fSettings["Image.height"];
-	cx = fSettings["Camera.cx"];
-	cy = fSettings["Camera.cy"];
 	fSettings.release();
 	/*mVecLabelColors.push_back(COLOR_FLOOR);
 	mVecLabelColors.push_back(COLOR_WALL);
@@ -85,6 +81,8 @@ void UVR_SLAM::SemanticSegmentator::Init() {
 	mpVisualizer = mpSystem->mpVisualizer;
 	mpLBPProcessor = mpSystem->mpLBPProcessor;
 	mpDatabase = mpSystem->mpDatabase;
+	mnWidth = mpSystem->mnWidth;
+	mnHeight = mpSystem->mnHeight;
 }
 
 unsigned long long ConvertID(cv::Mat hist, int numPatterns, int numIDs) {
@@ -175,12 +173,12 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 	while (1) {
 		std::string mStrDirPath;
 
-		auto lambda_api_match = [](std::string ip, int port, int id1, int id2) {
+		auto lambda_api_match = [](std::string ip, int port, int id1, int id2, int n) {
 			std::vector<int> matches;
 			cv::Mat res;
 			WebAPI* api = new WebAPI(ip, port);
 			std::cout << "lambda = " << id1 << ", " << id2 << "= start" << std::endl;
-			WebAPIDataConverter::ConvertStringToLabels(api->Send("match", WebAPIDataConverter::ConvertNumberToString(id1, id2)).c_str(), matches);
+			WebAPIDataConverter::ConvertStringToMatches(api->Send("match", WebAPIDataConverter::ConvertNumberToString(id1, id2)).c_str(), n, matches);
 			std::cout << "lambda = " << id1 << ", " << id2 << "= end = " << matches.size() << std::endl;
 
 			////µð¹ö±ë

@@ -32,29 +32,15 @@ mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), md
 	matFrame.convertTo(matFrame, CV_8UC1);
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
-	////////////canny
-	//cv::Mat filtered;
-	//GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
-	//cv::Canny(filtered, mEdgeImg, 50, 200);
-	//for (int y = 0; y < matFrame.rows; y++) {
-	//	for (int x = 0; x < matFrame.cols; x++) {
-	//		if (mEdgeImg.at<uchar>(y, x) > 0)
-	//			mvEdgePts.push_back(cv::Point2f(x, y));
-	//	}
-	//}
-	////////////canny
 	mnFrameID = UVR_SLAM::System::nFrameID++;
-
-	////피라미드 적용
-	/*mvPyramidImages.push_back(matOri);
-	int level = 3;
-	for (int i = 1; i < level; i++) {
-		int a = i * 2;
-		cv::Mat resized1, resized2;
-		cv::resize(matOri, resized1, cv::Size(w / a, h / a));
-		mvPyramidImages.push_back(resized1);
-	}*/
-	////피라미드 적용
+}
+////매핑 서버에서 생성
+UVR_SLAM::Frame::Frame(System* pSys, int id, int w, int h, cv::Mat K, double ts):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
+mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMedianDepth(0.0),
+mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts){
+	R = cv::Mat::eye(3, 3, CV_32FC1);
+	t = cv::Mat::zeros(3, 1, CV_32FC1);
+	mnFrameID = id;
 }
 
 UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),

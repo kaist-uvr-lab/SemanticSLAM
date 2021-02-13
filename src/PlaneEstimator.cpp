@@ -17,7 +17,7 @@ static int nPlaneID = 0;
 
 UVR_SLAM::PlaneEstimator::PlaneEstimator() :mbDoingProcess(false), mpTempFrame(nullptr), mnProcessType(0), mpLayoutFrame(nullptr){
 }
-UVR_SLAM::PlaneEstimator::PlaneEstimator(System* pSys, std::string strPath,cv::Mat K, cv::Mat K2, int w, int h) : mpSystem(pSys), mK(K), mK2(K2),mbDoingProcess(false), mpTempFrame(nullptr), mnWidth(w), mnHeight(h), mnProcessType(0), mpLayoutFrame(nullptr),
+UVR_SLAM::PlaneEstimator::PlaneEstimator(System* pSys, std::string strPath) : mpSystem(pSys), mbDoingProcess(false), mpTempFrame(nullptr), mnProcessType(0), mpLayoutFrame(nullptr),
 mpPrevFrame(nullptr), mpPPrevFrame(nullptr), mpTargetFrame(nullptr)
 {
 	cv::FileStorage fSettings(strPath, cv::FileStorage::READ);
@@ -32,12 +32,16 @@ mpPrevFrame(nullptr), mpPPrevFrame(nullptr), mpTargetFrame(nullptr)
 	//mnConnect = fSettings["Layout.nconnect"];
 	fSettings.release();
 	mpFloorPlaneInformation = new PlaneInformation();
-	}
+}
 void UVR_SLAM::PlaneEstimator::Init() {
 	mpMap = mpSystem->mpMap;
 	mpVisualizer = mpSystem->mpVisualizer;
 	mpMatcher = mpSystem->mpMatcher;
 	mpInitializer = mpSystem->mpInitializer;
+	mK = mpSystem->mK.clone();
+	mK2 = mpSystem->mKforPL.clone();
+	mnWidth = mpSystem->mnWidth;
+	mnHeight = mpSystem->mnHeight;
 }
 UVR_SLAM::PlaneInformation::PlaneInformation() {
 	mbInit = false;

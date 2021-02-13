@@ -16,7 +16,7 @@ namespace UVR_SLAM {
 	class FrameVisualizer {
 	public:
 		FrameVisualizer();
-		FrameVisualizer(System* pSystem, int w, int h, cv::Mat K);
+		FrameVisualizer(System* pSystem);
 		void Init();
 		virtual ~FrameVisualizer();
 

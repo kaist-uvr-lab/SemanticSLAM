@@ -116,7 +116,7 @@ namespace UVR_SLAM {
 	class PlaneEstimator {
 	public:
 		PlaneEstimator();
-		PlaneEstimator(System* pSys, std::string strPath, cv::Mat K, cv::Mat K2,int w, int h);
+		PlaneEstimator(System* pSys, std::string strPath);
 		void Init();
 		virtual ~PlaneEstimator();
 	public:

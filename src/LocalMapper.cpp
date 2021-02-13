@@ -26,30 +26,19 @@
 #include <WebAPI.h>
 
 UVR_SLAM::LocalMapper::LocalMapper(){}
-UVR_SLAM::LocalMapper::LocalMapper(System* pSystem, std::string strPath, int w, int h):mnWidth(w), mnHeight(h), mbStopBA(false), mbDoingProcess(false), mbStopLocalMapping(false), mpTempFrame(nullptr),mpTargetFrame(nullptr), mpPrevKeyFrame(nullptr), mpPPrevKeyFrame(nullptr){
+UVR_SLAM::LocalMapper::LocalMapper(System* pSystem):mbStopBA(false), mbDoingProcess(false), mbStopLocalMapping(false), mpTempFrame(nullptr),mpTargetFrame(nullptr), mpPrevKeyFrame(nullptr), mpPPrevKeyFrame(nullptr){
 	mpSystem = pSystem;
-
-	cv::FileStorage fs(strPath, cv::FileStorage::READ);
-
-	float fx = fs["Camera.fx"];
-	float fy = fs["Camera.fy"];
-	float cx = fs["Camera.cx"];
-	float cy = fs["Camera.cy"];
-
-	fs.release();
-
-	mK = cv::Mat::eye(3, 3, CV_32F);
-	mK.at<float>(0, 0) = fx;
-	mK.at<float>(1, 1) = fy;
-	mK.at<float>(0, 2) = cx;
-	mK.at<float>(1, 2) = cy;
-
-	mInvK = mK.inv();
 	mnThreshMinKF = mpSystem->mnThreshMinKF;
 }
 UVR_SLAM::LocalMapper::~LocalMapper() {}
 
 void UVR_SLAM::LocalMapper::Init() {
+
+	mK = mpSystem->mK.clone();
+	mInvK = mpSystem->mInvK.clone();
+	mnWidth = mpSystem->mnWidth;
+	mnHeight = mpSystem->mnHeight;
+
 	mpMap = mpSystem->mpMap;
 	mpMatcher = mpSystem->mpMatcher;
 	mpMapOptimizer = mpSystem->mpMapOptimizer;
@@ -92,7 +81,7 @@ void UVR_SLAM::LocalMapper::AcquireFrame() {
 		mpTempFrame = mKFQueue.front();
 		mKFQueue.pop();
 	}
-	mpTempFrame->Init(mpSystem->mpORBExtractor, mpSystem->mK, mpSystem->mD);
+	//mpTempFrame->Init(mpSystem->mpORBExtractor, mpSystem->mK, mpSystem->mD);
 }
 
 void UVR_SLAM::LocalMapper::ProcessNewKeyFrame()
@@ -136,6 +125,292 @@ void UVR_SLAM::LocalMapper::Reset() {
 	mpPPrevKeyFrame = nullptr;
 }
 
+namespace UVR_SLAM {
+	auto lambda_api_kf_match = [](std::string ip, int port, int id1, int id2, int n) {
+
+		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+		WebAPI* mpAPI = new WebAPI(ip, port);
+		auto res = mpAPI->Send("featurematch", WebAPIDataConverter::ConvertNumberToString(id1, id2));
+		cv::Mat matches;
+		WebAPIDataConverter::ConvertStringToMatches(res.c_str(), n, matches);
+		std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+		auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+		float t_test1 = du_test1 / 1000.0;
+		std::cout << "api::featurematch=" << t_test1 << std::endl;
+		return matches;
+	};
+
+	auto lambda_api_create_mp = []
+	(cv::Point2f prevPt, cv::Point2f currPt, 
+		cv::Mat Rprev, cv::Mat Tprev, cv::Mat Rtprev, cv::Mat Pprev, 
+		cv::Mat Rcurr, cv::Mat Tcurr, cv::Mat Rtcurr, cv::Mat Pcurr,
+		Map* pMap, Frame* pCurr, cv::Mat desc, cv::Mat mK, cv::Mat mInvK) {
+		cv::Mat xn1 = (cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
+		cv::Mat xn2 = (cv::Mat_<float>(3, 1) << currPt.x, currPt.y, 1.0);
+		cv::Mat ray1 = Rtprev*mInvK*xn1;
+		cv::Mat ray2 = Rtcurr*mInvK*xn2;
+		float cosParallaxRays = ray1.dot(ray2) / (cv::norm(ray1)*cv::norm(ray2));
+
+		bool bParallax = cosParallaxRays < 0.9998;
+
+		cv::Mat A(4, 4, CV_32F);
+		A.row(0) = prevPt.x*Pprev.row(2) - Pprev.row(0);
+		A.row(1) = prevPt.y*Pprev.row(2) - Pprev.row(1);
+		A.row(2) = currPt.x*Pcurr.row(2) - Pcurr.row(0);
+		A.row(3) = currPt.y*Pcurr.row(2) - Pcurr.row(1);
+
+		cv::Mat u, w, vt;
+		cv::SVD::compute(A, w, u, vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+		cv::Mat x3D = vt.row(3).t();
+		x3D = x3D.rowRange(0, 3) / x3D.at<float>(3);
+		cv::Point2f pt1, pt2;
+		bool bDepth1, bDepth2;
+		bool bDist1, bDist2;
+
+		float thresh = 9.0;
+		{
+			cv::Mat Xcam = Rprev * x3D + Tprev;
+			cv::Mat Ximg = mK*Xcam;
+			float fDepth = Ximg.at < float>(2);
+			bDepth1 = fDepth > 0.0;
+			pt1 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
+			auto diffPt = pt1 - prevPt;
+			float dist = diffPt.dot(diffPt);
+			bDist1 = dist < thresh;
+		}
+		{
+			cv::Mat Xcam = Rcurr * x3D + Tcurr;
+			cv::Mat Ximg = mK*Xcam;
+			float fDepth = Ximg.at < float>(2);
+			bDepth2 = fDepth > 0.0;
+			pt2 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
+			auto diffPt = pt2 - currPt;
+			float dist = diffPt.dot(diffPt);
+			bDist2 = dist < thresh;
+		}
+		MapPoint* res = nullptr;
+		if (bDist1 && bDepth1 && bDist2 && bDepth2) {
+			pMap->AddTempMP(x3D);
+			res = new UVR_SLAM::MapPoint(pMap, pCurr, x3D, desc, 0);
+		}
+		return res;
+	};
+
+	/*
+	if (!bMP1 && !bMP2) {
+		////parallax check
+		cv::Mat xn1 = (cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
+		cv::Mat xn2 = (cv::Mat_<float>(3, 1) << currPt.x, currPt.y, 1.0);
+		cv::Mat ray1 = Rtprev*mInvK*xn1;
+		cv::Mat ray2 = Rtcurr*mInvK*xn2;
+		float cosParallaxRays = ray1.dot(ray2) / (cv::norm(ray1)*cv::norm(ray2));
+
+		////projection
+		bool bParallax = cosParallaxRays < 0.9998;
+	
+		cv::Mat A(4, 4, CV_32F);
+		A.row(0) = prevPt.x*Pprev.row(2) - Pprev.row(0);
+		A.row(1) = prevPt.y*Pprev.row(2) - Pprev.row(1);
+		A.row(2) = currPt.x*Pcurr.row(2) - Pcurr.row(0);
+		A.row(3) = currPt.y*Pcurr.row(2) - Pcurr.row(1);
+
+		cv::Mat u, w, vt;
+		cv::SVD::compute(A, w, u, vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+		cv::Mat x3D = vt.row(3).t();
+		x3D = x3D.rowRange(0, 3) / x3D.at<float>(3);
+		cv::Point2f pt1, pt2;
+		bool bDepth1, bDepth2;
+		bool bDist1, bDist2;
+		float thresh = 9.0;
+		{
+			cv::Mat Xcam = Rprev * x3D + Tprev;
+			cv::Mat Ximg = mK*Xcam;
+			float fDepth = Ximg.at < float>(2);
+			bDepth1 = fDepth > 0.0;
+			pt1 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
+			auto diffPt = pt1 - prevPt;
+			float dist = diffPt.dot(diffPt);
+			bDist1 = dist < thresh;
+		}
+		{
+			cv::Mat Xcam = Rcurr * x3D + Tcurr;
+			cv::Mat Ximg = mK*Xcam;
+			float fDepth = Ximg.at < float>(2);
+			bDepth2 = fDepth > 0.0;
+			pt2 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
+			auto diffPt = pt2 - currPt;
+			float dist = diffPt.dot(diffPt);
+			bDist2 = dist < thresh;
+		}
+		if (!bParallax) {
+			//cv::circle(debug_glue, currPt, 3, cv::Scalar(255, 0, 255), -1);
+			//cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(255, 0, 255), -1);
+			nParallax++;
+		}
+		else if (!bDepth1 || !bDepth2) {
+			nDepth++;
+		}
+		else if (!bDist1 || !bDist2) {
+			nProjection++;
+		}
+		else if (bDist1 && bDepth1 && bDist2 && bDepth2) { //bParallax && 
+														   //cv::circle(debug_glue, currPt, 3, cv::Scalar(0, 255, 255), -1);
+														   //cv::circle(debug_glue, prevPt + ptBottom, 3, cv::Scalar(0, 255, 255), -1);
+														   //mpMap->AddTempMP(x3D);
+
+			auto pNewMP = new UVR_SLAM::MapPoint(mpMap, pKFtarget, x3D, cv::Mat(), 0);
+			pNewMP->SetOptimization(true);
+			mpSystem->mlpNewMPs.push_back(pNewMP);
+
+			pKFtarget->AddMapPoint(pNewMP, idx1);
+			pNewMP->AddObservation(pKFtarget, idx1);
+
+			pKF->AddMapPoint(pNewMP, idx2);
+			pNewMP->AddObservation(pKF, idx2);
+
+			pNewMP->IncreaseFound(2);
+			pNewMP->IncreaseVisible(2);
+			//mpMap->AddTempMP(x3D);
+			nCreate++;
+		}
+		else {
+		}
+	}//if !bMP1 && !bMP2
+
+
+	*/
+}
+
+void UVR_SLAM::LocalMapper::RunWithMappingServer() {
+	std::cout << "MappingServer::LocalMapper::Start" << std::endl;
+	while (true) {
+		////이전 키프레임과 연결
+		////맵포인트 마지날라이제이션
+		////새 맵포인트 생성
+		////퓨즈
+		if (CheckNewKeyFrames()) {
+			std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+			std::cout << "MappingServer::LocalMapper::Start" << std::endl;
+			AcquireFrame();
+			ProcessNewKeyFrame();
+			NewMapPointMarginalization();
+			ComputeNeighborKFs(mpTargetFrame);
+			ConnectNeighborKFs(mpTargetFrame, mpTargetFrame->mmKeyFrameCount, 20);
+
+			auto vpKFs = mpTargetFrame->GetConnectedKFs(8);
+			cv::Mat mMatches = cv::Mat::zeros(0, mpTargetFrame->mvPts.size(), CV_32SC1);
+			
+			std::async(std::launch::async, [](std::string ip, int port, Frame* pF) {
+				WebAPI* mpAPI = new WebAPI(ip, port);
+				auto strID = WebAPIDataConverter::ConvertNumberToString(pF->mnFrameID);
+				WebAPIDataConverter::ConvertStringToDesc(mpAPI->Send("getDesc", strID).c_str(), pF->mvPts.size(), pF->matDescriptor);
+				pF->ComputeBoW();
+			}, "143.248.96.81", 35005, mpTargetFrame);
+
+			std::vector<cv::Mat> Rs, Ts, Ps, Rts;
+			for (size_t i = 0, iend = vpKFs.size(); i < iend; i++) {
+				auto pKF = vpKFs[i];
+				/*auto ftest = std::async(std::launch::async, UVR_SLAM::lambda_api_kf_match, "143.248.96.81", 35005, mpTargetFrame->mnFrameID, pKF->mnFrameID, mpTargetFrame->mvPts.size());
+				cv::Mat temp = ftest.get();*/
+				cv::Mat temp = UVR_SLAM::lambda_api_kf_match("143.248.96.81", 35005, mpTargetFrame->mnFrameID, pKF->mnFrameID, mpTargetFrame->mvPts.size());
+				mMatches.push_back(temp);
+			
+				cv::Mat Rprev, Tprev, Pprev;
+				pKF->GetPose(Rprev, Tprev);
+				cv::hconcat(Rprev, Tprev, Pprev);
+				Pprev = mK*Pprev;
+				Rs.push_back(Rprev);
+				Ts.push_back(Tprev);
+				Ps.push_back(Pprev);
+				Rts.push_back(Rprev.t());
+			}
+			
+			cv::Mat Rcurr, Tcurr, Pcurr;
+			mpTargetFrame->GetPose(Rcurr, Tcurr);
+			cv::hconcat(Rcurr, Tcurr, Pcurr);
+			Pcurr = mK*Pcurr;
+			cv::Mat Rtcurr = Rcurr.t();
+			
+			int nNewMP = 0;
+			mpMap->ClearTempMPs();
+			for (int c = 0, cols = mMatches.cols; c < cols; c++) {
+				std::set<MapPoint*> spMPs; //커넥션 수로 정렬하도록 변경하기
+				std::vector<std::pair<int, int>> vPairMatches; //idx, pkf
+				for (int r = 0, rows = mMatches.rows; r < rows; r++) {
+					int idx = mMatches.at<int>(r, c);
+					if (idx == -1)
+						continue;
+					auto pKF = vpKFs[r];
+					auto pMP = pKF->GetMapPoint(idx);
+					if (pMP && !pMP->isDeleted()) {
+						spMPs.insert(pMP);
+					}
+					vPairMatches.push_back(std::make_pair(idx, r));
+				}
+				//MP 커넥트, && 생성
+				if (spMPs.size() == 0) {
+					//생성 & connect
+					int nSize = vPairMatches.size();
+					if (nSize == 0)
+						 continue;
+					auto pair = vPairMatches[nSize - 1];
+					auto pKF = vpKFs[pair.second];
+					int kID = pair.second;
+					auto prevPt = pKF->mvPts[pair.first];
+					auto currPt = mpTargetFrame->mvPts[c];
+
+					auto pNewMP = lambda_api_create_mp(prevPt, currPt, Rs[kID], Ts[kID], Rts[kID], Ps[kID], Rcurr, Tcurr, Rtcurr, Pcurr, mpMap, mpTargetFrame, mpTargetFrame->matDescriptor.row(c), mK, mInvK);
+					if (pNewMP) {
+
+						nNewMP++;
+						mpSystem->mlpNewMPs.push_back(pNewMP);
+						mpTargetFrame->AddMapPoint(pNewMP, c);
+						pNewMP->AddObservation(mpTargetFrame, c);
+						pNewMP->IncreaseFound();
+						pNewMP->IncreaseVisible();
+
+						for (size_t i = 0, iend = vPairMatches.size(); i < iend; i++) {
+							int idx = vPairMatches[i].first;
+							auto pKF = vpKFs[vPairMatches[i].second];
+							pNewMP->AddObservation(pKF, idx);
+							pKF->AddMapPoint(pNewMP, idx);
+							pNewMP->IncreaseFound();
+							pNewMP->IncreaseVisible();
+						}//pair
+						
+					}
+				}
+				else{
+					if (spMPs.size() > 1) {
+						//error case
+					}
+					auto pMP = *spMPs.begin();
+
+					mpTargetFrame->AddMapPoint(pMP, c);
+					pMP->AddObservation(mpTargetFrame, c);
+					pMP->IncreaseFound();
+					pMP->IncreaseVisible();
+
+					for (size_t i = 0, iend = vPairMatches.size(); i < iend; i++) {
+						int idx  = vPairMatches[i].first;
+						auto pKF = vpKFs[vPairMatches[i].second];
+						pMP->AddObservation(pKF, idx);
+						pKF->AddMapPoint(pMP, idx);
+						pMP->IncreaseFound();
+						pMP->IncreaseVisible();
+					}//pair
+				}//if mps
+			}//for match
+
+			mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
+			std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+
+			auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+			float t_test1 = du_test1 / 1000.0;
+			std::cout << "MappingServer::LocalMapping::End::" << nNewMP <<"::"<< t_test1 << std::endl;
+		}
+	}
+}
 void UVR_SLAM::LocalMapper::Run() {
 	
 	int nMinMapPoints = 1000;
@@ -153,15 +428,81 @@ void UVR_SLAM::LocalMapper::Run() {
 
 	auto lambda_api_detect = [](std::string ip, int port, Frame* pCurr) {
 		//std::cout << "api::superpoint=" <<pCurr->mnFrameID << "=start" << std::endl;
-		//std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+		/*std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 		WebAPI* mpAPI = new WebAPI(ip, port);
 		mpAPI->Send("receiveimage", WebAPIDataConverter::ConvertImageToString(pCurr->GetOriginalImage(), pCurr->mnFrameID));
-		WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("detect", WebAPIDataConverter::ConvertNumberToString(pCurr->mnFrameID)).c_str(), pCurr->mvPts, pCurr->matDescriptor);
+		std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+		std::vector<cv::Point2f> aa;
+		WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("detectWithDesc", WebAPIDataConverter::ConvertNumberToString(pCurr->mnFrameID)).c_str(), aa, pCurr->matDescriptor);
+		std::chrono::high_resolution_clock::time_point end2 = std::chrono::high_resolution_clock::now();
 		pCurr->SetMapPoints(pCurr->mvPts.size());
-		/*std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+		
 		auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-		float t_test1 = du_test1 / 1000.0;*/
-		//std::cout << "api::superpoint=" << t_test1 << std::endl;
+		float t_test1 = du_test1 / 1000.0;
+		auto du_test2 = std::chrono::duration_cast<std::chrono::milliseconds>(end2 - end).count();
+		float t_test2 = du_test2 / 1000.0;
+		std::cout << "api::superpoint=" << t_test1<<", "<< t_test2<< std::endl;*/
+	};
+
+	auto lambda_api_DetectAndMatch = [](std::string ip, int port, Frame* pCurr, int id2) {
+		//std::cout << "api::superpoint=" <<pCurr->mnFrameID << "=start" << std::endl;
+		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+		WebAPI* mpAPI = new WebAPI(ip, port);
+		mpAPI->Send("receiveimage", WebAPIDataConverter::ConvertImageToString(pCurr->GetOriginalImage(), pCurr->mnFrameID));
+		std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+		int nRes;
+		auto strID = WebAPIDataConverter::ConvertNumberToString(pCurr->mnFrameID);
+		WebAPIDataConverter::ConvertStringToNumber(mpAPI->Send("detect", strID).c_str(), nRes);
+		WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("getPts", strID).c_str(), pCurr->mvPts);
+		std::chrono::high_resolution_clock::time_point endtemp = std::chrono::high_resolution_clock::now();
+		WebAPIDataConverter::ConvertStringToDesc(mpAPI->Send("getDesc", strID).c_str(), nRes, pCurr->matDescriptor);
+		std::chrono::high_resolution_clock::time_point end2 = std::chrono::high_resolution_clock::now();
+		
+		std::vector<int> matches;
+		WebAPIDataConverter::ConvertStringToMatches(mpAPI->Send("featurematch", WebAPIDataConverter::ConvertNumberToString(pCurr->mnFrameID, id2)).c_str(), nRes, matches);
+		std::chrono::high_resolution_clock::time_point end3 = std::chrono::high_resolution_clock::now();
+		
+		pCurr->SetMapPoints(nRes);
+		auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+		float t_test1 = du_test1 / 1000.0;
+		auto du_test2 = std::chrono::duration_cast<std::chrono::milliseconds>(endtemp - end).count();
+		float t_test2 = du_test2 / 1000.0;
+		auto du_test3 = std::chrono::duration_cast<std::chrono::milliseconds>(end3 - end2).count();
+		float t_test3 = du_test3 / 1000.0;
+		auto du_test4 = std::chrono::duration_cast<std::chrono::milliseconds>(end2 - endtemp).count();
+		float t_test4 = du_test4 / 1000.0;
+		std::cout << "api::superpoint and match=" << t_test1 << ", " << t_test2 <<", "<<t_test4<<", "<<t_test3<<"::"<< matches .size()<< std::endl;
+
+
+
+		return matches;
+	};
+
+	auto lambda_api_match = [](std::string ip, int port, int id1, int id2, int n) {
+		
+		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+		WebAPI* mpAPI = new WebAPI(ip, port);
+		auto res = mpAPI->Send("featurematch", WebAPIDataConverter::ConvertNumberToString(id1, id2));
+		std::vector<int> matches;
+		WebAPIDataConverter::ConvertStringToMatches(res.c_str(), n, matches);
+		std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+		auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+		float t_test1 = du_test1 / 1000.0;
+		std::cout << "api::featurematch=" << t_test1 << std::endl;
+		return matches;
+	};
+	auto lambda_api_get_desc = [](std::string ip, int port, Frame* pF) {
+
+		//std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+		//WebAPI* mpAPI = new WebAPI(ip, port);
+		//auto res = mpAPI->Send("getPts", WebAPIDataConverter::ConvertNumberToString(pF->mnFrameID));
+		//std::vector<cv::Point2f> test; //추후 삭제 
+		//WebAPIDataConverter::ConvertStringToPoints(res.c_str(), test);
+		////WebAPIDataConverter::ConvertStringToDesc(res.c_str(), pF->mvPts.size(), pF->matDescriptor);
+		//std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+		//auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+		//float t_test1 = du_test1 / 1000.0;
+		//std::cout << "api::get data=" << t_test1<<", "<< test.size() << std::endl;
 	};
 	cv::Ptr<cv::DescriptorMatcher> matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::FLANNBASED);
 
@@ -186,7 +527,32 @@ void UVR_SLAM::LocalMapper::Run() {
 			}
 
 			////포인트 검출 전에는 키프레임이 아님
-			auto f = std::async(std::launch::async, lambda_api_detect, ip, port, mpTempFrame);
+			//auto f = std::async(std::launch::async, lambda_api_detect, ip, port, mpTempFrame);
+			auto ftest = std::async(std::launch::async, lambda_api_DetectAndMatch, ip, port, mpTempFrame, mpTargetFrame->mnFrameID);
+
+			auto matches = ftest.get();
+			lambda_api_get_desc(ip, port, mpTempFrame);
+
+			cv::Mat debugMatch;
+			cv::Mat prevImg = mpTempFrame->GetOriginalImage().clone();
+			cv::Mat currImg = mpTargetFrame->GetOriginalImage().clone();
+			cv::Point2f ptBottom = cv::Point2f(prevImg.cols, 0);
+			cv::Rect mergeRect1 = cv::Rect(0, 0, prevImg.cols, prevImg.rows);
+			cv::Rect mergeRect2 = cv::Rect(prevImg.cols, 0, prevImg.cols, prevImg.rows);
+			debugMatch = cv::Mat::zeros(prevImg.rows, prevImg.cols * 2, prevImg.type());
+			prevImg.copyTo(debugMatch(mergeRect1));
+			currImg.copyTo(debugMatch(mergeRect2));
+
+			for (size_t i = 0, iend = matches.size(); i < iend; i++) {
+				int idx1 = i;
+				int idx2 = matches[i];
+				if (idx2 == -1)
+					continue;
+				auto pt1 = mpTempFrame->mvPts[idx1];
+				auto pt2 = mpTargetFrame->mvPts[idx2]+ptBottom;
+				cv::line(debugMatch, pt1, pt2, cv::Scalar(255, 0, 255), 1);
+			}
+			imshow("testeteststset", debugMatch); cv::waitKey(1);
 
 			//mpMap->ClearTempMPs();
 			if (bNeedNewKF) {
@@ -290,6 +656,9 @@ void UVR_SLAM::LocalMapper::Run() {
 							Pprev = mK*Pprev;
 							cv::Mat Rtcurr = Rcurr.t();
 							cv::Mat Rtprev = Rprev.t();
+
+							auto f2 = std::async(std::launch::async, lambda_api_match, ip, port, pKFtarget->mnFrameID, pKF->mnFrameID, pKFtarget->mvPts.size());
+
 
 							std::vector< std::vector<cv::DMatch> > knn_matches;
 							matcher->knnMatch(pKFtarget->matDescriptor, pKF->matDescriptor, knn_matches, 2);
@@ -448,6 +817,7 @@ void UVR_SLAM::LocalMapper::Run() {
 							 //}
 						}//for window keyframes
 
+						
 						NewMapPointMarginalization();
 						ComputeNeighborKFs(mpTargetFrame);
 						ConnectNeighborKFs(mpTargetFrame, mpTargetFrame->mmKeyFrameCount, 20);
@@ -467,7 +837,7 @@ void UVR_SLAM::LocalMapper::Run() {
 					}//if prev keyframe
 				}////mapping
 				
-				f.get();
+				//f.get();
 				ProcessNewKeyFrame();
 
 				std::chrono::high_resolution_clock::time_point lm_end = std::chrono::high_resolution_clock::now();

@@ -117,8 +117,8 @@ namespace UVR_SLAM {
 	DepthFilter::~DepthFilter() {
 	}
 	void DepthFilter::Init() {
-		K = mpSystem->mK;
-		invK = mpSystem->mInvK;
+		K = mpSystem->mK.clone();
+		invK = mpSystem->mInvK.clone();
 		////시드 생성 관련 변수
 		float fx = mpSystem->mK.at<float>(0, 0);
 		float noise = 1.0;

@@ -93,8 +93,7 @@ namespace UVR_SLAM {
 		int mnMapPointID;
 		int mnFirstKeyFrameID;
 		int mnLocalBAID, mnLocalMapID, mnTrackingID;
-		int mnLoopID;
-		
+
 		int mnOctave;
 		////마지막 트래킹 정보.
 		Frame* mLastFrame;
@@ -190,6 +189,15 @@ namespace UVR_SLAM {
 		bool mbLowQuality;
 		////매칭 퀄리티 관련
 		///////////////////
+
+	/////루프 클로징 관련 변수들
+	public:
+		int mnLoopPointForKF;
+		int mnCorrectedByKF;
+		int mnCorrectedReference;
+		cv::Mat mPosGBA;
+		int mnBAGlobalForKF;
+		static std::mutex mGlobalMutex;
 	};
 }
 

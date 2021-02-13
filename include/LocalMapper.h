@@ -27,12 +27,13 @@ namespace UVR_SLAM {
 	class LocalMapper {
 	public:
 		LocalMapper();
-		LocalMapper(System* pSystem, std::string strPath, int w, int h);
+		LocalMapper(System* pSystem);
 		virtual ~LocalMapper();
 		void Init();
 	public:
 		void Reset();
 		void Run();
+		void RunWithMappingServer();
 		
 		////////////////
 		void SetInitialKeyFrame(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2);

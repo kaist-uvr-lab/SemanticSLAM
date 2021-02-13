@@ -47,6 +47,7 @@ namespace UVR_SLAM {
 		void LoadParameter(std::string strPath);
 		bool LoadVocabulary();
 		void Init();
+		void ModuleInit();
 
 	public:
 		Optimization *mpOptimizer;
@@ -69,6 +70,11 @@ namespace UVR_SLAM {
 		std::string mstrFilePath;
 		bool mbSegmentation;
 		bool mbPlaneEstimation;
+		bool mbLocalMapping;
+		bool mbLoopClosing;
+		bool mbOptimization;
+		bool mbFrameVisualization;
+		bool mbMapVisualization;
 		int mnDisplayX;
 		int mnDisplayY;
 		int mnThreshMinKF;
@@ -86,15 +92,8 @@ namespace UVR_SLAM {
 		void InitDirPath();
 		void SetDirPath(int id = 0);
 		std::string GetDirPath(int id = 0);
-
-	private:
-		ORBextractor* mpInitORBExtractor;
-		ORBextractor* mpPoseORBExtractor;
-		
-		Frame* mpCurrFrame;
-		Frame* mpPrevFrame;
-		//Frame* mpInitFrame;
-
+	public:
+		////thread
 		std::thread *mptLocalMapper;
 		std::thread* mptMapOptimizer;
 		std::thread *mptLoopCloser;
@@ -102,7 +101,13 @@ namespace UVR_SLAM {
 		std::thread *mptPlaneEstimator;
 		std::thread* mptVisualizer;
 		std::thread* mptFrameVisualizer;
-
+	private:
+		ORBextractor* mpInitORBExtractor;
+		ORBextractor* mpPoseORBExtractor;
+		
+		Frame* mpCurrFrame;
+		Frame* mpPrevFrame;
+		//Frame* mpInitFrame;
 		Tracker* mpTracker;
 		
 		//management created map points

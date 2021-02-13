@@ -19,10 +19,8 @@ int N_thresh_init_triangulate = 60; //80
 
 UVR_SLAM::Initializer::Initializer() :mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr), mpTempFrame(nullptr){
 }
-UVR_SLAM::Initializer::Initializer(System* pSystem, Map* pMap, cv::Mat _K, int w, int h) : mpSystem(pSystem), mK(_K), mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr), mpTempFrame(nullptr),
-mnWidth(w), mnHeight(h)
+UVR_SLAM::Initializer::Initializer(System* pSystem) : mpSystem(pSystem), mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr), mpTempFrame(nullptr)
 {
-	mpMap = pMap;
 	//mK.convertTo(mK,CV_64FC1);
 }
 UVR_SLAM::Initializer::Initializer(cv::Mat _K):mK(_K),mbInit(false), mpInitFrame1(nullptr), mpInitFrame2(nullptr), mpTempFrame(nullptr) {
@@ -38,6 +36,10 @@ void UVR_SLAM::Initializer::Init() {
 	mpPlaneEstimator = mpSystem->mpPlaneEstimator;
 	mpMatcher = mpSystem->mpMatcher;
 	mpVisualizer = mpSystem->mpVisualizer;
+	mK = mpSystem->mK.clone();
+	mnWidth = mpSystem->mnWidth;
+	mnHeight = mpSystem->mnHeight;
+	mpMap = mpSystem->mpMap;
 }
 
 void UVR_SLAM::Initializer::Reset() {
@@ -66,7 +68,12 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		std::string input = WebAPIDataConverter::ConvertImageToString(mpInitFrame1->GetOriginalImage(), mpInitFrame1->mnFrameID);
 		mpAPI->Send("receiveimage", input);
 		std::string input2 = WebAPIDataConverter::ConvertNumberToString(mpInitFrame1->mnFrameID);
-		WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("detect", input2).c_str(), mpInitFrame1->mvPts, mpInitFrame1->matDescriptor);
+		//WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("detectWithDesc", input2).c_str(), mpInitFrame1->mvPts, mpInitFrame1->matDescriptor);
+		int nRes;
+		WebAPIDataConverter::ConvertStringToNumber(mpAPI->Send("detect", input2).c_str(), nRes);
+		WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("getPts", input2).c_str(), mpInitFrame1->mvPts);
+		WebAPIDataConverter::ConvertStringToDesc(mpAPI->Send("getDesc", input2).c_str(), nRes, mpInitFrame1->matDescriptor);
+
 		//FeatureMatchingWebAPI::SendImage(mpSystem->ip, mpSystem->port, mpInitFrame1->matFrame, mpInitFrame1->mnFrameID);
 		//FeatureMatchingWebAPI::RequestDetect(mpSystem->ip, mpSystem->port, mpInitFrame1->mnFrameID, mpInitFrame1->mvPts, mpInitFrame1->matDescriptor);
 		mpInitFrame1->SetMapPoints(mpInitFrame1->mvPts.size());

@@ -16,31 +16,18 @@
 #include <Visualizer.h>
 #include <LoopCloser.h>
 
-UVR_SLAM::MapOptimizer::MapOptimizer(std::string strPath, System* pSystem) : mpTargetFrame(nullptr), mbStopBA(false), mbDoingProcess(false)
+UVR_SLAM::MapOptimizer::MapOptimizer(System* pSystem) : mpTargetFrame(nullptr), mbStopBA(false), mbDoingProcess(false)
 {
-	cv::FileStorage fs(strPath, cv::FileStorage::READ);
-	float fx = fs["Camera.fx"];
-	float fy = fs["Camera.fy"];
-	float cx = fs["Camera.cx"];
-	float cy = fs["Camera.cy"];
-
-	mK = cv::Mat::eye(3, 3, CV_32F);
-	mK.at<float>(0, 0) = fx;
-	mK.at<float>(1, 1) = fy;
-	mK.at<float>(0, 2) = cx;
-	mK.at<float>(1, 2) = cy;
-
-	mnWidth = fs["Image.width"];
-	mnHeight = fs["Image.height"];
-
-	fs.release();
-
 	mpSystem = pSystem;
-	
 }
 UVR_SLAM::MapOptimizer::~MapOptimizer() {}
 
 void UVR_SLAM::MapOptimizer::Init() {
+
+	mK = mpSystem->mK.clone();
+	mnWidth = mpSystem->mnWidth;
+	mnHeight = mpSystem->mnHeight;
+
 	mpVisualizer = mpSystem->mpVisualizer;
 	mpLoopCloser = mpSystem->mpLoopCloser;
 	mpPlaneEstimator = mpSystem->mpPlaneEstimator;
@@ -60,7 +47,7 @@ bool UVR_SLAM::MapOptimizer::isDoingProcess() {
 void UVR_SLAM::MapOptimizer::InsertKeyFrame(UVR_SLAM::Frame *pKF)
 {
 	std::unique_lock<std::mutex> lock(mMutexNewKFs);
-	mbStopBA = true;
+	//mbStopBA = true;
 	mKFQueue.push(pKF);
 }
 
@@ -86,7 +73,102 @@ void UVR_SLAM::MapOptimizer::ProcessNewKeyFrame()
 	mpTargetFrame = mKFQueue.front();
 	mKFQueue.pop();
 }
+void UVR_SLAM::MapOptimizer::RunWithMappingServer() {
+	std::cout << "MappingServer::MapOptimizer::Start" << std::endl;
+	while (true) {
+		if (CheckNewKeyFrames()) {
+			SetDoingProcess(true);
+			ProcessNewKeyFrame();
+			std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+			std::cout << "MappingServer::MapOptimizer::Start" << std::endl;
+			int nTargetID = mpTargetFrame->mnFrameID;
 
+			std::vector<UVR_SLAM::Frame*> vpOptKFs, vpTempKFs;
+			std::vector<UVR_SLAM::Frame*> vpFixedKFs;
+			std::vector<UVR_SLAM::MapPoint*> vpOptMPs, vpTempMPs;// , vpMPs2;
+			std::map<Frame*, int> mpKeyFrameCounts, mpGraphFrameCounts;
+
+			auto vpMPs = mpTargetFrame->GetMapPoints();
+			for (size_t i = 0, iend = mpTargetFrame->mvPts.size(); i < iend; i++) {
+				auto pMPi = vpMPs[i];
+				if (!pMPi || pMPi->isDeleted())
+					continue;
+				if (pMPi->mnLocalBAID == nTargetID) {
+					continue;
+				}
+				pMPi->mnLocalBAID = nTargetID;
+				vpOptMPs.push_back(pMPi);
+			}
+
+			mpTargetFrame->mnLocalBAID = nTargetID;
+			vpOptKFs.push_back(mpTargetFrame);
+
+			auto vpNeighKFs = mpTargetFrame->GetConnectedKFs(15);
+			for (auto iter = vpNeighKFs.begin(), iend = vpNeighKFs.end(); iter != iend; iter++) {
+				auto pKFi = *iter;
+				if (pKFi->isDeleted())
+					continue;
+				auto vpMPs = pKFi->GetMapPoints();
+				auto vPTs = pKFi->mvPts;
+				int N1 = 0;
+				for (size_t i = 0, iend = vpMPs.size(); i < iend; i++) {
+					auto pMPi = vpMPs[i];
+					if (!pMPi || pMPi->isDeleted() || pMPi->mnLocalBAID == nTargetID)
+						continue;
+					pMPi->mnLocalBAID = nTargetID;
+					vpOptMPs.push_back(pMPi);
+				}
+				vpOptKFs.push_back(pKFi);
+				pKFi->mnLocalBAID = nTargetID;
+			}//for vpmps, vpkfs
+
+			 //Fixed KFs
+			for (size_t i = 0, iend = vpOptMPs.size(); i < iend; i++) {
+				auto pMPi = vpOptMPs[i];
+				auto mmpFrames = pMPi->GetObservations();
+				for (auto iter = mmpFrames.begin(), iter_end = mmpFrames.end(); iter != iter_end; iter++) {
+					auto pKFi = (iter->first);
+					if (pKFi->isDeleted())
+						continue;
+					if (pKFi->mnLocalBAID == nTargetID)
+						continue;
+					mpGraphFrameCounts[pKFi]++;
+					/*pKFi->mnLocalBAID = nTargetID;
+					vpFixedKFs.push_back(pKFi);*/
+				}
+			}//for fixed iter
+
+			 ////fixed kf를 정렬
+			std::vector<std::pair<int, Frame*>> vPairFixedKFs;
+			for (auto iter = mpGraphFrameCounts.begin(), iend = mpGraphFrameCounts.end(); iter != iend; iter++) {
+				auto pKFi = iter->first;
+				auto count = iter->second;
+				if (count < 10)
+					continue;
+				vPairFixedKFs.push_back(std::make_pair(count, pKFi));
+			}
+			std::sort(vPairFixedKFs.begin(), vPairFixedKFs.end(), std::greater<>());
+
+			////상위 N개의 Fixed KF만 추가
+			for (size_t i = 0, iend = vPairFixedKFs.size(); i < iend; i++) {
+				auto pair = vPairFixedKFs[i];
+				if (vpFixedKFs.size() == 20)
+					break;
+				auto pKFi = pair.second;
+				pKFi->mnFixedBAID = nTargetID;
+				pKFi->mnLocalBAID = nTargetID;
+				vpFixedKFs.push_back(pKFi);
+			}
+			
+			std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+			Optimization::OpticalLocalBundleAdjustment(mpMap, this, vpOptMPs, vpOptKFs, vpFixedKFs);
+			auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+			float t_test1 = du_test1 / 1000.0;
+			std::cout << "MapOptimization::BA::END::" << vpOptMPs.size() << " ," << vpOptKFs.size() << ", " << vpFixedKFs.size() <<"::"<< t_test1 << std::endl;
+			SetDoingProcess(false);
+		}
+	}
+}
 void UVR_SLAM::MapOptimizer::Run() {
 	std::string mStrPath;
 

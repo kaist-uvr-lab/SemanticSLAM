@@ -12,13 +12,16 @@
 
 namespace UVR_SLAM {
 	UVR_SLAM::FrameVisualizer::FrameVisualizer(){}
-	UVR_SLAM::FrameVisualizer::FrameVisualizer(System* pSys, int w, int h, cv::Mat K):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mbVisualize(false){
+	UVR_SLAM::FrameVisualizer::FrameVisualizer(System* pSys):mpSystem(pSys), mbVisualize(false){
 	}
 	UVR_SLAM::FrameVisualizer::~FrameVisualizer(){}
 
 	void UVR_SLAM::FrameVisualizer::Init(){
 		mpMap = mpSystem->mpMap;
 		mpVisualizer = mpSystem->mpVisualizer;
+		mnWidth = mpSystem->mnWidth;
+		mnHeight = mpSystem->mnHeight;
+		mK = mpSystem->mK.clone();
 	}
 	float vmin = 0.001;
 	float vmax = 4.0;

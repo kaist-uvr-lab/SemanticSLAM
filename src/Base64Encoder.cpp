@@ -96,10 +96,16 @@ std::string Base64Encoder::base64_encode(unsigned char const* bytes_to_encode, u
 }
 
 std::string Base64Encoder::base64_decode(std::string const& encoded_string) {
-	int in_len = encoded_string.size() - 2;
+	
 	int i = 0;
 	int j = 0;
-	int in_ = 2;
+	int in_len = encoded_string.size();
+	int in_ = 0;
+	if (encoded_string[0] == 'b') {
+		in_len = encoded_string.size() - 2;
+		in_ = 2;
+	}
+	
 	unsigned char char_array_4[4], char_array_3[3];
 	std::string ret = "";
 

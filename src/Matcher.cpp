@@ -15,8 +15,8 @@
 #include <DBoW3.h>
 
 UVR_SLAM::Matcher::Matcher():TH_HIGH(100), TH_LOW(50), HISTO_LENGTH(30) {}
-UVR_SLAM::Matcher::Matcher(System* pSys, cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h)
-	:mpSystem(pSys), mWidth(w), mHeight(h), TH_HIGH(100), TH_LOW(50), HISTO_LENGTH(30), mfNNratio(0.7), mbCheckOrientation(true), matcher(_matcher)
+UVR_SLAM::Matcher::Matcher(System* pSys, cv::Ptr < cv::DescriptorMatcher> _matcher)
+	:mpSystem(pSys), TH_HIGH(100), TH_LOW(50), HISTO_LENGTH(30), mfNNratio(0.7), mbCheckOrientation(true), matcher(_matcher)
 {
 	//cv::Ptr<cv::flann::IndexParams> indexParams = cv::makePtr<cv::flann::LshIndexParams>(6, 12, 1);
 	//cv::Ptr<cv::flann::SearchParams> searchParams = cv::makePtr<cv::flann::SearchParams>(50);
@@ -30,6 +30,8 @@ UVR_SLAM::Matcher::Matcher(System* pSys, cv::Ptr < cv::DescriptorMatcher> _match
 UVR_SLAM::Matcher::~Matcher(){}
 void UVR_SLAM::Matcher::Init() {
 	mpVisualizer = mpSystem->mpVisualizer;
+	mWidth = mpSystem->mnWidth;
+	mHeight = mpSystem->mnHeight;
 }
 const double nn_match_ratio = 0.7f; // Nearest-neighbour matching ratio
 

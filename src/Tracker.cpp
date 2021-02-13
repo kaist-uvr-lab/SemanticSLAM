@@ -25,18 +25,7 @@ UVR_SLAM::Tracker::Tracker() {}
 UVR_SLAM::Tracker::Tracker(int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false){}
 UVR_SLAM::Tracker::Tracker(System* pSys, std::string strPath) : mpSystem(pSys), mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false) {
 	FileStorage fs(strPath, FileStorage::READ);
-
-	float fx = fs["Camera.fx"];
-	float fy = fs["Camera.fy"];
-	float cx = fs["Camera.cx"];
-	float cy = fs["Camera.cy"];
-
-	mK = cv::Mat::eye(3, 3, CV_32F);
-	mK.at<float>(0, 0) = fx;
-	mK.at<float>(1, 1) = fy;
-	mK.at<float>(0, 2) = cx;
-	mK.at<float>(1, 2) = cy;
-
+	
 	cv::Mat DistCoef(4, 1, CV_32F);
 	DistCoef.at<float>(0) = fs["Camera.k1"];
 	DistCoef.at<float>(1) = fs["Camera.k2"];
@@ -59,9 +48,7 @@ UVR_SLAM::Tracker::Tracker(System* pSys, std::string strPath) : mpSystem(pSys), 
 	mnThreshDiff	 = fs["Tracker.MinDiff"];
 	mnThreshDiffPose = fs["Tracker.MinPoseHandle"];
 
-	mnWidth = fs["Image.width"];
-	mnHeight = fs["Image.height"];
-	mK2 = (cv::Mat_<float>(3, 3) << fx, 0, 0, 0, fy, 0, -fy*cx, -fx*cy, fx*fy); //line projection
+	//mK2 = (cv::Mat_<float>(3, 3) << fx, 0, 0, 0, fy, 0, -fy*cx, -fx*cy, fx*fy); //line projection
 	fs.release();
 }
 UVR_SLAM::Tracker::~Tracker() {}
@@ -70,6 +57,9 @@ bool UVR_SLAM::Tracker::isInitialized() {
 	return mbInitilized;
 }
 void UVR_SLAM::Tracker::Init() {
+	mK = mpSystem->mK.clone();
+	mnWidth = mpSystem->mnWidth;
+	mnHeight = mpSystem->mnHeight;
 	mpMap = mpSystem->mpMap;
 	mpVisualizer = mpSystem->mpVisualizer;
 	mpFrameVisualizer = mpSystem->mpFrameVisualizer;
@@ -354,7 +344,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		auto duration2 = std::chrono::duration_cast<std::chrono::milliseconds>(tracking_end - tracking_start).count();
 		double t2 = duration2 / 1000.0;
 
-		std::cout << "tracking::feature::" << vpKFs.back()->mnFrameID <<"::"<< t2 << "=" << vTempCurrPts2.size() << "::" << nFirstMatch << ", " << mnMapPointMatching << std::endl;
+		//std::cout << "tracking::feature::" << vpKFs.back()->mnFrameID <<"::"<< t2 << "=" << vTempCurrPts2.size() << "::" << nFirstMatch << ", " << mnMapPointMatching << std::endl;
 
 		//std::cout << "tracking::time::" << t2 << std::endl;
 		///////½Ã°¢È­

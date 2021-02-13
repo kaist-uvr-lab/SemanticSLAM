@@ -24,7 +24,7 @@ namespace UVR_SLAM {
 
 	public:
 		LoopCloser();
-		LoopCloser(System* pSys, int w, int h, cv::Mat K);
+		LoopCloser(System* pSys);
 		virtual ~LoopCloser();
 
 		void Init();
@@ -34,7 +34,7 @@ namespace UVR_SLAM {
 		bool CheckNewKeyFrames();
 		void ProcessNewKeyFrame();
 		void Run();
-
+		void RunWithMappingServer();
 		bool DetectLoop();
 		bool ComputeSim3();
 		void CorrectLoop();

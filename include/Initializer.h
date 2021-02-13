@@ -24,7 +24,7 @@ namespace UVR_SLAM {
 	public:
 		Initializer();
 		Initializer(cv::Mat _K);
-		Initializer(System* pSystem, Map* pMap, cv::Mat _K, int w, int h);
+		Initializer(System* pSystem);
 		virtual ~Initializer();
 
 ////////////////////////////

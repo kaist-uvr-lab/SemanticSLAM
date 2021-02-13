@@ -21,7 +21,7 @@ namespace UVR_SLAM {
 
 	class MapOptimizer {
 	public:
-		MapOptimizer(std::string strPath, System* pSystem);
+		MapOptimizer(System* pSystem);
 		virtual ~MapOptimizer();
 		void Init();
 		void InsertKeyFrame(UVR_SLAM::Frame *pKF);
@@ -30,6 +30,7 @@ namespace UVR_SLAM {
 		void SetDoingProcess(bool b);
 		bool isDoingProcess();
 		void Run();
+		void RunWithMappingServer();
 	public:
 		bool isStopBA();
 		void StopBA(bool b);

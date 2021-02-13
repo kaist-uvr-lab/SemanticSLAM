@@ -19,10 +19,11 @@ namespace UVR_SLAM {
 	class Visualizer {
 	public:
 		Visualizer();
-		Visualizer(System* pSystem, int w, int h, int scale);
+		Visualizer(System* pSystem);
 		virtual ~Visualizer();
 	public:
 		void Run();
+		void RunWithMappingServer();
 		void SetBoolDoingProcess(bool b);
 		bool isDoingProcess();
 	private:

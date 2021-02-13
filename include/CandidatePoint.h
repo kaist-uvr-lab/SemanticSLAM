@@ -4,6 +4,7 @@
 #include <opencv2/core.hpp>
 #include <mutex>
 #include <map>
+
 namespace UVR_SLAM {
 	class Frame;
 	class MatchInfo;

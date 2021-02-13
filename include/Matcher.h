@@ -20,7 +20,7 @@ namespace UVR_SLAM {
 	
 	public:
 		Matcher();
-		Matcher(System* pSys, cv::Ptr < cv::DescriptorMatcher> _matcher, int w, int h);
+		Matcher(System* pSys, cv::Ptr < cv::DescriptorMatcher> _matcher);
 		virtual ~Matcher();
 		void Init();
 

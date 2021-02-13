@@ -9,7 +9,7 @@
 #include <plane.h>
 
 UVR_SLAM::Visualizer::Visualizer() {}
-UVR_SLAM::Visualizer::Visualizer(System* pSystem, int w, int h, int scale) :mpSystem(pSystem), mnWidth(w), mnHeight(h), mnVisScale(scale), mnFontFace(2), mfFontScale(0.6), mpMatchInfo(nullptr){
+UVR_SLAM::Visualizer::Visualizer(System* pSystem) :mpSystem(pSystem), mnFontFace(2), mfFontScale(0.6), mpMatchInfo(nullptr){
 }
 UVR_SLAM::Visualizer::~Visualizer() {}
 
@@ -138,6 +138,10 @@ void UVR_SLAM::Visualizer::Init() {
 	mnDisplayX = mpSystem->mnDisplayX;
 	mnDisplayY = mpSystem->mnDisplayY;
 
+	mnWidth = mpSystem->mnWidth;
+	mnHeight = mpSystem->mnHeight;
+	mnVisScale = mpSystem->mnVisScale;
+
 	//Visualization
 	mVisPoseGraph = cv::Mat(mnHeight * 2, mnWidth * 2, CV_8UC3, cv::Scalar(255, 255, 255));
 	rectangle(mVisPoseGraph, cv::Rect(0, 0, 50, 50), cv::Scalar(255, 255, 0), -1);
@@ -199,9 +203,8 @@ void UVR_SLAM::Visualizer::Init() {
 	std::cout << r1.x << " " << r2.x << ", " << r3.x << "::" << r1.width << ", " << r2.width << ", " << r3.width << std::endl;*/
 
 	//set image
-	cv::namedWindow("Output::Display");
-	cv::moveWindow("Output::Display", mnDisplayX, mnDisplayY);
-	cv::setMouseCallback("Output::Display", UVR_SLAM::Visualizer::CallBackFunc, NULL);
+	/*cv::namedWindow("Output::Display");*/
+	
 	nScale = mnVisScale;
 }
 
@@ -227,7 +230,124 @@ bool UVR_SLAM::Visualizer::isOutputTypeChanged(int type) {
 	std::unique_lock<std::mutex> lockTemp(mMutexOutput);
 	return mvOutputChanged[type];
 }
+void UVR_SLAM::Visualizer::RunWithMappingServer() {
+	std::cout << "MappingServer::Visualizer::Start" << std::endl;
+	SetAxisMode();
+	int nFrame = 0;
+	//현재 여기서 시각화가 안됨
+	//원인 찾는 중
+	cv::imshow("Output::Display", mOutputImage);
+	cv::moveWindow("Output::Display", mnDisplayX, mnDisplayY);
+	cv::setMouseCallback("Output::Display", UVR_SLAM::Visualizer::CallBackFunc, NULL);
 
+	while (true) {
+		nFrame++;
+		//////Update Visualizer 
+		mVisMidPt += mPt;
+		mPt = cv::Point2f(0, 0);
+		mnVisScale = nScale;
+		//////Update Visualizer 
+
+		if (isDoingProcess()) {
+			cv::Mat tempVis = mVisPoseGraph.clone();
+			auto mmpMap = mpMap->GetMap();
+			for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
+				auto pMPi = iter->first;
+				if (!pMPi || pMPi->isDeleted())
+					continue;
+				//int label = iter->second;
+				cv::Mat x3D = pMPi->GetWorldPos();
+				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
+				tpt += mVisMidPt;
+
+				cv::Scalar color = cv::Scalar(0, 0, 0);
+				cv::circle(tempVis, tpt, 2, color, -1);
+			}
+
+			auto lKFs = mpMap->GetFrames();
+			int nMaxID = 0;
+			UVR_SLAM::Frame* lastKF = nullptr;
+			for (auto iter = lKFs.begin(); iter != lKFs.end(); iter++) {
+				auto pKFi = *iter;
+				cv::Mat t1 = pKFi->GetCameraCenter();
+				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
+				pt1 += mVisMidPt;
+				cv::circle(tempVis, pt1, 2, cv::Scalar(0, 155, 248), -1);
+				if (nMaxID < pKFi->mnKeyFrameID) {
+					nMaxID = pKFi->mnKeyFrameID;
+					lastKF = pKFi;
+				}
+			}
+			if (lKFs.size()>0)
+			{
+				auto currKF = lastKF;// lKFs[lKFs.size() - 1];
+				cv::Mat t1 = currKF->GetCameraCenter();
+				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
+				pt1 += mVisMidPt;
+				cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
+
+				cv::Mat directionZ = currKF->GetRotation().row(2);
+				cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(mnAxis1)* mnVisScale / 10.0, directionZ.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
+				cv::line(tempVis, pt1, dirPtZ, cv::Scalar(255, 0, 0), 2);
+
+				cv::Mat directionY = currKF->GetRotation().row(1);
+				cv::Point2f dirPtY = cv::Point2f(directionY.at<float>(mnAxis1)* mnVisScale / 10.0, directionY.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
+				cv::line(tempVis, pt1, dirPtY, cv::Scalar(0, 255, 0), 2);
+
+				cv::Mat directionX = currKF->GetRotation().row(0);
+				cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
+				cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
+				cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
+			}
+
+			cv::Scalar color = cv::Scalar(0, 255, 255);
+			auto vReinit = mpMap->GetTempMPs();
+			for (int i = 0; i < vReinit.size(); i++) {
+				cv::Mat x3D = vReinit[i];
+				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
+				tpt += mVisMidPt;
+				cv::circle(tempVis, tpt, 4, color, -1);
+			}
+
+			SetOutputImage(tempVis, 4);
+			SetBoolDoingProcess(false);
+		}
+
+		////////Update Map Visualizer
+		if (isOutputTypeChanged(0)) {
+			cv::Mat mTrackImg = GetOutputImage(0);
+			mTrackImg.copyTo(mOutputImage(mvRects[0]));
+		}
+		if (isOutputTypeChanged(1)) {
+			cv::Mat mWinImg = GetOutputImage(1);
+			mWinImg.copyTo(mOutputImage(mvRects[1]));
+		}
+		if (isOutputTypeChanged(2)) {
+			cv::Mat mMapImg = GetOutputImage(2);
+			mMapImg.copyTo(mOutputImage(mvRects[2]));
+		}
+		if (isOutputTypeChanged(3)) {
+			cv::Mat mMappingImg = GetOutputImage(3);
+			mMappingImg.copyTo(mOutputImage(mvRects[3]));
+		}
+		if (isOutputTypeChanged(4)) {
+			cv::Mat mMappingImg = GetOutputImage(4);
+			mMappingImg.copyTo(mOutputImage(mvRects[4]));
+		}
+		if (isOutputTypeChanged(5)) {
+			cv::Mat mMappingImg = GetOutputImage(5);
+			mMappingImg.copyTo(mOutputImage(mvRects[5]));
+		}
+		if (nFrame % 100 == 0) {
+			/*imshow("Output::Display", mOutputImage);
+			cv::waitKey(1);*/
+		}
+		imshow("Output::Display", mOutputImage);
+		cv::waitKey(1);
+		////////Update Map Visualizer
+	}
+	std::cout << "MappingServer::Visualizer::End" << std::endl;
+}
 void UVR_SLAM::Visualizer::Run() {
 
 	std::vector<UVR_SLAM::MapPoint*> allDummyPts;
@@ -382,7 +502,7 @@ void UVR_SLAM::Visualizer::Run() {
 					tpt += mVisMidPt;
 					
 					cv::Scalar color = cv::Scalar(0, 0, 0);
-					/*if (label == 255) {
+					if (label == 255) {
 						color = cv::Scalar(125, 125, 0);
 						if(bPlane)
 							color = cv::Scalar(255, 255, 0);
@@ -400,7 +520,7 @@ void UVR_SLAM::Visualizer::Run() {
 					if(pMPi->GetConnedtedFrames().size() < 7){
 						color = cv::Scalar(0, 0, 0);
 						continue;
-					}*/
+					}
 					cv::circle(tempVis, tpt, 2, UVR_SLAM::ObjectColors::mvObjectLabelColors[label], -1);
 				}
 				////맵

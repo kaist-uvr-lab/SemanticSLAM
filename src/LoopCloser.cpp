@@ -14,12 +14,16 @@
 matcher의 SearchBySim3 구현
 CorrectLoop 관련 구현 필요
 SearchAndFuse 구현 필요
+RunGlobalBundleAdjustment 구현 필요
 matcher의 fuse 구현 필요
+맵포인트 Replace 구현 필요
+키프레임 updateconnection 구현 필요
+Optimization의 OptimizeEssentialGraph 내부 구현
 */
 
 namespace UVR_SLAM {
 	LoopCloser::LoopCloser() {}
-	LoopCloser::LoopCloser(System* pSys, int w, int h, cv::Mat K):mpSystem(pSys), mbFixScale(false), mnWidth(w), mnHeight(h), mK(K), mbProcessing(false), mnCovisibilityConsistencyTh(3){
+	LoopCloser::LoopCloser(System* pSys):mpSystem(pSys), mbFixScale(false), mbProcessing(false), mnCovisibilityConsistencyTh(3){
 	}
 	LoopCloser::~LoopCloser() {}
 	void LoopCloser::Init() {
@@ -28,7 +32,15 @@ namespace UVR_SLAM {
 		mpVoc = mpSystem->mpDBoWVoc;
 		mpMatcher = mpSystem->mpMatcher;
 		mK = mpSystem->mK.clone();
+		mnWidth = mpSystem->mnWidth;
+		mnHeight = mpSystem->mnHeight;
 		mInvK = mpSystem->mInvK.clone();
+	}
+	void UVR_SLAM::LoopCloser::RunWithMappingServer() {
+		std::cout << "MappingServer::LoopCloser::Start" << std::endl;
+		while (true) {
+
+		}
 	}
 	void LoopCloser::Run() {
 
@@ -333,10 +345,10 @@ namespace UVR_SLAM {
 				MapPoint* pMP = vpMapPoints[i];
 				if (pMP)
 				{
-					if (!pMP->isDeleted() && pMP->mnLoopID != mpTargetFrame->mnKeyFrameID)
+					if (!pMP->isDeleted() && pMP->mnLoopPointForKF != mpTargetFrame->mnKeyFrameID)
 					{
 						mvpLoopMapPoints.push_back(pMP);
-						pMP->mnLoopID = mpTargetFrame->mnKeyFrameID;
+						pMP->mnLoopPointForKF = mpTargetFrame->mnKeyFrameID;
 					}
 				}
 			}
@@ -375,7 +387,161 @@ namespace UVR_SLAM {
 		////GBA 동작 멈추기 && 구현하기
 
 		////KF update connection 구현 및 관리 필요
+		//mpTargetFrame->UpdateConnections();
 
+		// Retrive keyframes connected to the current keyframe and compute corrected Sim3 pose by propagation
+		mvpCurrentConnectedKFs = mpTargetFrame->GetConnectedKFs();
+		mvpCurrentConnectedKFs.push_back(mpTargetFrame);
+
+		KeyFrameAndPose CorrectedSim3, NonCorrectedSim3;
+		CorrectedSim3[mpTargetFrame] = mg2oScw;
+		cv::Mat Rwc, twc;
+		cv::Mat Twc;
+		mpTargetFrame->GetInversePose(Rwc, twc);
+		cv::hconcat(Rwc, twc, Twc);
+
+
+		{
+			// Get Map Mutex
+			std::unique_lock<std::mutex> lock(mpMap->mMutexMapUpdate);
+
+			for (std::vector<Frame*>::iterator vit = mvpCurrentConnectedKFs.begin(), vend = mvpCurrentConnectedKFs.end(); vit != vend; vit++)
+			{
+				Frame* pKFi = *vit;
+
+				cv::Mat Riw, tiw;
+				cv::Mat Tiw;
+				pKFi->GetPose(Riw, tiw);
+				cv::hconcat(Riw, tiw, Tiw);
+
+				if (pKFi != mpTargetFrame)
+				{
+					cv::Mat Tic = Tiw*Twc;
+					cv::Mat Ric = Tic.rowRange(0, 3).colRange(0, 3);
+					cv::Mat tic = Tic.rowRange(0, 3).col(3);
+					g2o::Sim3 g2oSic(Converter::toMatrix3d(Ric), Converter::toVector3d(tic), 1.0);
+					g2o::Sim3 g2oCorrectedSiw = g2oSic*mg2oScw;
+					//Pose corrected with the Sim3 of the loop closure
+					CorrectedSim3[pKFi] = g2oCorrectedSiw;
+				}
+
+				g2o::Sim3 g2oSiw(Converter::toMatrix3d(Riw), Converter::toVector3d(tiw), 1.0);
+				//Pose without correction
+				NonCorrectedSim3[pKFi] = g2oSiw;
+			}
+
+			// Correct all MapPoints obsrved by current keyframe and neighbors, so that they align with the other side of the loop
+			for (KeyFrameAndPose::iterator mit = CorrectedSim3.begin(), mend = CorrectedSim3.end(); mit != mend; mit++)
+			{
+				Frame* pKFi = mit->first;
+				g2o::Sim3 g2oCorrectedSiw = mit->second;
+				g2o::Sim3 g2oCorrectedSwi = g2oCorrectedSiw.inverse();
+
+				g2o::Sim3 g2oSiw = NonCorrectedSim3[pKFi];
+
+				std::vector<MapPoint*> vpMPsi = pKFi->GetMapPoints();
+				for (size_t iMP = 0, endMPi = vpMPsi.size(); iMP<endMPi; iMP++)
+				{
+					MapPoint* pMPi = vpMPsi[iMP];
+					if (!pMPi || pMPi->isDeleted() || pMPi->mnCorrectedByKF == mpTargetFrame->mnKeyFrameID)
+						continue;
+
+					// Project with non-corrected pose and project back with corrected pose
+					cv::Mat P3Dw = pMPi->GetWorldPos();
+					Eigen::Matrix<double, 3, 1> eigP3Dw = Converter::toVector3d(P3Dw);
+					Eigen::Matrix<double, 3, 1> eigCorrectedP3Dw = g2oCorrectedSwi.map(g2oSiw.map(eigP3Dw));
+
+					cv::Mat cvCorrectedP3Dw = Converter::toCvMat(eigCorrectedP3Dw);
+					pMPi->SetWorldPos(cvCorrectedP3Dw);
+					pMPi->mnCorrectedByKF = mpTargetFrame->mnKeyFrameID;
+					pMPi->mnCorrectedReference = pKFi->mnKeyFrameID;
+					//pMPi->UpdateNormalAndDepth();
+				}
+
+				// Update keyframe pose with corrected Sim3. First transform Sim3 to SE3 (scale translation)
+				Eigen::Matrix3d eigR = g2oCorrectedSiw.rotation().toRotationMatrix();
+				Eigen::Vector3d eigt = g2oCorrectedSiw.translation();
+				double s = g2oCorrectedSiw.scale();
+
+				eigt *= (1. / s); //[R t/s;0 1]
+
+				cv::Mat correctedTiw = Converter::toCvSE3(eigR, eigt);
+
+				pKFi->SetPose(correctedTiw.colRange(0,3).rowRange(0,3), correctedTiw.col(3).rowRange(0,3));
+
+				// Make sure connections are updated
+				//pKFi->UpdateConnections();
+			}
+
+			// Start Loop Fusion
+			// Update matched map points and replace if duplicated
+			for (size_t i = 0; i<mvpCurrentMatchedPoints.size(); i++)
+			{
+				if (mvpCurrentMatchedPoints[i])
+				{
+					MapPoint* pLoopMP = mvpCurrentMatchedPoints[i];
+					MapPoint* pCurMP = mpTargetFrame->GetMapPoint(i);
+					if (pCurMP)
+					{
+						//pCurMP->Replace(pLoopMP);
+					}
+					else
+					{
+						mpTargetFrame->AddMapPoint(pLoopMP, i);
+						pLoopMP->AddObservation(mpTargetFrame, i);
+						//pLoopMP->ComputeDistinctiveDescriptors();
+					}
+				}
+			}
+
+		}
+
+		// Project MapPoints observed in the neighborhood of the loop keyframe
+		// into the current keyframe and neighbors using corrected poses.
+		// Fuse duplications.
+		SearchAndFuse(CorrectedSim3);
+
+
+		// After the MapPoint fusion, new links in the covisibility graph will appear attaching both sides of the loop
+		std::map<Frame*, std::set<Frame*> > LoopConnections;
+
+		for (std::vector<Frame*>::iterator vit = mvpCurrentConnectedKFs.begin(), vend = mvpCurrentConnectedKFs.end(); vit != vend; vit++)
+		{
+			Frame* pKFi = *vit;
+			std::vector<Frame*> vpPreviousNeighbors = pKFi->GetConnectedKFs();
+
+			// Update connections. Detect new links.
+			//pKFi->UpdateConnections();
+			LoopConnections[pKFi] = pKFi->GetConnectedKeyFrameSet();
+			for (std::vector<Frame*>::iterator vit_prev = vpPreviousNeighbors.begin(), vend_prev = vpPreviousNeighbors.end(); vit_prev != vend_prev; vit_prev++)
+			{
+				LoopConnections[pKFi].erase(*vit_prev);
+			}
+			for (std::vector<Frame*>::iterator vit2 = mvpCurrentConnectedKFs.begin(), vend2 = mvpCurrentConnectedKFs.end(); vit2 != vend2; vit2++)
+			{
+				LoopConnections[pKFi].erase(*vit2);
+			}
+		}
+
+		// Optimize graph
+		Optimization::OptimizeEssentialGraph(mpMap, mpMatchedKF, mpTargetFrame, NonCorrectedSim3, CorrectedSim3, LoopConnections, mbFixScale);
+
+		//mpMap->InformNewBigChange();
+
+		//// Add loop edge
+		//mpMatchedKF->AddLoopEdge(mpCurrentKF);
+		//mpCurrentKF->AddLoopEdge(mpMatchedKF);
+
+		//// Launch a new thread to perform Global Bundle Adjustment
+		//mbRunningGBA = true;
+		//mbFinishedGBA = false;
+		//mbStopGBA = false;
+		//mpThreadGBA = new thread(&LoopClosing::RunGlobalBundleAdjustment, this, mpCurrentKF->mnId);
+
+		//// Loop closed. Release Local Mapping.
+		//mpLocalMapper->Release();
+
+		mLastLoopKFid = mpTargetFrame->mnKeyFrameID;
 
 	}
 	void LoopCloser::SearchAndFuse(const KeyFrameAndPose &CorrectedPosesMap) {
