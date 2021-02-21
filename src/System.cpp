@@ -4,6 +4,7 @@
 #include <Initializer.h>
 #include <SemanticSegmentator.h>
 #include <DepthFilter.h>
+#include <MappingServer.h>
 #include <LocalMapper.h>
 #include <LoopCloser.h>
 #include <PlaneEstimator.h>
@@ -23,6 +24,7 @@
 #include <KeyframeDatabase.h>
 #include <WebAPI.h>
 
+int UVR_SLAM::System::nMapPointID = 0;
 int UVR_SLAM::System::nKeyFrameID = 1;
 int UVR_SLAM::System::nFrameID = 1;
 int UVR_SLAM::System::nMapGridID = 1;
@@ -128,7 +130,7 @@ bool UVR_SLAM::System::LoadVocabulary() {
 	
 	mpDBoWVoc = new Vocabulary();
 	mpDBoWVoc->load(strVOCPath);
-	
+	std::cout << "Load Vocabulary = " << mpDBoWVoc->size() << std::endl;
 	return true;
 	
 }
@@ -169,6 +171,7 @@ void UVR_SLAM::System::ModuleInit() {
 	/////ÃÊ±âÈ­
 	mpSegmentator->Init();
 	mpPlaneEstimator->Init();
+	mpMappingServer->Init();
 	mpLocalMapper->Init();
 	mpDepthFilter->Init();
 	mpLoopCloser->Init();
@@ -225,6 +228,9 @@ void UVR_SLAM::System::Init() {
 
 	//local mapping thread
 	mpLocalMapper = new UVR_SLAM::LocalMapper(this);
+
+	//mapping server
+	mpMappingServer = new UVR_SLAM::MappingServer(this);
 
 	//depth fiilter
 	mpDepthFilter = new UVR_SLAM::DepthFilter(this);
@@ -309,15 +315,22 @@ void UVR_SLAM::System::Track() {
 void UVR_SLAM::System::Reset() {
 	mbInitialized = false;
 	mpInitializer->Reset();
-	mpPlaneEstimator->Reset();
-	mpLocalMapper->Reset();
+	mpMappingServer->Reset();
+	mpMap->Reset();
 	mpKeyframeDatabase->Reset();
-	mpMap->ClearWalls();
-	mlpNewMPs.clear();
-	//mpLocalMapper->mlpNewMPs.clear();
+	mpLocalMapper->Reset();
 	mbCreateCP = true;
 	mbCreateMP = true;
 	nKeyFrameID = 0;
+	nMapPointID = 0;
+	
+	mlpNewMPs.clear();
+
+	/*mpPlaneEstimator->Reset();
+	mpMap->ClearWalls();*/
+		
+	//mpLocalMapper->mlpNewMPs.clear();
+	
 	//frame reset
 }
 

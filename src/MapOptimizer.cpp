@@ -80,7 +80,9 @@ void UVR_SLAM::MapOptimizer::RunWithMappingServer() {
 			SetDoingProcess(true);
 			ProcessNewKeyFrame();
 			std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
-			std::cout << "MappingServer::MapOptimizer::Start" << std::endl;
+#ifdef DEBUG_MAP_OPTIMIZER_LEVEL_1
+			std::cout << "MappingServer::MapOptimizer::" << mpTargetFrame->mnFrameID << "::Start" << std::endl;
+#endif
 			int nTargetID = mpTargetFrame->mnFrameID;
 
 			std::vector<UVR_SLAM::Frame*> vpOptKFs, vpTempKFs;
@@ -118,8 +120,14 @@ void UVR_SLAM::MapOptimizer::RunWithMappingServer() {
 					pMPi->mnLocalBAID = nTargetID;
 					vpOptMPs.push_back(pMPi);
 				}
-				vpOptKFs.push_back(pKFi);
+				if (pKFi->mnLocalBAID == nTargetID) {
+					std::cout << "Error::pKF::" << pKFi->mnFrameID << ", " << pKFi->mnKeyFrameID << std::endl;
+					continue;
+				}
 				pKFi->mnLocalBAID = nTargetID;
+				vpOptKFs.push_back(pKFi);
+				
+				
 			}//for vpmps, vpkfs
 
 			 //Fixed KFs
@@ -159,12 +167,40 @@ void UVR_SLAM::MapOptimizer::RunWithMappingServer() {
 				pKFi->mnLocalBAID = nTargetID;
 				vpFixedKFs.push_back(pKFi);
 			}
-			
-			std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+#ifdef DEBUG_MAP_OPTIMIZER_LEVEL_2
+			std::cout << "MappingServer::MapOptimizer::" << mpTargetFrame->mnFrameID << "::TEST::Start" << std::endl;
+			std::map<int, int> testMPs;
+			std::map<int, int> testKFs, testFixedKFs;
+			for (size_t i = 0, iend = vpOptMPs.size(); i < iend; i++) {
+				auto pMP = vpOptMPs[i];
+				testMPs[pMP->mnMapPointID]++;
+				if (testMPs[pMP->mnMapPointID] > 1) {
+					std::cout << "BA::MP::Error::" << pMP->mnMapPointID <<"::"<<testMPs[pMP->mnMapPointID ]<< std::endl;
+				}
+			}
+			for (size_t i = 0, iend = vpOptKFs.size(); i < iend; i++) {
+				auto pKF = vpOptKFs[i];
+				testKFs[pKF->mnKeyFrameID]++;
+				if (testKFs[pKF->mnKeyFrameID] > 1) {
+					std::cout << "BA::KF::Error::" << pKF->mnKeyFrameID << std::endl;
+				}
+			}
+			for (size_t i = 0, iend = vpFixedKFs.size(); i < iend; i++) {
+				auto pKF = vpFixedKFs[i];
+				testKFs[pKF->mnKeyFrameID]++;
+				if (testKFs[pKF->mnKeyFrameID] > 1) {
+					std::cout << "BA::Fixed::Error::" << pKF->mnKeyFrameID << std::endl;
+				}
+			}
+			std::cout << "MappingServer::MapOptimizer::" << mpTargetFrame->mnFrameID << "::TEST::END" << std::endl;
+#endif
 			Optimization::OpticalLocalBundleAdjustment(mpMap, this, vpOptMPs, vpOptKFs, vpFixedKFs);
+			std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
 			auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 			float t_test1 = du_test1 / 1000.0;
-			std::cout << "MapOptimization::BA::END::" << vpOptMPs.size() << " ," << vpOptKFs.size() << ", " << vpFixedKFs.size() <<"::"<< t_test1 << std::endl;
+#ifdef DEBUG_MAP_OPTIMIZER_LEVEL_1
+			std::cout << "MapOptimization::BA::"<<mpTargetFrame->mnFrameID<<"::END::" << vpOptMPs.size() << " ," << vpOptKFs.size() << ", " << vpFixedKFs.size() <<"::"<< t_test1 << std::endl;
+#endif
 			SetDoingProcess(false);
 		}
 	}

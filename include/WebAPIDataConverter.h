@@ -14,6 +14,8 @@
 
 class WebAPIDataConverter {
 public:
+	static void ConvertBytesToDesc(const char* data, int n, cv::Mat& desc);
+
 	static std::string ConvertImageToString(cv::Mat img, int id);
 	static std::string ConvertNumberToString(int id);
 	static std::string ConvertNumberToString(int id1, int id2);
@@ -31,6 +33,7 @@ public:
 	//매핑 서버 결과를 json string으로 변환
 	static void ConvertInitConnectToServer(const char* data, float& _fx, float& _fy, float& _cx, float& _cy, int& _w, int & _h);
 	static void ConvertDeviceToServer(const char* data, int& id, bool& init);
+	static void ConvertDeviceFrameIDToServer(const char* data, int& id, int& num);
 	static std::string ConvertInitializationToJsonString(int id, bool bInit, cv::Mat R, cv::Mat t, cv::Mat keypoints, cv::Mat mappoints);
 };
 #endif

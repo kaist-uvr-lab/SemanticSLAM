@@ -43,7 +43,8 @@ void UVR_SLAM::Initializer::Init() {
 }
 
 void UVR_SLAM::Initializer::Reset() {
-	mpInitFrame1->Reset();
+	//mpInitFrame1->Reset();
+	mpInitFrame1 = nullptr;
 	mpInitFrame2 = nullptr;
 	mbInit = false;
 

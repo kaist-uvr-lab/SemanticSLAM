@@ -7,6 +7,7 @@
 #include <Map.h>
 #include <MapGrid.h>
 #include <plane.h>
+#include <WebAPI.h>
 
 UVR_SLAM::Visualizer::Visualizer() {}
 UVR_SLAM::Visualizer::Visualizer(System* pSystem) :mpSystem(pSystem), mnFontFace(2), mfFontScale(0.6), mpMatchInfo(nullptr){
@@ -32,19 +33,16 @@ void CalcLineEquation(cv::Point2f pt1, cv::Point2f pt2, float& slope, float& dis
 }
 
 ////////////////////////////
-cv::Point2f sPt = cv::Point2f(0, 0);
-cv::Point2f ePt = cv::Point2f(0, 0);
-cv::Point2f mPt = cv::Point2f(0, 0);
-cv::Mat M = cv::Mat::zeros(0, 0, CV_64FC1);
 int mnMode = 2;
 int mnMaxMode = 3;
 int mnAxis1 = 0;
 int mnAxis2 = 2;
 
 bool bSaveMap = false;
+bool bLoadMap = false;
 bool bShowOnlyTrajectory = true;
 
-int nScale;
+
 int UVR_SLAM::Visualizer::GetScale(){
 	std::unique_lock<std::mutex>lock(mMutexScale);
 	return mnVisScale;
@@ -73,29 +71,30 @@ void SetAxisMode() {
 cv::Point2f rectPt;
 void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void* userdata)
 {
+	int* tempData = (int*)userdata;
+	
 	if (event == cv::EVENT_LBUTTONDOWN)
 	{
 		//std::cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << std::endl;
-		sPt = cv::Point2f(x, y)- rectPt;
+		tempData[2] = x - tempData[0];
+		tempData[3] = y;
 
 		////button interface
-		if (sPt.x < 50 && sPt.y < 50) {
+		if (tempData[2] < 50 && y < 50) {
 			bSaveMap = true;
-		}else if (sPt.x < 50 && (sPt.y >= 50 && sPt.y < 100)) {
-			bShowOnlyTrajectory = !bShowOnlyTrajectory;
+		}else if (tempData[2] < 50 && (y >= 50 && y < 100)) {
+			//bShowOnlyTrajectory = !bShowOnlyTrajectory;
+			bLoadMap = true;
 		}
 		////button interface
 	}
 	else if (event == cv::EVENT_LBUTTONUP)
 	{
 		//std::cout << "Left button of the mouse is released - position (" << x << ", " << y << ")" << std::endl;
-		ePt = cv::Point2f(x, y)- rectPt;
-		mPt = ePt - sPt;
-		M = cv::Mat::zeros(2, 3, CV_64FC1);
-		M.at<double>(0, 0) = 1.0;
-		M.at<double>(1, 1) = 1.0;
-		M.at<double>(0, 2) = mPt.x;
-		M.at<double>(1, 2) = mPt.y;
+		tempData[4] = x - tempData[0];
+		tempData[5] = y;
+		tempData[6] = tempData[4] - tempData[2];
+		tempData[7] = tempData[5] - tempData[3];
 	}
 	else if (event == cv::EVENT_RBUTTONDOWN) {
 		mnMode++;
@@ -120,13 +119,14 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 		//std::cout << "Wheel event detection" << std::endl;
 		if (flags > 0) {
 			//scroll up
-			nScale += 20;
+			tempData[1] += 20;
 		}
 		else {
 			//scroll down
-			nScale -= 20;
-			if (nScale <= 0)
-				nScale = 20;
+			tempData[1] -= 20;
+			if (tempData[1] <= 0){
+				tempData[1] = 20;
+			}
 		}
 	}
 }
@@ -204,8 +204,6 @@ void UVR_SLAM::Visualizer::Init() {
 
 	//set image
 	/*cv::namedWindow("Output::Display");*/
-	
-	nScale = mnVisScale;
 }
 
 void UVR_SLAM::Visualizer::SetBoolDoingProcess(bool b) {
@@ -238,17 +236,33 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 	//원인 찾는 중
 	cv::imshow("Output::Display", mOutputImage);
 	cv::moveWindow("Output::Display", mnDisplayX, mnDisplayY);
-	cv::setMouseCallback("Output::Display", UVR_SLAM::Visualizer::CallBackFunc, NULL);
+	int mapControlData[8] = {0,};
+	mapControlData[0] = mnWidth;
+	mapControlData[1] = mnVisScale;
+	cv::setMouseCallback("Output::Display", UVR_SLAM::Visualizer::CallBackFunc, (void*)mapControlData);
 
 	while (true) {
+		
+		if (bSaveMap) {
+			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
+			mpAPI->Send("SaveMap", "");
+			bSaveMap = false;
+		}
+		if (bLoadMap) {
+			////load map test
+			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
+			mpAPI->Send("LoadMap", "");
+			bLoadMap = false;
+		}
 		nFrame++;
 		//////Update Visualizer 
-		mVisMidPt += mPt;
-		mPt = cv::Point2f(0, 0);
-		mnVisScale = nScale;
+		mVisMidPt += cv::Point2f(mapControlData[6], mapControlData[7]);
+		mapControlData[6] = 0;
+		mapControlData[7] = 0;
+		mnVisScale = mapControlData[1];
 		//////Update Visualizer 
 
-		if (isDoingProcess()) {
+		//if (isDoingProcess()) {
 			cv::Mat tempVis = mVisPoseGraph.clone();
 			auto mmpMap = mpMap->GetMap();
 			for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
@@ -311,7 +325,7 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 
 			SetOutputImage(tempVis, 4);
 			SetBoolDoingProcess(false);
-		}
+		//}//doing process
 
 		////////Update Map Visualizer
 		if (isOutputTypeChanged(0)) {
@@ -436,9 +450,9 @@ void UVR_SLAM::Visualizer::Run() {
 		//if (true) {
 
 		//update pt
-		mVisMidPt += mPt;
+		/*mVisMidPt += mPt;
 		mPt = cv::Point2f(0, 0);
-		mnVisScale = nScale;
+		mnVisScale = nScale;*/
 
 		if (isDoingProcess()) {
 

@@ -52,8 +52,14 @@ namespace UVR_SLAM {
 		//바닥과 벽의 초기화 여부를 알아야 한다.
 		Map();
 		Map(System* pSystem, int nConnected = 8, int nCandiate = 4);
+		
 		virtual ~Map();
 	public:
+		////재사용 관련 코드
+		void LoadMapDataFromServer(const char* data, std::vector<Frame*>& vpMapFrames);
+		std::vector<Frame*> mvpMapFrames;
+	public:
+		void Reset();
 		void AddFrame(Frame* pF);
 		void RemoveFrame(Frame* pF);
 		std::vector<Frame*> GetFrames();

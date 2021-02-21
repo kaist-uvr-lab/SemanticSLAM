@@ -8,6 +8,8 @@
 #include <Sim3Solver.h>
 #include <Optimization.h>
 #include "Map.h"
+#include <future>
+#include <WebAPI.h>
 
 /*
 프레임의 seterase, setnoterase, setbadflag 관련된 처리가 아직 안되어있음.
@@ -22,6 +24,21 @@ Optimization의 OptimizeEssentialGraph 내부 구현
 */
 
 namespace UVR_SLAM {
+
+	auto lambda_api_kf_match_loop_closing = [](std::string ip, int port, int id1, int id2, int n) {
+
+		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+		WebAPI* mpAPI = new WebAPI(ip, port);
+		auto res = mpAPI->Send("featurematch", WebAPIDataConverter::ConvertNumberToString(id1, id2));
+		cv::Mat matches;
+		WebAPIDataConverter::ConvertStringToMatches(res.c_str(), n, matches);
+		std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+		auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+		float t_test1 = du_test1 / 1000.0;
+		//std::cout << "api::featurematch=" << t_test1 << std::endl;
+		return matches;
+	};
+
 	LoopCloser::LoopCloser() {}
 	LoopCloser::LoopCloser(System* pSys):mpSystem(pSys), mbFixScale(false), mbProcessing(false), mnCovisibilityConsistencyTh(3){
 	}
@@ -36,10 +53,67 @@ namespace UVR_SLAM {
 		mnHeight = mpSystem->mnHeight;
 		mInvK = mpSystem->mInvK.clone();
 	}
+	
+	void LoopCloser::ConstructBowDB(std::vector<Frame*> vpFrames) {
+		for (size_t i = 0, iend = vpFrames.size(); i < iend; i++) {
+			mpKeyFrameDatabase->Add(vpFrames[i]);
+		}
+	}
+
 	void UVR_SLAM::LoopCloser::RunWithMappingServer() {
 		std::cout << "MappingServer::LoopCloser::Start" << std::endl;
 		while (true) {
+			if (CheckNewKeyFrames()) {
+				std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+				ProcessNewKeyFrame();
+#ifdef DEBUG_LOOP_CLOSING_LEVEL_1
+				std::cout << "MappingServer::LoopClosing::" << mpTargetFrame->mnFrameID << "::Start" << std::endl;
+#endif
+				//mpKeyFrameDatabase->Add(mpTargetFrame);
+				auto vpCandidateKFs = mpKeyFrameDatabase->DetectPlaceCandidates(mpTargetFrame);
+				std::cout << "Place Recognizer = " << vpCandidateKFs.size() << std::endl;
+				for (size_t i = vpCandidateKFs.size(), iend = vpCandidateKFs.size(); i < iend; i++) {
+					auto pCandidate = vpCandidateKFs[i];
+					cv::imshow("candidate", pCandidate->GetOriginalImage()); cv::waitKey(1);
+				}
+				//if (mpTargetFrame->GetConnectedKFs().size() < 3) {
+				//	for (size_t i = 0, iend = vpNeighKFs.size(); i < iend; i++) {
+				//		auto pKF = vpNeighKFs[i];
+				//		/*auto ftest = std::async(std::launch::async, UVR_SLAM::lambda_api_kf_match, "143.248.96.81", 35005, mpTargetFrame->mnFrameID, pKF->mnFrameID, mpTargetFrame->mvPts.size());
+				//		cv::Mat temp = ftest.get();*/
+				//		cv::Mat temp = lambda_api_kf_match_loop_closing(mpSystem->ip, mpSystem->port, mpTargetFrame->mnFrameID, pKF->mnFrameID, mpTargetFrame->mvPts.size());
+				//		if (mpTargetFrame->mvPts.size() != temp.cols) {
+				//			std::cout << "Error::Matching::Invalid Matching Size::" << temp.cols << ", " << mpTargetFrame->mvPts.size() << std::endl;
+				//		}
+				//		std::vector<bool> vecBoolOverlap(pKF->mvPts.size(), false);
+				//		for (size_t j = 0, jend = temp.cols; j < jend; j++) {
+				//			int idx1 = j;
+				//			int idx2 = temp.at<int>(idx1);
+				//			if (idx2 == -1)
+				//				continue;
+				//			if (idx2 >= pKF->mvPts.size() || idx2 < -1) {
+				//				temp.at<int>(idx1) = -1;
+				//				std::cout << "Error::Matching::Invalid Frame2 Indexs = " << idx2 << ", " << pKF->mvPts.size() << "::" << j << std::endl;
+				//				continue;
+				//			}
+				//			if (vecBoolOverlap[idx2])
+				//			{
+				//				temp.at<int>(idx1) = -1;
+				//				continue;
+				//			}
+				//			vecBoolOverlap[idx2] = true;
+				//		}
+				//	}
+				//	//mMatches.push_back(temp);
+				//}
 
+				std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+				auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+				float t_test1 = du_test1 / 1000.0;
+#ifdef DEBUG_LOOP_CLOSING_LEVEL_1
+				std::cout << "MappingServer::LoopClosing::" << mpTargetFrame->mnFrameID << "::"<< vpNeighKFs.size()<<"::"<<t_test1 << "::End" << std::endl;
+#endif
+			}
 		}
 	}
 	void LoopCloser::Run() {
@@ -91,10 +165,25 @@ namespace UVR_SLAM {
 
 	void LoopCloser::ProcessNewKeyFrame()
 	{
-		std::unique_lock<std::mutex> lock(mMutexNewKFs);
-		mpTargetFrame = mKFQueue.front();
-		mKFQueue.pop();
-		mpTargetFrame->ComputeBoW();
+		{
+			std::unique_lock<std::mutex> lock(mMutexNewKFs);
+			mpTargetFrame = mKFQueue.front();
+			mKFQueue.pop();
+		}
+		[](std::string ip, int port, Frame* pF) {
+			WebAPI* mpAPI = new WebAPI(ip, port);
+			auto strID = WebAPIDataConverter::ConvertNumberToString(pF->mnFrameID);
+			WebAPIDataConverter::ConvertBytesToDesc(mpAPI->Send("getDesc", strID).c_str(), pF->mvPts.size(), pF->matDescriptor);
+			pF->ComputeBoW();
+		}(mpSystem->ip, mpSystem->port, mpTargetFrame);
+
+		/*std::async(std::launch::async, [](std::string ip, int port, Frame* pF) {
+			WebAPI* mpAPI = new WebAPI(ip, port);
+			auto strID = WebAPIDataConverter::ConvertNumberToString(pF->mnFrameID);
+			WebAPIDataConverter::ConvertStringToDesc(mpAPI->Send("getDesc", strID).c_str(), pF->mvPts.size(), pF->matDescriptor);
+			pF->ComputeBoW();
+		}, "143.248.96.81", 35005, mpTargetFrame);*/
+		//mpTargetFrame->ComputeBoW();
 	}
 	bool LoopCloser::isProcessing() {
 		std::unique_lock<std::mutex> lock(mMutexProcessing);

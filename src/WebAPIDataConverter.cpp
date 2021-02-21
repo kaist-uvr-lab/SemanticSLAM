@@ -45,11 +45,17 @@ std::string WebAPIDataConverter::ConvertNumberToString(int id1, int id2) {
 	return ss.str();
 }
 
+void WebAPIDataConverter::ConvertBytesToDesc(const char* data, int n, cv::Mat& desc) {
+	desc = cv::Mat::zeros(256, n, CV_32FC1);
+	std::memcpy(desc.data, data, n * 256 * sizeof(float));
+	desc = desc.t();
+}
 void WebAPIDataConverter::ConvertStringToDesc(const char* data, int n, cv::Mat& desc) {
 	rapidjson::Document document;
 	if (document.Parse(data).HasParseError()) {
 		std::cout << "ConvertStringToDesc::JSON parsing error" << std::endl;
 	}
+	
 	if (document.HasMember("desc") && document["desc"].IsString()) {
 		
 		////디스크립터 정보 확인 필요.
@@ -57,7 +63,7 @@ void WebAPIDataConverter::ConvertStringToDesc(const char* data, int n, cv::Mat& 
 		//보내는 쪽을 n x 256으로 변경하던가
 		desc = cv::Mat::zeros(256, n, CV_32FC1);
 		auto resstr = Base64Encoder::base64_decode(std::string(document["desc"].GetString()));
-		std::memcpy(desc.data, resstr.c_str(), n * 256 * sizeof(float));
+		std::memcpy(desc.data, resstr.data(), n * 256 * sizeof(float));
 		/*auto a = std::string(document["desc"].GetString()).c_str();
 		int len = strlen(a);
 		uchar c[500000]; c[499999] = 0;
@@ -117,7 +123,6 @@ void WebAPIDataConverter::ConvertStringToNumber(const char* data, int &n) {
 	}
 	if (document.HasMember("n") && document["n"].IsInt()) {
 		n = document["n"].GetInt();
-
 	}
 }
 void WebAPIDataConverter::ConvertStringToNumber(const char* data, int &id1, int& id2) {
@@ -136,18 +141,32 @@ void WebAPIDataConverter::ConvertStringToPoints(const char* data, std::vector<cv
 	if (document.Parse(data).HasParseError()) {
 		std::cout << "ConvertStringToPoints::JSON parsing error" << std::endl;
 	}
-	if (document.HasMember("pts") && document["pts"].IsString()) {
-		auto resstrkpts = Base64Encoder::base64_decode(std::string(document["pts"].GetString()));//length / (4*2) = n임
+	//if (document.HasMember("pts") && document["pts"].IsString()) {
+	//	auto resstrkpts = Base64Encoder::base64_decode(std::string(document["pts"].GetString()));//length / (4*2) = n임
+	//	int n = document["n"].GetInt();
+	//	float* tempFloat1 = (float*)malloc(n * 2 * sizeof(float));
+	//	std::memcpy(tempFloat1, resstrkpts.data(), n * 2 * sizeof(float));
+	//	for (int i = 0; i < n; i++) {
+	//		/*if (tempFloat1[2 * i] < 0.0 || tempFloat1[2 * i] >= 640.0) {
+	//			std::cout << "Error::Get Points X " << tempFloat1[2 * i] << std::endl;
+	//		}
+	//		if (tempFloat1[2 * i+1] < 0.0 || tempFloat1[2 * i+1] >= 480) {
+	//			std::cout << "Error::Get Points Y " << tempFloat1[2 * i+1] << std::endl;
+	//		}*/
+	//		vPTs.push_back(std::move(cv::Point2f(tempFloat1[2 * i], tempFloat1[2 * i + 1])));
+	//	}
+	//	std::free(tempFloat1);
+	//	/*vPTs = std::vector<cv::Point2f>(n);
+	//	std::memcpy(&vPTs[0], resstrkpts.c_str(), n * 2 * sizeof(float));*/
+	//}
+	if (document.HasMember("pts")&& document["pts"].IsArray()){
+		const rapidjson::Value& a = document["pts"];
 		int n = document["n"].GetInt();
-		float* tempFloat1 = (float*)malloc(n * 2 * sizeof(float));
-		std::memcpy(tempFloat1, resstrkpts.c_str(), n * 2 * sizeof(float));
 		for (int i = 0; i < n; i++) {
-			vPTs.push_back(std::move(cv::Point2f(tempFloat1[2 * i], tempFloat1[2 * i + 1])));
+			vPTs.push_back(std::move(cv::Point2f(a[i][0].GetFloat(), a[i][1].GetFloat())));
 		}
-		std::free(tempFloat1);
-		/*vPTs = std::vector<cv::Point2f>(n);
-		std::memcpy(&vPTs[0], resstrkpts.c_str(), n * 2 * sizeof(float));*/
 	}
+	
 }
 
 void WebAPIDataConverter::ConvertStringToMatches(const char* data, int n, cv::Mat& mMatches) {
@@ -155,16 +174,21 @@ void WebAPIDataConverter::ConvertStringToMatches(const char* data, int n, cv::Ma
 	if (document.Parse(data).HasParseError()) {
 		std::cout << "JSON parsing error::ConvertStringToMatches" << std::endl;
 	}
-	if (document.HasMember("matches") && document["matches"].IsString()) {
-		auto resstrmatches = Base64Encoder::base64_decode(std::string(document["matches"].GetString()));// , n2);
-		
+	//if (document.HasMember("matches") && document["matches"].IsString()) {
+	//	auto resstrmatches = Base64Encoder::base64_decode(std::string(document["matches"].GetString()));// , n2);
+	//	
+	//	if (resstrmatches.size() != 4 * n)
+	//		std::cout << "Error::ConvertStringToMatches::Invaild Received message size::" << resstrmatches.size() << " ," << 4 * n << std::endl;
+
+	//	mMatches = cv::Mat::zeros(1, n, CV_32SC1);
+	//	std::memcpy(mMatches.data, resstrmatches.c_str(), n * sizeof(int));
+	//}
+	if (document.HasMember("matches")) {
 		mMatches = cv::Mat::zeros(1, n, CV_32SC1);
-		std::memcpy(mMatches.data, resstrmatches.c_str(), n * sizeof(int));
-		/*int nres = 0;
-		for (size_t i = 0; i < n; i++) {
-		if (vMatches[i])
-		nres++;
-		}*/
+		const rapidjson::Value& a = document["matches"];
+		for (int i = 0; i < n; i++) {
+			mMatches.at<int>(i) = a[i].GetInt();
+		}
 	}
 }
 void WebAPIDataConverter::ConvertStringToMatches(const char* data, int n, std::vector<int>& vMatches) {
@@ -172,16 +196,16 @@ void WebAPIDataConverter::ConvertStringToMatches(const char* data, int n, std::v
 	if (document.Parse(data).HasParseError()) {
 		std::cout << "JSON parsing error::ConvertStringToMatches" << std::endl;
 	}
-	if (document.HasMember("matches") && document["matches"].IsString()) {
-		auto resstrmatches = Base64Encoder::base64_decode(std::string(document["matches"].GetString()));// , n2);
-		//int* temp = (int*)malloc(n * sizeof(int));
-		vMatches = std::vector<int>(n);
-		std::memcpy(&vMatches[0], resstrmatches.c_str(), n * sizeof(int));
-		/*int nres = 0;
-		for (size_t i = 0; i < n; i++) {
-			if (vMatches[i])
-				nres++;
-		}*/
+	//if (document.HasMember("matches") && document["matches"].IsString()) {
+	//	auto resstrmatches = Base64Encoder::base64_decode(std::string(document["matches"].GetString()));// , n2);
+	//	vMatches = std::vector<int>(n);
+	//	std::memcpy(&vMatches[0], resstrmatches.c_str(), n * sizeof(int));
+	//}
+	if (document.HasMember("matches")) {
+		const rapidjson::Value& a = document["matches"];
+		for (int i = 0; i < n; i++) {
+			vMatches.push_back(a[i].GetInt());
+		}
 	}
 }
 
@@ -239,6 +263,14 @@ void WebAPIDataConverter::ConvertInitConnectToServer(const char* data, float& _f
 	_w = document["w"].GetInt();
 	_h = document["h"].GetInt();
 }
+void WebAPIDataConverter::ConvertDeviceFrameIDToServer(const char* data, int& id, int& num) {
+	rapidjson::Document document;
+	if (document.Parse(data).HasParseError()) {
+		std::cout << "JSON parsing error::ConvertDeviceFrameIDToServer" << std::endl;
+	}
+	id = document["id"].GetInt();
+	num = document["n"].GetInt();
+}
 void WebAPIDataConverter::ConvertDeviceToServer(const char* data, int& id, bool& init) {
 	rapidjson::Document document;
 	if (document.Parse(data).HasParseError()) {
@@ -277,5 +309,6 @@ std::string WebAPIDataConverter::ConvertInitializationToJsonString(int id, bool 
 	ss << "{\"id1\":" << (int)id << ",\"init\":" << bInit << ",\"pose\":\"" << strpose <<"\""<< ",\"keypoints\":\"" << strkey << "\"" << ",\"mappoints\":\"" << strmap << "\"" << "}";
 	return ss.str();
 }
+
 ////단말과 통신 부분
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

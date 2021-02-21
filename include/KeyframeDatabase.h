@@ -24,6 +24,7 @@ namespace UVR_SLAM {
 		void Remove(Frame* pKF);
 		void Reset();
 
+		std::vector<Frame*> DetectPlaceCandidates(Frame* pKF);
 		std::vector<Frame*> DetectLoopCandidates(Frame* pKF, float minScore);
 
 	private:

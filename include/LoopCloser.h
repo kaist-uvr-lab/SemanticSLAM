@@ -26,7 +26,7 @@ namespace UVR_SLAM {
 		LoopCloser();
 		LoopCloser(System* pSys);
 		virtual ~LoopCloser();
-
+		
 		void Init();
 		void SetBoolProcessing(bool b);
 		bool isProcessing();
@@ -39,9 +39,10 @@ namespace UVR_SLAM {
 		bool ComputeSim3();
 		void CorrectLoop();
 		void SearchAndFuse(const KeyFrameAndPose &CorrectedPosesMap);
-
+		void ConstructBowDB(std::vector<Frame*> vpFrames);
 	public:
 		int mLastLoopKFid;
+		
 	private:
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
 		

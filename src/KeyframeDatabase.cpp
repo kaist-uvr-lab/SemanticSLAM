@@ -49,7 +49,61 @@ namespace UVR_SLAM {
 		mvInvertedFile.clear();
 		mvInvertedFile.resize(mpVocabulary->size());
 	}
-
+	std::vector<Frame*> KeyframeDatabase::DetectPlaceCandidates(Frame* pKF) {
+		std::map<Frame*, int> KeyFrameCount;
+		int nTargetID = pKF->mnFrameID;
+		////키프레임 카운트
+		////lock : mvInvertedFiles
+		{
+			std::unique_lock<std::mutex>(mMutex);
+			auto mBowVec = pKF->mBowVec; 
+			
+			for (auto iter = mBowVec.begin(), iend = mBowVec.end(); iter != iend; iter++) {
+				if (iter->first >= mvInvertedFile.size()) {
+					std::cout << "KFDB::DetectLoopCandidates::BowVec::Fail::" << iter->first << ", " << mvInvertedFile.size() << std::endl;
+					continue;
+				}
+				std::list<Frame*> &lKFs = mvInvertedFile[iter->first];
+				for (auto liter = lKFs.begin(), lend = lKFs.end(); liter != lend; liter++)
+				{
+					auto pKFi = *liter;
+					if (pKFi->mnFrameID == nTargetID)
+						continue;
+					KeyFrameCount[pKFi]++;
+				}
+			}
+		}
+		////lock
+		////sort keyframecount
+		std::vector<Frame*> res(0);
+		std::vector<std::pair<int, Frame*>> vPairKFs;
+		for (auto iter = KeyFrameCount.begin(), iend = KeyFrameCount.end(); iter != iend; iter++) {
+			auto pKFi = iter->first;
+			auto count = iter->second;
+			if (count < 10)
+				continue;
+			vPairKFs.push_back(std::make_pair(count, pKFi));
+		}
+		if (vPairKFs.size() == 0) {
+#ifdef PRINT_ERROR
+			std::cout << "Place Recognition::No candidate KFs!!!" << std::endl;
+#endif
+			return res;
+		}
+		std::sort(vPairKFs.begin(), vPairKFs.end(), std::greater<>());
+		
+		for (size_t i = 0, iend = vPairKFs.size(); i < iend; i++) {
+			
+			auto pair = vPairKFs[i];
+#ifdef DEBUG_LOOP_CLOSING_LEVEL_3
+			std::cout << "KF :: " << i << ", " << pair.first <<"::"<<nTargetID<<", "<<pair.second->mnFrameID<< std::endl;
+#endif
+			res.push_back(pair.second);
+			if (res.size() == 4)
+				break;
+		}
+		return res;
+	}
 	std::vector<Frame*> KeyframeDatabase::DetectLoopCandidates(Frame* pKF, float minScore) {
 		//std::cout << "DetectLoopCandidates::Start" << std::endl;
 		auto spKFs = pKF->GetConnectedKeyFrameSet();

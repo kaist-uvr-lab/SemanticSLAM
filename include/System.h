@@ -26,6 +26,7 @@ namespace UVR_SLAM {
 	class MapPoint;
 	class Frame;
 	class SemanticSegmentator;
+	class MappingServer;
 	class LocalMapper;
 	class PlaneEstimator;
 	class LoopCloser;
@@ -54,6 +55,7 @@ namespace UVR_SLAM {
 		Matcher* mpMatcher;
 		Initializer* mpInitializer;
 		Map* mpMap;
+		MappingServer* mpMappingServer;
 		LocalMapper* mpLocalMapper;
 		DepthFilter* mpDepthFilter;
 		MapOptimizer* mpMapOptimizer;
@@ -94,6 +96,7 @@ namespace UVR_SLAM {
 		std::string GetDirPath(int id = 0);
 	public:
 		////thread
+		std::thread* mptMappingServer;
 		std::thread *mptLocalMapper;
 		std::thread* mptMapOptimizer;
 		std::thread *mptLoopCloser;
@@ -140,6 +143,7 @@ namespace UVR_SLAM {
 		int mnVisScale;
 		std::string ip;
 		int port;
+		static int nMapPointID;
 		static int nKeyFrameID;
 		static int nFrameID;
 		static int nMapGridID;

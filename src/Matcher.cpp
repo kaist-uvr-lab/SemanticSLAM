@@ -1102,6 +1102,7 @@ int UVR_SLAM::Matcher::OpticalMatchingForInitialization(Frame* init, Frame* curr
 }
 
 bool  UVR_SLAM::Matcher::OpticalGridMatching(FrameGrid* grid1, cv::Mat src1, cv::Mat src2, std::vector<cv::Point2f>& vPrevPTs, std::vector<cv::Point2f>& vCurrPTs) {
+	
 	int searchSize = mpSystem->mnRadius;
 	int maxLvl = 3;
 	std::vector<uchar> status;
