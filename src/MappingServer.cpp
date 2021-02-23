@@ -23,17 +23,17 @@ namespace UVR_SLAM {
 	auto lambda_api_detect = [](std::string ip, int port, Frame* pTarget) {
 		WebAPI* mpAPI = new WebAPI(ip, port);
 		auto strID1 = WebAPIDataConverter::ConvertNumberToString(pTarget->mnFrameID);
-		WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("getPts", strID1).c_str(), pTarget->mvPts);
+		WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("/getPts", strID1).c_str(), pTarget->mvPts);
 		pTarget->SetMapPoints(pTarget->mvPts.size());
 	};
 	auto lambda_api_detectAndmatch = [](std::string ip, int port, Frame* pRef, Frame* pTarget) {
 		WebAPI* mpAPI = new WebAPI(ip, port);
 		auto strID2 = WebAPIDataConverter::ConvertNumberToString(pTarget->mnFrameID);
-		WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("getPts", strID2).c_str(), pTarget->mvPts);
+		WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("/getPts", strID2).c_str(), pTarget->mvPts);
 		pTarget->SetMapPoints(pTarget->mvPts.size());
 		std::vector<int> matches;
 		auto strID12 = WebAPIDataConverter::ConvertNumberToString(pRef->mnFrameID, pTarget->mnFrameID);
-		WebAPIDataConverter::ConvertStringToMatches(mpAPI->Send("featurematch", strID12).c_str(), pRef->mvPts.size(), matches);
+		WebAPIDataConverter::ConvertStringToMatches(mpAPI->Send("/featurematch", strID12).c_str(), pRef->mvPts.size(), matches);
 		return matches;
 	};
 	auto lambda_api_Initialization = [](std::string ip, int port, System* pSystem, Frame* pRef, Frame* pTarget, int& nRefID, std::vector<int> vMatches) {
@@ -79,8 +79,10 @@ namespace UVR_SLAM {
 			std::cout << "Initializer::replace::keyframe1::" << pTarget->mnFrameID << "::" << nMatch << ", MIN = " << nThreshInit << ", " << nThreshReplace << std::endl;
 #endif
 			WebAPI* mpAPI = new WebAPI(pSystem->ip, pSystem->port);
-			auto strID = WebAPIDataConverter::ConvertNumberToString(pTarget->mnFrameID);
-			mpAPI->Send("SetReferenceFrameID", strID);
+			std::stringstream ss;
+			//ss << "{\"id\":" << pTarget->mnFrameID << ",\"key\":reference}";
+			ss << "/SetLastFrameID?id=" << pTarget->mnFrameID << "&key=reference";
+			mpAPI->Send(ss.str(), "");
 			//nRefID = pTarget->mnFrameID;
 			return false;
 		}
@@ -138,8 +140,8 @@ namespace UVR_SLAM {
 		WebAPI* mpAPI = new WebAPI(ip, port);
 		auto strID1 = WebAPIDataConverter::ConvertNumberToString(pRef->mnFrameID);
 		auto strID2 = WebAPIDataConverter::ConvertNumberToString(pTarget->mnFrameID);
-		WebAPIDataConverter::ConvertBytesToDesc(mpAPI->Send("getDesc", strID1).c_str(), pRef->mvPts.size(), pRef->matDescriptor);
-		WebAPIDataConverter::ConvertBytesToDesc(mpAPI->Send("getDesc", strID2).c_str(), pTarget->mvPts.size(), pTarget->matDescriptor);
+		WebAPIDataConverter::ConvertBytesToDesc(mpAPI->Send("/getDesc", strID1).c_str(), pRef->mvPts.size(), pRef->matDescriptor);
+		WebAPIDataConverter::ConvertBytesToDesc(mpAPI->Send("/getDesc", strID2).c_str(), pTarget->mvPts.size(), pTarget->matDescriptor);
 
 		std::vector<UVR_SLAM::MapPoint*> tempMPs;
 		std::vector<cv::Point2f> vTempMappedPts1, vTempMappedPts2; //맵포인트로 생성된 포인트 정보를 저장
@@ -257,8 +259,9 @@ namespace UVR_SLAM {
 #ifdef DEBUG_TRACKING_LEVEL_3
 		std::cout << "Mapping::Initialization::Success=" << pRef->mnFrameID << ", " << pTarget->mnFrameID << "::" << tempMPs.size() << std::endl;
 #endif
-		auto strID = WebAPIDataConverter::ConvertNumberToString(pTarget->mnFrameID);
-		mpAPI->Send("SetReferenceFrameID", strID);
+		std::stringstream ss;
+		ss << "/SetLastFrameID?id=" << pTarget->mnFrameID << "&key=reference";
+		mpAPI->Send(ss.str(), "");
 		return true;
 	};
 	auto lambda_api_tracking = [](System* pSystem, Frame* pRef, Frame* pTarget, int& nRefID, std::vector<int> vMatches) {
@@ -391,7 +394,7 @@ namespace UVR_SLAM {
 		mpLoopCloser = mpSystem->mpLoopCloser;
 		mpMapOptimizer = mpSystem->mpMapOptimizer;
 		mpVisualizer = mpSystem->mpVisualizer;
-		
+		UVR_SLAM::ObjectColors::Init();
 	}
 	void MappingServer::InsertFrame(std::pair<int, int> pairInfo) {
 		std::unique_lock<std::mutex> lock(mMutexQueue);
@@ -414,18 +417,23 @@ namespace UVR_SLAM {
 		Frame* pNewF = new UVR_SLAM::Frame(mpSystem, nID, mnWidth, mnHeight, mK, 0.0);
 		mmFrames[nID] = pNewF;
 		if (mnReferenceID == -1) {
-			auto ftest = std::async(std::launch::async, lambda_api_detect, mpSystem->ip, mpSystem->port, pNewF);
+			lambda_api_detect(mpSystem->ip, mpSystem->port, pNewF);
+			//auto ftest = std::async(std::launch::async, lambda_api_detect, mpSystem->ip, mpSystem->port, pNewF);
 			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
-			auto strID = WebAPIDataConverter::ConvertNumberToString(pNewF->mnFrameID);
-			mpAPI->Send("SetReferenceFrameID", strID);
+			std::stringstream ss;
+			ss << "/SetLastFrameID?id=" << pNewF->mnFrameID << "&key=reference";
+			mpAPI->Send(ss.str(),"");
+			/*ss << "{\"id\":" << (int)pNewF->mnFrameID << ",\"key\":\"reference\"}";
+			mpAPI->Send("/SetLastFrameID", ss.str());*/
 			mnReferenceID = pNewF->mnFrameID;
 		} 
 		else 
 		{
 			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
-			auto strID = WebAPIDataConverter::ConvertNumberToString(pNewF->mnFrameID);
-			WebAPIDataConverter::ConvertStringToNumber(mpAPI->Send("GetReferenceFrameID", strID).c_str(), mnReferenceID);
-
+			std::stringstream ss;
+			ss << "/GetLastFrameID?key=reference";
+			WebAPIDataConverter::ConvertStringToNumber(mpAPI->Send(ss.str(), "").c_str(), mnReferenceID);
+			std::cout << "Last Reference = " << mnReferenceID << std::endl;
 			auto pRef = mmFrames[mnReferenceID];
 			auto matches = lambda_api_detectAndmatch(mpSystem->ip, mpSystem->port, pRef, pNewF);
 			if (mbInitialized) {

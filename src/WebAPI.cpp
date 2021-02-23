@@ -41,11 +41,9 @@ std::string WebAPI::Send(std::string method, std::string input) {
 		(const unsigned char*)input.c_str(),
 		strlen(input.c_str())
 	);
-
 	while (mpConnection->outstanding()){
 		mpConnection->pump();
 	}
-
 	return datastream.str();
 }
 

@@ -29,7 +29,7 @@ namespace UVR_SLAM {
 
 		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 		WebAPI* mpAPI = new WebAPI(ip, port);
-		auto res = mpAPI->Send("featurematch", WebAPIDataConverter::ConvertNumberToString(id1, id2));
+		auto res = mpAPI->Send("/featurematch", WebAPIDataConverter::ConvertNumberToString(id1, id2));
 		cv::Mat matches;
 		WebAPIDataConverter::ConvertStringToMatches(res.c_str(), n, matches);
 		std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
@@ -62,6 +62,12 @@ namespace UVR_SLAM {
 
 	void UVR_SLAM::LoopCloser::RunWithMappingServer() {
 		std::cout << "MappingServer::LoopCloser::Start" << std::endl;
+
+		int nPrevSegFrame = -1;
+		int nCurrSegFrame;
+		int nPrevDepthFrame = -1;
+		int nCurrDepthFrame;
+
 		while (true) {
 			if (CheckNewKeyFrames()) {
 				std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
@@ -106,6 +112,55 @@ namespace UVR_SLAM {
 				//	}
 				//	//mMatches.push_back(temp);
 				//}
+				{
+					//segmentation test
+					WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
+					std::stringstream ss;
+					ss << "/GetLastFrameID?key=bsegmentation";
+					WebAPIDataConverter::ConvertStringToNumber(mpAPI->Send(ss.str(), "").c_str(), nCurrSegFrame);
+					if (nCurrSegFrame >= 0 && nCurrSegFrame != nPrevSegFrame) {
+						ss.str("");
+						ss << "/SendData?id="<< nCurrSegFrame << "&key=bsegmentation";
+						std::async(std::launch::async, [](WebAPI* wapi,std::string method, int w, int h) {
+							auto resdata = wapi->Send(method, "");
+							////贸府 饶 傈价
+							cv::Mat seg = cv::Mat::zeros(h, w, CV_8UC1);
+							std::memcpy(seg.data, resdata.data(), w*h*sizeof(uchar));
+							cv::Mat seg_color = cv::Mat::zeros(seg.size(), CV_8UC3);
+							for (int y = 0; y < seg_color.rows; y++) {
+								for (int x = 0; x < seg_color.cols; x++) {
+									int label = seg.at<uchar>(y, x);
+									seg_color.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
+								}
+							}
+							imshow("segmentation", seg_color); cv::waitKey(1);
+						}, mpAPI, ss.str(), mnWidth/2, mnHeight/2);
+						nPrevSegFrame = nCurrSegFrame;
+					}
+				}
+
+				{
+					//segmentation test
+					WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
+					std::stringstream ss;
+					ss << "/GetLastFrameID?key=bdepth";
+					WebAPIDataConverter::ConvertStringToNumber(mpAPI->Send(ss.str(), "").c_str(), nCurrDepthFrame);
+					if (nCurrDepthFrame >= 0 && nCurrDepthFrame != nPrevDepthFrame) {
+						ss.str("");
+						ss << "/SendData?id=" << nCurrDepthFrame << "&key=bdepth";
+						std::async(std::launch::async, [](WebAPI* wapi, std::string method, int w, int h) {
+							auto resdata = wapi->Send(method, "");
+							////贸府 饶 傈价
+							cv::Mat depth = cv::Mat::zeros(h, w, CV_32FC1);
+							std::memcpy(depth.data, resdata.data(), w*h * sizeof(float));
+							
+							cv::normalize(depth, depth, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+							cv::cvtColor(depth, depth, CV_GRAY2BGR);
+							imshow("depth", depth); cv::waitKey(1);
+						}, mpAPI, ss.str(), mnWidth, mnHeight);
+						nPrevDepthFrame = nCurrDepthFrame;
+					}
+				}
 
 				std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
 				auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -173,7 +228,7 @@ namespace UVR_SLAM {
 		[](std::string ip, int port, Frame* pF) {
 			WebAPI* mpAPI = new WebAPI(ip, port);
 			auto strID = WebAPIDataConverter::ConvertNumberToString(pF->mnFrameID);
-			WebAPIDataConverter::ConvertBytesToDesc(mpAPI->Send("getDesc", strID).c_str(), pF->mvPts.size(), pF->matDescriptor);
+			WebAPIDataConverter::ConvertBytesToDesc(mpAPI->Send("/getDesc", strID).c_str(), pF->mvPts.size(), pF->matDescriptor);
 			pF->ComputeBoW();
 		}(mpSystem->ip, mpSystem->port, mpTargetFrame);
 

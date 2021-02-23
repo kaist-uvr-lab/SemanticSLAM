@@ -142,7 +142,7 @@ namespace UVR_SLAM {
 
 		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 		WebAPI* mpAPI = new WebAPI(ip, port);
-		auto res = mpAPI->Send("featurematch", WebAPIDataConverter::ConvertNumberToString(id1, id2));
+		auto res = mpAPI->Send("/featurematch", WebAPIDataConverter::ConvertNumberToString(id1, id2));
 		cv::Mat matches;
 		WebAPIDataConverter::ConvertStringToMatches(res.c_str(), n, matches);
 		std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
@@ -419,8 +419,9 @@ void UVR_SLAM::LocalMapper::RunWithMappingServer() {
 			//포즈를 수정한 후 해당 프레임 아이디를 서버에 전송하기.
 			int nPoseRecovery = Optimization::PoseOptimization(mpSystem->mpMap, mpTargetFrame, vpTempMPs, vTempPts, vbTempInliers);
 			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
-			auto strID = WebAPIDataConverter::ConvertNumberToString(mpTargetFrame->mnFrameID);
-			mpAPI->Send("SetReferenceFrameID", strID);
+			std::stringstream ss;
+			ss << "/SetLastFrameID?id=" << mpTargetFrame->mnFrameID << "&key=reference";
+			mpAPI->Send(ss.str(),"");
 			
 #ifdef DEBUG_LOCAL_MAPPING_LEVEL_1
 			std::cout << "MappingServer::PoseRefinement::" << nPoseRecovery << ", " << vpTempMPs.size() << std::endl;
