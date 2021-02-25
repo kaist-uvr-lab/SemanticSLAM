@@ -7,6 +7,7 @@
 #include <KeyframeDatabase.h>
 #include <Sim3Solver.h>
 #include <Optimization.h>
+#include <Visualizer.h>
 #include "Map.h"
 #include <future>
 #include <WebAPI.h>
@@ -25,22 +26,18 @@ Optimization狼 OptimizeEssentialGraph 郴何 备泅
 
 namespace UVR_SLAM {
 
-	auto lambda_api_kf_match_loop_closing = [](std::string ip, int port, int id1, int id2, int n) {
-
-		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+	auto lambda_api_kf_match_loop_closing = [](std::string ip, int port, std::string map,int id1, int id2, int n) {
 		WebAPI* mpAPI = new WebAPI(ip, port);
-		auto res = mpAPI->Send("/featurematch", WebAPIDataConverter::ConvertNumberToString(id1, id2));
+		std::stringstream ss;
+		ss << "/featurematch?map=" << map << "&id1=" << id1 << "&id2=" << id2;
+		auto res = mpAPI->Send(ss.str(), "");
 		cv::Mat matches;
 		WebAPIDataConverter::ConvertStringToMatches(res.c_str(), n, matches);
-		std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
-		auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-		float t_test1 = du_test1 / 1000.0;
-		//std::cout << "api::featurematch=" << t_test1 << std::endl;
 		return matches;
 	};
 
 	LoopCloser::LoopCloser() {}
-	LoopCloser::LoopCloser(System* pSys):mpSystem(pSys), mbFixScale(false), mbProcessing(false), mnCovisibilityConsistencyTh(3){
+	LoopCloser::LoopCloser(System* pSys):mpSystem(pSys), mbLoadData(false), mbFixScale(false), mbProcessing(false), mnCovisibilityConsistencyTh(3){
 	}
 	LoopCloser::~LoopCloser() {}
 	void LoopCloser::Init() {
@@ -53,7 +50,10 @@ namespace UVR_SLAM {
 		mnHeight = mpSystem->mnHeight;
 		mInvK = mpSystem->mInvK.clone();
 	}
-	
+	void LoopCloser::LoadMapData(std::string map) {
+		mbLoadData = true;
+		mapName = map;
+	}
 	void LoopCloser::ConstructBowDB(std::vector<Frame*> vpFrames) {
 		for (size_t i = 0, iend = vpFrames.size(); i < iend; i++) {
 			mpKeyFrameDatabase->Add(vpFrames[i]);
@@ -69,6 +69,14 @@ namespace UVR_SLAM {
 		int nCurrDepthFrame;
 
 		while (true) {
+
+			if (mbLoadData) {
+				std::cout << "Load Data" << std::endl;
+				mpMap->LoadMapDataFromServer(mapName, mpMap->mvpMapFrames);
+				ConstructBowDB(mpMap->mvpMapFrames);
+				mbLoadData = false;
+			}
+
 			if (CheckNewKeyFrames()) {
 				std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 				ProcessNewKeyFrame();
@@ -78,10 +86,97 @@ namespace UVR_SLAM {
 				//mpKeyFrameDatabase->Add(mpTargetFrame);
 				auto vpCandidateKFs = mpKeyFrameDatabase->DetectPlaceCandidates(mpTargetFrame);
 				std::cout << "Place Recognizer = " << vpCandidateKFs.size() << std::endl;
-				for (size_t i = vpCandidateKFs.size(), iend = vpCandidateKFs.size(); i < iend; i++) {
+				int nMax = 0; 
+				cv::Mat maxMatch;
+				Frame* maxFrame = nullptr;
+				for (size_t i = 0, iend = vpCandidateKFs.size(); i < iend; i++) {
 					auto pCandidate = vpCandidateKFs[i];
-					cv::imshow("candidate", pCandidate->GetOriginalImage()); cv::waitKey(1);
+					cv::Mat matches = lambda_api_kf_match_loop_closing(mpSystem->ip, mpSystem->port, mpTargetFrame->mstrMapName, mpTargetFrame->mnFrameID, pCandidate->mnFrameID, mpTargetFrame->mvPts.size());
+					auto vpMPs = pCandidate->GetMapPoints();
+					int nMatch = 0;
+					int nTempMatch = 0;
+					for (int j = 0, jend = matches.cols; j < jend; j++) {
+						int idx1 = j;
+						int idx2 = matches.at<int>(idx1);
+						if (idx2 == 10000)
+							continue;
+						nTempMatch++;
+						auto pMP = vpMPs[idx2];
+						if (!pMP || pMP->isDeleted())
+							continue;
+						nMatch++;
+					}
+					if (nMatch > nMax) {
+						nMax = nMatch;
+						maxMatch = matches.clone();
+						maxFrame = pCandidate;
+					}
+					//std::cout <<"ID = "<<pCandidate->mnFrameID<<", "<< nTempMatch << std::endl;
+					//cv::imshow("candidate", pCandidate->GetOriginalImage()); cv::waitKey(1);
 				}
+				if (maxFrame)
+				{
+					//cv::imshow("candidate", maxFrame->GetOriginalImage()); cv::waitKey(10);
+					//Pose Optimization Test
+					cv::Mat R, t;
+					maxFrame->GetPose(R, t);
+					mpTargetFrame->SetPose(R, t);
+					cv::Mat targetImg = [](std::string ip, int port, int id, std::string map, int w, int h) {
+						WebAPI* mpAPI = new WebAPI(ip, port);
+						std::stringstream ss;
+						ss << "/SendData?map=" << map << "&id=" << id << "&key=bimage";
+						auto res = mpAPI->Send(ss.str(), "");
+						int n = res.size();
+						cv::Mat temp = cv::Mat::zeros(n, 1, CV_8UC1);
+						std::memcpy(temp.data, res.data(), n * sizeof(uchar));
+						cv::Mat img = cv::imdecode(temp, cv::IMREAD_COLOR);
+						return img;
+					}(mpSystem->ip, mpSystem->port, mpTargetFrame->mnFrameID, mpTargetFrame->mstrMapName, mpSystem->mnWidth, mpSystem->mnHeight);
+
+					//cv::Mat targetImg = mpTargetFrame->GetOriginalImage().clone();
+					cv::Mat resimg = maxFrame->GetOriginalImage().clone();
+					
+					
+					std::vector<cv::Point2f> vPTs;
+					std::vector<cv::Point3f> vXws;
+					std::vector<MapPoint*> vMPs;
+					std::vector <bool> vInliers;
+					auto vpMPs = maxFrame->GetMapPoints();
+					for (int j = 0, jend = maxMatch.cols; j < jend; j++) {
+						int idx1 = j;
+						int idx2 = maxMatch.at<int>(idx1);
+						if (idx2 == 10000)
+							continue;
+						auto pMP = vpMPs[idx2];
+						if (!pMP || pMP->isDeleted())
+							continue;
+						vPTs.push_back(mpTargetFrame->mvPts[j]);
+						vMPs.push_back(pMP);
+						vInliers.push_back(true);
+						cv::Mat Xw = pMP->GetWorldPos();
+						
+						vXws.push_back(cv::Point3f(Xw.at<float>(0), Xw.at<float>(1), Xw.at<float>(2)));
+
+						cv::Mat proj = mK*(R*Xw + t);
+						cv::Point2f projPt(proj.at<float>(0) / proj.at<float>(2), proj.at<float>(1) / proj.at<float>(2));
+						cv::circle(targetImg, mpTargetFrame->mvPts[idx1], 3, cv::Scalar(255, 255, 0), -1);
+						cv::circle(resimg, maxFrame->mvPts[idx2], 3, cv::Scalar(255, 0, 255), -1);
+						cv::circle(resimg, projPt, 3, cv::Scalar(0, 255, 255), -1);
+					}
+					cv::resize(targetImg, targetImg, cv::Size(mnWidth / 2, mnHeight / 2));
+					cv::resize(resimg, resimg, cv::Size(mnWidth / 2, mnHeight / 2));
+					mpSystem->mpVisualizer->SetOutputImage(targetImg, 0);
+					mpSystem->mpVisualizer->SetOutputImage(resimg, 1);
+					/*cv::Mat rvec, tvec;
+					cv::solvePnPRansac(vXws, vPTs, mpSystem->mK, cv::Mat(), rvec, tvec);
+					cv::Rodrigues(rvec, R);*/
+					mpTargetFrame->SetPose(R, t);
+					int nPoseRecovery = Optimization::PoseOptimization(mpMap, mpTargetFrame, vMPs, vPTs, vInliers);
+					mpMap->SetUserPosition(mpTargetFrame->GetCameraCenter());
+					std::cout << "Place Recognizer::res::" << "::"<< nMax << std::endl;
+				}
+				
+
 				//if (mpTargetFrame->GetConnectedKFs().size() < 3) {
 				//	for (size_t i = 0, iend = vpNeighKFs.size(); i < iend; i++) {
 				//		auto pKF = vpNeighKFs[i];
@@ -112,16 +207,17 @@ namespace UVR_SLAM {
 				//	}
 				//	//mMatches.push_back(temp);
 				//}
+
 				{
 					//segmentation test
 					WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
 					std::stringstream ss;
-					ss << "/GetLastFrameID?key=bsegmentation";
+					ss << "/GetLastFrameID?map="<<mpTargetFrame->mstrMapName<<"&key=bsegmentation";
 					WebAPIDataConverter::ConvertStringToNumber(mpAPI->Send(ss.str(), "").c_str(), nCurrSegFrame);
 					if (nCurrSegFrame >= 0 && nCurrSegFrame != nPrevSegFrame) {
 						ss.str("");
-						ss << "/SendData?id="<< nCurrSegFrame << "&key=bsegmentation";
-						std::async(std::launch::async, [](WebAPI* wapi,std::string method, int w, int h) {
+						ss << "/SendData?map=" << mpTargetFrame->mstrMapName << "&id="<< nCurrSegFrame << "&key=bsegmentation";
+						auto f = std::async(std::launch::async, [](WebAPI* wapi,std::string method, int w, int h) {
 							auto resdata = wapi->Send(method, "");
 							////贸府 饶 傈价
 							cv::Mat seg = cv::Mat::zeros(h, w, CV_8UC1);
@@ -133,9 +229,12 @@ namespace UVR_SLAM {
 									seg_color.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
 								}
 							}
-							imshow("segmentation", seg_color); cv::waitKey(1);
+							return seg_color;
+							//imshow("segmentation", seg_color); cv::waitKey(1);
 						}, mpAPI, ss.str(), mnWidth/2, mnHeight/2);
 						nPrevSegFrame = nCurrSegFrame;
+						auto res = f.get();
+						mpSystem->mpVisualizer->SetOutputImage(res, 2);
 					}
 				}
 
@@ -143,12 +242,12 @@ namespace UVR_SLAM {
 					//segmentation test
 					WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
 					std::stringstream ss;
-					ss << "/GetLastFrameID?key=bdepth";
+					ss << "/GetLastFrameID?map=" << mpTargetFrame->mstrMapName << "&key=bdepth";
 					WebAPIDataConverter::ConvertStringToNumber(mpAPI->Send(ss.str(), "").c_str(), nCurrDepthFrame);
 					if (nCurrDepthFrame >= 0 && nCurrDepthFrame != nPrevDepthFrame) {
 						ss.str("");
-						ss << "/SendData?id=" << nCurrDepthFrame << "&key=bdepth";
-						std::async(std::launch::async, [](WebAPI* wapi, std::string method, int w, int h) {
+						ss << "/SendData?map=" << mpTargetFrame->mstrMapName << "&id=" << nCurrDepthFrame << "&key=bdepth";
+						auto f = std::async(std::launch::async, [](WebAPI* wapi, std::string method, int w, int h) {
 							auto resdata = wapi->Send(method, "");
 							////贸府 饶 傈价
 							cv::Mat depth = cv::Mat::zeros(h, w, CV_32FC1);
@@ -156,9 +255,13 @@ namespace UVR_SLAM {
 							
 							cv::normalize(depth, depth, 0, 255, cv::NORM_MINMAX, CV_8UC1);
 							cv::cvtColor(depth, depth, CV_GRAY2BGR);
-							imshow("depth", depth); cv::waitKey(1);
+							cv::resize(depth, depth, depth.size() / 2);
+							return depth;
+							//imshow("depth", depth); cv::waitKey(1);
 						}, mpAPI, ss.str(), mnWidth, mnHeight);
 						nPrevDepthFrame = nCurrDepthFrame;
+						auto res = f.get();
+						mpSystem->mpVisualizer->SetOutputImage(res, 3);
 					}
 				}
 
@@ -227,8 +330,9 @@ namespace UVR_SLAM {
 		}
 		[](std::string ip, int port, Frame* pF) {
 			WebAPI* mpAPI = new WebAPI(ip, port);
-			auto strID = WebAPIDataConverter::ConvertNumberToString(pF->mnFrameID);
-			WebAPIDataConverter::ConvertBytesToDesc(mpAPI->Send("/getDesc", strID).c_str(), pF->mvPts.size(), pF->matDescriptor);
+			std::stringstream ss;
+			ss << "/SendData?map=" << pF->mstrMapName << "&id=" << pF->mnFrameID << "&key=bdesc";
+			WebAPIDataConverter::ConvertBytesToDesc(mpAPI->Send(ss.str(), "").c_str(), pF->mvPts.size(), pF->matDescriptor);
 			pF->ComputeBoW();
 		}(mpSystem->ip, mpSystem->port, mpTargetFrame);
 

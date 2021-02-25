@@ -13,6 +13,16 @@ namespace UVR_SLAM {
 		, mnFirstKeyFrameID(0), mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnMapGridID(0), mnOctave(0)
 		, mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0), mbLastMatch(false)
 	{}
+	MapPoint::MapPoint(Map* pMap, cv::Mat _p3D, cv::Mat _desc, int alabel, int octave)
+		: mpMap(pMap), mpRefKF(nullptr), p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(UVR_SLAM::System::nMapPointID++), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
+		, mnLoopPointForKF(0), mnCorrectedByKF(0), mnCorrectedReference(0), mnBAGlobalForKF(0)
+		, mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnMapGridID(0), mnOctave(octave)
+		, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0), mbLastMatch(false)
+	{
+		alabel = label;
+		//¸ÊÃ³¸®
+		mpMap->AddMap(this, label);
+	}
 	MapPoint::MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, int alabel, int octave)
 		: mpMap(pMap), mpRefKF(pRefKF), p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(UVR_SLAM::System::nMapPointID++), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
 		, mnLoopPointForKF(0), mnCorrectedByKF(0), mnCorrectedReference(0), mnBAGlobalForKF(0)

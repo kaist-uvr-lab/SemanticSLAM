@@ -46,9 +46,9 @@ std::string WebAPIDataConverter::ConvertNumberToString(int id1, int id2) {
 }
 
 void WebAPIDataConverter::ConvertBytesToDesc(const char* data, int n, cv::Mat& desc) {
-	desc = cv::Mat::zeros(256, n, CV_32FC1);
+	desc = cv::Mat::zeros(n, 256, CV_32FC1);
 	std::memcpy(desc.data, data, n * 256 * sizeof(float));
-	desc = desc.t();
+	//desc = desc.t();
 }
 void WebAPIDataConverter::ConvertStringToDesc(const char* data, int n, cv::Mat& desc) {
 	rapidjson::Document document;
@@ -251,7 +251,14 @@ void WebAPIDataConverter::ConvertStringToDepthImage(const char* data, cv::Mat& r
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////단말과 통신 부분
-void WebAPIDataConverter::ConvertInitConnectToServer(const char* data, float& _fx, float& _fy, float& _cx, float& _cy, int& _w, int & _h) {
+void WebAPIDataConverter::ConvertMapName(const char* data, std::string& map) {
+	rapidjson::Document document;
+	if (document.Parse(data).HasParseError()) {
+		std::cout << "JSON parsing error::ConvertMapName" << std::endl;
+	}
+	map = document["map"].GetString();
+}
+void WebAPIDataConverter::ConvertInitConnectToServer(const char* data, float& _fx, float& _fy, float& _cx, float& _cy, int& _w, int & _h, bool& _b) {
 	rapidjson::Document document;
 	if (document.Parse(data).HasParseError()) {
 		std::cout << "JSON parsing error::ConvertInitConnectToServer" << std::endl;
@@ -262,14 +269,15 @@ void WebAPIDataConverter::ConvertInitConnectToServer(const char* data, float& _f
 	_cy = document["cy"].GetFloat();
 	_w = document["w"].GetInt();
 	_h = document["h"].GetInt();
+	_b = document["b"].GetBool();
 }
-void WebAPIDataConverter::ConvertDeviceFrameIDToServer(const char* data, int& id, int& num) {
+void WebAPIDataConverter::ConvertDeviceFrameIDToServer(const char* data, std::string& map, int& id) {
 	rapidjson::Document document;
 	if (document.Parse(data).HasParseError()) {
 		std::cout << "JSON parsing error::ConvertDeviceFrameIDToServer" << std::endl;
 	}
+	map = document["map"].GetString();
 	id = document["id"].GetInt();
-	num = document["n"].GetInt();
 }
 void WebAPIDataConverter::ConvertDeviceToServer(const char* data, int& id, bool& init) {
 	rapidjson::Document document;
@@ -307,6 +315,17 @@ std::string WebAPIDataConverter::ConvertInitializationToJsonString(int id, bool 
 	}
 
 	ss << "{\"id1\":" << (int)id << ",\"init\":" << bInit << ",\"pose\":\"" << strpose <<"\""<< ",\"keypoints\":\"" << strkey << "\"" << ",\"mappoints\":\"" << strmap << "\"" << "}";
+	return ss.str();
+}
+
+std::string WebAPIDataConverter::ConvertMapDataToJson(cv::Mat mpIDs, cv::Mat x3Ds, cv::Mat kfids, cv::Mat poses, cv::Mat idxs) {
+	std::string strids = Base64Encoder::base64_encode(mpIDs.data, sizeof(int) * mpIDs.rows);
+	std::string strx3ds = Base64Encoder::base64_encode(x3Ds.data, sizeof(float) * x3Ds.rows);
+	std::string strkfids = Base64Encoder::base64_encode(kfids.data, sizeof(int) * kfids.rows);
+	std::string strposes = Base64Encoder::base64_encode(poses.data, sizeof(float) * poses.rows*3);
+	std::string stridxs = Base64Encoder::base64_encode(idxs.data, sizeof(float) * idxs.rows);
+	std::stringstream ss;
+	ss << "{\"ids\":\"" << strids << "\",\"x3ds\":\"" << strx3ds <<"\",\"kfids\":\""<<strkfids<< "\",\"poses\":\"" << strposes << "\",\"idxs\":\"" << stridxs << "\"}";
 	return ss.str();
 }
 

@@ -138,11 +138,13 @@ void UVR_SLAM::LocalMapper::Reset() {
 }
 
 namespace UVR_SLAM {
-	auto lambda_api_kf_match = [](std::string ip, int port, int id1, int id2, int n) {
+	auto lambda_api_kf_match = [](std::string ip, int port, std::string map, int id1, int id2, int n) {
 
 		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 		WebAPI* mpAPI = new WebAPI(ip, port);
-		auto res = mpAPI->Send("/featurematch", WebAPIDataConverter::ConvertNumberToString(id1, id2));
+		std::stringstream ss;
+		ss << "/featurematch?map=" << map << "&id1=" << id1 << "&id2=" << id2;
+		auto res = mpAPI->Send(ss.str(),"");
 		cv::Mat matches;
 		WebAPIDataConverter::ConvertStringToMatches(res.c_str(), n, matches);
 		std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
@@ -262,7 +264,7 @@ void UVR_SLAM::LocalMapper::RunWithMappingServer() {
 				auto pKF = vpKFs[i];
 				/*auto ftest = std::async(std::launch::async, UVR_SLAM::lambda_api_kf_match, "143.248.96.81", 35005, mpTargetFrame->mnFrameID, pKF->mnFrameID, mpTargetFrame->mvPts.size());
 				cv::Mat temp = ftest.get();*/
-				cv::Mat temp = UVR_SLAM::lambda_api_kf_match(mpSystem->ip, mpSystem->port, mpTargetFrame->mnFrameID, pKF->mnFrameID, mpTargetFrame->mvPts.size());
+				cv::Mat temp = UVR_SLAM::lambda_api_kf_match(mpSystem->ip, mpSystem->port, mpTargetFrame->mstrMapName, mpTargetFrame->mnFrameID, pKF->mnFrameID, mpTargetFrame->mvPts.size());
 				if (mpTargetFrame->mvPts.size() != temp.cols) {
 					std::cout << "Error::Matching::Invalid Matching Size::" << temp.cols << ", " << mpTargetFrame->mvPts.size() << std::endl;
 				}
@@ -420,7 +422,7 @@ void UVR_SLAM::LocalMapper::RunWithMappingServer() {
 			int nPoseRecovery = Optimization::PoseOptimization(mpSystem->mpMap, mpTargetFrame, vpTempMPs, vTempPts, vbTempInliers);
 			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
 			std::stringstream ss;
-			ss << "/SetLastFrameID?id=" << mpTargetFrame->mnFrameID << "&key=reference";
+			ss << "/SetLastFrameID?map=" << mpTargetFrame->mstrMapName << "&id=" << mpTargetFrame->mnFrameID << "&key=reference";
 			mpAPI->Send(ss.str(),"");
 			
 #ifdef DEBUG_LOCAL_MAPPING_LEVEL_1

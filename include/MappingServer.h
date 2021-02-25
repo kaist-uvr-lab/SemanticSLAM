@@ -25,7 +25,7 @@ namespace UVR_SLAM {
 		void Reset();
 		bool CheckNewFrame();
 		void AcquireFrame();
-		void InsertFrame(std::pair<int, int> pairInfo);
+		void InsertFrame(std::pair<std::string, int> pairInfo);
 		void ProcessNewFrame();
 		void RunWithMappingServer();
 	private:
@@ -41,9 +41,9 @@ namespace UVR_SLAM {
 		int mnWidth, mnHeight;
 		cv::Mat mK, mInvK;
 
-		std::queue<std::pair<int, int>> mQueue;
+		std::queue<std::pair<std::string, int>> mQueue;
 		std::mutex mMutexQueue;
-		std::pair<int, int> mPairFrameInfo;
+		std::pair<std::string, int> mPairFrameInfo;
 
 		bool mbInitialized;
 		int mnReferenceID;

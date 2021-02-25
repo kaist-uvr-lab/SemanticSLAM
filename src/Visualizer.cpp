@@ -244,8 +244,53 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 	while (true) {
 		
 		if (bSaveMap) {
+			
+			auto mmpMap = mpMap->GetMap();
+			cv::Mat ids = cv::Mat::zeros(0, 1, CV_32SC1);
+			cv::Mat x3ds = cv::Mat::zeros(0, 1, CV_32FC1);
+			for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
+				auto pMPi = iter->first;
+				if (!pMPi || pMPi->isDeleted())
+					continue;
+				cv::Mat Xw = pMPi->GetWorldPos();
+				cv::Mat temp = cv::Mat::zeros(1, 1, CV_32FC1);
+				temp.at<int>(0) = pMPi->mnMapPointID;
+				ids.push_back(temp);
+				x3ds.push_back(Xw);
+			}
+			int nMP = ids.rows;
+			auto mspKFs = mpMap->GetFrames();
+			
+			cv::Mat poses = cv::Mat::zeros(0, 3, CV_32FC1);
+			cv::Mat mps = cv::Mat::zeros(0, 1, CV_32SC1);
+			cv::Mat kfids = cv::Mat::zeros(mspKFs.size(), 1, CV_32SC1);
+			int j = 0;
+			for (auto iter = mspKFs.begin(); iter != mspKFs.end(); iter++, j++) {
+				auto pKFi = *iter;
+				kfids.at<int>(j) = pKFi->mnFrameID;
+				cv::Mat R, t;
+				pKFi->GetPose(R, t);
+				poses.push_back(R);
+				poses.push_back(t.t());
+				
+				auto vpMPs = pKFi->GetMapPoints();
+				cv::Mat temp = cv::Mat::ones(vpMPs.size(), 1, CV_32SC1)*-1;
+				for (int i = 0; i < vpMPs.size(); i++) {
+					auto pMPi = vpMPs[i];
+					if (!pMPi || pMPi->isDeleted()) {
+						continue;
+					}
+					int id = pMPi->mnMapPointID;
+					temp.at<int>(i) = id;
+				}
+				mps.push_back(temp);
+			}
+			std::cout << "test::" << kfids .rows<<" "<< poses.rows << " ," << mps.rows <<", "<< ids.rows <<" "<<x3ds.rows<<", "<< x3ds.at<float>(x3ds.rows-1)<< std::endl;
 			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
-			mpAPI->Send("SaveMap", "");
+			mpAPI->Send("/SaveMap?map="+ mspKFs[0]->mstrMapName, WebAPIDataConverter::ConvertMapDataToJson(ids, x3ds, kfids, poses, mps));
+			//일단 모든 데이터를 전송하기.
+			//1)맵포인트 아이디와 좌표값으로 
+			//2)모든 프레임에 대해 포즈와 맵포인트 아이디로
 			bSaveMap = false;
 		}
 		if (bLoadMap) {
@@ -314,6 +359,15 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 				cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
 			}
 
+			{
+				////User 위치 시각화
+				//추후 유저별 정보로 변경
+				auto pos = mpMap->GetUserPosition();
+				cv::Point2f pt1 = cv::Point2f(pos.at<float>(mnAxis1)* mnVisScale, pos.at<float>(mnAxis2)* mnVisScale);
+				pt1 += mVisMidPt;
+				cv::circle(tempVis, pt1, 5, cv::Scalar(0, 0, 255), -1);
+			}
+
 			cv::Scalar color = cv::Scalar(0, 255, 255);
 			auto vReinit = mpMap->GetTempMPs();
 			for (int i = 0; i < vReinit.size(); i++) {
@@ -321,6 +375,17 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
 				tpt += mVisMidPt;
 				cv::circle(tempVis, tpt, 4, color, -1);
+			}
+
+			{
+				cv::Scalar color = cv::Scalar(0, 255, 255);
+				vReinit = mpMap->GetTempMPs();
+				for (int i = 0; i < vReinit.size(); i++) {
+					cv::Mat x3D = vReinit[i];
+					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
+					tpt += mVisMidPt;
+					cv::circle(tempVis, tpt, 4, color, -1);
+				}
 			}
 
 			SetOutputImage(tempVis, 4);
@@ -641,6 +706,15 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
 			}
 			////trajectory	
+
+			{
+				////User 위치 시각화
+				//추후 유저별 정보로 변경
+				auto pos = mpMap->GetUserPosition();
+				cv::Point2f pt1 = cv::Point2f(pos.at<float>(mnAxis1)* mnVisScale, pos.at<float>(mnAxis2)* mnVisScale);
+				pt1 += mVisMidPt;
+				cv::circle(tempVis, pt1, 5, cv::Scalar(0, 0, 255), -1);
+			}
 
 			/////pose recovery test
 			auto vReinit = mpMap->GetReinit();

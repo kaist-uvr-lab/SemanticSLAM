@@ -40,9 +40,11 @@ namespace UVR_SLAM {
 		void CorrectLoop();
 		void SearchAndFuse(const KeyFrameAndPose &CorrectedPosesMap);
 		void ConstructBowDB(std::vector<Frame*> vpFrames);
+		void LoadMapData(std::string map);
 	public:
 		int mLastLoopKFid;
-		
+		bool mbLoadData;
+		std::string mapName;
 	private:
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
 		

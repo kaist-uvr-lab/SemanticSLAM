@@ -148,6 +148,7 @@ namespace UVR_SLAM {
 		static int nFrameID;
 		static int nMapGridID;
 
+		bool mbMapping;
 	public:
 		//lock tracking and localmap
 		std::mutex mMutexUseLocalMapOptimization;

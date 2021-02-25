@@ -128,7 +128,9 @@ namespace UVR_SLAM {
 		std::vector<MapPoint*> GetMapPoints();
 
 	public:
+		std::string mstrMapName;
 		std::vector<cv::Point2f> mvPts; //키포인트의 포인트만 별도로 빼냄.
+
 	private:
 		std::mutex mMutexMPs;
 		std::vector<MapPoint*> mvpMPs;

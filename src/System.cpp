@@ -31,13 +31,13 @@ int UVR_SLAM::System::nMapGridID = 1;
 
 UVR_SLAM::System::System(){}
 UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapOptimizationEnd(true), mbSegmentationEnd(false), mbCreateCP(true), mbCreateMP(true), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false),
-mbSegmentation(false), mbPlaneEstimation(false), mStrSegmentationString("Segmentation"), mStrPlaneString("PE"){
+mbSegmentation(false), mbPlaneEstimation(false), mbMapping(true), mStrSegmentationString("Segmentation"), mStrPlaneString("PE"){
 	LoadParameter(strFilePath);
 	LoadVocabulary();
 	Init();
 }
 UVR_SLAM::System::System(int nWidth, int nHeight, cv::Mat _K, cv::Mat _K2, cv::Mat _D, int _nFeatures, float _fScaleFactor, int _nLevels, int _fIniThFAST, int _fMinThFAST, std::string _strVOCPath):
-	mnWidth(nWidth), mnHeight(nHeight), mK(_K), mKforPL(_K2), mD(_D), mbTrackingEnd(true), mbLocalMapOptimizationEnd(true), mbSegmentationEnd(false), mbCreateCP(true), mbCreateMP(true), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false),
+	mnWidth(nWidth), mnHeight(nHeight), mK(_K), mKforPL(_K2), mD(_D), mbMapping(true), mbTrackingEnd(true), mbLocalMapOptimizationEnd(true), mbSegmentationEnd(false), mbCreateCP(true), mbCreateMP(true), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false),
 	mnFeatures(_nFeatures), mfScaleFactor(_fScaleFactor), mnLevels(_nLevels), mfIniThFAST(_fIniThFAST), mfMinThFAST(_fMinThFAST), strVOCPath(_strVOCPath)
 {
 	LoadVocabulary();
@@ -270,8 +270,8 @@ void UVR_SLAM::System::Init() {
 
 	/////네트워크 연결
 	WebAPI::Init();
-	WebAPI* mpAPI = new WebAPI(ip, port);
-	mpAPI->Send("reset", "");
+	/*WebAPI* mpAPI = new WebAPI(ip, port);
+	mpAPI->Send("reset", "");*/
 
 	//Time
 	mnSegID = mnLoalMapperID = mnPlaneID = mnMapOptimizerID = 0;
