@@ -375,7 +375,7 @@ bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pTargetKF) {
 
 	cv::Mat vBaseline = Ow2 - Ow1;
 	float baseline = cv::norm(vBaseline);
-	pTargetKF->ComputeSceneMedianDepth();
+	//pTargetKF->ComputeSceneMedianDepth();
 	float medianDepthKF2 = pTargetKF->mfMedianDepth;
 	if(medianDepthKF2 < 0.0){
 		std::cout << "Not enough baseline!!" << std::endl;
@@ -421,89 +421,6 @@ bool UVR_SLAM::Frame::ComputeSceneMedianDepth(std::vector<UVR_SLAM::MapPoint*> v
 }
 
 ////20.09.05 수정 필요.
-void UVR_SLAM::Frame::ComputeSceneDepth() {
-
-	float fMaxDepth = 0.0;
-
-	cv::Mat Rcw2;
-	float zcw;
-	{
-		std::unique_lock<std::mutex> lockMP(mMutexPose);
-		Rcw2 = R.row(2);
-		zcw = t.at<float>(2);
-	}
-	std::vector<float> vDepths;
-	Rcw2 = Rcw2.t();
-	for (size_t i = 0, iend = mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++)
-	{
-		auto pCPi = mpMatchInfo->mvpMatchingCPs[i];
-		auto pMPi = pCPi->GetMP();
-		if (!pMPi || pMPi->isDeleted()) {
-			continue;
-		}
-		cv::Mat x3Dw = pMPi->GetWorldPos();
-		float z = (float)Rcw2.dot(x3Dw) + zcw;
-		mfMinDepth = fmin(z, mfMinDepth);
-		fMaxDepth = fmax(z, fMaxDepth);
-		vDepths.push_back(z);
-	}
-	if (vDepths.size() == 0) {
-		return;
-	}
-
-	int nidx = vDepths.size() / 2;
-	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
-
-	//median
-	mfMedianDepth = vDepths[nidx];
-	//mean & stddev
-	cv::Mat mMean, mDev;
-	meanStdDev(vDepths, mMean, mDev);
-	mfMeanDepth = (float)mMean.at<double>(0);
-	mfStdDev = (float)mDev.at<double>(0);
-	
-	//range
-	mfRange = sqrt(mfMinDepth*mfMinDepth*16.0);//36
-	//std::cout <<"range test::"<< mfRange + mfMedianDepth <<"::"<< fMaxDepth << std::endl;;
-	
-	////min
-	//double minVal, maxVal;
-	//cv::minMaxIdx(vDepths, &minVal);
-	//mfMinDepth = (float)minVal;
-	//std::cout << mfMinDepth << ", " << mfMeanDepth << ", " << mfMedianDepth << std::endl;
-}
-void UVR_SLAM::Frame::ComputeSceneMedianDepth()
-{
-	cv::Mat Rcw2;
-	float zcw;
-	{
-		std::unique_lock<std::mutex> lockMP(mMutexPose);
-		Rcw2 = R.row(2);
-		zcw = t.at<float>(2);
-	}
-	std::vector<float> vDepths;
-	Rcw2 = Rcw2.t();
-	for (size_t i = 0, iend = mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++)
-	{
-		auto pCPi = mpMatchInfo->mvpMatchingCPs[i];
-		auto pMPi = pCPi->GetMP();
-		if (!pMPi || pMPi->isDeleted()) {
-			continue;
-		}
-		cv::Mat x3Dw = pMPi->GetWorldPos();
-		float z = (float)Rcw2.dot(x3Dw) + zcw;
-		vDepths.push_back(z);
-	}
-	if (vDepths.size() == 0){
-		mfMedianDepth = -1.0;
-		return;
-	}
-	int nidx = vDepths.size() / 2;
-	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
-	{
-		mfMedianDepth = vDepths[nidx];
-	}
-}
 
 cv::Mat UVR_SLAM::Frame::GetCameraCenter() {
 	std::unique_lock<std::mutex> lockMP(mMutexPose);
@@ -903,269 +820,6 @@ float UVR_SLAM::Frame::CalcDiffAngleAxis(UVR_SLAM::Frame* pF) {
 	return sqrt(temp.dot(temp))*UVR_SLAM::MatrixOperator::rad2deg;
 }
 
-//////////////matchinfo
-UVR_SLAM::MatchInfo::MatchInfo(): mfLowQualityRatio(0.0){}
-UVR_SLAM::MatchInfo::MatchInfo(System* pSys, Frame* pRef, Frame* pTarget, int w, int h):mnHeight(h), mnWidth(w), mfLowQualityRatio(0.0){
-	mpPrevFrame = pTarget;
-	mpRefFrame = pRef;
-	mMapCP = cv::Mat::zeros(h, w, CV_16SC1);
-	mpSystem = pSys;
-}
-UVR_SLAM::MatchInfo::~MatchInfo(){}
-
-void UVR_SLAM::MatchInfo::UpdateKeyFrame() {
-	int nCurrID = this->mpRefFrame->mnKeyFrameID;
-	auto pMap = this->mpRefFrame->mpSystem->mpMap;
-	for (size_t i = 0, iend = mvpMatchingCPs.size(); i < iend; i++) {
-		if (!mvbMapPointInliers[i])
-			continue;
-		auto pCPi = mvpMatchingCPs[i];
-		pCPi->ConnectFrame(this, i);
-		auto pMPi = pCPi->GetMP();
-		
-		if (!pMPi || !pMPi->GetQuality() || pMPi->isDeleted())
-			continue;
-		//this->AddMP(pMPi, i);
-		pMPi->ConnectFrame(this, i);
-
-		//update map grid;
-		auto key = MapGrid::ComputeKey(pMPi->GetWorldPos());
-		auto pMapGrid = pMap->GetMapGrid(key);
-		if (pMapGrid) {
-			if (pMapGrid->mnMapGridID != pMPi->GetMapGridID()) {
-				pMapGrid->AddMapPoint(pMPi);
-			}
-		}
-		else {
-			pMapGrid = pMap->AddMapGrid(key);
-			pMapGrid->AddMapPoint(pMPi);
-		}
-	}
-}
-
-//트래킹
-int UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(cv::Point2f pt, int radius, int margin) {
-	//range option도 필요할 듯
-	if (pt.x < margin || pt.x >= mnWidth - margin || pt.y < margin || pt.y >= mnHeight - margin) {
-		return -1;
-	}
-	int res = mMapCP.at<ushort>(pt)-1;
-	return res;
-	/*if (mMapCP.at<ushort>(pt) > 0) {
-		return ;
-	}
-	return true;*/
-}
-bool UVR_SLAM::MatchInfo::CheckOpticalPointOverlap(cv::Mat& overlap, cv::Point2f pt, int radius, int margin) {
-	//range option도 필요할 듯
-	if (pt.x < margin || pt.x >= mnWidth - margin || pt.y < margin || pt.y >= mnHeight - margin) {
-		return false;
-	}
-	if (overlap.at<uchar>(pt) > 0) {
-		return false;
-	}
-	//overlap.at<uchar>(pt) = 255;
-	//circle(overlap, pt, radius, cv::Scalar(255), -1);
-	return true;
-}
-
-void UVR_SLAM::MatchInfo::SetLabel() {
-	auto labelMat = mpRefFrame->matLabeled.clone();
-	auto vpCPs = mpRefFrame->mpMatchInfo->mvpMatchingCPs;
-	auto vPTs = mpRefFrame->mpMatchInfo->mvMatchingPts;
-	for (size_t i = 0, iend = vpCPs.size(); i < iend; i++){
-		auto pCPi = vpCPs[i];
-		auto pt = vPTs[i];
-		int label = labelMat.at<uchar>(pt.y / 2, pt.x / 2);
-		pCPi->SetLabel(label);
-		auto pMPi = pCPi->GetMP();
-		if (pMPi)
-			pMPi->SetLabel(pCPi->GetLabel());
-		////object 멀티맵에 추가
-		for(auto iter = this->mmLabelRectCPs.equal_range(label).first, eiter = this->mmLabelRectCPs.equal_range(label).second; iter != eiter; iter++){
-			auto rect  = iter->second.first;
-			//auto lpCPs = iter->second.second;
-			if (rect.contains(pt/2)) {
-				//std::cout << "add" << std::endl;
-				iter->second.second.push_back(pCPi);
-				break;
-			}
-			//iter->second->second = lpCPs;
-		}
-		////object 멀티맵에 추가
-	}
-
-	//오브젝트 후처리 필요
-	
-}
-
-//새로운 맵포인트를 생성하기 위한 키포인트를 생성.
-//커넥트 프레임X
-void UVR_SLAM::MatchInfo::SetMatchingPoints() {
-
-	//auto mmpFrameGrids = mpRefFrame->mmpFrameGrids;
-	int nGridSize = mpSystem->mnRadius * 2;
-
-	//int nMax = (mpSystem->mnMaxMP+100-nCP)/2;//150; //둘다 하면 500
-	int nMax = 150;
-	int nIncEdge = mpRefFrame->mvEdgePts.size() / nMax;
-	int nIncORB = mpRefFrame->mvPts.size() / nMax;
-
-	if (nIncEdge == 0)
-		nIncEdge = 1;
-	if (nIncORB == 0)
-		nIncORB = 1;
-	
-	cv::Mat currMap = cv::Mat::zeros(mnHeight, mnWidth, CV_8UC1);
-	
-	for (int i = 0; i < mpRefFrame->mvEdgePts.size(); i += nIncEdge) {
-		auto pt = mpRefFrame->mvEdgePts[i];
-		bool b1 = CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
-		bool b2 = !CheckOpticalPointOverlap(currMap, pt, mpSystem->mnRadius);
-		if (b1 || b2) {
-			continue;
-		}
-		auto gridPt = mpRefFrame->GetGridBasePt(pt, nGridSize);
-		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
-		auto pCP = new UVR_SLAM::CandidatePoint(this->mpRefFrame);
-		int idx = this->AddCP(pCP, pt);
-		//pCP->ConnectFrame(this, idx);
-		
-		////grid
-		mpRefFrame->mmpFrameGrids[gridPt]->mvpCPs.push_back(pCP);
-		mpRefFrame->mmpFrameGrids[gridPt]->mvPTs.push_back(pt);
-		////grid
-	}
-	for (int i = 0; i < mpRefFrame->mvPts.size(); i+= nIncORB) {
-		auto pt = mpRefFrame->mvPts[i];
-		bool b1 = CheckOpticalPointOverlap(pt, mpSystem->mnRadius) > -1;
-		bool b2 = !CheckOpticalPointOverlap(currMap, pt, mpSystem->mnRadius);
-		if (b1 || b2) {
-			continue;
-		}
-		auto gridPt = mpRefFrame->GetGridBasePt(pt, nGridSize);
-		cv::rectangle(currMap, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(255, 0, 0), -1);
-		auto pCP = new UVR_SLAM::CandidatePoint(this->mpRefFrame, mpRefFrame->mvnOctaves[i]);
-		int idx = this->AddCP(pCP, pt);
-		//pCP->ConnectFrame(this, idx);
-
-		////grid
-		mpRefFrame->mmpFrameGrids[gridPt]->mvpCPs.push_back(pCP);
-		mpRefFrame->mmpFrameGrids[gridPt]->mvPTs.push_back(pt);
-		////grid
-	}
-}
-
-//void UVR_SLAM::MatchInfo::AddMP(MapPoint* pMP, int idx) {
-//	std::unique_lock<std::mutex>(mMutexMPs);
-//	mvpMatchingMPs[idx] = pMP;
-//	mnNumMapPoint++;
-//}
-//void UVR_SLAM::MatchInfo::RemoveMP(int idx) {
-//	std::unique_lock<std::mutex>(mMutexMPs);
-//	mvpMatchingMPs[idx] = nullptr;
-//	mnNumMapPoint--;
-//}
-//UVR_SLAM::MapPoint*  UVR_SLAM::MatchInfo::GetMP(int idx) {
-//	std::unique_lock<std::mutex>(mMutexMPs);
-//	return mvpMatchingMPs[idx];
-//}
-int UVR_SLAM::MatchInfo::GetNumMPs() {
-	std::unique_lock<std::mutex>(mMutexMPs);
-	return mnNumMapPoint;
-}
-////////20.09.05 수정 필요
-
-int UVR_SLAM::MatchInfo::AddCP(CandidatePoint* pCP, cv::Point2f pt, int idx){
-	//std::unique_lock<std::mutex>(mMutexCPs);
-	int res = mvpMatchingCPs.size();
-	mvpMatchingCPs.push_back(pCP);
-	mvMatchingPts.push_back(pt);
-	mvbMapPointInliers.push_back(true);
-	mvMatchingIdxs.push_back(idx);
-	cv::rectangle(mMapCP, pt- mpSystem->mRectPt, pt+ mpSystem->mRectPt, cv::Scalar(res + 1), -1);
-	//cv::circle(mMapCP, pt, Frame::mnRadius, cv::Scalar(res+1), -1);
-	return res;
-}
-////이것은 사용이 안될 수도 있음.
-void UVR_SLAM::MatchInfo::RemoveCP(int idx){
-	//std::unique_lock<std::mutex>(mMutexCPs);
-	auto pt = mvMatchingPts[idx];
-	cv::rectangle(mMapCP, pt - mpSystem->mRectPt, pt + mpSystem->mRectPt, cv::Scalar(-1), -1);
-	//cv::circle(mMapCP, mvMatchingPts[idx], Frame::mnRadius, cv::Scalar(-1), -1);
-	mvpMatchingCPs[idx] = nullptr;	
-}
-void UVR_SLAM::MatchInfo::ConnectAll() {
-	
-	int nCurrID = this->mpRefFrame->mnKeyFrameID;
-	for (size_t i = 0, iend = mvpMatchingCPs.size(); i < iend; i++) {
-		
-		auto pCPi = mvpMatchingCPs[i];
-		int idx = pCPi->GetPointIndexInFrame(this);
-		if (idx != -1)
-			continue;
-		pCPi->ConnectFrame(this, i);
-		auto pMPi = pCPi->GetMP();
-		if (!pMPi || !pMPi->GetQuality() || pMPi->isDeleted())
-			continue;
-		//this->AddMP(pMPi, i);
-		pMPi->ConnectFrame(this, i);
-		pMPi->IncreaseVisible();
-		pMPi->IncreaseFound();
-		pMPi->SetLastVisibleFrame(std::move(nCurrID));
-		pMPi->SetLastSuccessFrame(std::move(nCurrID));
-	}
-}
-void UVR_SLAM::MatchInfo::DisconnectAll() {
-	for (int i = 0, iend = mvpMatchingCPs.size(); i < iend; i++) {
-		auto pCPi = mvpMatchingCPs[i];
-		if (!pCPi)
-			continue;
-		pCPi->DisconnectFrame(this);
-		auto pMPi = pCPi->GetMP();
-		if (!pMPi || pMPi->isDeleted())
-			continue;
-		//this->RemoveMP(i);
-		pMPi->DisconnectFrame(this);
-	}
-}
-bool UVR_SLAM::MatchInfo::UpdateFrameQuality() {
-	int nMP = 0;
-	int nLow = 0;
-	for (int i = 0, iend = mvpMatchingCPs.size(); i < iend; i++) {
-		auto pCPi = mvpMatchingCPs[i];
-		
-		auto pMPi = pCPi->GetMP();
-		if (pMPi && !pMPi->isDeleted()){
-			pMPi->ComputeQuality();
-			if (!pMPi->GetQuality()){
-				pMPi->Delete();
-				nLow++;
-			}else
-				nMP++;
-		}
-	}
-	bool b1 = false;//mfLowQualityRatio > 0.4;
-	bool b2 = nMP < 200;
-	
-	//b3은 이전 프레임과 비교시 차이가 갑자기 클 때로
-	//전체 MP 수, quality가 안좋은 애들은 이미 여기에 존재하지를 못함. 
-	//std::cout << "FrameQuality = " << nMP << "+" <<nLow<<"="<< N << std::endl;
-	return b1 || b2;
-}
-
-std::vector<cv::Point2f> UVR_SLAM::MatchInfo::GetMatchingPtsMapping(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs){
-	
-	std::vector<cv::Point2f> res;
-	for (int i = 0, iend = mvpMatchingCPs.size(); i < iend; i++) {
-		res.push_back(mvMatchingPts[i]);
-		vpCPs.push_back(mvpMatchingCPs[i]);
-	}
-	return res;
-}
-
-//////////////matchinfo
-
 ////////////////FrameGrid
 void UVR_SLAM::Frame::ComputeGradientImage(cv::Mat src, cv::Mat& dst, int ksize) {
 	cv::Mat edge;
@@ -1180,67 +834,6 @@ void UVR_SLAM::Frame::ComputeGradientImage(cv::Mat src, cv::Mat& dst, int ksize)
 	//matDY.convertTo(matDY, CV_8UC1);
 	dst = (matDX + matDY) / 2.0;
 	dst.convertTo(dst, CV_8UC1);
-}
-
-void UVR_SLAM::Frame::SetGrids() {
-	
-	int nHalf = mpMatchInfo->mpSystem->mnRadius;
-	int nSize = nHalf * 2;
-	int ksize = 1;
-	int thresh = ksize*7;
-	cv::Mat matGradient;
-	ComputeGradientImage(GetOriginalImage(), matGradient);
-
-	////포인트 중복 및 그리드 내 추가 포인트 관련
-	cv::Mat occupied = cv::Mat::zeros(mnHeight, mnWidth, CV_8UC1);
-	cv::Point2f gridTempRect(3,3);//nHalf/2, nHalf/2
-	////포인트 중복 및 그리드 내 추가 포인트 관련
-	
-	for (int x = 0; x < mnWidth; x += nSize) {
-		for (int y = 0; y < mnHeight; y += nSize) {
-			cv::Point2f ptLeft(x, y);
-			bool bGrid = false;
-			if(mmpFrameGrids.count(ptLeft)){
-				auto prevGrid = mmpFrameGrids[ptLeft];
-				if (!prevGrid)
-				{
-					std::cout << "aaaabbbb" << std::endl;
-					continue;
-				}
-				if(prevGrid->mvpCPs.size() > 1)
-					continue;
-				bGrid = true;
-			}
-			
-			cv::Point2f ptRight(x + nSize, y + nSize);
-			if (ptRight.x > mnWidth || ptRight.y > mnHeight){
-				continue;
-			}
-
-			cv::Rect rect(ptLeft, ptRight);
-			FrameGrid* pGrid;
-			if(!bGrid)
-				pGrid = new FrameGrid(std::move(ptLeft), std::move(rect), 0);
-			else {
-				pGrid = mmpFrameGrids[ptLeft];
-			}
-			cv::Mat mGra = matGradient(rect);// .clone();
-			cv::Point2f pt;
-			int localthresh;
-			
-			////active point 계산
-			if (pGrid->CalcActivePoints(mpMatchInfo, mGra, thresh, localthresh,pt, occupied, mpSystem->mnRadius)) {
-			}
-			mmpFrameGrids.insert(std::make_pair(ptLeft, pGrid));
-		}
-	}
-	////이전 프레임의 인덱스 넣는 과정
-	mpMatchInfo->mvPrevMatchingIdxs = std::vector<int>(mpMatchInfo->mvMatchingIdxs.begin(), mpMatchInfo->mvMatchingIdxs.end());
-	mpMatchInfo->mvMatchingIdxs.resize(mpMatchInfo->mvpMatchingCPs.size());// = std::vector<int>(mpMatchInfo->mvpMatchingCPs.size());
-	for (size_t i = 0, iend = mpMatchInfo->mvpMatchingCPs.size(); i < iend; i++) {
-		mpMatchInfo->mvMatchingIdxs[i] = i;
-	}
-	
 }
 
 cv::Point2f UVR_SLAM::Frame::GetExtendedRect(cv::Point2f pt, int size) {
@@ -1293,43 +886,33 @@ bool UVR_SLAM::Frame::isDeleted() {
 	return mbDeleted;
 }
 
+//수정 필요
 void UVR_SLAM::Frame::Delete() {
+	////커넥션 관련된 뮤텍스 추가해야 할 듯. KF제거시
+	//if (mnKeyFrameID == 0)
+	//	return;
 
-	//커넥션 관련된 뮤텍스 추가해야 할 듯. KF제거시
-	if (mnKeyFrameID == 0)
-		return;
+	//std::map<Frame*, int> tempKeyFrameCount;
+	//std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> tempConnectedKFs;
+	//{
+	//	std::unique_lock<std::mutex> lockMP(mMutexConnection);
+	//	tempKeyFrameCount = mmKeyFrameCount;
+	//	tempConnectedKFs = mmpConnectedKFs;
+	//	mbDeleted = true;
+	//	mmKeyFrameCount.clear();
+	//	mmpConnectedKFs.clear();
+	//}
 
-	std::map<Frame*, int> tempKeyFrameCount;
-	std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> tempConnectedKFs;
-	{
-		std::unique_lock<std::mutex> lockMP(mMutexConnection);
-		tempKeyFrameCount = mmKeyFrameCount;
-		tempConnectedKFs = mmpConnectedKFs;
-		mbDeleted = true;
-		mmKeyFrameCount.clear();
-		mmpConnectedKFs.clear();
-	}
-
-	//MP제거
-	auto matchInfo = this->mpMatchInfo;
-	auto vpCPs = matchInfo->mvpMatchingCPs;
-	auto vPTs = matchInfo->mvMatchingPts;
-	for (size_t i = 0, iend = vpCPs.size(); i < iend; i++) {
-		auto pCPi = vpCPs[i];
-		pCPi->DisconnectFrame(matchInfo);
-		auto pMPi = pCPi->GetMP();
-		if (!pMPi || pMPi->isDeleted())
-			continue;
-		pMPi->DisconnectFrame(matchInfo);
-	}
-	//KF제거
-	for (auto iter = tempKeyFrameCount.begin(), iend = tempKeyFrameCount.end(); iter != iend; iter++) {
-		auto pKFi = iter->first;
-		pKFi->RemoveKF(this);
-	}
-	//mmpConnectedKFs.clear();
-	////DB 제거
-	mpSystem->mpMap->RemoveFrame(this);
+	////MP제거
+	//
+	////KF제거
+	//for (auto iter = tempKeyFrameCount.begin(), iend = tempKeyFrameCount.end(); iter != iend; iter++) {
+	//	auto pKFi = iter->first;
+	//	pKFi->RemoveKF(this);
+	//}
+	////mmpConnectedKFs.clear();
+	//////DB 제거
+	//mpSystem->mpMap->RemoveFrame(this);
 }
 
 void UVR_SLAM::Frame::AddKF(UVR_SLAM::Frame* pKF, int weight) {

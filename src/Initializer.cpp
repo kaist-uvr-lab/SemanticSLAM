@@ -58,12 +58,13 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		mpInitFrame1 = pFrame;
 		mpTempFrame = mpInitFrame1;
 		mpInitFrame1->Init(mpSystem->mpORBExtractor, mK, mpSystem->mD);
-		mpInitFrame1->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, mpInitFrame1, nullptr, mnWidth, mnHeight);
 		mpInitFrame1->DetectFeature();
 		/*mpInitFrame1->DetectEdge();
 		mpInitFrame1->SetBowVec(mpSystem->fvoc);
 		mpInitFrame1->mpMatchInfo->SetMatchingPoints();*/
-		mpInitFrame1->SetGrids();
+		
+		//mpInitFrame1->SetGrids();
+		
 		//mpSegmentator->InsertKeyFrame(mpInitFrame1);
 		WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
 		std::string input = WebAPIDataConverter::ConvertImageToString(mpInitFrame1->GetOriginalImage(), mpInitFrame1->mnFrameID);
@@ -86,7 +87,6 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		//두번째 키프레임은 초기화가 성공하거나 키프레임을 교체할 때 세그멘테이션을 수행함.
 		mpInitFrame2 = pFrame;
 		//////매칭 정보 생성
-		mpInitFrame2->mpMatchInfo = new UVR_SLAM::MatchInfo(mpSystem, mpInitFrame2, mpInitFrame1, mnWidth, mnHeight);
 		int nFeatureSize = mpInitFrame1->mvPts.size();
 		int nThreshInit    = 0.40*nFeatureSize; //여기는 텍스트에 파라메터화
 		int nThreshReplace = 0.30*nFeatureSize;
@@ -109,7 +109,7 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		/////////매칭 확인
 		if (count < nThreshReplace) {
 			//while (mpSegmentator->isDoingProcess());
-			std::cout << "Initializer::replace::keyframe1::" << count << ", MIN = " << nThreshInit << ", " << nThreshReplace << "::" << mpInitFrame1->mpMatchInfo->mvMatchingPts.size() << std::endl;
+			std::cout << "Initializer::replace::keyframe1::" << count << ", MIN = " << nThreshInit << ", " << nThreshReplace << "::"<< std::endl;
 			delete mpInitFrame1;
 			mpInitFrame1 = nullptr;
 			return mbInit;
@@ -329,7 +329,10 @@ bool UVR_SLAM::Initializer::Initialize(Frame* pFrame, bool& bReset, int w, int h
 		/////////////레이아웃 추정
 
 		////CP 추가
-		mpInitFrame1->ComputeSceneDepth();
+		//mpInitFrame1->ComputeSceneDepth();
+
+
+
 		//mpInitFrame2->ComputeSceneDepth();
 		////시드를 프레임마다 생성할 시
 		//for (auto iter = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.begin(), iend = mpInitFrame1->mpMatchInfo->mvpMatchingCPs.end(); iter != iend; iter++) {

@@ -14,7 +14,6 @@ namespace UVR_SLAM {
 
 	class System;
 	class Frame;
-	class FrameWindow;
 	class PlaneEstimator;
 	class LocalMapper;
 	class Visualizer;
@@ -56,7 +55,6 @@ namespace UVR_SLAM {
 		std::mutex mMutexDoingProcess;
 		bool mbDoingProcess;
 		Frame* mpTargetFrame, *mpPrevFrame;
-		FrameWindow* mpFrameWindow;
 		PlaneEstimator* mpPlaneEstimator;
 		LocalMapper* mpLocalMapper;
 		LocalBinaryPatternProcessor* mpLBPProcessor;

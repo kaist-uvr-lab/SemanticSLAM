@@ -8,7 +8,6 @@
 
 namespace UVR_SLAM {
 	class Frame;
-	class MatchInfo;
 	class MapPoint;
 	class PlaneProcessInformation;
 	class PlaneInformation;
@@ -68,12 +67,6 @@ namespace UVR_SLAM {
 		int mnVisScale;
 		std::mutex mMutexScale;
 	//local tracknig results
-	public:
-		void SetMatchInfo(MatchInfo* pMatch);
-		MatchInfo* GetMatchInfo();
-		MatchInfo* mpMatchInfo;
-	private:
-		std::mutex mMutexMatchingInfo;
 	///////¹Ù´Ú È®ÀÎ¿ë
 	public:
 		void AddPlaneInfo(PlaneProcessInformation* pPlaneInfo);

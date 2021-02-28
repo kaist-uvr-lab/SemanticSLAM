@@ -242,21 +242,6 @@ namespace UVR_SLAM {
 	//	std::unique_lock<std::mutex> lockMP(mMutexMP);
 	//	mbDelete = b;
 	//}
-	
-
-	bool MapPoint::isInFrame(UVR_SLAM::MatchInfo* pF) {
-		std::unique_lock<std::mutex> lock(mMutexMP);
-		return mmpFrames.count(pF) > 0;
-	}
-
-	int MapPoint::GetPointIndexInFrame(MatchInfo* pF) {
-		std::unique_lock<std::mutex> lock(mMutexMP);
-		auto res = mmpFrames.find(pF);
-		if (res == mmpFrames.end())
-			return -1;
-		else
-			return res->second;
-	}
 
 	void MapPoint::SetMapGridID(int id) {
 		std::unique_lock<std::mutex> lock(mMutexMapGrid);
@@ -303,89 +288,13 @@ namespace UVR_SLAM {
 		pMP->IncreaseVisible(nvisible);
 		mpMap->RemoveMap(this);
 	}
+		
 
-	
-
-	std::map<MatchInfo*, int> MapPoint::GetConnedtedFrames() {
-		std::unique_lock<std::mutex> lockMP(mMutexMP);
-		return std::map<UVR_SLAM::MatchInfo*, int>(mmpFrames.begin(), mmpFrames.end());
-	}
-
-	int MapPoint::GetNumConnectedFrames() {
+	int MapPoint::GetNumObservations() {
 		std::unique_lock<std::mutex> lockMP(mMutexMP);
 		return mnConnectedFrames;
 	}
 
-	void MapPoint::ConnectFrame(UVR_SLAM::MatchInfo* pF, int idx) {
-	
-		std::unique_lock<std::mutex> lockMP(mMutexMP);
-		auto res = mmpFrames.find(pF);
-		if (res == mmpFrames.end()) {
-			mmpFrames.insert(std::pair<UVR_SLAM::MatchInfo*, int>(pF, idx));
-			mnConnectedFrames++;
-		}
-		/*else {
-			std::cout << "MapPoint::AddFrame::Error::" <<mpCP->mnCandidatePointID<< std::endl;
-		}*/
-	}
-	void MapPoint::DisconnectFrame(UVR_SLAM::MatchInfo* pF){
-		bool bDelete = false;
-		{
-			std::unique_lock<std::mutex> lockMP(mMutexMP);
-			if (mmpFrames.count(pF)) {
-				mmpFrames.erase(pF);
-				mnConnectedFrames--;
-				if (pF->mpRefFrame == mpRefKF) {
-					mpRefKF = mmpFrames.begin()->first->mpRefFrame;
-				}
-				if (mnConnectedFrames < 3) {
-					mbDelete = true;
-					bDelete = true;
-				}
-			}
-			/*auto res = mmpFrames.find(pF);
-			if (res != mmpFrames.end()) {
-				int idx = res->second;
-				res = mmpFrames.erase(res);
-				mnConnectedFrames--;
-				if (pF->mpRefFrame == mpRefKF) {
-					mpRefKF = mmpFrames.begin()->first->mpRefFrame;
-				}
-				if (mnConnectedFrames < 3){
-					mbDelete = true;
-					bDelete = true;
-				}
-			}*/
-		}
-		if (bDelete){
-			Delete();
-		}
-	}
-
-	void MapPoint::Delete() {
-		cv::Mat apos;
-		{
-			std::unique_lock<std::mutex> lockMP(mMutexMP);
-			mbDelete = true;
-			//for (auto iter = mmpFrames.begin(); iter != mmpFrames.end(); iter++) {
-			//	auto* pF = iter->first;
-			//	auto idx = iter->second;
-			//	//pF->RemoveMP(idx);
-			//}
-			mnConnectedFrames = 0;
-			mmpFrames.clear();
-			apos = p3D;
-		}
-		////CP 처리
-		mpCP->ResetMapPoint();
-		//맵처리
-		mpMap->RemoveMap(this);
-		//그리드 처리
-		auto key = MapGrid::ComputeKey(apos);
-		auto pMapGrid = mpMap->GetMapGrid(key);
-		if(pMapGrid)
-			pMapGrid->RemoveMapPoint(this);
-	}
 	void MapPoint::SetDescriptor(cv::Mat _desc){
 		std::unique_lock<std::mutex> lockMP(mMutexMP);
 		desc = _desc.clone();
@@ -456,9 +365,10 @@ namespace UVR_SLAM {
 		return bres;
 	}
 
+	////수정 필요. 210228
 	void MapPoint::UpdateNormalAndDepth()
 	{
-		std::map<UVR_SLAM::MatchInfo*, int> observations;
+		std::map<UVR_SLAM::Frame*, int> observations;
 		UVR_SLAM::Frame* pRefKF;
 		cv::Mat Pos;
 		{
@@ -466,7 +376,7 @@ namespace UVR_SLAM {
 			//unique_lock<mutex> lock2(mMutexPos);
 			if (mbDelete)
 				return;
-			observations = mmpFrames;
+			observations = mmpObservations;
 			pRefKF = mpRefKF;
 			Pos = p3D.clone();
 		}
@@ -479,8 +389,7 @@ namespace UVR_SLAM {
 		for (auto mit = observations.begin(), mend = observations.end(); mit != mend; mit++)
 		{
 			auto matchInfo = mit->first;
-			UVR_SLAM::Frame* pKF = matchInfo->mpRefFrame;
-			cv::Mat Owi = pKF->GetCameraCenter();
+			cv::Mat Owi = pRefKF->GetCameraCenter();
 			cv::Mat normali = Pos - Owi;
 			normal = normal + normali / cv::norm(normali);
 			n++;
@@ -570,57 +479,7 @@ namespace UVR_SLAM {
 		std::unique_lock<std::mutex> lockMP(mMutexMP);
 		return mnLastVisibleFrameID;
 	}
-	void MapPoint::ComputeQuality() {
-
-		float nS;
-		int nMatchFrame, nVisibleFrame, nTotal;
-		std::map<UVR_SLAM::MatchInfo*, int> tempFrames;
-		{
-			std::unique_lock<std::mutex> lockMP(mMutexMP);
-			if (!mbOptimized)
-				return;
-			nS = mnSuccess;
-			nMatchFrame = mnLastMatchingFrameID;
-			nVisibleFrame = mnLastVisibleFrameID;
-			nTotal = mnTotal;
-			tempFrames = mmpFrames;
-		}
-		int nWidth = mpRefKF->mpMatchInfo->mnWidth;
-		int nHeight = mpRefKF->mpMatchInfo->mnHeight;
-		//projection test
-		/*for (auto iter = tempFrames.begin(); iter != tempFrames.end(); iter++) {
-			auto pKF = iter->first;
-			auto idx = iter->second;
-			auto pt = pKF->mvMatchingPts[idx];
-			cv::Point2f pt2;
-			this->Projection(pt2, pKF->mpRefFrame, nWidth, nHeight);
-			cv::Point2f diffPt = pt2 - pt;
-			float dist = diffPt.dot(diffPt);
-			if (dist > 9.0) {
-				this->DisconnectFrame(pKF);
-			}
-		}*/
-		//projection test
-
-		bool b = true;
-		bool bFrame = (nMatchFrame + 2) < nVisibleFrame;
-		float ratio = nS / nTotal;
-		bool bRatio = false;//ratio < 0.3;
-		bool bConnect = false;//;GetNumConnectedFrames() < 3;
-		//std::cout << nS <<", "<< ratio << ", " << nVisible << ", " << nLastFrame << std::endl;
-		if (bFrame || bRatio || bConnect)
-			b = false;
-
-		{
-			std::unique_lock<std::mutex> lockMP(mMutexMP);
-			mbLowQuality = b;
-		}
-	}
-	bool MapPoint::GetQuality() {
-		std::unique_lock<std::mutex> lockMP(mMutexMP);
-		///매칭 성능이 좋으면 true, 안좋으면 false
-		return mbLowQuality;
-	}
+	
 	void MapPoint::SetOptimization(bool b) {
 		std::unique_lock<std::mutex> lockMP(mMutexMP);
 		mbOptimized = b;

@@ -13,7 +13,6 @@ namespace UVR_SLAM {
 	class MapPoint;
 	class CandidatePoint;
 	class Frame;
-	class MatchInfo;
 	class Map;
 
 	class Matcher;
@@ -32,7 +31,6 @@ namespace UVR_SLAM {
 		void Init();
 	public:
 		void Reset();
-		void Run();
 		void RunWithMappingServer();
 		
 		////////////////

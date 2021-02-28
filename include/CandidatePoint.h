@@ -7,7 +7,6 @@
 
 namespace UVR_SLAM {
 	class Frame;
-	class MatchInfo;
 	class Map;
 	class MapPoint;
 	class DepthFilter;
@@ -19,12 +18,7 @@ namespace UVR_SLAM {
 		CandidatePoint();
 		CandidatePoint(Frame* pRefKF, int alabel = 0, int aoct = 0);
 		virtual ~CandidatePoint();
-		std::map<MatchInfo*, int> GetFrames();
-		//void AddFrame(UVR_SLAM::MatchInfo* pF, cv::Point2f pt); //index in frame
-		void ConnectFrame(UVR_SLAM::MatchInfo* pF, int idx); //index in frame
-		void DisconnectFrame(UVR_SLAM::MatchInfo* pKF);
-		void Delete();
-		int GetPointIndexInFrame(MatchInfo* pF);
+				
 		float CalcParallax(cv::Mat Rkf1c, cv::Mat Rkf2c, cv::Point2f pt1, cv::Point2f pt2, cv::Mat invK);
 		cv::Mat Triangulate(cv::Point2f pt1, cv::Point2f pt2, cv::Mat P1, cv::Mat P2, bool& bRank);
 		cv::Point2f Projection(cv::Mat Xw, cv::Mat R, cv::Mat T, cv::Mat K, float& fDepth, bool& bDepth);
@@ -33,8 +27,6 @@ namespace UVR_SLAM {
 		bool CheckReprojectionError(cv::Point2f pt1, cv::Point2f pt2, float thresh);
 		int GetNumSize();
 
-		bool CreateMapPoint(cv::Mat& X3D, float& fDepth, cv::Mat K, cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr);
-		void CreateMapPoint(cv::Mat& X3D, cv::Mat K,cv::Mat invK, cv::Mat Pcurr, cv::Mat Rcurr, cv::Mat Tcurr, cv::Point2f ptCurr, bool& bProjec, bool& bParallax, cv::Mat& debug);
 		//삼각화
 		//아웃라이어 체크(리프로젝션 에러)
 		//뎁스테스트
@@ -46,7 +38,6 @@ namespace UVR_SLAM {
 	private:
 		bool mbDelete;
 		std::mutex mMutexCP;
-		std::map<UVR_SLAM::MatchInfo*, int> mmpFrames;
 		int mnConnectedFrames;
 	//////////////label
 	public:

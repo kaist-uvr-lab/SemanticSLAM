@@ -252,8 +252,8 @@ void UVR_SLAM::System::Init() {
 	mpKeyframeDatabase = new UVR_SLAM::KeyframeDatabase(this, mpDBoWVoc);
 
 	////¾²·¹µå
-	if (mbLocalMapping)
-		mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);
+	/*if (mbLocalMapping)
+		mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);*/
 	if (mbOptimization)
 		mptMapOptimizer = new std::thread(&UVR_SLAM::MapOptimizer::Run, mpMapOptimizer);
 	if (mbLoopClosing)

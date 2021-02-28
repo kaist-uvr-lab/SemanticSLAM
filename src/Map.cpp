@@ -24,7 +24,7 @@ namespace UVR_SLAM{
 			//maps = mmpMapMPs;
 			for (auto iter = mmpMapMPs.begin(), iend = mmpMapMPs.end(); iter != iend; iter++) {
 				auto pMP = iter->first;
-				pMP->Delete();
+				pMP->DeleteMapPoint();
 			}
 			mmpMapMPs.clear();
 			mspFrames.clear();

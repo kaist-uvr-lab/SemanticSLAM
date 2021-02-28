@@ -456,10 +456,10 @@ namespace UVR_SLAM {
 		else 
 		{
 			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
-			/*std::stringstream ss;
+			std::stringstream ss;
 			ss << "/GetLastFrameID?map="<<strMap<<"&key=reference";
 			WebAPIDataConverter::ConvertStringToNumber(mpAPI->Send(ss.str(), "").c_str(), mnReferenceID);
-			std::cout << "Last Reference = " << mnReferenceID << std::endl;*/
+			//std::cout << "Last Reference = " << mnReferenceID << std::endl;
 			auto pRef = mmFrames[mnReferenceID];
 			auto matches = lambda_api_detectAndmatch(mpSystem->ip, mpSystem->port, pRef, pNewF, strMap);
 			if (mbInitialized) {
@@ -470,7 +470,7 @@ namespace UVR_SLAM {
 					WebAPIDataConverter::ConvertBytesToDesc(mpAPI->Send(ss.str(), "").c_str(), pF->mvPts.size(), pF->matDescriptor);
 					pF->ComputeBoW();
 				},mpSystem->ip, mpSystem->port, pNewF);
-				UVR_SLAM::lambda_api_tracking(mpSystem, pRef, pNewF, user->mpLastFrame->mnFrameID, matches);
+				UVR_SLAM::lambda_api_tracking(mpSystem, pRef, pNewF, mnReferenceID, matches);//user->mpLastFrame->mnFrameID
 				////그리드 기반 로컬 맵 계산 후 매칭
 				mpVisualizer->SetBoolDoingProcess(true);
 				

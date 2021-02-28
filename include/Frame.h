@@ -41,75 +41,6 @@ namespace UVR_SLAM {
 	class Line;
 	class FrameGrid;
 	class FrameGridLevelKey;
-	class MatchInfo {
-	public:
-		
-		MatchInfo();
-		MatchInfo(System*  pSys, Frame* pRef, Frame* pTarget, int w, int h);
-		virtual ~MatchInfo();
-		void ConnectAll(); //이거 체크
-		void DisconnectAll(); //이것도 체크
-		void UpdateKeyFrame();
-		bool UpdateFrameQuality();
-		void SetMatchingPoints(); //초기화나 매핑시 포인트 매칭을 위한 포인트 추가 과정.
-		void SetLabel();
-		
-		
-	public:
-		int AddCP(CandidatePoint* pCP, cv::Point2f pt, int idx = -1);
-		void RemoveCP(int idx);
-		std::vector<cv::Point2f> GetMatchingPtsMapping(std::vector<UVR_SLAM::CandidatePoint*>& vpCPs);
-		int CheckOpticalPointOverlap(cv::Point2f pt, int radius, int margin = 30); //확인 후 삭제.
-		bool CheckOpticalPointOverlap(cv::Mat& overlap, cv::Point2f pt, int radius, int margin = 30); //확인 후 삭제.
-
-		std::vector<UVR_SLAM::CandidatePoint*> mvpMatchingCPs; //KF-KF 매칭에서 삼각화시 베이스라인을 충분히 확보하기 위함.
-		std::vector<bool> mvbMapPointInliers; //프레임 업데이트에만 이용
-		//std::vector<UVR_SLAM::MapPoint*> mvpMatchingMPs;
-		std::vector<cv::Point2f> mvMatchingPts; //CPPt에서 변경함
-		std::vector<int> mvMatchingIdxs, mvPrevMatchingIdxs;
-	public:
-		
-		System* mpSystem;
-		//오브젝트 관련
-		std::map<int, int> mmLabelAcc; //std::list<cv::Point2f>
-		std::map<int, cv::Mat> mmLabelMasks; //마스크 이미지
-		//std::multimap<int, cv::Rect> mmLabelRects; //동일 물체에 여러개가 나올 수 있기 때문에 멀티맵으로
-		//std::multimap<int, std::list<CandidatePoint*>> mmLabelCPs;
-		std::multimap<int,std::pair<cv::Rect, std::list<CandidatePoint*>>> mmLabelRectCPs;
-	private:
-		std::mutex mMutexCPs; //cp vector는 이미 완성된 상태임.
-		cv::Mat mMapCP; //현재 이미지 내에 CP의 포인트 위치 & 인덱스, ushort, 16US1
-	public:
-		int GetNumMPs();
-		
-		/*
-		void AddMP();
-		void RemoveMP();
-		void AddMP(MapPoint* pMP, int idx);
-		void RemoveMP(int idx);
-		MapPoint* GetMP(int idx);*/
-	private:
-		std::mutex mMutexMPs;
-		int mnNumMapPoint;
-
-//////////////////
-	public:
-		//현재 매칭된 값을 저장함.
-		float mfLowQualityRatio;
-		int mnWidth, mnHeight;
-		UVR_SLAM::Frame* mpPrevFrame, *mpRefFrame, *mpNextFrame;
-		////매칭 된 정보를 저장하는건데 사용 안할듯함.
-		std::vector<int> mvnVisibles, mvnMatches;
-		////디버깅용 이미지를 저장함.
-		cv::Mat mMatchedImage;
-		//엣지에서 뽑은 피티 저장.
-		std::vector<cv::Point2f> mvEdgePts;
-
-	public:
-
-	private:
-
-	};
 
 	class Frame {
 	public:
@@ -134,10 +65,6 @@ namespace UVR_SLAM {
 	private:
 		std::mutex mMutexMPs;
 		std::vector<MapPoint*> mvpMPs;
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 	public:
@@ -217,7 +144,7 @@ namespace UVR_SLAM {
 ////FrameGrid
 	public:
 		void ComputeGradientImage(cv::Mat src, cv::Mat& dst, int ksize = 1);
-		void SetGrids();
+		//void SetGrids();
 		cv::Point2f GetExtendedRect(cv::Point2f pt, int size);
 		cv::Point2f GetGridBasePt(cv::Point2f pt, int size);
 
@@ -233,8 +160,6 @@ namespace UVR_SLAM {
 
 ////////////////
 	public:
-		void ComputeSceneMedianDepth();
-		void ComputeSceneDepth();
 		float mfMeanDepth, mfMedianDepth, mfMinDepth, mfStdDev, mfRange;
 	////////////////
 	public:
@@ -250,7 +175,6 @@ namespace UVR_SLAM {
 		cv::Mat mEdgeImg;
 		std::vector<cv::Point2f> mvEdgePts;
 		////200423
-		MatchInfo* mpMatchInfo;
 		////200410
 		////Optical flow를 적용한 방식
 		//이미지 픽셀에 키포인트 순서를 저장.

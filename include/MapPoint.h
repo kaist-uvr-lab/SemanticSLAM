@@ -18,8 +18,6 @@ namespace UVR_SLAM {
 	class CandidatePoint;
 	class Map;
 	class Frame;
-	class MatchInfo;
-	class FrameWindow;
 	class MapPoint {
 	public:
 		//초기 포즈 만들 때는 double형으로 형변환
@@ -32,6 +30,7 @@ namespace UVR_SLAM {
 	public:
 
 		std::map<Frame*, int> GetObservations();
+		int GetNumObservations();
 		void AddObservation(Frame* pF, int idx);
 		void EraseObservation(Frame* pF);
 		void DeleteMapPoint();
@@ -41,7 +40,7 @@ namespace UVR_SLAM {
 
 		std::mutex mMutexFeatures;
 		std::map<UVR_SLAM::Frame*, int> mmpObservations;
-
+		int mnConnectedFrames;
 
 
 
@@ -56,8 +55,6 @@ namespace UVR_SLAM {
 		void SetNewMP(bool _b);
 		bool isNewMP();
 		int GetIndexInKeyFrame(Frame* pF);
-		bool isInFrame(MatchInfo* pF);
-		int GetPointIndexInFrame(MatchInfo* pF);
 
 		void SetMapGridID(int id);
 		int GetMapGridID();
@@ -146,17 +143,6 @@ namespace UVR_SLAM {
 		std::mutex mMutexObjectType;
 		ObjectType mObjectType;
 
-		//////////////////////프레임과 관련된 것들
-	public:
-		void ConnectFrame(UVR_SLAM::MatchInfo* pF, int idx); //index in frame
-		void DisconnectFrame(UVR_SLAM::MatchInfo* pKF);
-		std::map<MatchInfo*, int> GetConnedtedFrames();
-		int GetNumConnectedFrames();
-		void Delete();
-	private:
-		std::map<UVR_SLAM::MatchInfo*, int> mmpFrames;
-		int mnConnectedFrames;
-		//////////////////////프레임과 관련된 것들
 	////label
 	public:
 		int GetLabel();
@@ -179,8 +165,6 @@ namespace UVR_SLAM {
 		int GetLastSuccessFrame();
 		void SetLastVisibleFrame(int id);
 		int GetLastVisibleFrame();
-		void ComputeQuality();
-		bool GetQuality();
 		void SetOptimization(bool b);
 		bool isOptimized();
 	private:

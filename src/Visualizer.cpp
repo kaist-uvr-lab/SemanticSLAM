@@ -10,7 +10,7 @@
 #include <WebAPI.h>
 
 UVR_SLAM::Visualizer::Visualizer() {}
-UVR_SLAM::Visualizer::Visualizer(System* pSystem) :mpSystem(pSystem), mnFontFace(2), mfFontScale(0.6), mpMatchInfo(nullptr){
+UVR_SLAM::Visualizer::Visualizer(System* pSystem) :mpSystem(pSystem), mnFontFace(2), mfFontScale(0.6){
 }
 UVR_SLAM::Visualizer::~Visualizer() {}
 
@@ -454,7 +454,7 @@ void UVR_SLAM::Visualizer::Run() {
 				if (!pMPi || pMPi->isDeleted())
 					continue;
 				cv::Mat Xw = pMPi->GetWorldPos();
-				f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2) <<" "<<label<<" "<<pMPi->GetNumConnectedFrames()<< std::endl;
+				f << Xw.at<float>(0) << " " << Xw.at<float>(1) << " " << Xw.at<float>(2) <<" "<<label<<" "<<pMPi->GetNumObservations()<< std::endl;
 				/*bool bPlane = pMPi->GetRecentLayoutFrameID() > 0;
 				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, -x3D.at<float>(mnAxis2) * mnVisScale);
 				tpt += mVisMidPt;
@@ -530,8 +530,6 @@ void UVR_SLAM::Visualizer::Run() {
 
 			///////////////////////////////////////////////////////////////////////////////
 			////tracking results
-			auto pMatchInfo = GetMatchInfo();
-			
 			//local map
 			if(bShowOnlyTrajectory){
 				//////////////////////////////
@@ -596,7 +594,7 @@ void UVR_SLAM::Visualizer::Run() {
 						if (bPlane)
 							color = cv::Scalar(0, 255, 255);
 					}
-					if(pMPi->GetConnedtedFrames().size() < 7){
+					if(pMPi->GetNumObservations() < 7){
 						color = cv::Scalar(0, 0, 0);
 						continue;
 					}
@@ -792,12 +790,3 @@ void UVR_SLAM::Visualizer::Run() {
 }
 
 //////////////////////////////////////
-
-void UVR_SLAM::Visualizer::SetMatchInfo(MatchInfo* pMatch){
-	std::unique_lock<std::mutex> lock(mMutexMatchingInfo);
-	mpMatchInfo = pMatch;
-}
-UVR_SLAM::MatchInfo* UVR_SLAM::Visualizer::GetMatchInfo(){
-	std::unique_lock<std::mutex> lock(mMutexMatchingInfo);
-	return mpMatchInfo;
-}

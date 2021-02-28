@@ -8,7 +8,6 @@
 namespace UVR_SLAM {
 
 	class CandidatePoint;
-	class MatchInfo;
 	class FrameGrid {
 	public:
 		FrameGrid();
@@ -17,7 +16,6 @@ namespace UVR_SLAM {
 		virtual ~FrameGrid();
 	public:
 		cv::Mat CalcGradientImage(cv::Mat src);
-		bool CalcActivePoints(MatchInfo* pF, cv::Mat src, int gthresh, int& localthresh, cv::Point2f& pt, cv::Mat& occupied, int r);
 	public:
 		std::vector<CandidatePoint*> mvpCPs;
 		std::vector<cv::Point2f> mvPTs;

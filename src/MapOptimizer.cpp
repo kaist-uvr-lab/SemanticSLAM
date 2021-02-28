@@ -217,7 +217,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			ProcessNewKeyFrame();
 			mStrPath = mpSystem->GetDirPath(mpTargetFrame->mnKeyFrameID);
 			StopBA(false);
-			auto currMatchInfo = mpTargetFrame->mpMatchInfo;
+			
 			auto targetFrame = mpTargetFrame;
 			///////////////////////////////////////////////////////////////
 			////preprocessing
@@ -324,7 +324,7 @@ void UVR_SLAM::MapOptimizer::Run() {
 			else
 			{
 				std::cout << "Plane optimization" << std::endl;
-				PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpOptMPs, vpOptKFs, vpFixedKFs);
+				//PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpOptMPs, vpOptKFs, vpFixedKFs);
 			}
 			
 			/*std::cout << "BA::Delete::Start" << std::endl;
