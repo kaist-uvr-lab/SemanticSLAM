@@ -65,9 +65,6 @@ namespace UVR_SLAM {
 	private:
 		std::mutex mMutexNewKFs, mMutexLoopClosing, mMutexProcessing;
 		bool mbFixScale;//monocular이면 false, 스테레오와 뎁스카메라는 픽스
-		int mnWidth;
-		int mnHeight;
-		cv::Mat mK, mInvK;
 		System* mpSystem;
 		Map* mpMap;
 		KeyframeDatabase* mpKeyFrameDatabase;

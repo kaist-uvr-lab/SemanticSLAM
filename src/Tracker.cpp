@@ -22,7 +22,7 @@
 
 //std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
 UVR_SLAM::Tracker::Tracker() {}
-UVR_SLAM::Tracker::Tracker(int w, int h, cv::Mat K):mnWidth(w), mnHeight(h), mK(K), mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false){}
+UVR_SLAM::Tracker::Tracker(int w, int h, cv::Mat K):mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false){}
 UVR_SLAM::Tracker::Tracker(System* pSys, std::string strPath) : mpSystem(pSys), mbInitializing(false), mbFirstFrameAfterInit(false), mbInitilized(false) {
 	FileStorage fs(strPath, FileStorage::READ);
 	
@@ -57,9 +57,6 @@ bool UVR_SLAM::Tracker::isInitialized() {
 	return mbInitilized;
 }
 void UVR_SLAM::Tracker::Init() {
-	mK = mpSystem->mK.clone();
-	mnWidth = mpSystem->mnWidth;
-	mnHeight = mpSystem->mnHeight;
 	mpMap = mpSystem->mpMap;
 	mpVisualizer = mpSystem->mpVisualizer;
 	mpFrameVisualizer = mpSystem->mpFrameVisualizer;
@@ -83,8 +80,8 @@ bool UVR_SLAM::Tracker::CheckNeedKeyFrame(Frame* pCurr, bool &bNeedCP, bool &bNe
 	return bDoingMapping && (bNeedCP || bNeedMP || bNeedNewKF);;
 	int nHalf = mpSystem->mnRadius;
 	int nSize = nHalf * 2;
-	int a = mnWidth / nSize;
-	int b = mnHeight / nSize;
+	int a = pCurr->mnWidth / nSize;
+	int b = pCurr->mnHeight / nSize;
 	int nTotal = a*b;
 	float fRatioCP = ((float)mnPointMatching) / nTotal;
 	float fRatioMP = ((float)mnMapPointMatching) / nTotal;
@@ -169,7 +166,7 @@ float fThresh_depth_filter = 100.;
 void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 	if(!mbInitializing){
 		bool bReset = false;
-		mbInitializing = mpInitializer->Initialize(pCurr, bReset, mnWidth, mnHeight);
+		mbInitializing = mpInitializer->Initialize(pCurr, bReset, pCurr->mnWidth, pCurr->mnHeight);
 		
 		if (bReset){
 			mpSystem->Reset();
@@ -218,7 +215,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		std::vector<MapPoint*> vpRefMPs;
 		int nFrameID = pCurr->mnFrameID;
 		int nFirstMatch = 0;
-		cv::Mat overlap = cv::Mat::zeros(mnHeight, mnWidth, CV_8UC1);
+		cv::Mat overlap = cv::Mat::zeros(pCurr->mnHeight, pCurr->mnWidth, CV_8UC1);
 		for (int k = vpKFs.size()-1, kend = k-1; k > kend && k >= 0; k--) {
 			//std::cout << "tracking::id::" << vpKFs[k]->mnFrameID << std::endl;
 			auto vpRefTempMPs = vpKFs[k]->GetMapPoints();
@@ -249,7 +246,7 @@ void UVR_SLAM::Tracker::Tracking(Frame* pPrev, Frame* pCurr) {
 		
 		vpKFs.back()->GetPose(prevR, prevT);
 		pCurr->SetPose(prevR, prevT);
-		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempMPs, vTempCurrPts2, vbTempInliers, mpSystem->mpORBExtractor->GetInverseScaleSigmaSquares());
+		mnMapPointMatching = Optimization::PoseOptimization(mpMap, pCurr, vpTempMPs, vTempCurrPts2, vbTempInliers);
 		
 		
 		mpMap->ClearReinit();

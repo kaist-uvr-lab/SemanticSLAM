@@ -43,8 +43,6 @@ namespace UVR_SLAM {
 	private:
 		//std::vector<cv::Vec3b> mVecLabelColors;
 		
-		int mnWidth, mnHeight;
-		float cx, cy;
 	private:
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
 		std::mutex mMutexNewKFs;

@@ -32,10 +32,8 @@ namespace UVR_SLAM {
 	const unsigned char FLAG_INIT_FRAME = 0x8;
 
 	//class MapPoint;
-	
 	class MapPoint;
 	class CandidatePoint;
-	class ORBextractor;
 	class PlaneInformation;
 	class PlaneProcessInformation;
 	class Line;
@@ -45,7 +43,7 @@ namespace UVR_SLAM {
 	class Frame {
 	public:
 		Frame(System* pSys, cv::Mat _src, int w, int h, cv::Mat mK, double ts);
-		Frame(System* pSys, int id, int w, int h, cv::Mat mK, double ts);
+		Frame(System* pSys, int id, int w, int h, cv::Mat K, cv::Mat invK, double ts);
 		Frame(void* ptr, int id, int w, int h, cv::Mat mK);
 		Frame(void* ptr, int id, int w, int h, cv::Mat _R, cv::Mat _t, cv::Mat mK);
 		virtual ~Frame();
@@ -264,19 +262,17 @@ namespace UVR_SLAM {
 		std::vector<cv::Mat> mvPyramidImages;
 		//from ORB_SLAM2
 		
-		cv::Mat mDistCoef, mK;
-		ORBextractor* mpORBextractor;
-		static float fx;
-		static float fy;
-		static float cx;
-		static float cy;
-		static float invfx;
-		static float invfy;
-		static float mnMinX;
-		static float mnMaxX;
-		static float mnMinY;
-		static float mnMaxY;
-		static bool mbInitialComputations;
+		cv::Mat mDistCoef, mK, mInvK;
+		float fx;
+		float fy;
+		float cx;
+		float cy;
+		float invfx;
+		float invfy;
+		float mnMinX;
+		float mnMaxX;
+		float mnMinY;
+		float mnMaxY;
 		
 		int mnScaleLevels;
 		float mfScaleFactor;
@@ -289,15 +285,10 @@ namespace UVR_SLAM {
 		static float mfGridElementHeightInv;
 		std::vector<std::size_t> mGrid[FRAME_GRID_COLS][FRAME_GRID_ROWS];
 
-		void Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d);
-		void DetectFeature();
 		void DetectEdge();
-		void ExtractORB(const cv::Mat &im, std::vector<cv::KeyPoint>& vKPs, cv::Mat& desc);
 		void UndistortKeyPoints();
 		void ComputeImageBounds(const cv::Mat &imLeft);
-		void AssignFeaturesToGrid();
-		std::vector<size_t> GetFeaturesInArea(const float &x, const float  &y, const float  &r, const int minLevel = -1, const int maxLevel = -1);
-		bool PosInGrid(const cv::KeyPoint &kp, int &posX, int &posY);
+		
 	protected:
 
 	};

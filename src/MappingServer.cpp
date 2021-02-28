@@ -119,7 +119,7 @@ namespace UVR_SLAM {
 		cv::Mat F12;
 		float score;
 		////E  찾기 : OpenCV
-		cv::Mat E12 = cv::findEssentialMat(vTempPts1, vTempPts2, pSystem->mK, cv::FM_RANSAC, 0.999, 1.0, vFInliers);
+		cv::Mat E12 = cv::findEssentialMat(vTempPts1, vTempPts2, pRef->mK, cv::FM_RANSAC, 0.999, 1.0, vFInliers);
 		for (unsigned long i = 0; i < vFInliers.size(); i++) {
 			if (vFInliers[i]) {
 				vTempMatchPts1.push_back(vTempPts1[i]);
@@ -136,7 +136,7 @@ namespace UVR_SLAM {
 		cv::Mat matTriangulateInliers;
 		cv::Mat Map3D;
 		cv::Mat K;
-		pSystem->mK.convertTo(K, CV_64FC1);
+		pRef->mK.convertTo(K, CV_64FC1);
 		int res2 = cv::recoverPose(E12, vTempMatchPts1, vTempMatchPts2, K, R1, t1, 50.0, matTriangulateInliers, Map3D);
 		R1.convertTo(R1, CV_32FC1);
 		t1.convertTo(t1, CV_32FC1);
@@ -151,7 +151,6 @@ namespace UVR_SLAM {
 		}
 
 		/////여기까지 오면 초기화는 성공한 것
-		cv::Mat mK = pSystem->mK.clone();
 		pSystem->mpLocalMapper->SetInitialKeyFrame(pRef, pTarget);
 
 		////KF는 디스크립터를 획득하고 BoWVec 계산해야 함
@@ -187,8 +186,10 @@ namespace UVR_SLAM {
 			X3D = X3D.rowRange(0, 3);
 			cv::Mat proj1 = X3D.clone();
 			cv::Mat proj2 = R1*X3D + t1;
-			proj1 = mK*proj1;
-			proj2 = mK*proj2;
+			
+			proj1 = pRef->mK*proj1;
+			proj2 = pTarget->mK*proj2;
+			
 			cv::Point2f projected1(proj1.at<float>(0) / proj1.at<float>(2), proj1.at<float>(1) / proj1.at<float>(2));
 			cv::Point2f projected2(proj2.at<float>(0) / proj2.at<float>(2), proj2.at<float>(1) / proj2.at<float>(2));
 			auto pt1 = vTempMatchPts1[i];
@@ -197,8 +198,10 @@ namespace UVR_SLAM {
 			auto diffPt2 = projected2 - pt2;
 			float err1 = (diffPt1.dot(diffPt1));
 			float err2 = (diffPt2.dot(diffPt2));
-			if (err1 > 4.0 || err2 > 4.0)
+			if (err1 > 4.0 || err2 > 4.0){
+				//std::cout << "asdfasdfasdF::" <<err1<<"< "<<err2<< std::endl;
 				continue;
+			}
 			///////////////reprojection error
 
 			int idx = vTempMatchIDXs[i];
@@ -224,7 +227,7 @@ namespace UVR_SLAM {
 			pSystem->mlpNewMPs.push_back(pMP);
 
 		}
-
+		std::cout << tempMPs.size() << std::endl;
 		//////////////////////////////////////
 		/////median depth 
 		float medianDepth;
@@ -275,11 +278,7 @@ namespace UVR_SLAM {
 
 		//nRefID = pTarget->mnFrameID;
 		//pRef->Init(mpSystem->mpORBExtractor, mpSystem->mK, mpSystem->mD);
-
-		Frame::fx = pSystem->mK.at<float>(0, 0);
-		Frame::fy = pSystem->mK.at<float>(1, 1);
-		Frame::cx = pSystem->mK.at<float>(0, 2);
-		Frame::cy = pSystem->mK.at<float>(1, 2);
+		
 #ifdef DEBUG_TRACKING_LEVEL_3
 		std::cout << "Mapping::Initialization::Success=" << pRef->mnFrameID << ", " << pTarget->mnFrameID << "::" << tempMPs.size() << std::endl;
 #endif
@@ -404,11 +403,6 @@ namespace UVR_SLAM {
 		mbInitialized = false;
 	}
 	void MappingServer::Init() {
-		mK = mpSystem->mK.clone();
-		mInvK = mpSystem->mInvK.clone();
-		mnWidth = mpSystem->mnWidth;
-		mnHeight = mpSystem->mnHeight;
-
 		mpMap = mpSystem->mpMap;
 		mpMatcher = mpSystem->mpMatcher;
 		mpInitializer = mpSystem->mpInitializer;
@@ -438,7 +432,7 @@ namespace UVR_SLAM {
 		auto user = mpSystem->mmpConnectedUserList[strUser];
 		std::string strMap = user->mapName;
 		int nID = mPairFrameInfo.second;
-		Frame* pNewF = new UVR_SLAM::Frame(mpSystem, nID, mnWidth, mnHeight, mK, 0.0);
+		Frame* pNewF = new UVR_SLAM::Frame(mpSystem, nID, user->mnWidth, user->mnHeight, user->K, user->InvK, 0.0);
 		pNewF->mstrMapName = strMap;
 		mmFrames[nID] = pNewF;
 		
@@ -501,19 +495,21 @@ namespace UVR_SLAM {
 #ifdef DEBUG_TRACKING_LEVEL_1
 				std::cout << "MappingServer::Thread::TargetID = " << mPairFrameInfo.first <<", "<<mnReferenceID<<"::"<< mQueue .size()<<"::Start"<< std::endl;
 #endif
-				if(mpSystem->mbMapping)
-					ProcessNewFrame();
-				else {
-					//일단 초기 위치 추정
-					std::string strUser = mPairFrameInfo.first;
-					auto user = mpSystem->mmpConnectedUserList[strUser];
-					std::string strMap = user->mapName;
-					int nID = mPairFrameInfo.second;
-					Frame* pNewF = new UVR_SLAM::Frame(mpSystem, nID, mnWidth, mnHeight, mK, 0.0);
-					pNewF->mstrMapName = strMap;
-					lambda_api_detect(mpSystem->ip, mpSystem->port, pNewF, strMap);
-					mpLoopCloser->InsertKeyFrame(pNewF);
-				}
+				////user 마다 다르게
+				ProcessNewFrame();
+				//if(mpSystem->mbMapping)
+				//else {
+				//	//일단 초기 위치 추정
+				//	std::string strUser = mPairFrameInfo.first;
+				//	auto user = mpSystem->mmpConnectedUserList[strUser];
+				//	std::string strMap = user->mapName;
+				//	int nID = mPairFrameInfo.second;
+				//	Frame* pNewF = new UVR_SLAM::Frame(mpSystem, user, nID, user->mnWidth, user->mnHeight, user->K, 0.0);
+				//	pNewF->mstrMapName = strMap;
+				//	lambda_api_detect(mpSystem->ip, mpSystem->port, pNewF, strMap);
+				//	mpLoopCloser->InsertKeyFrame(pNewF);
+				//}
+
 				std::chrono::high_resolution_clock::time_point end3 = std::chrono::high_resolution_clock::now();
 				auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end3 - start).count();
 				float t_test1 = du_test1 / 1000.0;

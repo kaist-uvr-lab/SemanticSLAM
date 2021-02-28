@@ -38,10 +38,7 @@ void UVR_SLAM::PlaneEstimator::Init() {
 	mpVisualizer = mpSystem->mpVisualizer;
 	mpMatcher = mpSystem->mpMatcher;
 	mpInitializer = mpSystem->mpInitializer;
-	mK = mpSystem->mK.clone();
-	mK2 = mpSystem->mKforPL.clone();
-	mnWidth = mpSystem->mnWidth;
-	mnHeight = mpSystem->mnHeight;
+	//mK2 = mpSystem->mKforPL.clone();
 }
 UVR_SLAM::PlaneInformation::PlaneInformation() {
 	mbInit = false;
@@ -255,14 +252,14 @@ void UVR_SLAM::PlaneEstimator::Run() {
 							if (!pMPi || pMPi->isDeleted())
 								continue;
 							cv::Mat X3D = pMPi->GetWorldPos();
-							cv::Mat temp = mK*(R*X3D + t);
+							cv::Mat temp = mpTargetFrame->mK*(R*X3D + t);
 							cv::Point2f pt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
 							//cv::circle(testImg, pt, 2, color2, -1);
 						}
 						for (size_t i = 0, iend = vpTempOutlierFloorMPs.size(); i < iend; i++) {
 							auto pMPi = vpTempOutlierFloorMPs[i];
 							cv::Mat X3D = pMPi->GetWorldPos();
-							cv::Mat temp = mK*(R*X3D + t);
+							cv::Mat temp = mpTargetFrame->mK*(R*X3D + t);
 							cv::Point2f pt(temp.at<float>(0) / temp.at<float>(2), temp.at<float>(1) / temp.at<float>(2));
 							//cv::circle(testImg, pt, 2, color3, -1);
 						}

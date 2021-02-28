@@ -30,8 +30,6 @@ UVR_SLAM::Matcher::Matcher(System* pSys, cv::Ptr < cv::DescriptorMatcher> _match
 UVR_SLAM::Matcher::~Matcher(){}
 void UVR_SLAM::Matcher::Init() {
 	mpVisualizer = mpSystem->mpVisualizer;
-	mWidth = mpSystem->mnWidth;
-	mHeight = mpSystem->mnHeight;
 }
 const double nn_match_ratio = 0.7f; // Nearest-neighbour matching ratio
 

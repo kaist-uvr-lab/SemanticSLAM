@@ -45,10 +45,6 @@ namespace UVR_SLAM {
 		mpKeyFrameDatabase = mpSystem->mpKeyframeDatabase;
 		mpVoc = mpSystem->mpDBoWVoc;
 		mpMatcher = mpSystem->mpMatcher;
-		mK = mpSystem->mK.clone();
-		mnWidth = mpSystem->mnWidth;
-		mnHeight = mpSystem->mnHeight;
-		mInvK = mpSystem->mInvK.clone();
 	}
 	void LoopCloser::LoadMapData(std::string map) {
 		mbLoadData = true;
@@ -131,7 +127,7 @@ namespace UVR_SLAM {
 						std::memcpy(temp.data, res.data(), n * sizeof(uchar));
 						cv::Mat img = cv::imdecode(temp, cv::IMREAD_COLOR);
 						return img;
-					}(mpSystem->ip, mpSystem->port, mpTargetFrame->mnFrameID, mpTargetFrame->mstrMapName, mpSystem->mnWidth, mpSystem->mnHeight);
+					}(mpSystem->ip, mpSystem->port, mpTargetFrame->mnFrameID, mpTargetFrame->mstrMapName, mpTargetFrame->mnWidth, mpTargetFrame->mnHeight);
 
 					//cv::Mat targetImg = mpTargetFrame->GetOriginalImage().clone();
 					cv::Mat resimg = maxFrame->GetOriginalImage().clone();
@@ -157,14 +153,14 @@ namespace UVR_SLAM {
 						
 						vXws.push_back(cv::Point3f(Xw.at<float>(0), Xw.at<float>(1), Xw.at<float>(2)));
 
-						cv::Mat proj = mK*(R*Xw + t);
+						cv::Mat proj = mpTargetFrame->mK*(R*Xw + t);
 						cv::Point2f projPt(proj.at<float>(0) / proj.at<float>(2), proj.at<float>(1) / proj.at<float>(2));
 						cv::circle(targetImg, mpTargetFrame->mvPts[idx1], 3, cv::Scalar(255, 255, 0), -1);
 						cv::circle(resimg, maxFrame->mvPts[idx2], 3, cv::Scalar(255, 0, 255), -1);
 						cv::circle(resimg, projPt, 3, cv::Scalar(0, 255, 255), -1);
 					}
-					cv::resize(targetImg, targetImg, cv::Size(mnWidth / 2, mnHeight / 2));
-					cv::resize(resimg, resimg, cv::Size(mnWidth / 2, mnHeight / 2));
+					cv::resize(targetImg, targetImg, cv::Size(mpTargetFrame->mnWidth / 2, mpTargetFrame->mnHeight / 2));
+					cv::resize(resimg, resimg, cv::Size(mpTargetFrame->mnWidth / 2, mpTargetFrame->mnHeight / 2));
 					mpSystem->mpVisualizer->SetOutputImage(targetImg, 0);
 					mpSystem->mpVisualizer->SetOutputImage(resimg, 1);
 					/*cv::Mat rvec, tvec;
@@ -208,6 +204,7 @@ namespace UVR_SLAM {
 				//	//mMatches.push_back(temp);
 				//}
 
+
 				{
 					//segmentation test
 					WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
@@ -231,7 +228,7 @@ namespace UVR_SLAM {
 							}
 							return seg_color;
 							//imshow("segmentation", seg_color); cv::waitKey(1);
-						}, mpAPI, ss.str(), mnWidth/2, mnHeight/2);
+						}, mpAPI, ss.str(), mpTargetFrame->mnWidth/2, mpTargetFrame->mnHeight/2);
 						nPrevSegFrame = nCurrSegFrame;
 						auto res = f.get();
 						mpSystem->mpVisualizer->SetOutputImage(res, 2);
@@ -258,7 +255,7 @@ namespace UVR_SLAM {
 							cv::resize(depth, depth, depth.size() / 2);
 							return depth;
 							//imshow("depth", depth); cv::waitKey(1);
-						}, mpAPI, ss.str(), mnWidth, mnHeight);
+						}, mpAPI, ss.str(), mpTargetFrame->mnWidth, mpTargetFrame->mnHeight);
 						nPrevDepthFrame = nCurrDepthFrame;
 						auto res = f.get();
 						mpSystem->mpVisualizer->SetOutputImage(res, 3);

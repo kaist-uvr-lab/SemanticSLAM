@@ -138,19 +138,18 @@ namespace UVR_SLAM {
 		bool PlaneInitialization(UVR_SLAM::PlaneInformation* pPlane, UVR_SLAM::PlaneInformation* GroundPlane, int type, std::vector<UVR_SLAM::MapPoint*> spMPs, int nTargetID, int ransac_trial, float thresh_distance, float thresh_ratio);
 		bool ConnectedComponentLabeling(cv::Mat img, cv::Mat& dst, cv::Mat& stat);
 	public:
-		cv::Mat mK2;
+		//cv::Mat mK2;
 	private:
 
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
 		std::mutex mMutexNewKFs;
-
-		int mnWidth, mnHeight;
+		
 		int mnRansacTrial;
 		float mfThreshPlaneDistance;
 		float mfThreshPlaneRatio;
 		float mfThreshNormal;
 
-		cv::Mat mK;//
+		//cv::Mat mK;//
 		System* mpSystem;
 		Map* mpMap;
 		std::mutex mMutexDoingProcess;

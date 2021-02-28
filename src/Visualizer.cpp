@@ -131,15 +131,15 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 	}
 }
 
-void UVR_SLAM::Visualizer::Init() {
+void UVR_SLAM::Visualizer::Init(int w, int h) {
 	
 	mpPlaneEstimator = mpSystem->mpPlaneEstimator;
 	mpMap = mpSystem->mpMap;
 	mnDisplayX = mpSystem->mnDisplayX;
 	mnDisplayY = mpSystem->mnDisplayY;
 
-	mnWidth = mpSystem->mnWidth;
-	mnHeight = mpSystem->mnHeight;
+	mnWidth = w;
+	mnHeight = h;
 	mnVisScale = mpSystem->mnVisScale;
 
 	//Visualization

@@ -19,9 +19,6 @@ namespace UVR_SLAM {
 	void UVR_SLAM::FrameVisualizer::Init(){
 		mpMap = mpSystem->mpMap;
 		mpVisualizer = mpSystem->mpVisualizer;
-		mnWidth = mpSystem->mnWidth;
-		mnHeight = mpSystem->mnHeight;
-		mK = mpSystem->mK.clone();
 	}
 	float vmin = 0.001;
 	float vmax = 4.0;

@@ -40,10 +40,9 @@ namespace UVR_SLAM {
 	private:
 		int mnMaxFrames, mnMinFrames;
 		int mnThreshMinCPs, mnThreshMinMPs, mnThreshDiff, mnThreshDiffPose;
-		int mnWidth, mnHeight;
 		int mnMapPointMatching, mnPointMatching;
 		int mnPrevMapPointMatching, mnPrevPointMatching;
-		cv::Mat mK, mK2, mD;
+		cv::Mat mK2, mD;
 		bool mbInitializing;
 		bool mbFirstFrameAfterInit;
 		bool mbInitilized;

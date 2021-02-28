@@ -48,7 +48,7 @@ namespace UVR_SLAM {
 ////output½Ã°¢È­
 //////////////////////
 	public:
-		void Init();
+		void Init(int w, int h);
 	private:
 		int mnFontFace;//2
 		double mfFontScale;//1.2

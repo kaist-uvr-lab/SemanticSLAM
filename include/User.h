@@ -20,7 +20,7 @@ namespace UVR_SLAM {
 		float fx, fy, cx, cy;
 		int mnWidth, mnHeight;
 		bool mbMapping;
-		cv::Mat K;
+		cv::Mat K, InvK;
 		
 		std::vector<MapPoint*> mvpLocalMPs;
 		std::set<MapGrid*> mspLocalGrids;

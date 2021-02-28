@@ -33,7 +33,7 @@ namespace UVR_SLAM{
 	}
 
 	void Map::LoadMapDataFromServer(std::string mapname, std::vector<Frame*>& vpMapFrames) {
-		
+		/*
 		auto f1 = std::async(std::launch::async, [](std::string ip, int port, std::string mapname) {
 			std::stringstream ss;
 			ss << "/SendData?map="<< mapname<<"&attr=MapPoints&id=-1&key=bmpids";
@@ -150,8 +150,6 @@ namespace UVR_SLAM{
 			auto img = fimg.get();
 			auto vPTs = fpts.get();
 			auto desc = fdesc.get();
-			/*cv::imshow("img test", img);
-			cv::waitKey(1);*/
 
 			Frame* newFrame = new UVR_SLAM::Frame(mpSystem, img, img.cols, img.rows, mpSystem->mK, 0.0);
 			newFrame->SetMapPoints(vPTs.size());
@@ -180,56 +178,7 @@ namespace UVR_SLAM{
 			}
 			mpIndex = mpEndIndex;
 		}
-		Frame::fx = mpSystem->mK.at<float>(0, 0);
-		Frame::fy = mpSystem->mK.at<float>(1, 1);
-		Frame::cx = mpSystem->mK.at<float>(0, 2);
-		Frame::cy = mpSystem->mK.at<float>(1, 2);
-
-		
-		
-
-		//rapidjson::Document document;
-		//if (document.Parse(data).HasParseError()) {
-		//	std::cout << "JSON parsing error::ConvertMapData" << std::endl;
-		//}
-		//int total = document["total"].GetInt();
-		//std::cout << "Map::" << total << std::endl;
-
-		//const rapidjson::Value& a = document["keys"];
-		//for (int i = 0; i < total; i++) {
-		//	rapidjson::Value& F = document[a[i].GetString()];
-		//	std::vector<cv::Point2f> tempPts;
-		//	rapidjson::Value& KeyPoints = F["keypoints"];
-		//	int nKeypoints = KeyPoints.Size();
-		//	//image
-		//	auto resstr2 = Base64Encoder::base64_decode(std::string(F["image"].GetString()));// , n2);
-		//	auto temp = std::vector<uchar>(resstr2.length());
-		//	std::memcpy(&temp[0], resstr2.c_str(), temp.size() * sizeof(uchar));
-		//	cv::Mat img = cv::imdecode(temp, cv::IMREAD_COLOR);
-		//	//cv::imshow("test image", img); cv::waitKey(1);
-		//	//new frame
-		//	Frame* newFrame = new UVR_SLAM::Frame(mpSystem, img, img.cols, img.rows, mpSystem->mK, 0.0);
-		//	newFrame->mnFrameID = atoi(a[i].GetString());
-		//	//keypoints
-		//	for (int j = 0; j < nKeypoints; j++) {
-		//		newFrame->mvPts.push_back(std::move(cv::Point2f(KeyPoints[j][0].GetFloat(), KeyPoints[j][1].GetFloat())));
-		//	}
-		//	//descriptors
-		//	newFrame->matDescriptor = cv::Mat::zeros(256, nKeypoints, CV_32FC1);
-		//	rapidjson::Value& Desc = F["descriptors"];
-		//	for (int j = 0; j < nKeypoints; j++) {
-		//		for (int k = 0; k < 256; k++) {
-		//			newFrame->matDescriptor.at<float>(k, j) = Desc[k][j].GetFloat();
-		//		}
-		//	}
-		//	/*auto resstr = Base64Encoder::base64_decode(std::string(Desc.GetString()));
-		//	std::memcpy(newFrame->matDescriptor.data, resstr.data(), nKeypoints * 256 * sizeof(float));*/
-		//	newFrame->matDescriptor = newFrame->matDescriptor.t();
-		//	std::cout << i << "=" << newFrame->mnFrameID << ", " << newFrame->matDescriptor.cols << std::endl;
-		//	if(!std::isnan(newFrame->matDescriptor.at<float>(nKeypoints - 1, 255)))
-		//		newFrame->ComputeBoW();
-		//	vpMapFrames.push_back(newFrame);
-		//}
+		*/
 	}
 
 	Frame* Map::GetReverseWindowFrame(int idx) {

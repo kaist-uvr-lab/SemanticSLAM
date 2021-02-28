@@ -38,9 +38,6 @@ namespace UVR_SLAM {
 		Visualizer* mpVisualizer;
 		Initializer* mpInitializer;
 
-		int mnWidth, mnHeight;
-		cv::Mat mK, mInvK;
-
 		std::queue<std::pair<std::string, int>> mQueue;
 		std::mutex mMutexQueue;
 		std::pair<std::string, int> mPairFrameInfo;

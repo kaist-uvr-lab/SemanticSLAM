@@ -117,13 +117,15 @@ namespace UVR_SLAM {
 	DepthFilter::~DepthFilter() {
 	}
 	void DepthFilter::Init() {
-		K = mpSystem->mK.clone();
-		invK = mpSystem->mInvK.clone();
-		////시드 생성 관련 변수
-		float fx = mpSystem->mK.at<float>(0, 0);
-		float noise = 1.0;
-		Seed::px_err_angle = atan(noise / (2.0*fx))*2.0;
-		////시드 생성 관련 변수
+		////필요시 수정 필요
+
+		//K = mpSystem->mK.clone();
+		//invK = mpSystem->mInvK.clone();
+		//////시드 생성 관련 변수
+		//float fx = mpSystem->mK.at<float>(0, 0);
+		//float noise = 1.0;
+		//Seed::px_err_angle = atan(noise / (2.0*fx))*2.0;
+		//////시드 생성 관련 변수
 
 	}
 	void DepthFilter::UpdateSeed(Seed* pSeed, float invz, float tau2) {

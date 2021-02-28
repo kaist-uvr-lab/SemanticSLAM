@@ -13,7 +13,6 @@
 #include <MapOptimizer.h>
 #include <direct.h>
 #include <Converter.h>
-#include <ORBextractor.h>
 #include <Optimization.h>
 #include <Matcher.h>
 #include <Tracker.h>
@@ -31,13 +30,13 @@ int UVR_SLAM::System::nMapGridID = 1;
 
 UVR_SLAM::System::System(){}
 UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapOptimizationEnd(true), mbSegmentationEnd(false), mbCreateCP(true), mbCreateMP(true), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false),
-mbSegmentation(false), mbPlaneEstimation(false), mbMapping(true), mStrSegmentationString("Segmentation"), mStrPlaneString("PE"){
+mbSegmentation(false), mbPlaneEstimation(false), mStrSegmentationString("Segmentation"), mStrPlaneString("PE"){
 	LoadParameter(strFilePath);
 	LoadVocabulary();
 	Init();
 }
 UVR_SLAM::System::System(int nWidth, int nHeight, cv::Mat _K, cv::Mat _K2, cv::Mat _D, int _nFeatures, float _fScaleFactor, int _nLevels, int _fIniThFAST, int _fMinThFAST, std::string _strVOCPath):
-	mnWidth(nWidth), mnHeight(nHeight), mK(_K), mKforPL(_K2), mD(_D), mbMapping(true), mbTrackingEnd(true), mbLocalMapOptimizationEnd(true), mbSegmentationEnd(false), mbCreateCP(true), mbCreateMP(true), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false),
+	mKforPL(_K2), mD(_D), mbTrackingEnd(true), mbLocalMapOptimizationEnd(true), mbSegmentationEnd(false), mbCreateCP(true), mbCreateMP(true), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false),
 	mnFeatures(_nFeatures), mfScaleFactor(_fScaleFactor), mnLevels(_nLevels), mfIniThFAST(_fIniThFAST), mfMinThFAST(_fMinThFAST), strVOCPath(_strVOCPath)
 {
 	LoadVocabulary();
@@ -66,13 +65,6 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	mbFrameVisualization = fs["FrameVisualization.on:off.on"] == "on";
 	mbMapVisualization = fs["MapVisualization.on:off.on"] == "on";
 	
-	mK = cv::Mat::eye(3, 3, CV_32F);
-	mK.at<float>(0, 0) = fx;
-	mK.at<float>(1, 1) = fy;
-	mK.at<float>(0, 2) = cx;
-	mK.at<float>(1, 2) = cy;
-	mInvK = mK.inv();
-
 	cv::Mat DistCoef(4, 1, CV_32F);
 	DistCoef.at<float>(0) = fs["Camera.k1"];
 	DistCoef.at<float>(1) = fs["Camera.k2"];
@@ -91,9 +83,6 @@ void UVR_SLAM::System::LoadParameter(std::string strPath) {
 	mnLevels = fs["ORBextractor.nLevels"];
 	mfIniThFAST = fs["ORBextractor.iniThFAST"];
 	mfMinThFAST = fs["ORBextractor.minThFAST"];
-
-	mnWidth = fs["Image.width"];
-	mnHeight = fs["Image.height"];
 
 	mnPatchSize = fs["Dense.patch"];
 	mnHalfWindowSize = fs["Dense.window"];
@@ -176,7 +165,7 @@ void UVR_SLAM::System::ModuleInit() {
 	mpDepthFilter->Init();
 	mpLoopCloser->Init();
 	mpMapOptimizer->Init();
-	mpVisualizer->Init();
+	//mpVisualizer->Init();
 	mpFrameVisualizer->Init();
 	mpInitializer->Init();
 	mpTracker->Init();
@@ -193,10 +182,6 @@ void UVR_SLAM::System::Init() {
 	//mpInitFrame = nullptr;
 	mpCurrFrame = nullptr;
 	mpPrevFrame = nullptr;
-
-	mpInitORBExtractor = new UVR_SLAM::ORBextractor(2 * mnFeatures, mfScaleFactor, mnLevels, mfIniThFAST, mfMinThFAST);
-	mpPoseORBExtractor = new UVR_SLAM::ORBextractor(mnFeatures, mfScaleFactor, mnLevels, mfIniThFAST, mfMinThFAST);
-	mpORBExtractor = mpInitORBExtractor;
 
 	//Map
 	mpMap = new UVR_SLAM::Map(this, mnMaxConnectedKFs, mnMaxCandidateKFs);
@@ -280,7 +265,7 @@ void UVR_SLAM::System::Init() {
 
 void UVR_SLAM::System::SetCurrFrame(cv::Mat img, double t) {
 	mpPrevFrame = mpCurrFrame;
-	mpCurrFrame = new UVR_SLAM::Frame(this, img, mnWidth, mnHeight, mK, t);
+	mpCurrFrame = nullptr;//new UVR_SLAM::Frame(this, img, mnWidth, mnHeight, mK, t);
 	mpCurrFrame->mpPrev = mpPrevFrame;
 	if(mpPrevFrame)
 		mpPrevFrame->mpNext = mpCurrFrame;

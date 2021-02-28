@@ -18,10 +18,10 @@
 #include <Vocabulary.h>
 #include <Converter.h>
 
-bool UVR_SLAM::Frame::mbInitialComputations = true;
-float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
-float UVR_SLAM::Frame::mnMinX, UVR_SLAM::Frame::mnMinY, UVR_SLAM::Frame::mnMaxX, UVR_SLAM::Frame::mnMaxY;
-float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeightInv;
+//bool UVR_SLAM::Frame::mbInitialComputations = true;
+//float UVR_SLAM::Frame::cx, UVR_SLAM::Frame::cy, UVR_SLAM::Frame::fx, UVR_SLAM::Frame::fy, UVR_SLAM::Frame::invfx, UVR_SLAM::Frame::invfy;
+//float UVR_SLAM::Frame::mnMinX, UVR_SLAM::Frame::mnMinY, UVR_SLAM::Frame::mnMaxX, UVR_SLAM::Frame::mnMaxY;
+//float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeightInv;
 
 UVR_SLAM::Frame::Frame(System* pSys, cv::Mat _src, int w, int h, cv::Mat K, double ts):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
 mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMedianDepth(0.0),
@@ -35,12 +35,16 @@ mpPlaneInformation(nullptr),mvpPlanes(), bSegmented(false), mbMapping(false), md
 	mnFrameID = UVR_SLAM::System::nFrameID++;
 }
 ////매핑 서버에서 생성
-UVR_SLAM::Frame::Frame(System* pSys, int id, int w, int h, cv::Mat K, double ts):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
+UVR_SLAM::Frame::Frame(System* pSys,int id, int w, int h, cv::Mat K, cv::Mat invK, double ts):mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mInvK(invK), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
 mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMedianDepth(0.0),
 mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts){
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
 	mnFrameID = id;
+	fx = K.at<float>(0, 0);
+	fy = K.at<float>(1, 1);
+	cx = K.at<float>(0, 2);
+	cy = K.at<float>(1, 2);
 }
 
 UVR_SLAM::Frame::Frame(void *ptr, int id, int w, int h, cv::Mat K) :mnWidth(w), mnHeight(h), mK(K), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
@@ -467,98 +471,49 @@ void UVR_SLAM::Frame::Frame::ComputeBoW()
 }
 
 ///////////////////////////////
-void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
-{
-
-	mpORBextractor = _e;
-	mnScaleLevels = mpORBextractor->GetLevels();
-	mfScaleFactor = mpORBextractor->GetScaleFactor();
-	mfLogScaleFactor = log(mfScaleFactor);
-	mvScaleFactors = mpORBextractor->GetScaleFactors();
-	mvInvScaleFactors = mpORBextractor->GetInverseScaleFactors();
-	mvLevelSigma2 = mpORBextractor->GetScaleSigmaSquares();
-	mvInvLevelSigma2 = mpORBextractor->GetInverseScaleSigmaSquares();
-
-	mK = _k.clone();
-	mDistCoef = _d.clone();
-
-	//에러나면 풀어야 함
-	//AssignFeaturesToGrid();
-
-	//임시로 키포인트 복사
-	
-	//mvpMPs 초기화
-	//cv::undistort(matOri, undistorted, mK, mDistCoef);
-	
-	//////////canny
-	//edge는 setkeyframe에서 추가.
-	//canny는 이전에 돌리고 엣지 포인트만 여기서 추가하기.(0704)
-	//cv::Mat filtered;
-	//GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
-	//cv::Canny(filtered, mEdgeImg, 50, 200);//150
-	
-	//////////canny
-
-	/*mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
-	mvbMPInliers = std::vector<bool>(mvKeyPoints.size(), false);
-	mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);*/
-
-	//mvMapObjects = std::vector<std::multimap<ObjectType, int, std::greater<int>>>(mvKeyPoints.size());
-	//파트별 매칭을 위한 것.
-	/*mWallDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
-	mObjectDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
-	mPlaneDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
-	mLabelStatus = cv::Mat::zeros(mvKeyPoints.size(), 1, CV_8UC1);*/
-}
-
-void UVR_SLAM::Frame::DetectFeature() {
-	//tempDesc와 tempKPs는 이미지에서 겹치는 키포인트를 제거하기 위함.
-	//ExtractORB(matFrame, mvKeyPoints, matDescriptor);
-	//////여기에서 중복되는 키포인트들 제거하기
-	cv::Mat tempDesc;
-	{
-		ExtractORB(matFrame, mvTempKPs, tempDesc);
-		matDescriptor = cv::Mat::zeros(0, tempDesc.cols, tempDesc.type());
-	}
-	
-	cv::Mat overlap = cv::Mat::zeros(matFrame.size(), CV_8UC1);
-	for (int i = 0; i < mvTempKPs.size(); i++) {
-
-		if (!CheckKeyPointOverlap(overlap, mvTempKPs[i].pt, 3)) {
-			continue;
-		}
-
-		mvKeyPoints.push_back(mvTempKPs[i]);
-		matDescriptor.push_back(tempDesc.row(i));
-		//200410 추가
-		mvnOctaves.push_back(mvTempKPs[i].octave);
-		//mvPts.push_back(mvTempKPs[i].pt);
-		//200410 추가
-	}
-	////여기에서 중복되는 키포인트들 제거하기
-
-	if (mvKeyPoints.empty())
-		return;
-
-	if (mbInitialComputations)
-	{
-		ComputeImageBounds(matFrame);
-
-		mfGridElementWidthInv = static_cast<float>(FRAME_GRID_COLS) / static_cast<float>(mnMaxX - mnMinX);
-		mfGridElementHeightInv = static_cast<float>(FRAME_GRID_ROWS) / static_cast<float>(mnMaxY - mnMinY);
-
-		fx = mK.at<float>(0, 0);
-		fy = mK.at<float>(1, 1);
-		cx = mK.at<float>(0, 2);
-		cy = mK.at<float>(1, 2);
-		invfx = 1.0f / fx;
-		invfy = 1.0f / fy;
-
-		mbInitialComputations = false;
-	}
-	UndistortKeyPoints();
-	mvKeyPoints = mvKeyPointsUn;
-}
+//void UVR_SLAM::Frame::Init(ORBextractor* _e, cv::Mat _k, cv::Mat _d)
+//{
+//
+//	mpORBextractor = _e;
+//	mnScaleLevels = mpORBextractor->GetLevels();
+//	mfScaleFactor = mpORBextractor->GetScaleFactor();
+//	mfLogScaleFactor = log(mfScaleFactor);
+//	mvScaleFactors = mpORBextractor->GetScaleFactors();
+//	mvInvScaleFactors = mpORBextractor->GetInverseScaleFactors();
+//	mvLevelSigma2 = mpORBextractor->GetScaleSigmaSquares();
+//	mvInvLevelSigma2 = mpORBextractor->GetInverseScaleSigmaSquares();
+//
+//	mK = _k.clone();
+//	mDistCoef = _d.clone();
+//
+//	//에러나면 풀어야 함
+//	//AssignFeaturesToGrid();
+//
+//	//임시로 키포인트 복사
+//	
+//	//mvpMPs 초기화
+//	//cv::undistort(matOri, undistorted, mK, mDistCoef);
+//	
+//	//////////canny
+//	//edge는 setkeyframe에서 추가.
+//	//canny는 이전에 돌리고 엣지 포인트만 여기서 추가하기.(0704)
+//	//cv::Mat filtered;
+//	//GaussianBlur(matFrame, filtered, cv::Size(5, 5), 0.0);
+//	//cv::Canny(filtered, mEdgeImg, 50, 200);//150
+//	
+//	//////////canny
+//
+//	/*mvpMPs = std::vector<UVR_SLAM::MapPoint*>(mvKeyPoints.size(), nullptr);
+//	mvbMPInliers = std::vector<bool>(mvKeyPoints.size(), false);
+//	mvObjectTypes = std::vector<ObjectType>(mvKeyPoints.size(), OBJECT_NONE);*/
+//
+//	//mvMapObjects = std::vector<std::multimap<ObjectType, int, std::greater<int>>>(mvKeyPoints.size());
+//	//파트별 매칭을 위한 것.
+//	/*mWallDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
+//	mObjectDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
+//	mPlaneDescriptor = cv::Mat::zeros(0, matDescriptor.cols, matDescriptor.type());
+//	mLabelStatus = cv::Mat::zeros(mvKeyPoints.size(), 1, CV_8UC1);*/
+//}
 
 void UVR_SLAM::Frame::DetectEdge() {
 	cv::Mat filtered;
@@ -573,10 +528,6 @@ void UVR_SLAM::Frame::DetectEdge() {
 	}
 }
 
-void UVR_SLAM::Frame::ExtractORB(const cv::Mat &im, std::vector<cv::KeyPoint>& vKPs, cv::Mat& desc)
-{
-	(*mpORBextractor)(im, cv::Mat(), vKPs, desc);
-}
 void UVR_SLAM::Frame::UndistortKeyPoints()
 {
 
@@ -639,95 +590,6 @@ void UVR_SLAM::Frame::ComputeImageBounds(const cv::Mat &imLeft)
 		mnMinY = 0.0f;
 		mnMaxY = imLeft.rows;
 	}
-}
-void UVR_SLAM::Frame::AssignFeaturesToGrid()
-{
-	int N = mvKeyPoints.size();
-	int nReserve = 0.5f*N / (FRAME_GRID_COLS*FRAME_GRID_ROWS);
-
-	for (unsigned int i = 0; i<FRAME_GRID_COLS; i++)
-		for (unsigned int j = 0; j < FRAME_GRID_ROWS; j++) {
-			mGrid[i][j].clear();
-			mGrid[i][j].reserve(nReserve);
-		}
-
-	//for(unsigned int i=0; i<FRAME_GRID_COLS;i++)
-	//for (unsigned int j=0; j<FRAME_GRID_ROWS;j++)
-	//mGrid[i][j].reserve(nReserve);
-
-	for (int i = 0; i<N; i++)
-	{
-		const cv::KeyPoint &kp = mvKeyPointsUn[i];
-
-		int nGridPosX, nGridPosY;
-		if (PosInGrid(kp, nGridPosX, nGridPosY))
-			mGrid[nGridPosX][nGridPosY].push_back(i);
-	}
-}
-bool UVR_SLAM::Frame::PosInGrid(const cv::KeyPoint &kp, int &posX, int &posY)
-{
-	posX = round((kp.pt.x - mnMinX)*mfGridElementWidthInv);
-	posY = round((kp.pt.y - mnMinY)*mfGridElementHeightInv);
-
-	//Keypoint's coordinates are undistorted, which could cause to go out of the image
-	if (posX<0 || posX >= FRAME_GRID_COLS || posY<0 || posY >= FRAME_GRID_ROWS)
-		return false;
-
-	return true;
-}
-std::vector<size_t> UVR_SLAM::Frame::GetFeaturesInArea(const float &x, const float  &y, const float  &r, const int minLevel, const int maxLevel)
-{
-	std::vector<size_t> vIndices;
-	vIndices.reserve(mvKeyPointsUn.size());
-
-	const int nMinCellX = cv::max(0, (int)floor((x - mnMinX - r)*mfGridElementWidthInv));
-	if (nMinCellX >= FRAME_GRID_COLS)
-		return vIndices;
-
-	const int nMaxCellX = cv::min((int)FRAME_GRID_COLS - 1, (int)ceil((x - mnMinX + r)*mfGridElementWidthInv));
-	if (nMaxCellX<0)
-		return vIndices;
-
-	const int nMinCellY = cv::max(0, (int)floor((y - mnMinY - r)*mfGridElementHeightInv));
-	if (nMinCellY >= FRAME_GRID_ROWS)
-		return vIndices;
-
-	const int nMaxCellY = cv::min((int)FRAME_GRID_ROWS - 1, (int)ceil((y - mnMinY + r)*mfGridElementHeightInv));
-	if (nMaxCellY<0)
-		return vIndices;
-
-	const bool bCheckLevels = (minLevel>0) || (maxLevel >= 0);
-
-	for (int ix = nMinCellX; ix <= nMaxCellX; ix++)
-	{
-		for (int iy = nMinCellY; iy <= nMaxCellY; iy++)
-		{
-			const std::vector<size_t> vCell = mGrid[ix][iy];
-			if (vCell.empty())
-				continue;
-
-			for (size_t j = 0, jend = vCell.size(); j<jend; j++)
-			{
-				const cv::KeyPoint &kpUn = mvKeyPointsUn[vCell[j]];
-				if (bCheckLevels)
-				{
-					if (kpUn.octave<minLevel)
-						continue;
-					if (maxLevel >= 0)
-						if (kpUn.octave>maxLevel)
-							continue;
-				}
-
-				const float distx = kpUn.pt.x - x;
-				const float disty = kpUn.pt.y - y;
-
-				if (fabs(distx)<r && fabs(disty)<r)
-					vIndices.push_back(vCell[j]);
-			}
-		}
-	}
-
-	return vIndices;
 }
 
 bool UVR_SLAM::Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit)

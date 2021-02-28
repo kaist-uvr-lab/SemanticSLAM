@@ -38,8 +38,6 @@ namespace UVR_SLAM {
 		std::vector<UVR_SLAM::MapPoint*> mvDeletingMPs;
 	private:
 		std::queue<UVR_SLAM::Frame*> mKFQueue;
-		int mnWidth, mnHeight;
-		cv::Mat mK;
 		std::mutex mMutexStopBA;
 		bool mbStopBA;
 		System* mpSystem;

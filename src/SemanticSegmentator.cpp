@@ -1,5 +1,6 @@
 #include <SemanticSegmentator.h>
 #include <System.h>
+#include <User.h>
 #include <Frame.h>
 #include <SegmentationData.h>
 #include <FrameWindow.h>
@@ -26,7 +27,7 @@ UVR_SLAM::SemanticSegmentator::SemanticSegmentator():mbDoingProcess(false){
 	mVecLabelColors.push_back(COLOR_CEILING);
 	mVecLabelColors.push_back(COLOR_NONE);*/
 }
-UVR_SLAM::SemanticSegmentator::SemanticSegmentator(std::string _ip, int _port, int w, int h): ip(_ip), port(_port),mbDoingProcess(false), mnWidth(w), mnHeight(h), mpPrevFrame(nullptr){
+UVR_SLAM::SemanticSegmentator::SemanticSegmentator(std::string _ip, int _port, int w, int h): ip(_ip), port(_port),mbDoingProcess(false),mpPrevFrame(nullptr){
 	UVR_SLAM::ObjectColors::Init();
 	/*mVecLabelColors.push_back(COLOR_FLOOR);
 	mVecLabelColors.push_back(COLOR_WALL);
@@ -81,8 +82,6 @@ void UVR_SLAM::SemanticSegmentator::Init() {
 	mpVisualizer = mpSystem->mpVisualizer;
 	mpLBPProcessor = mpSystem->mpLBPProcessor;
 	mpDatabase = mpSystem->mpDatabase;
-	mnWidth = mpSystem->mnWidth;
-	mnHeight = mpSystem->mnHeight;
 }
 
 unsigned long long ConvertID(cv::Mat hist, int numPatterns, int numIDs) {
@@ -266,114 +265,115 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 				//}, "143.248.96.81", port, mpTargetFrame->mnFrameID);
 				//////////////Segmentation
 
-				//////////////Depth 추정
-				cv::Mat depthImg;
-				auto f1 = std::async([](std::string ip, int port, Frame* pF, cv::Mat& depthImg, cv::Mat invK, Map* map) {
-					WebAPI* api = new WebAPI(ip, port);
-					api->Send("receiveimage", WebAPIDataConverter::ConvertImageToString(pF->GetOriginalImage(), pF->mnFrameID));
-					WebAPIDataConverter::ConvertStringToDepthImage(api->Send("depthestimate", WebAPIDataConverter::ConvertNumberToString(pF->mnFrameID)).c_str(), depthImg);
-					std::cout << "depth estimation = " << pF->mnFrameID << std::endl;
+				/////////엣지 슬램 뎁스 추가시 이용하기
+				////////////////Depth 추정
+				//cv::Mat depthImg;
+				//auto f1 = std::async([](std::string ip, int port, Frame* pF, cv::Mat& depthImg, cv::Mat invK, Map* map) {
+				//	WebAPI* api = new WebAPI(ip, port);
+				//	api->Send("receiveimage", WebAPIDataConverter::ConvertImageToString(pF->GetOriginalImage(), pF->mnFrameID));
+				//	WebAPIDataConverter::ConvertStringToDepthImage(api->Send("depthestimate", WebAPIDataConverter::ConvertNumberToString(pF->mnFrameID)).c_str(), depthImg);
+				//	std::cout << "depth estimation = " << pF->mnFrameID << std::endl;
 
-					std::vector<std::tuple<cv::Point2f, float, int>> vecTuples;
+				//	std::vector<std::tuple<cv::Point2f, float, int>> vecTuples;
 
-					cv::Mat R, t;
-					pF->GetPose(R, t);
+				//	cv::Mat R, t;
+				//	pF->GetPose(R, t);
 
-					////depth 정보 저장 및 포인트와 웨이트 정보를 튜플로 저장
-					cv::Mat Rcw2 = R.row(2);
-					Rcw2 = Rcw2.t();
-					float zcw = t.at<float>(2);
-					auto vpMPs = pF->GetMapPoints();
-					for (size_t i = 0, iend = vpMPs.size(); i < iend; i++) {
-						auto pMPi = vpMPs[i];
-						if (!pMPi || pMPi->isDeleted())
-							continue;
-						auto pt = pF->mvPts[i];
-						cv::Mat x3Dw = pMPi->GetWorldPos();
-						float z = (float)Rcw2.dot(x3Dw) + zcw;
-						std::tuple<cv::Point2f, float, int> data = std::make_tuple(std::move(pt), 1.0 / z, pMPi->GetNumObservations());//cv::Point2f(pt.x / 2, pt.y / 2)
-						vecTuples.push_back(data);
-					}
+				//	////depth 정보 저장 및 포인트와 웨이트 정보를 튜플로 저장
+				//	cv::Mat Rcw2 = R.row(2);
+				//	Rcw2 = Rcw2.t();
+				//	float zcw = t.at<float>(2);
+				//	auto vpMPs = pF->GetMapPoints();
+				//	for (size_t i = 0, iend = vpMPs.size(); i < iend; i++) {
+				//		auto pMPi = vpMPs[i];
+				//		if (!pMPi || pMPi->isDeleted())
+				//			continue;
+				//		auto pt = pF->mvPts[i];
+				//		cv::Mat x3Dw = pMPi->GetWorldPos();
+				//		float z = (float)Rcw2.dot(x3Dw) + zcw;
+				//		std::tuple<cv::Point2f, float, int> data = std::make_tuple(std::move(pt), 1.0 / z, pMPi->GetNumObservations());//cv::Point2f(pt.x / 2, pt.y / 2)
+				//		vecTuples.push_back(data);
+				//	}
 
-					////웨이트와 포인트 정보로 정렬
-					std::sort(vecTuples.begin(), vecTuples.end(),
-						[](std::tuple<cv::Point2f, float, int> const &t1, std::tuple<cv::Point2f, float, int> const &t2) {
-						if (std::get<2>(t1) == std::get<2>(t2)) {
-							return std::get<0>(t1).x != std::get<0>(t2).x ? std::get<0>(t1).x > std::get<0>(t2).x : std::get<0>(t1).y > std::get<0>(t2).y;
-						}
-						else {
-							return std::get<2>(t1) > std::get<2>(t2);
-						}
-					}
-					);
+				//	////웨이트와 포인트 정보로 정렬
+				//	std::sort(vecTuples.begin(), vecTuples.end(),
+				//		[](std::tuple<cv::Point2f, float, int> const &t1, std::tuple<cv::Point2f, float, int> const &t2) {
+				//		if (std::get<2>(t1) == std::get<2>(t2)) {
+				//			return std::get<0>(t1).x != std::get<0>(t2).x ? std::get<0>(t1).x > std::get<0>(t2).x : std::get<0>(t1).y > std::get<0>(t2).y;
+				//		}
+				//		else {
+				//			return std::get<2>(t1) > std::get<2>(t2);
+				//		}
+				//	}
+				//	);
 
-					////파라메터 검색 및 뎁스 정보 복원
-					int nTotal = 20;
-					if (vecTuples.size() > nTotal) {
-						int nData = nTotal;
-						cv::Mat A = cv::Mat::ones(nData, 2, CV_32FC1);
-						cv::Mat B = cv::Mat::zeros(nData, 1, CV_32FC1);
-						
-						for (size_t i = 0; i < nData; i++) {
-							auto data = vecTuples[i];
-							auto pt = std::get<0>(data);
-							auto invdepth = std::get<1>(data);
-							auto nConnected = std::get<2>(data);
+				//	////파라메터 검색 및 뎁스 정보 복원
+				//	int nTotal = 20;
+				//	if (vecTuples.size() > nTotal) {
+				//		int nData = nTotal;
+				//		cv::Mat A = cv::Mat::ones(nData, 2, CV_32FC1);
+				//		cv::Mat B = cv::Mat::zeros(nData, 1, CV_32FC1);
+				//		
+				//		for (size_t i = 0; i < nData; i++) {
+				//			auto data = vecTuples[i];
+				//			auto pt = std::get<0>(data);
+				//			auto invdepth = std::get<1>(data);
+				//			auto nConnected = std::get<2>(data);
 
-							float p = depthImg.at<float>(pt);
-							A.at<float>(i, 0) = invdepth;
-							B.at<float>(i) = p;
-						}
+				//			float p = depthImg.at<float>(pt);
+				//			A.at<float>(i, 0) = invdepth;
+				//			B.at<float>(i) = p;
+				//		}
 
-						cv::Mat X = A.inv(cv::DECOMP_QR)*B;
-						float a = X.at<float>(0);
-						float b = X.at<float>(1);
+				//		cv::Mat X = A.inv(cv::DECOMP_QR)*B;
+				//		float a = X.at<float>(0);
+				//		float b = X.at<float>(1);
 
-						depthImg = (depthImg - b) / a;
-						for (int x = 0, cols = depthImg.cols; x < cols; x++) {
-							for (int y = 0, rows = depthImg.rows; y < rows; y++) {
-								float val = 1.0 / depthImg.at<float>(y, x);
-								/*if (val < 0.0001)
-								val = 0.5;*/
-								depthImg.at<float>(y, x) = val;
-							}
-						}
-						//복원 확인
-						cv::Mat Rinv, Tinv;
-						pF->GetInversePose(Rinv, Tinv);
-						map->ClearTempMPs();
-						int inc = 10;
-						for (size_t row = inc, rows = depthImg.rows; row < rows; row+= inc) {
-							for (size_t col = inc, cols = depthImg.cols; col < cols; col+= inc) {
-								cv::Point2f pt(col, row);
-								float depth = depthImg.at<float>(pt);
-								if (depth < 0.0001)
-									continue;
-								cv::Mat a = Rinv*(invK*(cv::Mat_<float>(3, 1) << pt.x, pt.y, 1.0)*depth) + Tinv;
-								map->AddTempMP(a);
-							}
-						}
-						/*for (size_t i = 0, iend = vecTuples.size(); i < iend; i++) {
-							auto data = vecTuples[i];
-							auto pt = std::get<0>(data);
-							float depth = depthImg.at<float>(pt);
-							if (depth < 0.0001)
-								continue;
-							cv::Mat a = Rinv*(invK*(cv::Mat_<float>(3, 1) << pt.x, pt.y, 1.0)*depth) + Tinv;
-							map->AddTempMP(a);
-						}*/
-						/*imshow("depth test::", depthImg);
-						cv::waitKey(1);*/
-					}
-					return depthImg;
-				}, "143.248.95.112", port, mpTargetFrame, depthImg, mpSystem->mInvK, mpMap);
-				depthImg = f1.get();
-				cv::normalize(depthImg, depthImg, 0,255, cv::NORM_MINMAX, CV_8UC1);
-				cv::resize(depthImg, depthImg, cv::Size(depthImg.cols / 2, depthImg.rows / 2));
-				cv::cvtColor(depthImg, depthImg, CV_GRAY2BGR);
-				//depthImg.convertTo(depthImg, CV_8UC3);
-				mpVisualizer->SetOutputImage(depthImg, 2);
-				//////////////Depth 추정
+				//		depthImg = (depthImg - b) / a;
+				//		for (int x = 0, cols = depthImg.cols; x < cols; x++) {
+				//			for (int y = 0, rows = depthImg.rows; y < rows; y++) {
+				//				float val = 1.0 / depthImg.at<float>(y, x);
+				//				/*if (val < 0.0001)
+				//				val = 0.5;*/
+				//				depthImg.at<float>(y, x) = val;
+				//			}
+				//		}
+				//		//복원 확인
+				//		cv::Mat Rinv, Tinv;
+				//		pF->GetInversePose(Rinv, Tinv);
+				//		map->ClearTempMPs();
+				//		int inc = 10;
+				//		for (size_t row = inc, rows = depthImg.rows; row < rows; row+= inc) {
+				//			for (size_t col = inc, cols = depthImg.cols; col < cols; col+= inc) {
+				//				cv::Point2f pt(col, row);
+				//				float depth = depthImg.at<float>(pt);
+				//				if (depth < 0.0001)
+				//					continue;
+				//				cv::Mat a = Rinv*(invK*(cv::Mat_<float>(3, 1) << pt.x, pt.y, 1.0)*depth) + Tinv;
+				//				map->AddTempMP(a);
+				//			}
+				//		}
+				//		/*for (size_t i = 0, iend = vecTuples.size(); i < iend; i++) {
+				//			auto data = vecTuples[i];
+				//			auto pt = std::get<0>(data);
+				//			float depth = depthImg.at<float>(pt);
+				//			if (depth < 0.0001)
+				//				continue;
+				//			cv::Mat a = Rinv*(invK*(cv::Mat_<float>(3, 1) << pt.x, pt.y, 1.0)*depth) + Tinv;
+				//			map->AddTempMP(a);
+				//		}*/
+				//		/*imshow("depth test::", depthImg);
+				//		cv::waitKey(1);*/
+				//	}
+				//	return depthImg;
+				//}, "143.248.95.112", port, mpTargetFrame, depthImg, mpSystem->mInvK, mpMap);
+				//depthImg = f1.get();
+				//cv::normalize(depthImg, depthImg, 0,255, cv::NORM_MINMAX, CV_8UC1);
+				//cv::resize(depthImg, depthImg, cv::Size(depthImg.cols / 2, depthImg.rows / 2));
+				//cv::cvtColor(depthImg, depthImg, CV_GRAY2BGR);
+				////depthImg.convertTo(depthImg, CV_8UC3);
+				//mpVisualizer->SetOutputImage(depthImg, 2);
+				////////////////Depth 추정
 			}
 			
 			SetBoolDoingProcess(false);
@@ -385,7 +385,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			cv::Mat colorimg, resized_color, segmented;
 			/*cv::cvtColor(mpTargetFrame->GetOriginalImage(), colorimg, CV_RGBA2BGR);
 			colorimg.convertTo(colorimg, CV_8UC3);*/
-			cv::resize(mpTargetFrame->GetOriginalImage().clone(), resized_color, cv::Size(mnWidth/2, mnHeight/2));
+			cv::resize(mpTargetFrame->GetOriginalImage().clone(), resized_color, cv::Size(mpTargetFrame->mnWidth/2, mpTargetFrame->mnHeight/2));
 			//cv::resize(colorimg, resized_color, cv::Size(160, 90));
 			
 			//request post
@@ -612,7 +612,7 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 				//cv::Mat testImg = mpTargetFrame->GetOriginalImage().clone();
 				cv::Mat invP, invT, invK;
 				cv::Mat Rinv, Tinv;
-				invK = mpSystem->mInvK;
+				invK = mpTargetFrame->mInvK;
 				mpTargetFrame->GetInversePose(Rinv, Tinv);
 				auto pFloorParam = mpPlaneEstimator->GetPlaneParam();
 				if (pFloorParam->mbInit) {

@@ -8,11 +8,12 @@ namespace UVR_SLAM {
 
 	}
 	User::User(std::string _map, int _w, int _h, float _fx, float _fy, float _cx, float _cy, bool _b):mapName(_map),mnWidth(_w), mnHeight(_h), fx(_fx), fy(_fy), cx(_cx), cy(_cy), mbMapping(_b) {
-		K = cv::Mat::zeros(3, 3, CV_32FC1);
+		K = cv::Mat::eye(3, 3, CV_32FC1);
 		K.at<float>(0, 0) = fx;
 		K.at<float>(1, 1) = fy;
 		K.at<float>(0, 2) = cx;
 		K.at<float>(1, 2) = cy;
+		InvK = K.inv();
 		mpLastFrame = nullptr;
 		SetPose(cv::Mat::eye(3, 3, CV_32FC1), cv::Mat::zeros(3, 1, CV_32FC1));
 	}

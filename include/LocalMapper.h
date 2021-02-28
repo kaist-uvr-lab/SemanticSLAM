@@ -105,10 +105,7 @@ namespace UVR_SLAM {
 		
 		Frame* mpTempFrame, *mpTargetFrame, *mpPrevKeyFrame, *mpPPrevKeyFrame;
 		Matcher* mpMatcher;
-
-		int mnWidth, mnHeight;
 		int mnThreshMinKF;
-		cv::Mat mK, mInvK;
 	};
 }
 

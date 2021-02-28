@@ -22,7 +22,6 @@ namespace UVR_SLAM {
 	class Optimization;
 	class Tracker;
 	class Matcher;
-	class ORBextractor;
 	class MapPoint;
 	class Frame;
 	class SemanticSegmentator;
@@ -80,7 +79,6 @@ namespace UVR_SLAM {
 		int mnDisplayX;
 		int mnDisplayY;
 		int mnThreshMinKF;
-		int mnWidth, mnHeight;
 		int mnMaxMP;
 		int mnRadius;
 		cv::Point2f mRectPt;
@@ -105,8 +103,6 @@ namespace UVR_SLAM {
 		std::thread* mptVisualizer;
 		std::thread* mptFrameVisualizer;
 	private:
-		ORBextractor* mpInitORBExtractor;
-		ORBextractor* mpPoseORBExtractor;
 		
 		Frame* mpCurrFrame;
 		Frame* mpPrevFrame;
@@ -130,12 +126,11 @@ namespace UVR_SLAM {
 		std::string mStrDirPath;
 
 	public:
-		ORBextractor* mpORBExtractor;
 		//ConcurrentList<UVR_SLAM::MapPoint*> mlpNewMPs;
 		std::list<UVR_SLAM::MapPoint*> mlpNewMPs;
 		std::string strVOCPath;
 		DBoW3::Vocabulary* mpDBoWVoc;
-		cv::Mat mK, mInvK, mD;
+		cv::Mat mD;
 		cv::Mat mKforPL;
 		bool mbInitialized;
 		int mnPatchSize;
@@ -147,8 +142,6 @@ namespace UVR_SLAM {
 		static int nKeyFrameID;
 		static int nFrameID;
 		static int nMapGridID;
-
-		bool mbMapping;
 	public:
 		//lock tracking and localmap
 		std::mutex mMutexUseLocalMapOptimization;

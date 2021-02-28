@@ -28,9 +28,6 @@ namespace UVR_SLAM {
 
 	private:
 		std::mutex mMutexFrameVisualizer;
-		int mnWidth;
-		int mnHeight;
-		cv::Mat mK;
 		System* mpSystem;
 		Map* mpMap;
 		Visualizer* mpVisualizer;

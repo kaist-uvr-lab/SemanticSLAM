@@ -4,6 +4,7 @@
 #include <FrameGrid.h>
 #include <MapGrid.h>
 #include <System.h>
+#include <User.h>
 #include <ORBextractor.h>
 #include <Map.h>
 
@@ -33,12 +34,6 @@ UVR_SLAM::LocalMapper::LocalMapper(System* pSystem):mbStopBA(false), mbDoingProc
 UVR_SLAM::LocalMapper::~LocalMapper() {}
 
 void UVR_SLAM::LocalMapper::Init() {
-
-	mK = mpSystem->mK.clone();
-	mInvK = mpSystem->mInvK.clone();
-	mnWidth = mpSystem->mnWidth;
-	mnHeight = mpSystem->mnHeight;
-
 	mpMap = mpSystem->mpMap;
 	mpMatcher = mpSystem->mpMatcher;
 	mpMapOptimizer = mpSystem->mpMapOptimizer;
@@ -158,11 +153,11 @@ namespace UVR_SLAM {
 	(cv::Point2f prevPt, cv::Point2f currPt, 
 		cv::Mat Rprev, cv::Mat Tprev, cv::Mat Rtprev, cv::Mat Pprev, 
 		cv::Mat Rcurr, cv::Mat Tcurr, cv::Mat Rtcurr, cv::Mat Pcurr,
-		Map* pMap, Frame* pCurr, cv::Mat desc, cv::Mat mK, cv::Mat mInvK) {
+		Map* pMap, Frame* pCurr, cv::Mat desc, cv::Mat Kcurr, cv::Mat InvKcurr, cv::Mat Kprev, cv::Mat InvKprev) {
 		cv::Mat xn1 = (cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
 		cv::Mat xn2 = (cv::Mat_<float>(3, 1) << currPt.x, currPt.y, 1.0);
-		cv::Mat ray1 = Rtprev*mInvK*xn1;
-		cv::Mat ray2 = Rtcurr*mInvK*xn2;
+		cv::Mat ray1 = Rtprev*InvKprev*xn1;
+		cv::Mat ray2 = Rtcurr*InvKcurr*xn2;
 		float cosParallaxRays = ray1.dot(ray2) / (cv::norm(ray1)*cv::norm(ray2));
 
 		bool bParallax = cosParallaxRays < 0.9998;
@@ -184,7 +179,7 @@ namespace UVR_SLAM {
 		float thresh = 9.0;
 		{
 			cv::Mat Xcam = Rprev * x3D + Tprev;
-			cv::Mat Ximg = mK*Xcam;
+			cv::Mat Ximg = Kprev*Xcam;
 			float fDepth = Ximg.at < float>(2);
 			bDepth1 = fDepth > 0.0;
 			pt1 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
@@ -194,7 +189,7 @@ namespace UVR_SLAM {
 		}
 		{
 			cv::Mat Xcam = Rcurr * x3D + Tcurr;
-			cv::Mat Ximg = mK*Xcam;
+			cv::Mat Ximg = Kcurr*Xcam;
 			float fDepth = Ximg.at < float>(2);
 			bDepth2 = fDepth > 0.0;
 			pt2 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
@@ -292,7 +287,7 @@ void UVR_SLAM::LocalMapper::RunWithMappingServer() {
 				cv::Mat Rprev, Tprev, Pprev;
 				pKF->GetPose(Rprev, Tprev);
 				cv::hconcat(Rprev, Tprev, Pprev);
-				Pprev = mK*Pprev;
+				Pprev = pKF->mK*Pprev;
 				Rs.push_back(Rprev);
 				Ts.push_back(Tprev);
 				Ps.push_back(Pprev);
@@ -305,7 +300,7 @@ void UVR_SLAM::LocalMapper::RunWithMappingServer() {
 			cv::Mat Rcurr, Tcurr, Pcurr;
 			mpTargetFrame->GetPose(Rcurr, Tcurr);
 			cv::hconcat(Rcurr, Tcurr, Pcurr);
-			Pcurr = mK*Pcurr;
+			Pcurr = mpTargetFrame->mK*Pcurr;
 			cv::Mat Rtcurr = Rcurr.t();
 			
 			////포즈 리파인먼트
@@ -351,7 +346,8 @@ void UVR_SLAM::LocalMapper::RunWithMappingServer() {
 					auto currPt = mpTargetFrame->mvPts[c];
 
 					//mpTargetFrame->matDescriptor.row(c)
-					auto pNewMP = lambda_api_create_mp(prevPt, currPt, Rs[kID], Ts[kID], Rts[kID], Ps[kID], Rcurr, Tcurr, Rtcurr, Pcurr, mpMap, mpTargetFrame, cv::Mat(), mK, mInvK);
+					auto pNewMP = lambda_api_create_mp(prevPt, currPt, Rs[kID], Ts[kID], Rts[kID], Ps[kID], Rcurr, Tcurr, Rtcurr, Pcurr, mpMap, mpTargetFrame, cv::Mat(), 
+						mpTargetFrame->mK, mpTargetFrame->mInvK, pKF->mK, pKF->mInvK);
 					if (pNewMP) {
 
 						nNewMP++;

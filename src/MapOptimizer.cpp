@@ -23,11 +23,6 @@ UVR_SLAM::MapOptimizer::MapOptimizer(System* pSystem) : mpTargetFrame(nullptr), 
 UVR_SLAM::MapOptimizer::~MapOptimizer() {}
 
 void UVR_SLAM::MapOptimizer::Init() {
-
-	mK = mpSystem->mK.clone();
-	mnWidth = mpSystem->mnWidth;
-	mnHeight = mpSystem->mnHeight;
-
 	mpVisualizer = mpSystem->mpVisualizer;
 	mpLoopCloser = mpSystem->mpLoopCloser;
 	mpPlaneEstimator = mpSystem->mpPlaneEstimator;
