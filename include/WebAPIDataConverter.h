@@ -31,11 +31,12 @@ public:
 
 	////단말과 매핑서버의 통신 관련
 	//매핑 서버 결과를 json string으로 변환
+	static void ConvertConnectToServer(const char* data, std::string& _u, float& _fx, float& _fy, float& _cx, float& _cy, int& _w, int & _h, bool& _b, std::string& _n);
+	static void ConvertDisconnectToServer(const char* data, std::string& _u);
 	static std::string ConvertMapDataToJson(cv::Mat mpIDs, cv::Mat x3Ds, cv::Mat kfids, cv::Mat poses, cv::Mat idxs);
 	static void ConvertMapName(const char* data, std::string& map);
-	static void ConvertInitConnectToServer(const char* data, float& _fx, float& _fy, float& _cx, float& _cy, int& _w, int & _h, bool& _b);
 	static void ConvertDeviceToServer(const char* data, int& id, bool& init);
-	static void ConvertDeviceFrameIDToServer(const char* data, std::string& map, int& id);
+	static void ConvertDeviceFrameIDToServer(const char* data, std::string& user, int& id);
 	static std::string ConvertInitializationToJsonString(int id, bool bInit, cv::Mat R, cv::Mat t, cv::Mat keypoints, cv::Mat mappoints);
 };
 #endif

@@ -17,7 +17,7 @@
 
 
 namespace UVR_SLAM {
-
+	class User;
 	class Initializer;
 	class Optimization;
 	class Tracker;
@@ -223,6 +223,12 @@ namespace UVR_SLAM {
 	public:
 		cv::Mat mPlaneHist;
 		std::mutex mMutexPlaneHist;
+
+	////////////////////////////////////////////
+	////USER DATA
+	public:
+		std::map<std::string, User*> mmpConnectedUserList;
+
 	};
 }
 

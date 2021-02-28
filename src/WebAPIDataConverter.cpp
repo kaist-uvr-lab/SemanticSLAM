@@ -258,10 +258,17 @@ void WebAPIDataConverter::ConvertMapName(const char* data, std::string& map) {
 	}
 	map = document["map"].GetString();
 }
-void WebAPIDataConverter::ConvertInitConnectToServer(const char* data, float& _fx, float& _fy, float& _cx, float& _cy, int& _w, int & _h, bool& _b) {
+void WebAPIDataConverter::ConvertDisconnectToServer(const char* data, std::string& _u) {
 	rapidjson::Document document;
 	if (document.Parse(data).HasParseError()) {
-		std::cout << "JSON parsing error::ConvertInitConnectToServer" << std::endl;
+		std::cout << "JSON parsing error::ConvertDisconnectToServer" << std::endl;
+	}
+	_u = document["u"].GetString();
+}
+void WebAPIDataConverter::ConvertConnectToServer(const char* data, std::string& _u, float& _fx, float& _fy, float& _cx, float& _cy, int& _w, int & _h, bool& _b, std::string& _n){
+	rapidjson::Document document;
+	if (document.Parse(data).HasParseError()) {
+		std::cout << "JSON parsing error::ConvertConnectToServer" << std::endl;
 	}
 	_fx = document["fx"].GetFloat();
 	_fy = document["fy"].GetFloat();
@@ -270,13 +277,15 @@ void WebAPIDataConverter::ConvertInitConnectToServer(const char* data, float& _f
 	_w = document["w"].GetInt();
 	_h = document["h"].GetInt();
 	_b = document["b"].GetBool();
+	_n = document["n"].GetString();
+	_u = document["u"].GetString();
 }
-void WebAPIDataConverter::ConvertDeviceFrameIDToServer(const char* data, std::string& map, int& id) {
+void WebAPIDataConverter::ConvertDeviceFrameIDToServer(const char* data, std::string& user, int& id) {
 	rapidjson::Document document;
 	if (document.Parse(data).HasParseError()) {
 		std::cout << "JSON parsing error::ConvertDeviceFrameIDToServer" << std::endl;
 	}
-	map = document["map"].GetString();
+	user = document["user"].GetString();
 	id = document["id"].GetInt();
 }
 void WebAPIDataConverter::ConvertDeviceToServer(const char* data, int& id, bool& init) {

@@ -1,5 +1,6 @@
 #include <MappingServer.h>
 #include <System.h>
+#include <User.h>
 #include <Map.h>
 #include <LocalMapper.h>
 #include <LoopCloser.h>
@@ -433,11 +434,14 @@ namespace UVR_SLAM {
 		}
 	}
 	void MappingServer::ProcessNewFrame() {
-		std::string strMap = mPairFrameInfo.first;
+		std::string strUser = mPairFrameInfo.first;
+		auto user = mpSystem->mmpConnectedUserList[strUser];
+		std::string strMap = user->mapName;
 		int nID = mPairFrameInfo.second;
 		Frame* pNewF = new UVR_SLAM::Frame(mpSystem, nID, mnWidth, mnHeight, mK, 0.0);
 		pNewF->mstrMapName = strMap;
 		mmFrames[nID] = pNewF;
+		
 		if (mnReferenceID == -1) {
 			lambda_api_detect(mpSystem->ip, mpSystem->port, pNewF, strMap);
 			//auto ftest = std::async(std::launch::async, lambda_api_detect, mpSystem->ip, mpSystem->port, pNewF);
@@ -452,15 +456,24 @@ namespace UVR_SLAM {
 		else 
 		{
 			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
-			std::stringstream ss;
+			/*std::stringstream ss;
 			ss << "/GetLastFrameID?map="<<strMap<<"&key=reference";
 			WebAPIDataConverter::ConvertStringToNumber(mpAPI->Send(ss.str(), "").c_str(), mnReferenceID);
-			std::cout << "Last Reference = " << mnReferenceID << std::endl;
+			std::cout << "Last Reference = " << mnReferenceID << std::endl;*/
 			auto pRef = mmFrames[mnReferenceID];
 			auto matches = lambda_api_detectAndmatch(mpSystem->ip, mpSystem->port, pRef, pNewF, strMap);
 			if (mbInitialized) {
-				UVR_SLAM::lambda_api_tracking(mpSystem, pRef, pNewF, mnReferenceID, matches);
+				std::async(std::launch::async, [](std::string ip, int port, Frame* pF) {
+					WebAPI* mpAPI = new WebAPI(ip, port);
+					std::stringstream ss;
+					ss << "/SendData?map=" << pF->mstrMapName << "&id=" << pF->mnFrameID << "&key=bdesc";
+					WebAPIDataConverter::ConvertBytesToDesc(mpAPI->Send(ss.str(), "").c_str(), pF->mvPts.size(), pF->matDescriptor);
+					pF->ComputeBoW();
+				},mpSystem->ip, mpSystem->port, pNewF);
+				UVR_SLAM::lambda_api_tracking(mpSystem, pRef, pNewF, user->mpLastFrame->mnFrameID, matches);
+				////그리드 기반 로컬 맵 계산 후 매칭
 				mpVisualizer->SetBoolDoingProcess(true);
+				
 			}
 			else {
 				bool bReplace = false;
@@ -476,6 +489,7 @@ namespace UVR_SLAM {
 			}
 			////서버에 결과 전송하기
 		}
+		user->mpLastFrame = pNewF;
 	}
 	void MappingServer::RunWithMappingServer() {
 
@@ -491,7 +505,9 @@ namespace UVR_SLAM {
 					ProcessNewFrame();
 				else {
 					//일단 초기 위치 추정
-					std::string strMap = mPairFrameInfo.first;
+					std::string strUser = mPairFrameInfo.first;
+					auto user = mpSystem->mmpConnectedUserList[strUser];
+					std::string strMap = user->mapName;
 					int nID = mPairFrameInfo.second;
 					Frame* pNewF = new UVR_SLAM::Frame(mpSystem, nID, mnWidth, mnHeight, mK, 0.0);
 					pNewF->mstrMapName = strMap;
