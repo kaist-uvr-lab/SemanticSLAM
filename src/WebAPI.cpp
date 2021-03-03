@@ -47,4 +47,21 @@ std::string WebAPI::Send(std::string method, std::string input) {
 	return datastream.str();
 }
 
+std::string WebAPI::Send(std::string method, const unsigned char* input, int ndata) {
+	happyhttp::Connection* mpConnection = new happyhttp::Connection(ip.c_str(), port);
+
+	mpConnection->setcallbacks(OnBegin, OnData, OnComplete, (void*)&datastream);
+	mpConnection->request("POST",
+		method.c_str(),
+		headers,
+		input,
+		ndata
+	);
+	while (mpConnection->outstanding()) {
+		mpConnection->pump();
+	}
+	return datastream.str();
+}
+
+
 

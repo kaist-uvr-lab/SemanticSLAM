@@ -16,8 +16,8 @@ public:
 
 	const static char* headers[];
 	static void Init();
+	std::string Send(std::string method, const unsigned char* input, int ndata);
 	std::string Send(std::string method, std::string input);
-
 protected:
 	std::string ip;
 	int port;

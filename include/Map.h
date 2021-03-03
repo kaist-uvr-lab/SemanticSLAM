@@ -22,12 +22,6 @@ namespace UVR_SLAM {
 		/////////////////////////////////////
 		//////임시 포인트 확인용
 	public:
-		cv::Mat GetUserPosition();
-		void SetUserPosition(cv::Mat pos);
-	private:
-		std::mutex mMutexUserPosition;
-		cv::Mat matUserPosition;
-	public:
 		std::vector<cv::Point2f> GetTrackingPoints();
 		void SetTrackingPoints(std::vector<cv::Point2f> vPTs);
 	private:

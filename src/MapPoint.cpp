@@ -1,5 +1,6 @@
 #include <MapPoint.h>
 #include <Map.h>
+#include <ServerMap.h>
 #include <Frame.h>
 #include <MapGrid.h>
 #include <FrameWindow.h>
@@ -13,6 +14,19 @@ namespace UVR_SLAM {
 		, mnFirstKeyFrameID(0), mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnMapGridID(0), mnOctave(0)
 		, mnLastVisibleFrameID(-1), mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0), mbLastMatch(false)
 	{}
+	MapPoint::MapPoint(ServerMap* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, int alabel, int octave)
+		: mpServerMap(pMap), mpRefKF(pRefKF), p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(pMap->nServerMapPointID++), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
+		, mnLoopPointForKF(0), mnCorrectedByKF(0), mnCorrectedReference(0), mnBAGlobalForKF(0)
+		, mnLocalMapID(-1), mnLocalBAID(0), mnTrackingID(-1), mnLayoutFrameID(-1), mnMapGridID(0), mnOctave(octave)
+		, mnLastMatchingFrameID(-1), mbLowQuality(true), mbOptimized(false), mnSuccess(0.0), mnTotal(0), mbLastMatch(false)
+	{
+		alabel = label;
+		mnFirstKeyFrameID = mpRefKF->mnKeyFrameID;
+		mnLastMatchingFrameID = mnLastVisibleFrameID = mnFirstKeyFrameID;
+
+		//甘贸府
+		mpServerMap->AddMapPoint(this);
+	}
 	MapPoint::MapPoint(Map* pMap, cv::Mat _p3D, cv::Mat _desc, int alabel, int octave)
 		: mpMap(pMap), mpRefKF(nullptr), p3D(_p3D), desc(_desc), mbNewMP(true), mbSeen(false), mnVisible(0), mnFound(0), mnConnectedFrames(0), mnDenseFrames(0), mfDepth(0.0), mnMapPointID(UVR_SLAM::System::nMapPointID++), mbDelete(false), mObjectType(OBJECT_NONE), mnPlaneID(0), mnType(MapPointType::NORMAL_MP)
 		, mnLoopPointForKF(0), mnCorrectedByKF(0), mnCorrectedReference(0), mnBAGlobalForKF(0)
@@ -121,8 +135,9 @@ namespace UVR_SLAM {
 			pKF->EraseMapPoint(idx);
 		}
 
+		mpServerMap->RemoveMapPoint(this);
 		//甘贸府
-		mpMap->RemoveMap(this);
+		//mpMap->RemoveMap(this);
 		//弊府靛 贸府
 		/*auto key = MapGrid::ComputeKey(apos);
 		auto pMapGrid = mpMap->GetMapGrid(key);
@@ -286,7 +301,8 @@ namespace UVR_SLAM {
 		}
 		pMP->IncreaseFound(nfound);
 		pMP->IncreaseVisible(nvisible);
-		mpMap->RemoveMap(this);
+		mpServerMap->RemoveMapPoint(this);
+		//mpMap->RemoveMap(this);
 	}
 		
 

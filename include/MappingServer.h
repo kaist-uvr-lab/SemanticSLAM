@@ -8,7 +8,7 @@
 namespace UVR_SLAM {
 	class LoopCloser;
 	class MapOptimizer;
-	class LocalMapper;
+	class ServerMapper;
 	class Visualizer;
 	class MapPoint;
 	class System;
@@ -32,7 +32,7 @@ namespace UVR_SLAM {
 		System* mpSystem;
 		Map* mpMap;
 		Matcher* mpMatcher;
-		LocalMapper* mpLocalMapper;
+		ServerMapper* mpLocalMapper;
 		LoopCloser* mpLoopCloser;
 		MapOptimizer* mpMapOptimizer;
 		Visualizer* mpVisualizer;
@@ -41,11 +41,6 @@ namespace UVR_SLAM {
 		std::queue<std::pair<std::string, int>> mQueue;
 		std::mutex mMutexQueue;
 		std::pair<std::string, int> mPairFrameInfo;
-
-		bool mbInitialized;
-		int mnReferenceID;
-		std::map<int, UVR_SLAM::Frame*> mmFrames;
-		std::map<int, UVR_SLAM::Frame*> mmKeyFrames;
 	};
 }
 #endif

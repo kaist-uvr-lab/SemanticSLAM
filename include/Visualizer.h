@@ -14,6 +14,8 @@ namespace UVR_SLAM {
 	class PlaneEstimator;
 	class System;
 	class Map;
+	class User;
+	class ServerMap;
 
 	class Visualizer {
 	public:
@@ -67,6 +69,19 @@ namespace UVR_SLAM {
 		int mnVisScale;
 		std::mutex mMutexScale;
 	//local tracknig results
+	////¼­¹ö¸Ê Ãß°¡
+	public:
+		ServerMap* mpServerMap;
+		std::vector<std::string> mvServerNames;
+		std::vector<std::string> mvUserNames;
+
+		void AddUser(User* pUser);
+		void RemoveUser(User* pUser);
+		std::vector<UVR_SLAM::User*> GetUsers();
+	private:
+		std::mutex mMutexUserList;
+		std::set<User*> mspUserLists;
+
 	///////¹Ù´Ú È®ÀÎ¿ë
 	public:
 		void AddPlaneInfo(PlaneProcessInformation* pPlaneInfo);

@@ -8,11 +8,27 @@
 #include <MapGrid.h>
 #include <plane.h>
 #include <WebAPI.h>
+#include <ServerMap.h>
+#include <User.h>
 
 UVR_SLAM::Visualizer::Visualizer() {}
 UVR_SLAM::Visualizer::Visualizer(System* pSystem) :mpSystem(pSystem), mnFontFace(2), mfFontScale(0.6){
 }
 UVR_SLAM::Visualizer::~Visualizer() {}
+
+void UVR_SLAM::Visualizer::AddUser(User* pUser) {
+	std::unique_lock<std::mutex>lock(mMutexUserList);
+	mspUserLists.insert(pUser);
+}
+void UVR_SLAM::Visualizer::RemoveUser(User* pUser) {
+	std::unique_lock<std::mutex>lock(mMutexUserList);
+	if (mspUserLists.count(pUser))
+		mspUserLists.erase(pUser);
+}
+std::vector<UVR_SLAM::User*> UVR_SLAM::Visualizer::GetUsers() {
+	std::unique_lock<std::mutex>lock(mMutexUserList);
+	return std::vector<UVR_SLAM::User*>(mspUserLists.begin(), mspUserLists.end());
+}
 
 void CalcLineEquation(cv::Point2f pt1, cv::Point2f pt2, float& slope, float& dist) {
 	float dx = pt2.x - pt1.x;	//a
@@ -245,11 +261,11 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 		
 		if (bSaveMap) {
 			
-			auto mmpMap = mpMap->GetMap();
+			auto mmpMap = mpServerMap->GetMapPoints();
 			cv::Mat ids = cv::Mat::zeros(0, 1, CV_32SC1);
 			cv::Mat x3ds = cv::Mat::zeros(0, 1, CV_32FC1);
 			for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
-				auto pMPi = iter->first;
+				auto pMPi = *iter;//->first;
 				if (!pMPi || pMPi->isDeleted())
 					continue;
 				cv::Mat Xw = pMPi->GetWorldPos();
@@ -259,7 +275,7 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 				x3ds.push_back(Xw);
 			}
 			int nMP = ids.rows;
-			auto mspKFs = mpMap->GetFrames();
+			auto mspKFs = mpServerMap->GetFrames();
 			
 			cv::Mat poses = cv::Mat::zeros(0, 3, CV_32FC1);
 			cv::Mat mps = cv::Mat::zeros(0, 1, CV_32SC1);
@@ -309,9 +325,9 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 
 		//if (isDoingProcess()) {
 			cv::Mat tempVis = mVisPoseGraph.clone();
-			auto mmpMap = mpMap->GetMap();
+			auto mmpMap = mpServerMap->GetMapPoints();
 			for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
-				auto pMPi = iter->first;
+				auto pMPi = *iter;// ->first;
 				if (!pMPi || pMPi->isDeleted())
 					continue;
 				//int label = iter->second;
@@ -323,7 +339,7 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 				cv::circle(tempVis, tpt, 2, color, -1);
 			}
 
-			auto lKFs = mpMap->GetFrames();
+			auto lKFs = mpServerMap->GetFrames();
 			int nMaxID = 0;
 			UVR_SLAM::Frame* lastKF = nullptr;
 			for (auto iter = lKFs.begin(); iter != lKFs.end(); iter++) {
@@ -362,10 +378,16 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 			{
 				////User 위치 시각화
 				//추후 유저별 정보로 변경
-				auto pos = mpMap->GetUserPosition();
-				cv::Point2f pt1 = cv::Point2f(pos.at<float>(mnAxis1)* mnVisScale, pos.at<float>(mnAxis2)* mnVisScale);
-				pt1 += mVisMidPt;
-				cv::circle(tempVis, pt1, 5, cv::Scalar(0, 0, 255), -1);
+				auto vpUsers = GetUsers();
+				for (size_t i = 0, iend = vpUsers.size(); i < iend; i++) {
+					auto user = vpUsers[i];
+					if (!user)
+						continue;
+					auto pos = user->GetCameraCenter();
+					cv::Point2f pt1 = cv::Point2f(pos.at<float>(mnAxis1)* mnVisScale, pos.at<float>(mnAxis2)* mnVisScale);
+					pt1 += mVisMidPt;
+					cv::circle(tempVis, pt1, 5, cv::Scalar(0, 0, 255), -1);
+				}
 			}
 
 			cv::Scalar color = cv::Scalar(0, 255, 255);
@@ -378,8 +400,8 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 			}
 
 			{
-				cv::Scalar color = cv::Scalar(0, 255, 255);
-				vReinit = mpMap->GetTempMPs();
+				cv::Scalar color = cv::Scalar(255, 255, 0);
+				vReinit = mpMap->GetReinit();
 				for (int i = 0; i < vReinit.size(); i++) {
 					cv::Mat x3D = vReinit[i];
 					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
@@ -704,15 +726,6 @@ void UVR_SLAM::Visualizer::Run() {
 				cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
 			}
 			////trajectory	
-
-			{
-				////User 위치 시각화
-				//추후 유저별 정보로 변경
-				auto pos = mpMap->GetUserPosition();
-				cv::Point2f pt1 = cv::Point2f(pos.at<float>(mnAxis1)* mnVisScale, pos.at<float>(mnAxis2)* mnVisScale);
-				pt1 += mVisMidPt;
-				cv::circle(tempVis, pt1, 5, cv::Scalar(0, 0, 255), -1);
-			}
 
 			/////pose recovery test
 			auto vReinit = mpMap->GetReinit();

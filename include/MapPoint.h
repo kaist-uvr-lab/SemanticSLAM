@@ -17,11 +17,13 @@ namespace UVR_SLAM {
 	};
 	class CandidatePoint;
 	class Map;
+	class ServerMap;
 	class Frame;
 	class MapPoint {
 	public:
 		//초기 포즈 만들 때는 double형으로 형변환
 		MapPoint();
+		MapPoint(ServerMap* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, int alabel = -1, int octave = 0);
 		MapPoint(Map* pMap, cv::Mat _p3D, cv::Mat _desc, int alabel = -1, int octave = 0);
 		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, cv::Mat _p3D, cv::Mat _desc, int alabel = -1, int octave = 0);
 		MapPoint(Map* pMap, UVR_SLAM::Frame* pRefKF, CandidatePoint* pCP, cv::Mat _p3D, cv::Mat _desc, int label, int nOctave = 0);
@@ -106,6 +108,7 @@ namespace UVR_SLAM {
 		std::mutex mMutexMapGrid;
 	private:
 		Map* mpMap;
+		ServerMap* mpServerMap;
 		Frame* mpRefKF;
 		std::mutex mMutexMP;
 		bool mbDelete;

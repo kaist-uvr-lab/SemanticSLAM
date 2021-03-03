@@ -322,6 +322,24 @@ void UVR_SLAM::MapOptimizer::Run() {
 				//PlanarOptimization::OpticalLocalBundleAdjustmentWithPlane(this, vpPlaneInfos[n], vpOptMPs, vpOptKFs, vpFixedKFs);
 			}
 			
+			//update map grid;
+			for (size_t i = 0, iend = vpOptMPs.size(); i < iend; i++) {
+				auto pMPi = vpOptMPs[i];
+				if (!pMPi || pMPi->isDeleted())
+					continue;
+				auto key = MapGrid::ComputeKey(pMPi->GetWorldPos());
+				auto pMapGrid = mpMap->GetMapGrid(key);
+				if (pMapGrid) {
+					if (pMapGrid->mnMapGridID != pMPi->GetMapGridID()) {
+						pMapGrid->AddMapPoint(pMPi);
+					}
+				}
+				else {
+					pMapGrid = mpMap->AddMapGrid(key);
+					pMapGrid->AddMapPoint(pMPi);
+				}
+			}
+
 			/*std::cout << "BA::Delete::Start" << std::endl;
 			mpMap->DeleteMPs();
 			std::cout << "BA::Delete::End" << std::endl;*/

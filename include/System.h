@@ -18,6 +18,7 @@
 
 namespace UVR_SLAM {
 	class User;
+	class ServerMap;
 	class Initializer;
 	class Optimization;
 	class Tracker;
@@ -26,6 +27,7 @@ namespace UVR_SLAM {
 	class Frame;
 	class SemanticSegmentator;
 	class MappingServer;
+	class ServerMapper;
 	class LocalMapper;
 	class PlaneEstimator;
 	class LoopCloser;
@@ -55,6 +57,7 @@ namespace UVR_SLAM {
 		Initializer* mpInitializer;
 		Map* mpMap;
 		MappingServer* mpMappingServer;
+		ServerMapper* mpServerMapper;
 		LocalMapper* mpLocalMapper;
 		DepthFilter* mpDepthFilter;
 		MapOptimizer* mpMapOptimizer;
@@ -218,10 +221,17 @@ namespace UVR_SLAM {
 		std::mutex mMutexPlaneHist;
 
 	////////////////////////////////////////////
-	////USER DATA
+	////Server Data # USER DATA, Map Data
 	public:
+		void AddUser(std::string id, User* user);
+		User* GetUser(std::string id);
+		void RemoveUser(std::string id);
+		void AddMap(std::string name, ServerMap* pMap);
+		ServerMap* GetMap(std::string name);
+	private:
+		std::mutex mMutexUserList, mMutexMapList;
 		std::map<std::string, User*> mmpConnectedUserList;
-
+		std::map<std::string, ServerMap*> mmpMapList;
 	};
 }
 

@@ -25,6 +25,7 @@ namespace UVR_SLAM {
 		std::vector<MapPoint*> mvpLocalMPs;
 		std::set<MapGrid*> mspLocalGrids;
 		Frame* mpLastFrame;
+		int mnLastMatch;
 
 		void SetPose(cv::Mat _R, cv::Mat _t);
 		void GetPose(cv::Mat&_R, cv::Mat& _t);

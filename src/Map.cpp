@@ -13,7 +13,6 @@ namespace UVR_SLAM{
 	Map::Map():mnMaxConnectedKFs(8), mnHalfConnectedKFs(4), mnQuarterConnectedKFs(2), mnMaxCandidateKFs(4), mnHalfCandidate(2), mbInitFloorPlane(false), mbInitWallPlane(false){}
 	Map::Map(System* pSystem, int nConnected, int nCandiate) :mpSystem(pSystem), mnMaxConnectedKFs(nConnected), mnHalfConnectedKFs(nConnected/2), mnQuarterConnectedKFs(nConnected/4), mnMaxCandidateKFs(nCandiate), mnHalfCandidate(nCandiate/2), mbInitFloorPlane(false), mbInitWallPlane(false){
 		std::cout << "MAP::" << mnMaxConnectedKFs << ", " << mnMaxCandidateKFs << std::endl;
-		matUserPosition = cv::Mat::zeros(3, 1, CV_32FC1);
 	}
 	Map::~Map() {}
 	void Map::Reset() {
@@ -511,15 +510,6 @@ std::vector<UVR_SLAM::WallPlane*> UVR_SLAM::Map::GetWallPlanes() {
 void UVR_SLAM::Map::AddWallPlane(WallPlane* pWall){
 	std::unique_lock<std::mutex> lockTemp(mMutexWallPlanes);
 	mvpWallPlanes.push_back(pWall);
-}
-
-cv::Mat UVR_SLAM::Map::GetUserPosition() {
-	std::unique_lock<std::mutex> lock(mMutexUserPosition);
-	return matUserPosition.clone();
-}
-void UVR_SLAM::Map::SetUserPosition(cv::Mat pos) {
-	std::unique_lock<std::mutex> lock(mMutexUserPosition);
-	matUserPosition = pos.clone();
 }
 
 //////////Reinit test code

@@ -31,8 +31,8 @@ namespace UVR_SLAM {
 		std::stringstream ss;
 		ss << "/featurematch?map=" << map << "&id1=" << id1 << "&id2=" << id2;
 		auto res = mpAPI->Send(ss.str(), "");
-		cv::Mat matches;
-		WebAPIDataConverter::ConvertStringToMatches(res.c_str(), n, matches);
+		cv::Mat matches = cv::Mat::zeros(res.size() / sizeof(int), 1, CV_32SC1);
+		std::memcpy(matches.data, res.data(), matches.rows * sizeof(int));
 		return matches;
 	};
 
@@ -56,7 +56,114 @@ namespace UVR_SLAM {
 		}
 	}
 
-	void UVR_SLAM::LoopCloser::RunWithMappingServer() {
+	Frame* LoopCloser::Relocalization(Frame* pF) {
+		std::cout << "Relocalization::Start" << std::endl;
+		auto vpCandidateKFs = mpKeyFrameDatabase->DetectPlaceCandidates(pF);
+		int nMax = 0;
+		cv::Mat maxMatch;
+		Frame* maxFrame = nullptr;
+		for (size_t i = 0, iend = vpCandidateKFs.size(); i < iend; i++) {
+			auto pCandidate = vpCandidateKFs[i];
+			cv::Mat matches = lambda_api_kf_match_loop_closing(mpSystem->ip, mpSystem->port, pF->mstrMapName, pF->mnFrameID, pCandidate->mnFrameID, pF->mvPts.size());
+			auto vpMPs = pCandidate->GetMapPoints();
+			int nMatch = 0;
+			int nTempMatch = 0;
+			for (int j = 0, jend = matches.rows; j < jend; j++) {
+				int idx1 = j;
+				int idx2 = matches.at<int>(idx1);
+				if (idx2 == 10000)
+					continue;
+				nTempMatch++;
+				auto pMP = vpMPs[idx2];
+				if (!pMP || pMP->isDeleted())
+					continue;
+				nMatch++;
+			}
+			if (nMatch > nMax) {
+				nMax = nMatch;
+				maxMatch = matches.clone();
+				maxFrame = pCandidate;
+			}
+			std::cout <<"ID = "<<pCandidate->mnFrameID<<", "<< nTempMatch <<", "<< nMatch <<" "<< matches .rows<< std::endl;
+			//cv::imshow("candidate", pCandidate->GetOriginalImage()); cv::waitKey(1);
+		}
+		std::cout << "Relocalization::"<< vpCandidateKFs.size()<<"::"<< nMax << std::endl;
+		if (maxFrame)
+		{
+			//cv::imshow("candidate", maxFrame->GetOriginalImage()); cv::waitKey(10);
+			//Pose Optimization Test
+			cv::Mat R, t;
+			maxFrame->GetPose(R, t);
+			//pF->SetPose(R, t);
+
+			//현재 이미지 다운받기
+			//cv::Mat targetImg = [](std::string ip, int port, int id, std::string map, int w, int h) {
+			//	WebAPI* mpAPI = new WebAPI(ip, port);
+			//	std::stringstream ss;
+			//	ss << "/SendData?map=" << map << "&id=" << id << "&key=bimage";
+			//	auto res = mpAPI->Send(ss.str(), "");
+			//	int n = res.size();
+			//	cv::Mat temp = cv::Mat::zeros(n, 1, CV_8UC1);
+			//	std::memcpy(temp.data, res.data(), n * sizeof(uchar));
+			//	cv::Mat img = cv::imdecode(temp, cv::IMREAD_COLOR);
+			//	return img;
+			//}(mpSystem->ip, mpSystem->port, pF->mnFrameID, pF->mstrMapName, pF->mnWidth, pF->mnHeight);
+			////가장 가까운 프레임의 이미지
+			//cv::Mat resimg = maxFrame->GetOriginalImage().clone();
+			//현재 이미지 다운받기
+
+			std::vector<cv::Point2f> vPTs;
+			std::vector<cv::Point3f> vXws;
+			std::vector<MapPoint*> vMPs;
+			std::vector <bool> vInliers;
+			std::vector<int> vnIDXs;
+			auto vpMPs = maxFrame->GetMapPoints();
+			for (int j = 0, jend = maxMatch.rows; j < jend; j++) {
+				int idx1 = j;
+				int idx2 = maxMatch.at<int>(idx1);
+				if (idx2 == 10000)
+					continue;
+				auto pMP = vpMPs[idx2];
+				if (!pMP || pMP->isDeleted())
+					continue;
+				vPTs.push_back(pF->mvPts[j]);
+				vMPs.push_back(pMP);
+				vInliers.push_back(true);
+				vnIDXs.push_back(j);
+				/*cv::Mat Xw = pMP->GetWorldPos();
+				vXws.push_back(cv::Point3f(Xw.at<float>(0), Xw.at<float>(1), Xw.at<float>(2)));
+				cv::Mat proj = pF->mK*(R*Xw + t);
+				cv::Point2f projPt(proj.at<float>(0) / proj.at<float>(2), proj.at<float>(1) / proj.at<float>(2));
+				cv::circle(targetImg, pF->mvPts[idx1], 3, cv::Scalar(255, 255, 0), -1);
+				cv::circle(resimg, maxFrame->mvPts[idx2], 3, cv::Scalar(255, 0, 255), -1);
+				cv::circle(resimg, projPt, 3, cv::Scalar(0, 255, 255), -1);*/
+			}
+			////시각화 쓰레드에 등록
+			/*cv::resize(targetImg, targetImg, cv::Size(pF->mnWidth / 2, pF->mnHeight / 2));
+			cv::resize(resimg, resimg, cv::Size(pF->mnWidth / 2, pF->mnHeight / 2));
+			mpSystem->mpVisualizer->SetOutputImage(targetImg, 0);
+			mpSystem->mpVisualizer->SetOutputImage(resimg, 1);*/
+			////시각화 쓰레드에 등록
+
+			/*cv::Mat rvec, tvec;
+			cv::solvePnPRansac(vXws, vPTs, mpSystem->mK, cv::Mat(), rvec, tvec);
+			cv::Rodrigues(rvec, R);*/
+			pF->SetPose(R, t);
+			int nPoseRecovery = Optimization::PoseOptimization(mpMap, pF, vMPs, vPTs, vInliers);
+
+			for (size_t i = 0; i < vInliers.size(); i++)
+			{
+				if (vInliers[i]) {
+					int idx = vnIDXs[i];
+					pF->AddMapPoint(vMPs[i], idx);
+					//vpTempMPs[i]->AddObservation(pTarget, idx);
+				}
+			}
+			std::cout << "Place Recognizer::res::" << "::" << nMax <<"::"<< nPoseRecovery << std::endl;
+		}
+	}
+
+	void LoopCloser::RunWithMappingServer() {
 		std::cout << "MappingServer::LoopCloser::Start" << std::endl;
 
 		int nPrevSegFrame = -1;
@@ -79,99 +186,101 @@ namespace UVR_SLAM {
 #ifdef DEBUG_LOOP_CLOSING_LEVEL_1
 				std::cout << "MappingServer::LoopClosing::" << mpTargetFrame->mnFrameID << "::Start" << std::endl;
 #endif
-				//mpKeyFrameDatabase->Add(mpTargetFrame);
-				auto vpCandidateKFs = mpKeyFrameDatabase->DetectPlaceCandidates(mpTargetFrame);
-				std::cout << "Place Recognizer = " << vpCandidateKFs.size() << std::endl;
-				int nMax = 0; 
-				cv::Mat maxMatch;
-				Frame* maxFrame = nullptr;
-				for (size_t i = 0, iend = vpCandidateKFs.size(); i < iend; i++) {
-					auto pCandidate = vpCandidateKFs[i];
-					cv::Mat matches = lambda_api_kf_match_loop_closing(mpSystem->ip, mpSystem->port, mpTargetFrame->mstrMapName, mpTargetFrame->mnFrameID, pCandidate->mnFrameID, mpTargetFrame->mvPts.size());
-					auto vpMPs = pCandidate->GetMapPoints();
-					int nMatch = 0;
-					int nTempMatch = 0;
-					for (int j = 0, jend = matches.cols; j < jend; j++) {
-						int idx1 = j;
-						int idx2 = matches.at<int>(idx1);
-						if (idx2 == 10000)
-							continue;
-						nTempMatch++;
-						auto pMP = vpMPs[idx2];
-						if (!pMP || pMP->isDeleted())
-							continue;
-						nMatch++;
-					}
-					if (nMatch > nMax) {
-						nMax = nMatch;
-						maxMatch = matches.clone();
-						maxFrame = pCandidate;
-					}
-					//std::cout <<"ID = "<<pCandidate->mnFrameID<<", "<< nTempMatch << std::endl;
-					//cv::imshow("candidate", pCandidate->GetOriginalImage()); cv::waitKey(1);
-				}
-				if (maxFrame)
-				{
-					//cv::imshow("candidate", maxFrame->GetOriginalImage()); cv::waitKey(10);
-					//Pose Optimization Test
-					cv::Mat R, t;
-					maxFrame->GetPose(R, t);
-					mpTargetFrame->SetPose(R, t);
-					cv::Mat targetImg = [](std::string ip, int port, int id, std::string map, int w, int h) {
-						WebAPI* mpAPI = new WebAPI(ip, port);
-						std::stringstream ss;
-						ss << "/SendData?map=" << map << "&id=" << id << "&key=bimage";
-						auto res = mpAPI->Send(ss.str(), "");
-						int n = res.size();
-						cv::Mat temp = cv::Mat::zeros(n, 1, CV_8UC1);
-						std::memcpy(temp.data, res.data(), n * sizeof(uchar));
-						cv::Mat img = cv::imdecode(temp, cv::IMREAD_COLOR);
-						return img;
-					}(mpSystem->ip, mpSystem->port, mpTargetFrame->mnFrameID, mpTargetFrame->mstrMapName, mpTargetFrame->mnWidth, mpTargetFrame->mnHeight);
-
-					//cv::Mat targetImg = mpTargetFrame->GetOriginalImage().clone();
-					cv::Mat resimg = maxFrame->GetOriginalImage().clone();
-					
-					
-					std::vector<cv::Point2f> vPTs;
-					std::vector<cv::Point3f> vXws;
-					std::vector<MapPoint*> vMPs;
-					std::vector <bool> vInliers;
-					auto vpMPs = maxFrame->GetMapPoints();
-					for (int j = 0, jend = maxMatch.cols; j < jend; j++) {
-						int idx1 = j;
-						int idx2 = maxMatch.at<int>(idx1);
-						if (idx2 == 10000)
-							continue;
-						auto pMP = vpMPs[idx2];
-						if (!pMP || pMP->isDeleted())
-							continue;
-						vPTs.push_back(mpTargetFrame->mvPts[j]);
-						vMPs.push_back(pMP);
-						vInliers.push_back(true);
-						cv::Mat Xw = pMP->GetWorldPos();
-						
-						vXws.push_back(cv::Point3f(Xw.at<float>(0), Xw.at<float>(1), Xw.at<float>(2)));
-
-						cv::Mat proj = mpTargetFrame->mK*(R*Xw + t);
-						cv::Point2f projPt(proj.at<float>(0) / proj.at<float>(2), proj.at<float>(1) / proj.at<float>(2));
-						cv::circle(targetImg, mpTargetFrame->mvPts[idx1], 3, cv::Scalar(255, 255, 0), -1);
-						cv::circle(resimg, maxFrame->mvPts[idx2], 3, cv::Scalar(255, 0, 255), -1);
-						cv::circle(resimg, projPt, 3, cv::Scalar(0, 255, 255), -1);
-					}
-					cv::resize(targetImg, targetImg, cv::Size(mpTargetFrame->mnWidth / 2, mpTargetFrame->mnHeight / 2));
-					cv::resize(resimg, resimg, cv::Size(mpTargetFrame->mnWidth / 2, mpTargetFrame->mnHeight / 2));
-					mpSystem->mpVisualizer->SetOutputImage(targetImg, 0);
-					mpSystem->mpVisualizer->SetOutputImage(resimg, 1);
-					/*cv::Mat rvec, tvec;
-					cv::solvePnPRansac(vXws, vPTs, mpSystem->mK, cv::Mat(), rvec, tvec);
-					cv::Rodrigues(rvec, R);*/
-					mpTargetFrame->SetPose(R, t);
-					int nPoseRecovery = Optimization::PoseOptimization(mpMap, mpTargetFrame, vMPs, vPTs, vInliers);
-					mpMap->SetUserPosition(mpTargetFrame->GetCameraCenter());
-					std::cout << "Place Recognizer::res::" << "::"<< nMax << std::endl;
-				}
+				mpKeyFrameDatabase->Add(mpTargetFrame);
 				
+				////////relocaalization
+				//auto vpCandidateKFs = mpKeyFrameDatabase->DetectPlaceCandidates(mpTargetFrame);
+				//std::cout << "Place Recognizer = " << vpCandidateKFs.size() << std::endl;
+				//int nMax = 0; 
+				//cv::Mat maxMatch;
+				//Frame* maxFrame = nullptr;
+				//for (size_t i = 0, iend = vpCandidateKFs.size(); i < iend; i++) {
+				//	auto pCandidate = vpCandidateKFs[i];
+				//	cv::Mat matches = lambda_api_kf_match_loop_closing(mpSystem->ip, mpSystem->port, mpTargetFrame->mstrMapName, mpTargetFrame->mnFrameID, pCandidate->mnFrameID, mpTargetFrame->mvPts.size());
+				//	auto vpMPs = pCandidate->GetMapPoints();
+				//	int nMatch = 0;
+				//	int nTempMatch = 0;
+				//	for (int j = 0, jend = matches.cols; j < jend; j++) {
+				//		int idx1 = j;
+				//		int idx2 = matches.at<int>(idx1);
+				//		if (idx2 == 10000)
+				//			continue;
+				//		nTempMatch++;
+				//		auto pMP = vpMPs[idx2];
+				//		if (!pMP || pMP->isDeleted())
+				//			continue;
+				//		nMatch++;
+				//	}
+				//	if (nMatch > nMax) {
+				//		nMax = nMatch;
+				//		maxMatch = matches.clone();
+				//		maxFrame = pCandidate;
+				//	}
+				//	//std::cout <<"ID = "<<pCandidate->mnFrameID<<", "<< nTempMatch << std::endl;
+				//	//cv::imshow("candidate", pCandidate->GetOriginalImage()); cv::waitKey(1);
+				//}
+				//if (maxFrame)
+				//{
+				//	//cv::imshow("candidate", maxFrame->GetOriginalImage()); cv::waitKey(10);
+				//	//Pose Optimization Test
+				//	cv::Mat R, t;
+				//	maxFrame->GetPose(R, t);
+				//	mpTargetFrame->SetPose(R, t);
+				//	cv::Mat targetImg = [](std::string ip, int port, int id, std::string map, int w, int h) {
+				//		WebAPI* mpAPI = new WebAPI(ip, port);
+				//		std::stringstream ss;
+				//		ss << "/SendData?map=" << map << "&id=" << id << "&key=bimage";
+				//		auto res = mpAPI->Send(ss.str(), "");
+				//		int n = res.size();
+				//		cv::Mat temp = cv::Mat::zeros(n, 1, CV_8UC1);
+				//		std::memcpy(temp.data, res.data(), n * sizeof(uchar));
+				//		cv::Mat img = cv::imdecode(temp, cv::IMREAD_COLOR);
+				//		return img;
+				//	}(mpSystem->ip, mpSystem->port, mpTargetFrame->mnFrameID, mpTargetFrame->mstrMapName, mpTargetFrame->mnWidth, mpTargetFrame->mnHeight);
+
+				//	//cv::Mat targetImg = mpTargetFrame->GetOriginalImage().clone();
+				//	cv::Mat resimg = maxFrame->GetOriginalImage().clone();
+				//	
+				//	
+				//	std::vector<cv::Point2f> vPTs;
+				//	std::vector<cv::Point3f> vXws;
+				//	std::vector<MapPoint*> vMPs;
+				//	std::vector <bool> vInliers;
+				//	auto vpMPs = maxFrame->GetMapPoints();
+				//	for (int j = 0, jend = maxMatch.cols; j < jend; j++) {
+				//		int idx1 = j;
+				//		int idx2 = maxMatch.at<int>(idx1);
+				//		if (idx2 == 10000)
+				//			continue;
+				//		auto pMP = vpMPs[idx2];
+				//		if (!pMP || pMP->isDeleted())
+				//			continue;
+				//		vPTs.push_back(mpTargetFrame->mvPts[j]);
+				//		vMPs.push_back(pMP);
+				//		vInliers.push_back(true);
+				//		cv::Mat Xw = pMP->GetWorldPos();
+				//		
+				//		vXws.push_back(cv::Point3f(Xw.at<float>(0), Xw.at<float>(1), Xw.at<float>(2)));
+
+				//		cv::Mat proj = mpTargetFrame->mK*(R*Xw + t);
+				//		cv::Point2f projPt(proj.at<float>(0) / proj.at<float>(2), proj.at<float>(1) / proj.at<float>(2));
+				//		cv::circle(targetImg, mpTargetFrame->mvPts[idx1], 3, cv::Scalar(255, 255, 0), -1);
+				//		cv::circle(resimg, maxFrame->mvPts[idx2], 3, cv::Scalar(255, 0, 255), -1);
+				//		cv::circle(resimg, projPt, 3, cv::Scalar(0, 255, 255), -1);
+				//	}
+				//	cv::resize(targetImg, targetImg, cv::Size(mpTargetFrame->mnWidth / 2, mpTargetFrame->mnHeight / 2));
+				//	cv::resize(resimg, resimg, cv::Size(mpTargetFrame->mnWidth / 2, mpTargetFrame->mnHeight / 2));
+				//	mpSystem->mpVisualizer->SetOutputImage(targetImg, 0);
+				//	mpSystem->mpVisualizer->SetOutputImage(resimg, 1);
+				//	/*cv::Mat rvec, tvec;
+				//	cv::solvePnPRansac(vXws, vPTs, mpSystem->mK, cv::Mat(), rvec, tvec);
+				//	cv::Rodrigues(rvec, R);*/
+				//	mpTargetFrame->SetPose(R, t);
+				//	int nPoseRecovery = Optimization::PoseOptimization(mpMap, mpTargetFrame, vMPs, vPTs, vInliers);
+				//	mpMap->SetUserPosition(mpTargetFrame->GetCameraCenter());
+				//	std::cout << "Place Recognizer::res::" << "::"<< nMax << std::endl;
+				//}
+				////////relocaalization
 
 				//if (mpTargetFrame->GetConnectedKFs().size() < 3) {
 				//	for (size_t i = 0, iend = vpNeighKFs.size(); i < iend; i++) {
@@ -244,21 +353,115 @@ namespace UVR_SLAM {
 					if (nCurrDepthFrame >= 0 && nCurrDepthFrame != nPrevDepthFrame) {
 						ss.str("");
 						ss << "/SendData?map=" << mpTargetFrame->mstrMapName << "&id=" << nCurrDepthFrame << "&key=bdepth";
-						auto f = std::async(std::launch::async, [](WebAPI* wapi, std::string method, int w, int h) {
+						auto f = std::async(std::launch::async, [](WebAPI* wapi, std::string method, int w, int h, Frame* pF) {
 							auto resdata = wapi->Send(method, "");
+							
 							////처리 후 전송
 							cv::Mat depth = cv::Mat::zeros(h, w, CV_32FC1);
 							std::memcpy(depth.data, resdata.data(), w*h * sizeof(float));
-							
-							cv::normalize(depth, depth, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-							cv::cvtColor(depth, depth, CV_GRAY2BGR);
-							cv::resize(depth, depth, depth.size() / 2);
+
+							std::vector<std::tuple<cv::Point2f, float, int>> vecTuples;
+
+							cv::Mat R, t;
+							pF->GetPose(R, t);
+
+							////depth 정보 저장 및 포인트와 웨이트 정보를 튜플로 저장
+							cv::Mat Rcw2 = R.row(2);
+							Rcw2 = Rcw2.t();
+							float zcw = t.at<float>(2);
+							auto vpMPs = pF->GetMapPoints();
+							for (size_t i = 0, iend = vpMPs.size(); i < iend; i++) {
+								auto pMPi = vpMPs[i];
+								if (!pMPi || pMPi->isDeleted())
+									continue;
+								auto pt = pF->mvPts[i];
+								cv::Mat x3Dw = pMPi->GetWorldPos();
+								float z = (float)Rcw2.dot(x3Dw) + zcw;
+								std::tuple<cv::Point2f, float, int> data = std::make_tuple(std::move(pt), 1.0 / z, pMPi->GetNumObservations());//cv::Point2f(pt.x / 2, pt.y / 2)
+								vecTuples.push_back(data);
+							}
+
+							////웨이트와 포인트 정보로 정렬
+							std::sort(vecTuples.begin(), vecTuples.end(),
+								[](std::tuple<cv::Point2f, float, int> const &t1, std::tuple<cv::Point2f, float, int> const &t2) {
+									if (std::get<2>(t1) == std::get<2>(t2)) {
+										return std::get<0>(t1).x != std::get<0>(t2).x ? std::get<0>(t1).x > std::get<0>(t2).x : std::get<0>(t1).y > std::get<0>(t2).y;
+									}
+									else {
+										return std::get<2>(t1) > std::get<2>(t2);
+									}
+								}
+							);
+
+							////파라메터 검색 및 뎁스 정보 복원
+							int nTotal = 20;
+							if (vecTuples.size() > nTotal) {
+								int nData = nTotal;
+								cv::Mat A = cv::Mat::ones(nData, 2, CV_32FC1);
+								cv::Mat B = cv::Mat::zeros(nData, 1, CV_32FC1);
+
+								for (size_t i = 0; i < nData; i++) {
+									auto data = vecTuples[i];
+									auto pt = std::get<0>(data);
+									auto invdepth = std::get<1>(data);
+									auto nConnected = std::get<2>(data);
+
+									float p = depth.at<float>(pt);
+									A.at<float>(i, 0) = p;//invdepth;
+									B.at<float>(i) = invdepth;//p;
+								}
+
+								//cv::Mat X = A.inv(cv::DECOMP_QR)*B;
+								cv::Mat S = A.t()*A;
+								cv::Mat X = S.inv()*A.t()*B;
+								float a = X.at<float>(0);
+								float b = X.at<float>(1);
+
+								/*cv::Mat C = A*X - B;
+								std::cout << "depth val = " << cv::sum(C) / C.rows << std::endl;*/
+
+								//depth = a*depth + b; //(depth - b) / a;
+								for (int x = 0, cols = depth.cols; x < cols; x++) {
+									for (int y = 0, rows = depth.rows; y < rows; y++) {
+										float val = a*depth.at<float>(y, x) + b;//1.0 / depth.at<float>(y, x);
+										/*if (val < 0.0001)
+										val = 0.5;*/
+										depth.at<float>(y, x) = 1.0/val;
+									}
+								}
+								
+							}
+
 							return depth;
-							//imshow("depth", depth); cv::waitKey(1);
-						}, mpAPI, ss.str(), mpTargetFrame->mnWidth, mpTargetFrame->mnHeight);
+						}, mpAPI, ss.str(), mpTargetFrame->mnWidth, mpTargetFrame->mnHeight, mpTargetFrame);
 						nPrevDepthFrame = nCurrDepthFrame;
 						auto res = f.get();
+						cv::Mat tempDepth = res.clone();
+
+						cv::normalize(res, res, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+						cv::cvtColor(res, res, CV_GRAY2BGR);
+						cv::resize(res, res, res.size() / 2);
 						mpSystem->mpVisualizer->SetOutputImage(res, 3);
+
+						////시각화 테스트
+						/*cv::Mat Rinv, Tinv;
+						mpTargetFrame->GetInversePose(Rinv, Tinv);
+						mpSystem->mpMap->ClearTempMPs();
+						int inc = 10;
+						for (size_t row = inc, rows = tempDepth.rows; row < rows; row += inc) {
+							for (size_t col = inc, cols = tempDepth.cols; col < cols; col += inc) {
+								cv::Point2f pt(col, row);
+								float depth = tempDepth.at<float>(pt);
+								if (depth < 0.0001)
+									continue;
+								cv::Mat a = Rinv*(mpTargetFrame->mInvK*(cv::Mat_<float>(3, 1) << pt.x, pt.y, 1.0)*depth) + Tinv;
+								mpSystem->mpMap->AddTempMP(a);
+							}
+						}*/
+
+						ss.str("");
+						ss << "/ReceiveData?map=" << mpTargetFrame->mstrMapName << "&id=" << nCurrDepthFrame << "&key=rdepth";
+						mpAPI->Send(ss.str(), tempDepth.data, tempDepth.rows*tempDepth.cols*sizeof(float));
 					}
 				}
 
@@ -325,22 +528,16 @@ namespace UVR_SLAM {
 			mpTargetFrame = mKFQueue.front();
 			mKFQueue.pop();
 		}
-		[](std::string ip, int port, Frame* pF) {
+		/*[](std::string ip, int port, Frame* pF) {
 			WebAPI* mpAPI = new WebAPI(ip, port);
 			std::stringstream ss;
 			ss << "/SendData?map=" << pF->mstrMapName << "&id=" << pF->mnFrameID << "&key=bdesc";
 			WebAPIDataConverter::ConvertBytesToDesc(mpAPI->Send(ss.str(), "").c_str(), pF->mvPts.size(), pF->matDescriptor);
 			pF->ComputeBoW();
-		}(mpSystem->ip, mpSystem->port, mpTargetFrame);
-
-		/*std::async(std::launch::async, [](std::string ip, int port, Frame* pF) {
-			WebAPI* mpAPI = new WebAPI(ip, port);
-			auto strID = WebAPIDataConverter::ConvertNumberToString(pF->mnFrameID);
-			WebAPIDataConverter::ConvertStringToDesc(mpAPI->Send("getDesc", strID).c_str(), pF->mvPts.size(), pF->matDescriptor);
-			pF->ComputeBoW();
-		}, "143.248.96.81", 35005, mpTargetFrame);*/
-		//mpTargetFrame->ComputeBoW();
+		}(mpSystem->ip, mpSystem->port, mpTargetFrame);*/
 	}
+
+
 	bool LoopCloser::isProcessing() {
 		std::unique_lock<std::mutex> lock(mMutexProcessing);
 		return mbProcessing;

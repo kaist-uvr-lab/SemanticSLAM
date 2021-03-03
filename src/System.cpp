@@ -5,6 +5,7 @@
 #include <SemanticSegmentator.h>
 #include <DepthFilter.h>
 #include <MappingServer.h>
+#include <ServerMapper.h>
 #include <LocalMapper.h>
 #include <LoopCloser.h>
 #include <PlaneEstimator.h>
@@ -161,6 +162,7 @@ void UVR_SLAM::System::ModuleInit() {
 	mpSegmentator->Init();
 	mpPlaneEstimator->Init();
 	mpMappingServer->Init();
+	mpServerMapper->Init();
 	mpLocalMapper->Init();
 	mpDepthFilter->Init();
 	mpLoopCloser->Init();
@@ -216,6 +218,8 @@ void UVR_SLAM::System::Init() {
 
 	//mapping server
 	mpMappingServer = new UVR_SLAM::MappingServer(this);
+
+	mpServerMapper = new UVR_SLAM::ServerMapper(this);
 
 	//depth fiilter
 	mpDepthFilter = new UVR_SLAM::DepthFilter(this);
@@ -423,4 +427,33 @@ void UVR_SLAM::System::SetMapOptimizerString(std::string str) {
 std::string UVR_SLAM::System::GetMapOptimizerString() {
 	std::unique_lock<std::mutex> lock(mMutexMapOptimizer);
 	return mStrMapOptimizer;
+}
+
+void UVR_SLAM::System::AddUser(std::string id, User* user) {
+	std::unique_lock<std::mutex> lock(mMutexUserList);
+	mmpConnectedUserList[id] = user;
+}
+UVR_SLAM::User* UVR_SLAM::System::GetUser(std::string id){
+	std::unique_lock<std::mutex> lock(mMutexUserList);
+	if (mmpConnectedUserList.count(id)) {
+		return mmpConnectedUserList[id];
+	}
+	return nullptr;
+}
+void UVR_SLAM::System::RemoveUser(std::string id) {
+	std::unique_lock<std::mutex> lock(mMutexUserList);
+	if (mmpConnectedUserList.count(id)) {
+		mmpConnectedUserList.erase(id);
+	}
+}
+void UVR_SLAM::System::AddMap(std::string name, ServerMap* pMap) {
+	std::unique_lock<std::mutex> lock(mMutexMapList);
+	mmpMapList[name] = pMap;
+}
+UVR_SLAM::ServerMap* UVR_SLAM::System::GetMap(std::string name){
+	std::unique_lock<std::mutex> lock(mMutexMapList);
+	if (mmpMapList.count(name)) {
+		return mmpMapList[name];
+	}
+	return nullptr;
 }

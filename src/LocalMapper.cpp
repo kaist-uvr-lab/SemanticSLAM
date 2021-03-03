@@ -5,7 +5,7 @@
 #include <MapGrid.h>
 #include <System.h>
 #include <User.h>
-#include <ORBextractor.h>
+#include <ServerMap.h>
 #include <Map.h>
 
 #include <MapPoint.h>
@@ -148,7 +148,18 @@ namespace UVR_SLAM {
 		//std::cout << "api::featurematch=" << t_test1 << std::endl;
 		return matches;
 	};
-
+	auto lambda_api_projection_test = [](cv::Mat Xw, cv::Mat R, cv::Mat t, cv::Mat K, cv::Point2f pt, float thresh) {
+		cv::Mat Xcam = R * Xw + t;
+		cv::Mat Ximg = K*Xcam;
+		float fDepth = Ximg.at < float>(2);
+		if (fDepth <= 0.0)
+			return false;
+		cv::Point2f pt1 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
+		auto diffPt = pt1 - pt;
+		float dist = diffPt.dot(diffPt);
+		bool bDist1 = dist < thresh;
+		return bDist1;
+	};
 	auto lambda_api_create_mp = []
 	(cv::Point2f prevPt, cv::Point2f currPt, 
 		cv::Mat Rprev, cv::Mat Tprev, cv::Mat Rtprev, cv::Mat Pprev, 
@@ -346,7 +357,7 @@ void UVR_SLAM::LocalMapper::RunWithMappingServer() {
 					auto currPt = mpTargetFrame->mvPts[c];
 
 					//mpTargetFrame->matDescriptor.row(c)
-					auto pNewMP = lambda_api_create_mp(prevPt, currPt, Rs[kID], Ts[kID], Rts[kID], Ps[kID], Rcurr, Tcurr, Rtcurr, Pcurr, mpMap, mpTargetFrame, cv::Mat(), 
+					auto pNewMP = lambda_api_create_mp(prevPt, currPt, Rs[kID], Ts[kID], Rts[kID], Ps[kID], Rcurr, Tcurr, Rtcurr, Pcurr, mpMap, mpTargetFrame, mpTargetFrame->matDescriptor.row(c), 
 						mpTargetFrame->mK, mpTargetFrame->mInvK, pKF->mK, pKF->mInvK);
 					if (pNewMP) {
 
@@ -357,13 +368,18 @@ void UVR_SLAM::LocalMapper::RunWithMappingServer() {
 						pNewMP->IncreaseFound();
 						pNewMP->IncreaseVisible();
 
+						cv::Mat Xw = pNewMP->GetWorldPos();
+
 						for (size_t i = 0, iend = vPairMatches.size(); i < iend; i++) {
 							int idx = vPairMatches[i].first;
 							auto pKF = vpKFs[vPairMatches[i].second];
-							pNewMP->AddObservation(pKF, idx);
-							pKF->AddMapPoint(pNewMP, idx);
-							pNewMP->IncreaseFound();
-							pNewMP->IncreaseVisible();
+							int kid = vPairMatches[i].second;
+							if (lambda_api_projection_test(Xw, Rs[kid], Ts[kid], pKF->mK, pKF->mvPts[idx], 9.0)) {
+								pNewMP->AddObservation(pKF, idx);
+								pKF->AddMapPoint(pNewMP, idx);
+								pNewMP->IncreaseFound();
+								pNewMP->IncreaseVisible();
+							}
 						}//pair
 						
 					}
@@ -391,38 +407,47 @@ void UVR_SLAM::LocalMapper::RunWithMappingServer() {
 						nFuse++;
 					}
 					auto pMP = vPairMPs[0].second;
-
-					mpTargetFrame->AddMapPoint(pMP, c);
-					pMP->AddObservation(mpTargetFrame, c);
-					pMP->IncreaseFound();
-					pMP->IncreaseVisible();
-
-					////포즈 리파인먼트
-					vpTempMPs.push_back(pMP);
-					vTempPts.push_back(mpTargetFrame->mvPts[c]);
-					vbTempInliers.push_back(true);
-					////포즈 리파인먼트
-
-					for (size_t i = 0, iend = vPairMatches.size(); i < iend; i++) {
-						
-						int idx  = vPairMatches[i].first;
-						auto pKF = vpKFs[vPairMatches[i].second];
-						pMP->AddObservation(pKF, idx);
-						pKF->AddMapPoint(pMP, idx);
+					cv::Mat Xw = pMP->GetWorldPos();
+					cv::Mat R, t;
+					mpTargetFrame->GetPose(R, t);
+					if (lambda_api_projection_test(Xw, R, t, mpTargetFrame->mK, mpTargetFrame->mvPts[c], 4.0)) {
+						mpTargetFrame->AddMapPoint(pMP, c);
+						pMP->AddObservation(mpTargetFrame, c);
 						pMP->IncreaseFound();
 						pMP->IncreaseVisible();
+
+						////포즈 리파인먼트
+						vpTempMPs.push_back(pMP);
+						vTempPts.push_back(mpTargetFrame->mvPts[c]);
+						vbTempInliers.push_back(true);
+						////포즈 리파인먼트
+					}
+					
+
+					for (size_t i = 0, iend = vPairMatches.size(); i < iend; i++) {
+						int idx  = vPairMatches[i].first;
+						int kid = vPairMatches[i].second;
+						auto pKF = vpKFs[kid];
+						if (lambda_api_projection_test(Xw, Rs[kid], Ts[kid], pKF->mK, pKF->mvPts[idx], 4.0)) {
+							pMP->AddObservation(pKF, idx);
+							pKF->AddMapPoint(pMP, idx);
+							pMP->IncreaseFound();
+							pMP->IncreaseVisible();
+						}
 					}//pair
+
 				}//if mps
 			}//for match
 			//포즈를 수정한 후 해당 프레임 아이디를 서버에 전송하기.
-			int nPoseRecovery = Optimization::PoseOptimization(mpSystem->mpMap, mpTargetFrame, vpTempMPs, vTempPts, vbTempInliers);
+			//int nPoseRecovery = Optimization::PoseOptimization(mpSystem->mpMap, mpTargetFrame, vpTempMPs, vTempPts, vbTempInliers);
+			
 			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
 			std::stringstream ss;
 			ss << "/SetLastFrameID?map=" << mpTargetFrame->mstrMapName << "&id=" << mpTargetFrame->mnFrameID << "&key=reference";
 			mpAPI->Send(ss.str(),"");
 			
 #ifdef DEBUG_LOCAL_MAPPING_LEVEL_1
-			std::cout << "MappingServer::PoseRefinement::" << nPoseRecovery << ", " << vpTempMPs.size() << std::endl;
+			std::cout << "MappingServer::PoseRefinement::" << 0 << ", " << vpTempMPs.size() << std::endl;
 #endif
 
 
@@ -676,12 +701,12 @@ void UVR_SLAM::LocalMapper::NewMapPointMarginalization() {
 			pMP->SetNewMP(false);
 
 			////맵그리드에 추가
-			/*auto key = MapGrid::ComputeKey(pMP->GetWorldPos());
+			auto key = MapGrid::ComputeKey(pMP->GetWorldPos());
 			auto pMapGrid = mpMap->GetMapGrid(key);
 			if(!pMapGrid){
 				pMapGrid = mpMap->AddMapGrid(key);
 			}
-			pMapGrid->AddMapPoint(pMP);*/
+			pMapGrid->AddMapPoint(pMP);
 		}
 		else
 			lit++;
