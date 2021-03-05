@@ -27,7 +27,7 @@
 ////매핑 서버 로드맵용
 
 UVR_SLAM::Frame::Frame(System* pSys, int id, int w, int h, float _fx, float _fy, float _cx, float _cy, double ts) :mpSystem(pSys), mnWidth(w), mnHeight(h), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
-mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMedianDepth(0.0), fx(_fx), fy(_fy), cx(_cx), cy(_cy),
+mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMaxDepth(0.0), mfMedianDepth(0.0), fx(_fx), fy(_fy), cx(_cx), cy(_cy),
 mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts) {
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
@@ -42,7 +42,7 @@ mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), m
 
 ////매핑 서버에서 생성
 UVR_SLAM::Frame::Frame(System* pSys, int id, int w, int h, cv::Mat K, cv::Mat invK, double ts) :mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mInvK(invK), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
-mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMedianDepth(0.0),
+mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMaxDepth(0.0), mfMedianDepth(0.0),
 mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts) {
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
@@ -135,23 +135,6 @@ namespace UVR_SLAM {
 		return mvpMPs;
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////////////
 float UVR_SLAM::Frame::GetDepth(cv::Mat X3D) {
@@ -362,6 +345,57 @@ bool UVR_SLAM::Frame::CheckBaseLine(UVR_SLAM::Frame* pTargetKF) {
 		return false;
 	}
 	return true;
+}
+
+void UVR_SLAM::Frame::ComputeSceneDepth() {
+
+	cv::Mat Rcw2;
+	float zcw;
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexPose);
+		Rcw2 = R.row(2);
+		zcw = t.at<float>(2);
+	}
+	std::vector<MapPoint*> vpMPs;
+	{
+		std::unique_lock<std::mutex> lockMP(mMutexMPs);
+		vpMPs = mvpMPs;
+	}
+	std::vector<float> vDepths;
+	Rcw2 = Rcw2.t();
+
+	for (size_t i = 0, iend = vpMPs.size(); i < iend; i++)
+	{
+		auto pMPi = vpMPs[i];
+		if (!pMPi || pMPi->isDeleted()) {
+			continue;
+		}
+		cv::Mat x3Dw = pMPi->GetWorldPos();
+		float z = (float)Rcw2.dot(x3Dw) + zcw;
+		mfMinDepth = fmin(z, mfMinDepth);
+		vDepths.push_back(z);
+	}
+	if (vDepths.size() == 0) {
+		return;
+	}
+	int nidx = vDepths.size() / 2;
+	std::nth_element(vDepths.begin(), vDepths.begin() + nidx, vDepths.end());
+
+	//median
+	mfMedianDepth = vDepths[nidx];
+	//mean & stddev
+	cv::Mat mMean, mDev;
+	meanStdDev(vDepths, mMean, mDev);
+	mfMeanDepth = (float)mMean.at<double>(0);
+	mfStdDev = (float)mDev.at<double>(0);
+	
+	////max depth 설정
+	//1) mfrange
+	mfRange = sqrt(mfMinDepth*mfMinDepth*36.0);//36
+	mfMaxDepth = mfMedianDepth + mfRange;
+	//2) stddev 이용하기
+	//mfMaxDepth = mfMedianDepth + 1.2*mfStdDev;
+
 }
 
 //두 키프레임의 베이스라인을 계산할 때 이용 됨.
@@ -586,9 +620,9 @@ bool UVR_SLAM::Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit)
 	const float u = fx*PcX*invz + cx;
 	const float v = fy*PcY*invz + cy;
 
-	if (u<mnMinX || u>mnMaxX)
+	if (u<5.0 || u>mnWidth-5.0)
 		return false;
-	if (v<mnMinY || v>mnMaxY)
+	if (v<5.0 || v>mnHeight-5.0)
 		return false;
 
 	// Check distance is in the scale invariance region of the MapPoint

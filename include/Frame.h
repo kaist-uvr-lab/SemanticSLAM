@@ -87,7 +87,7 @@ namespace UVR_SLAM {
 		void GetInversePose(cv::Mat&_Rinv, cv::Mat& _Tinv);
 		void GetRelativePoseFromTargetFrame(Frame* pTargetFrame, cv::Mat& Rft, cv::Mat& Tft);
 		cv::Mat ComputeFundamentalMatrix(Frame* pTarget);
-
+		void ComputeSceneDepth();
 		float GetDepth(cv::Mat X3D);
 		cv::Mat GetRotation();
 		cv::Mat GetTranslation();
@@ -156,7 +156,7 @@ namespace UVR_SLAM {
 
 ////////////////
 	public:
-		float mfMeanDepth, mfMedianDepth, mfMinDepth, mfStdDev, mfRange;
+		float mfMeanDepth, mfMedianDepth, mfMinDepth, mfMaxDepth, mfStdDev, mfRange;
 	////////////////
 	public:
 		int mnLocalMapFrameID, mnTrackingID;

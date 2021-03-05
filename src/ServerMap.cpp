@@ -280,7 +280,7 @@ namespace UVR_SLAM {
 			//}
 			//std::cout << "c" << std::endl;
 			//mpIndex = mpEndIndex;
-
+			newFrame->ComputeSceneDepth();
 			mmpFrames.insert(std::make_pair(id, newFrame));
 		}
 		for (auto iter = mmpFrames.begin(), itend = mmpFrames.end(); iter != itend; iter++) {

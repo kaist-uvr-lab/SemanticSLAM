@@ -305,11 +305,19 @@ namespace UVR_SLAM {
 									seg_color.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
 								}
 							}
+
+
 							return seg_color;
 							//imshow("segmentation", seg_color); cv::waitKey(1);
 						}, mpAPI, ss.str(), mpTargetFrame->mnWidth/2, mpTargetFrame->mnHeight/2);
 						nPrevSegFrame = nCurrSegFrame;
 						auto res = f.get();
+
+						//edge
+						cv::Mat filtered,edge;
+						GaussianBlur(res, filtered, cv::Size(5, 5), 0.0);
+						cv::Canny(filtered, edge, 50, 200);//150
+						imshow("edge", edge); cv::waitKey(1);
 						mpSystem->mpVisualizer->SetOutputImage(res, 2);
 					}
 				}
@@ -330,77 +338,81 @@ namespace UVR_SLAM {
 							cv::Mat depth = cv::Mat::zeros(h, w, CV_32FC1);
 							std::memcpy(depth.data, resdata.data(), w*h * sizeof(float));
 
-							std::vector<std::tuple<cv::Point2f, float, int>> vecTuples;
+							cv::normalize(depth, depth, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+							cv::cvtColor(depth, depth, CV_GRAY2BGR);
+							cv::resize(depth, depth, depth.size() / 2);
 
-							cv::Mat R, t;
-							pF->GetPose(R, t);
+							///////이 아래는 뎁스 추정 과정
+							//std::vector<std::tuple<cv::Point2f, float, int>> vecTuples;
+							//cv::Mat R, t;
+							//pF->GetPose(R, t);
 
-							////depth 정보 저장 및 포인트와 웨이트 정보를 튜플로 저장
-							cv::Mat Rcw2 = R.row(2);
-							Rcw2 = Rcw2.t();
-							float zcw = t.at<float>(2);
-							auto vpMPs = pF->GetMapPoints();
-							for (size_t i = 0, iend = vpMPs.size(); i < iend; i++) {
-								auto pMPi = vpMPs[i];
-								if (!pMPi || pMPi->isDeleted())
-									continue;
-								auto pt = pF->mvPts[i];
-								cv::Mat x3Dw = pMPi->GetWorldPos();
-								float z = (float)Rcw2.dot(x3Dw) + zcw;
-								std::tuple<cv::Point2f, float, int> data = std::make_tuple(std::move(pt), 1.0 / z, pMPi->GetNumObservations());//cv::Point2f(pt.x / 2, pt.y / 2)
-								vecTuples.push_back(data);
-							}
+							//////depth 정보 저장 및 포인트와 웨이트 정보를 튜플로 저장
+							//cv::Mat Rcw2 = R.row(2);
+							//Rcw2 = Rcw2.t();
+							//float zcw = t.at<float>(2);
+							//auto vpMPs = pF->GetMapPoints();
+							//for (size_t i = 0, iend = vpMPs.size(); i < iend; i++) {
+							//	auto pMPi = vpMPs[i];
+							//	if (!pMPi || pMPi->isDeleted())
+							//		continue;
+							//	auto pt = pF->mvPts[i];
+							//	cv::Mat x3Dw = pMPi->GetWorldPos();
+							//	float z = (float)Rcw2.dot(x3Dw) + zcw;
+							//	std::tuple<cv::Point2f, float, int> data = std::make_tuple(std::move(pt), 1.0 / z, pMPi->GetNumObservations());//cv::Point2f(pt.x / 2, pt.y / 2)
+							//	vecTuples.push_back(data);
+							//}
 
-							////웨이트와 포인트 정보로 정렬
-							std::sort(vecTuples.begin(), vecTuples.end(),
-								[](std::tuple<cv::Point2f, float, int> const &t1, std::tuple<cv::Point2f, float, int> const &t2) {
-									if (std::get<2>(t1) == std::get<2>(t2)) {
-										return std::get<0>(t1).x != std::get<0>(t2).x ? std::get<0>(t1).x > std::get<0>(t2).x : std::get<0>(t1).y > std::get<0>(t2).y;
-									}
-									else {
-										return std::get<2>(t1) > std::get<2>(t2);
-									}
-								}
-							);
+							//////웨이트와 포인트 정보로 정렬
+							//std::sort(vecTuples.begin(), vecTuples.end(),
+							//	[](std::tuple<cv::Point2f, float, int> const &t1, std::tuple<cv::Point2f, float, int> const &t2) {
+							//		if (std::get<2>(t1) == std::get<2>(t2)) {
+							//			return std::get<0>(t1).x != std::get<0>(t2).x ? std::get<0>(t1).x > std::get<0>(t2).x : std::get<0>(t1).y > std::get<0>(t2).y;
+							//		}
+							//		else {
+							//			return std::get<2>(t1) > std::get<2>(t2);
+							//		}
+							//	}
+							//);
 
-							////파라메터 검색 및 뎁스 정보 복원
-							int nTotal = 20;
-							if (vecTuples.size() > nTotal) {
-								int nData = nTotal;
-								cv::Mat A = cv::Mat::ones(nData, 2, CV_32FC1);
-								cv::Mat B = cv::Mat::zeros(nData, 1, CV_32FC1);
+							//////파라메터 검색 및 뎁스 정보 복원
+							//int nTotal = 20;
+							//if (vecTuples.size() > nTotal) {
+							//	int nData = nTotal;
+							//	cv::Mat A = cv::Mat::ones(nData, 2, CV_32FC1);
+							//	cv::Mat B = cv::Mat::zeros(nData, 1, CV_32FC1);
 
-								for (size_t i = 0; i < nData; i++) {
-									auto data = vecTuples[i];
-									auto pt = std::get<0>(data);
-									auto invdepth = std::get<1>(data);
-									auto nConnected = std::get<2>(data);
+							//	for (size_t i = 0; i < nData; i++) {
+							//		auto data = vecTuples[i];
+							//		auto pt = std::get<0>(data);
+							//		auto invdepth = std::get<1>(data);
+							//		auto nConnected = std::get<2>(data);
 
-									float p = depth.at<float>(pt);
-									A.at<float>(i, 0) = p;//invdepth;
-									B.at<float>(i) = invdepth;//p;
-								}
+							//		float p = depth.at<float>(pt);
+							//		A.at<float>(i, 0) = p;//invdepth;
+							//		B.at<float>(i) = invdepth;//p;
+							//	}
 
-								//cv::Mat X = A.inv(cv::DECOMP_QR)*B;
-								cv::Mat S = A.t()*A;
-								cv::Mat X = S.inv()*A.t()*B;
-								float a = X.at<float>(0);
-								float b = X.at<float>(1);
+							//	//cv::Mat X = A.inv(cv::DECOMP_QR)*B;
+							//	cv::Mat S = A.t()*A;
+							//	cv::Mat X = S.inv()*A.t()*B;
+							//	float a = X.at<float>(0);
+							//	float b = X.at<float>(1);
 
-								/*cv::Mat C = A*X - B;
-								std::cout << "depth val = " << cv::sum(C) / C.rows << std::endl;*/
+							//	/*cv::Mat C = A*X - B;
+							//	std::cout << "depth val = " << cv::sum(C) / C.rows << std::endl;*/
 
-								//depth = a*depth + b; //(depth - b) / a;
-								for (int x = 0, cols = depth.cols; x < cols; x++) {
-									for (int y = 0, rows = depth.rows; y < rows; y++) {
-										float val = a*depth.at<float>(y, x) + b;//1.0 / depth.at<float>(y, x);
-										/*if (val < 0.0001)
-										val = 0.5;*/
-										depth.at<float>(y, x) = 1.0/val;
-									}
-								}
-								
-							}
+							//	//depth = a*depth + b; //(depth - b) / a;
+							//	for (int x = 0, cols = depth.cols; x < cols; x++) {
+							//		for (int y = 0, rows = depth.rows; y < rows; y++) {
+							//			float val = a*depth.at<float>(y, x) + b;//1.0 / depth.at<float>(y, x);
+							//			/*if (val < 0.0001)
+							//			val = 0.5;*/
+							//			depth.at<float>(y, x) = 1.0/val;
+							//		}
+							//	}
+							//	
+							//}
 
 							return depth;
 						}, mpAPI, ss.str(), mpTargetFrame->mnWidth, mpTargetFrame->mnHeight, mpTargetFrame);
@@ -408,9 +420,9 @@ namespace UVR_SLAM {
 						auto res = f.get();
 						cv::Mat tempDepth = res.clone();
 
-						cv::normalize(res, res, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+						/*cv::normalize(res, res, 0, 255, cv::NORM_MINMAX, CV_8UC1);
 						cv::cvtColor(res, res, CV_GRAY2BGR);
-						cv::resize(res, res, res.size() / 2);
+						cv::resize(res, res, res.size() / 2);*/
 						mpSystem->mpVisualizer->SetOutputImage(res, 3);
 
 						////시각화 테스트
@@ -429,9 +441,10 @@ namespace UVR_SLAM {
 							}
 						}*/
 
-						ss.str("");
+						////처리 된 뎁스 결과 전송
+						/*ss.str("");
 						ss << "/ReceiveData?map=" << mpTargetFrame->mstrMapName << "&id=" << nCurrDepthFrame << "&key=rdepth";
-						mpAPI->Send(ss.str(), tempDepth.data, tempDepth.rows*tempDepth.cols*sizeof(float));
+						mpAPI->Send(ss.str(), tempDepth.data, tempDepth.rows*tempDepth.cols*sizeof(float));*/
 					}
 				}
 

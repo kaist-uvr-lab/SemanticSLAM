@@ -49,7 +49,8 @@ namespace UVR_SLAM {
 		std::string user = mPairFrameInfo.second;
 		mpTargetFrame = mPairFrameInfo.first;
 		mpTargetUser = mpSystem->GetUser(user);
-		mpTargetMap = mpSystem->GetMap(mpTargetUser->mapName);
+		if(mpTargetUser)
+			mpTargetMap = mpSystem->GetMap(mpTargetUser->mapName);
 	}
 	void ServerMapper::ProcessNewKeyFrame(){
 
@@ -61,6 +62,7 @@ namespace UVR_SLAM {
 				continue;
 			pMP->AddObservation(mpTargetFrame, i);
 		}
+		mpTargetFrame->ComputeSceneDepth();
 	}
 	bool ServerMapper::isDoingProcess(){
 		std::unique_lock<std::mutex> lock(mMutexDoingProcess);
@@ -244,11 +246,13 @@ namespace UVR_SLAM {
 			dist1 = diffPt.dot(diffPt);
 			bDist1 = dist1 < thresh;
 		}
+		bool bMaxDepth;
 		{
 			cv::Mat Xcam = Rcurr * x3D + Tcurr;
 			cv::Mat Ximg = pCurr->mK*Xcam;
 			float fDepth = Ximg.at < float>(2);
 			bDepth2 = fDepth > 0.0;
+			bMaxDepth = fDepth < pCurr->mfMaxDepth;
 			pt2 = cv::Point2f(Ximg.at<float>(0) / fDepth, Ximg.at<float>(1) / fDepth);
 			auto diffPt = pt2 - currPt;
 			dist2 = diffPt.dot(diffPt);
@@ -320,11 +324,14 @@ namespace UVR_SLAM {
 					if (server_projection_test(pCurrMP->GetWorldPos(), R, t, pKF->mK, pKF->mvPts[idx2], 9.0)) {
 						
 					}*/
-					pKF->AddMapPoint(pCurrMP, idx2);
-					pCurrMP->AddObservation(pKF, idx2);
-					pCurrMP->IncreaseFound();
-					pCurrMP->IncreaseVisible();
-					mpSystem->mpMap->AddTempMP(pCurrMP->GetWorldPos());
+					//if (pKF->isInFrustum(pCurrMP, 0.6f)) {
+						pKF->AddMapPoint(pCurrMP, idx2);
+						pCurrMP->AddObservation(pKF, idx2);
+						pCurrMP->IncreaseFound();
+						pCurrMP->IncreaseVisible();
+						mpSystem->mpMap->AddTempMP(pCurrMP->GetWorldPos());
+					//}
+					
 				}
 				else if (!bCurrMP && bPrevMP) {
 					//projection test : pPrevMP in curr frame
@@ -333,11 +340,15 @@ namespace UVR_SLAM {
 					if (server_projection_test(pPrevMP->GetWorldPos(), R, t, mpTargetFrame->mK, mpTargetFrame->mvPts[idx1], 9.0)) {
 						
 					}*/
-					mpTargetFrame->AddMapPoint(pPrevMP, idx1);
-					pPrevMP->AddObservation(mpTargetFrame, idx1);
-					pPrevMP->IncreaseFound();
-					pPrevMP->IncreaseVisible();
-					mpSystem->mpMap->AddTempMP(pPrevMP->GetWorldPos());
+
+					//if (mpTargetFrame->isInFrustum(pPrevMP, 0.6f)) {
+						mpTargetFrame->AddMapPoint(pPrevMP, idx1);
+						pPrevMP->AddObservation(mpTargetFrame, idx1);
+						pPrevMP->IncreaseFound();
+						pPrevMP->IncreaseVisible();
+						mpSystem->mpMap->AddTempMP(pPrevMP->GetWorldPos());
+					//}
+					
 				}
 				else{
 					if (pCurrMP->mnMapPointID != pPrevMP->mnMapPointID) {

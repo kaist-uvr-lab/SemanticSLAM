@@ -32,7 +32,8 @@ namespace UVR_SLAM {
 		std::string user = mPairFrameInfo.second;
 		mpTargetFrame = mPairFrameInfo.first;
 		mpTargetUser = mpSystem->GetUser(user);
-		mpTargetMap = mpSystem->GetMap(mpTargetUser->mapName);
+		if (mpTargetUser)
+			mpTargetMap = mpSystem->GetMap(mpTargetUser->mapName);
 	}
 	void ServerMapOptimizer::ProcessNewKeyFrame(){
 	
