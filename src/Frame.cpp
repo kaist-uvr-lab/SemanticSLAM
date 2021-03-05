@@ -23,6 +23,23 @@
 //float UVR_SLAM::Frame::mnMinX, UVR_SLAM::Frame::mnMinY, UVR_SLAM::Frame::mnMaxX, UVR_SLAM::Frame::mnMaxY;
 //float UVR_SLAM::Frame::mfGridElementWidthInv, UVR_SLAM::Frame::mfGridElementHeightInv;
 
+
+////매핑 서버 로드맵용
+
+UVR_SLAM::Frame::Frame(System* pSys, int id, int w, int h, float _fx, float _fy, float _cx, float _cy, double ts) :mpSystem(pSys), mnWidth(w), mnHeight(h), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
+mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMedianDepth(0.0), fx(_fx), fy(_fy), cx(_cx), cy(_cy),
+mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts) {
+	R = cv::Mat::eye(3, 3, CV_32FC1);
+	t = cv::Mat::zeros(3, 1, CV_32FC1);
+	mnFrameID = id;
+	mK = cv::Mat::eye(3, 3, CV_32FC1);
+	mK.at<float>(0, 0) = fx;
+	mK.at<float>(1, 1) = fy;
+	mK.at<float>(0, 2) = cx;
+	mK.at<float>(1, 2) = cy;
+	mInvK = mK.inv();
+}
+
 ////매핑 서버에서 생성
 UVR_SLAM::Frame::Frame(System* pSys, int id, int w, int h, cv::Mat K, cv::Mat invK, double ts) :mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mInvK(invK), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
 mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMedianDepth(0.0),

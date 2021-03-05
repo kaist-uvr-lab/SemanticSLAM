@@ -3,7 +3,7 @@
 #include <Frame.h>
 #include <MapPoint.h>
 #include <LoopCloser.h>
-#include <MapOptimizer.h>
+#include <ServerMapOptimizer.h>
 #include <User.h>
 #include <ServerMap.h>
 #include <WebApi.h>
@@ -28,7 +28,7 @@ namespace UVR_SLAM {
 	}
 	void ServerMapper::Init() {
 		mpLoopCloser = mpSystem->mpLoopCloser;
-		mpMapOptimizer = mpSystem->mpMapOptimizer;
+		mpMapOptimizer = mpSystem->mpServerMapOptimizer;
 	}
 	void ServerMapper::InsertKeyFrame(std::pair<Frame*, std::string> pairInfo){
 		std::unique_lock<std::mutex> lock(mMutexQueue);
@@ -83,7 +83,6 @@ namespace UVR_SLAM {
 					SetDoingProcess(false);
 					continue;
 				}
-				std::cout << "MappingServer::ServerMapper::" << mpTargetFrame->mnFrameID << "::Start" << std::endl;
 				ProcessNewKeyFrame();
 				ComputeNeighborKFs(mpTargetFrame);
 				ConnectNeighborKFs(mpTargetFrame, mpTargetFrame->mmKeyFrameCount, 20);
@@ -92,7 +91,7 @@ namespace UVR_SLAM {
 				////·ÎÄÃ¸Ê ¸ÅÄªÀÌ ÇÊ¿äÇÔ.
 				CreateMapPoints();
 				SendData(mpTargetFrame, mPairFrameInfo.second, mpTargetUser->mapName);
-				mpMapOptimizer->InsertKeyFrame(mpTargetFrame);
+				mpMapOptimizer->InsertKeyFrame(mPairFrameInfo);
 				mpLoopCloser->InsertKeyFrame(mpTargetFrame);
 				SetDoingProcess(false);
 			}
@@ -265,7 +264,7 @@ namespace UVR_SLAM {
 
 	void ServerMapper::CreateMapPoints() {
 
-		auto vpKFs = mpTargetFrame->GetConnectedKFs(8);
+		auto vpKFs = mpTargetFrame->GetConnectedKFs(15);
 		mpSystem->mpMap->ClearReinit();
 		mpSystem->mpMap->ClearTempMPs();
 
@@ -287,7 +286,7 @@ namespace UVR_SLAM {
 				if (vecBoolOverlap[idx2])
 				{
 					matches.at<int>(idx1) = 10000;
-					continue;
+					continue; 
 				}
 				vecBoolOverlap[idx2] = true;
 
@@ -301,7 +300,7 @@ namespace UVR_SLAM {
 				auto currPt = mpTargetFrame->mvPts[idx1];
 
 				if (!bCurrMP && !bPrevMP) {
-					auto pNewMP = server_create_mp(mpTargetMap, mpTargetFrame, pKF, idx1, idx2, cv::Mat());
+					auto pNewMP = server_create_mp(mpTargetMap, mpTargetFrame, pKF, idx1, idx2, mpTargetFrame->matDescriptor.row(idx1));
 					if (pNewMP) {
 						ncreate++;
 						mpTargetFrame->AddMapPoint(pNewMP, idx1);
@@ -361,7 +360,7 @@ namespace UVR_SLAM {
 			}//for i
 
 		}// for k
-		std::cout << "CreateMP=" <<ncreate<<", "<< nkf <<"::"<< vpKFs.size() << ", " << KeyframesInQueue() << std::endl;
+		std::cout << "ID = "<<mpTargetFrame->mnFrameID<<"::"<<"CreateMP=" <<ncreate<<", "<< nkf <<"::"<< vpKFs.size() << ", " << KeyframesInQueue() << std::endl;
 
 	}
 

@@ -12,6 +12,7 @@
 #include <Visualizer.h>
 #include <FrameVisualizer.h>
 #include <MapOptimizer.h>
+#include <ServerMapOptimizer.h>
 #include <direct.h>
 #include <Converter.h>
 #include <Optimization.h>
@@ -218,8 +219,8 @@ void UVR_SLAM::System::Init() {
 
 	//mapping server
 	mpMappingServer = new UVR_SLAM::MappingServer(this);
-
 	mpServerMapper = new UVR_SLAM::ServerMapper(this);
+	mpServerMapOptimizer = new UVR_SLAM::ServerMapOptimizer(this);
 
 	//depth fiilter
 	mpDepthFilter = new UVR_SLAM::DepthFilter(this);
@@ -242,9 +243,9 @@ void UVR_SLAM::System::Init() {
 
 	////¾²·¹µå
 	/*if (mbLocalMapping)
-		mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);*/
+		mptLocalMapper = new std::thread(&UVR_SLAM::LocalMapper::Run, mpLocalMapper);
 	if (mbOptimization)
-		mptMapOptimizer = new std::thread(&UVR_SLAM::MapOptimizer::Run, mpMapOptimizer);
+		mptMapOptimizer = new std::thread(&UVR_SLAM::MapOptimizer::Run, mpMapOptimizer);*/
 	if (mbLoopClosing)
 		mptLoopCloser = new std::thread(&UVR_SLAM::LoopCloser::Run, mpLoopCloser);
 	if (mbSegmentation)

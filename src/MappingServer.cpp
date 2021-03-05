@@ -287,7 +287,7 @@ namespace UVR_SLAM {
 		bReplace = true;
 		return true;
 	};
-	auto lambda_api_tracking = [](System* pSystem, Frame* pRef, Frame* pTarget,cv::Mat vMatches, int nPrevMatch, bool& bNewKF, bool& bReplace) {
+	auto lambda_api_tracking = [](System* pSystem, Frame* pRef, Frame* pTarget,cv::Mat vMatches, int& nPrevMatch, bool& bNewKF, bool& bReplace) {
 		
 		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 		std::vector < cv::Point2f> vTempPts;
@@ -428,15 +428,235 @@ namespace UVR_SLAM {
 				}
 			}
 		}
+		nPrevMatch = nPoseRecovery;
+
 		std::chrono::high_resolution_clock::time_point end3 = std::chrono::high_resolution_clock::now();
 		auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end3 - start).count();
 		float t_test1 = du_test1 / 1000.0;
 #ifdef DEBUG_TRACKING_LEVEL_3
 		std::cout << "MappingServer::Tracking::MapPoints = " <<pRef->mnFrameID<<", "<<pTarget->mnFrameID<<"::"<< nPoseRecovery << ", KeyPoints" << nMatch << "::" << t_test1 << std::endl;
 #endif
-		//imshow("match test", debugMatch); cv::waitKey(1);
-		return nPoseRecovery;
+		if (nPoseRecovery > 20)
+			return true;
+		return false;
 	};
+
+	auto lambda_api_update = [](System* pSystem, User* pUser, Frame* pTarget, int nMatch,
+		std::vector<cv::Point2f>& vec2Ds, std::vector<MapPoint*>& vec3Ds, std::vector<int>& vecIDXs, std::vector<bool>& vecInliers,
+		bool& bNewKF) {
+
+		//매칭 정보 갱신
+		for (size_t i = 0, iend = vecInliers.size(); i < iend; i++)
+		{
+			vec3Ds[i]->IncreaseVisible();
+			if (vecInliers[i]) {
+				vec3Ds[i]->IncreaseFound();
+			}
+		}
+		int nTempMatch = vecIDXs.size();
+		int nRefID = pUser->mpLastFrame->mnFrameID;
+		int nTargetID = pTarget->mnFrameID;
+		int diff = pUser->mnLastMatch - nMatch;
+		bool b1 = diff > TH_NUM_MP_DIFF;
+		bool b2 = nMatch < TH_NUM_MP_MATCH;
+		bool b3 = nRefID + 4 <= nTargetID;
+
+		if (b1 || b2 || b3) {
+			//if (!pSystem->mpServerMapper->isDoingProcess()) {
+			if (pSystem->mpServerMapper->KeyframesInQueue() < 3) {
+				bNewKF = true;
+				////이 부분은 이제 무조건 해야함. 근데 그럼 MP 삭제시 관리가 안되는 문제가 있음.
+				for (size_t i = 0, iend = vecInliers.size(); i < iend; i++)
+				{
+					if (vecInliers[i]) {
+						int idx = vecIDXs[i];
+						pTarget->AddMapPoint(vec3Ds[i], idx);
+					}
+				}
+			}
+		}
+		pUser->mnLastMatch = nMatch;
+		std::cout << "MappingServer::Tracking::MapPoints = " << nTargetID << ", " << nRefID << "::2D = "<<nTempMatch<<", 3D=" << nMatch<< std::endl;
+	};
+
+	auto lambda_api_pose_initialization = [](ServerMap* pServerMap, Frame* pRef, Frame* pTarget, cv::Mat vMatches, 
+		std::vector<cv::Point2f>& vec2Ds, std::vector<MapPoint*>& vec3Ds, std::vector<int>& vecIDXs, std::vector<bool>& vecInliers, std::vector<bool>& vecTargetInliers, int& nmatch) {
+
+		int nMatch = 0;
+		auto vpMPs = pRef->GetMapPoints();
+		//std::vector<bool> vecBoolOverlap(pTarget->mvPts.size(), false);
+
+		cv::Mat R, t;
+		pRef->GetPose(R, t);
+		pTarget->SetPose(R, t);
+		int nTargetID = pTarget->mnFrameID;
+
+		for (size_t i = 0, iend = vMatches.rows; i < iend; i++) {
+			int idx1 = i;
+			int idx2 = vMatches.at<int>(i);
+			if (idx2 == CODE_MATCH_ERROR_MAPPING_SERVER)
+				continue;
+			if (idx2 > CODE_MATCH_ERROR_MAPPING_SERVER || idx2 < -1) {
+				vMatches.at<int>(idx1) = CODE_MATCH_ERROR_MAPPING_SERVER;
+				continue;
+			}
+
+			auto pMP = vpMPs[idx1];
+			if (!pMP || pMP->isDeleted())
+				continue;
+			if (pMP->mnTrackingID == nTargetID)
+				continue;
+			if (vecTargetInliers[idx2])
+			{
+				vMatches.at<int>(idx1) = CODE_MATCH_ERROR_MAPPING_SERVER;
+				continue;
+			}
+			vecTargetInliers[idx2] = true;
+			pMP->mnTrackingID = nTargetID;
+			vec3Ds.push_back(pMP);
+			vec2Ds.push_back(pTarget->mvPts[idx2]);
+			vecInliers.push_back(true);
+			vecIDXs.push_back(idx2);
+			nMatch++;
+		}
+		nmatch = Optimization::PoseOptimization(pServerMap, pTarget, vec3Ds, vec2Ds, vecInliers);
+
+		if (nmatch > 20)
+			return true;
+		return false;
+	};
+
+	float TH_LOW = 50;
+	float mfNNratio = 0.7;
+
+	//타겟 인라이어는 수정할지 안할지 테스트 필요함
+	auto lambda_api_update_local_map = [](Frame* pTarget, std::vector<MapPoint*>& vpLocalMaps, std::vector<bool>& vecTargetInliers,
+		std::vector<cv::Point2f>& vec2Ds, std::vector<MapPoint*>& vec3Ds, std::vector<int>& vecIDXs, std::vector<bool>& vecInliers) {
+
+		////local frames
+		std::vector<Frame*> vpLocalFrames;
+		std::map<Frame*, int> mapFrameCounter;
+
+		int nTargetID = pTarget->mnFrameID;
+		for (size_t i = 0, iend = vecInliers.size(); i < iend; i++)
+		{
+			//if (vecInliers[i]) {
+			//	int idx = vecIDXs[i];
+			//	vecTargetInliers[idx] = true;
+			//	//continue;
+			//}
+			if (!vecInliers[i]) {
+				int idx = vecIDXs[i];
+				vecTargetInliers[idx] = false;
+			}
+			auto pMPi = vec3Ds[i];
+			if (!pMPi || pMPi->isDeleted())
+				continue;
+			auto observations = pMPi->GetObservations();
+			for (auto iter = observations.begin(), itend = observations.end(); iter != itend; iter++) {
+				//mapFrameCounter[iter->first]++;
+				auto pKF = iter->first;
+				if (pKF->isDeleted() || pKF->mnLocalMapFrameID == nTargetID)
+					continue;
+				vpLocalFrames.push_back(pKF);
+				pKF->mnLocalMapFrameID = nTargetID;
+			}
+		}
+
+		//인접키프레임, 차일드, 패어런트 프레임 관리
+		for (size_t i = 0, iend = vpLocalFrames.size(); i < iend; i++) {
+			auto pKF = vpLocalFrames[i];
+			if (pKF->isDeleted())
+				continue;
+			auto vpNeighKFs = pKF->GetConnectedKFs();
+			for (auto it = vpNeighKFs.begin(), itend = vpNeighKFs.end(); it != itend; it++) {
+				auto pKFi = *it;
+				if (pKF->isDeleted() || pKF->mnLocalMapFrameID == nTargetID)
+					continue;
+				vpLocalFrames.push_back(pKFi);
+				pKFi->mnLocalMapFrameID = nTargetID;
+			}
+		}
+
+		////local map & desc
+		for (size_t i = 0, iend = vpLocalFrames.size(); i < iend; i++) {
+			auto pKF = vpLocalFrames[i];
+			if (pKF->isDeleted())
+				continue;
+			auto vpTempMPs = pKF->GetMapPoints();
+			for (size_t j = 0, jend = vpTempMPs.size(); j < jend; j++) {
+				auto pMPj = vpTempMPs[j];
+				if (!pMPj || pMPj->isDeleted() || pMPj->mnLocalMapID == nTargetID)
+					continue;
+				vpLocalMaps.push_back(pMPj);
+				pMPj->mnLocalMapID = nTargetID;
+			}
+		}
+		if (vpLocalMaps.size() > 20)
+			return true;
+		return false;
+	};
+
+	auto lambda_api_pose_estimation = [](System* pSystem, ServerMap* pServerMap, Frame* pTarget, std::vector<MapPoint*> vpLocalMaps, std::vector<bool>& vecTargetInliers, int& nMatch,
+		std::vector<cv::Point2f>& vec2Ds, std::vector<MapPoint*>& vec3Ds, std::vector<int>& vecIDXs, std::vector<bool>& vecInliers) {
+		
+		////descriptor 기반 매칭
+		Matcher* pMatcher = pSystem->mpMatcher;
+		int nTargetID = pTarget->mnFrameID;
+
+		/////매칭
+		/////그리드로 탐색 범위를 줄여야 할 수 있음.
+		int nLocalmatch = 0;
+		for (size_t i = 0, iend = vpLocalMaps.size(); i < iend; i++) {
+			auto pMPi = vpLocalMaps[i];
+			if (!pMPi || pMPi->isDeleted())
+				continue;
+			const cv::Mat &d1 = pMPi->GetDescriptor();
+			float bestDist1 = 256.0;
+			int bestIdx2 = -1;
+			float bestDist2 = 256.0;
+
+			for (size_t i2 = 0, i2end = pTarget->mvPts.size(); i2 < i2end; i2++) {
+				if (vecTargetInliers[i2])
+					continue;
+				const cv::Mat &d2 = pTarget->matDescriptor.row(i2);
+
+				float dist = pMatcher->SuperPointDescriptorDistance(d1, d2);
+
+				if (dist<bestDist1)
+				{
+					bestDist2 = bestDist1;
+					bestDist1 = dist;
+					bestIdx2 = i2;
+				}
+				else if (dist<bestDist2)
+				{
+					bestDist2 = dist;
+				}
+			}
+			if (bestDist1<(float)TH_LOW)
+			{
+				if (static_cast<float>(bestDist1)<mfNNratio*static_cast<float>(bestDist2))
+				{
+					////매칭을 위한 정보 추가
+					vecTargetInliers[bestIdx2] = true;
+					vec2Ds.push_back(pTarget->mvPts[bestIdx2]);
+					vec3Ds.push_back(pMPi);
+					vecIDXs.push_back(bestIdx2);
+					vecInliers.push_back(true);
+					nLocalmatch++;
+				}
+			}
+		}
+		std::cout << "Local Map Matching : " << nLocalmatch << ", " << vpLocalMaps.size() << std::endl;
+		nMatch = Optimization::PoseOptimization(pServerMap, pTarget, vec3Ds, vec2Ds, vecInliers);
+
+		if (nMatch > 20)
+			return true;
+		return false;
+	};
+
+
 
 	MappingServer::MappingServer() {}
 	MappingServer::MappingServer(System* pSys):mpSystem(pSys){}//, mbInitialized(false), mnReferenceID(-1)
@@ -465,6 +685,10 @@ namespace UVR_SLAM {
 		std::unique_lock<std::mutex> lock(mMutexQueue);
 		return(!mQueue.empty());
 	}
+	int MappingServer::KeyframesInQueue() {
+		std::unique_lock<std::mutex> lock(mMutexQueue);
+		return mQueue.size();
+	}
 	void MappingServer::AcquireFrame() {
 		{
 			std::unique_lock<std::mutex> lock(mMutexQueue);
@@ -481,6 +705,9 @@ namespace UVR_SLAM {
 		std::string strMap = user->mapName;
 		auto mpServerMap = mpSystem->GetMap(strMap);
 		if (!mpServerMap)
+			return;
+
+		if (mpServerMap->GetMapLoad())
 			return;
 
 		int nID = mPairFrameInfo.second;
@@ -502,10 +729,14 @@ namespace UVR_SLAM {
 					pF->ComputeBoW();
 				}, mpSystem->ip, mpSystem->port, pNewF);
 				fdesc.get();
-				mpLoopCloser->Relocalization(pNewF);
-				cv::Mat R, t;
-				pNewF->GetPose(R, t);
-				user->SetPose(R, t);
+				std::cout << "Relocalizaion!!" << std::endl;
+				if (mpLoopCloser->Relocalization(pNewF)) {
+					cv::Mat R, t;
+					pNewF->GetPose(R, t);
+					user->SetPose(R, t);
+				}
+				else
+					return;
 			}
 			else {
 				if (user->mbMapping) {
@@ -519,6 +750,7 @@ namespace UVR_SLAM {
 		}
 		else {
 			////트래킹은 그대로임.
+			//모바일 전송되는 포즈와 서버에서 최근 프레임과 매칭되는 프레임을 다르게 관리
 			auto matches = lambda_api_detectAndmatch(mpSystem->ip, mpSystem->port, user->mpLastFrame, pNewF, strMap);
 
 			if (mpServerMap->mbInitialized) {
@@ -533,23 +765,43 @@ namespace UVR_SLAM {
 					pF->ComputeBoW();
 				},mpSystem->ip, mpSystem->port, pNewF);
 
-				user->mnLastMatch = UVR_SLAM::lambda_api_tracking(mpSystem, user->mpLastFrame, pNewF, matches, user->mnLastMatch, bNewKF, bReplace);
-				//라스트 프레임 교체
-				if (bReplace){
-					user->mpLastFrame = pNewF;
-					if (!user->mbMapping) {
-						////데이터 전송
-						////아니면 매핑에서 데이터 전송 파트는 따로 두는게 좋을듯
+				//bool bTracking = UVR_SLAM::lambda_api_tracking(mpSystem, user->mpLastFrame, pNewF, matches, user->mnLastMatch, bNewKF, bReplace);
+				bool bTracking = true;
+				std::vector<cv::Point2f> vec2Ds;
+				std::vector<MapPoint*> vec3Ds, vecLocalMaps;
+				std::vector<int> vecIDXs;
+				std::vector<bool> vecInliers;
+				std::vector<bool> vecTargetInliers(pNewF->mvPts.size(), false);;
+				int nMatch;
+				{
+					std::unique_lock<std::mutex> lock(mpServerMap->mMutexMapUpdate);
+					bTracking = UVR_SLAM::lambda_api_pose_initialization(mpServerMap, user->mpLastFrame, pNewF, matches, vec2Ds, vec3Ds, vecIDXs, vecInliers, vecTargetInliers, nMatch);
+					/*
+					if (bTracking) {
+						bTracking = UVR_SLAM::lambda_api_update_local_map(pNewF, vecLocalMaps, vecTargetInliers, vec2Ds, vec3Ds, vecIDXs, vecInliers);
+						fdesc.get();
+						bTracking = UVR_SLAM::lambda_api_pose_estimation(mpSystem, mpServerMap, pNewF, vecLocalMaps, vecTargetInliers, nMatch, vec2Ds, vec3Ds, vecIDXs, vecInliers);
 					}
+					*/
 				}
-				//매핑 시작
-				if (bNewKF && user->mbMapping) {
-					mpLocalMapper->InsertKeyFrame(std::make_pair(pNewF, strUser));
+				if (bTracking) {
+					UVR_SLAM::lambda_api_update(mpSystem, user, pNewF, nMatch, vec2Ds, vec3Ds, vecIDXs, vecInliers, bNewKF);
+					if (bNewKF && user->mbMapping) {
+						user->mpLastFrame = pNewF;
+						fdesc.get();
+						if (user->mbMapping)
+							mpLocalMapper->InsertKeyFrame(std::make_pair(pNewF, strUser));
+					}
+					////성공인지 아닌지도 알려주어야 할 듯
+					cv::Mat R, t;
+					pNewF->GetPose(R, t);
+					user->SetPose(R, t);
 				}
-				////성공인지 아닌지도 알려주어야 할 듯
-				cv::Mat R, t;
-				pNewF->GetPose(R, t);
-				user->SetPose(R, t);
+				else{
+					std::cout << "Tracking Fail::"<<nMatch<<"::!!!!!!!!" << std::endl;
+					user->mpLastFrame = nullptr;
+					user->mnLastMatch = 0;
+				}
 			}
 			else if(user->mbMapping){
 				bool bReplace = false;
@@ -559,59 +811,6 @@ namespace UVR_SLAM {
 				}
 			}
 		}
-
-		//if (mnReferenceID == -1) {
-		//	lambda_api_detect(mpSystem->ip, mpSystem->port, pNewF, strMap);
-		//	//auto ftest = std::async(std::launch::async, lambda_api_detect, mpSystem->ip, mpSystem->port, pNewF);
-		//	WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
-		//	std::stringstream ss;
-		//	ss << "/SetLastFrameID?map="<<strMap<<"&id=" << pNewF->mnFrameID << "&key=reference";
-		//	mpAPI->Send(ss.str(),"");
-		//	mnReferenceID = pNewF->mnFrameID;
-		//} 
-		//else 
-		//{
-		//	WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
-		//	std::stringstream ss;
-		//	ss << "/GetLastFrameID?map="<<strMap<<"&key=reference";
-		//	WebAPIDataConverter::ConvertStringToNumber(mpAPI->Send(ss.str(), "").c_str(), mnReferenceID);
-		//	//std::cout << "Last Reference = " << mnReferenceID << std::endl;
-		//	auto pRef = mmFrames[mnReferenceID];
-		//	auto matches = lambda_api_detectAndmatch(mpSystem->ip, mpSystem->port, pRef, pNewF, strMap);
-		//	if (mbInitialized) {
-		//		auto fdesc = std::async(std::launch::async, [](std::string ip, int port, Frame* pF) {
-		//			WebAPI* mpAPI = new WebAPI(ip, port);
-		//			std::stringstream ss;
-		//			ss << "/SendData?map=" << pF->mstrMapName << "&id=" << pF->mnFrameID << "&key=bdesc";
-		//			WebAPIDataConverter::ConvertBytesToDesc(mpAPI->Send(ss.str(), "").c_str(), pF->mvPts.size(), pF->matDescriptor);
-		//			pF->ComputeBoW();
-		//		},mpSystem->ip, mpSystem->port, pNewF);
-		//		user->mnLastMatch = UVR_SLAM::lambda_api_tracking(mpSystem, pRef, pNewF, mnReferenceID, matches, user->mnLastMatch);//user->mpLastFrame->mnFrameID
-		//		////그리드 기반 로컬 맵 계산 후 매칭
-		//		fdesc.get();
-
-		//		////전송용 데이터 준비
-		//		
-		//		
-		//		
-		//		mpVisualizer->SetBoolDoingProcess(true);
-		//		
-		//	}
-		//	else {
-		//		bool bReplace = false;
-		//		mbInitialized = UVR_SLAM::lambda_api_Initialization(mpSystem->ip, mpSystem->port, mpSystem, pRef, pNewF, mnReferenceID, matches, strMap, bReplace);
-		//		if (bReplace) {
-		//			std::stringstream ss;
-		//			ss << "/SetLastFrameID?map=" << strMap << "&id=" << pNewF->mnFrameID << "&key=reference";
-		//			mpAPI->Send(ss.str(), "");
-		//		}
-		//		/*if (mbInitialized) {
-		//			mpMapOptimizer->InsertKeyFrame(pNewF);
-		//		}*/
-		//	}
-		//	////서버에 결과 전송하기
-		//}
-		//user->mpLastFrame = pNewF;
 	}
 
 	
@@ -629,19 +828,7 @@ namespace UVR_SLAM {
 #endif
 				////user 마다 다르게
 				ProcessNewFrame();
-				//if(mpSystem->mbMapping)
-				//else {
-				//	//일단 초기 위치 추정
-				//	std::string strUser = mPairFrameInfo.first;
-				//	auto user = mpSystem->mmpConnectedUserList[strUser];
-				//	std::string strMap = user->mapName;
-				//	int nID = mPairFrameInfo.second;
-				//	Frame* pNewF = new UVR_SLAM::Frame(mpSystem, user, nID, user->mnWidth, user->mnHeight, user->K, 0.0);
-				//	pNewF->mstrMapName = strMap;
-				//	lambda_api_detect(mpSystem->ip, mpSystem->port, pNewF, strMap);
-				//	mpLoopCloser->InsertKeyFrame(pNewF);
-				//}
-
+				
 				std::chrono::high_resolution_clock::time_point end3 = std::chrono::high_resolution_clock::now();
 				auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end3 - start).count();
 				float t_test1 = du_test1 / 1000.0;

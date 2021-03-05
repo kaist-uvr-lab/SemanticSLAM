@@ -41,7 +41,6 @@ namespace UVR_SLAM {
 		////Æ®·¡Å·
 		int OpticalFlowMatching(int nFrameID, cv::Mat img1, cv::Mat img2, std::vector<cv::Point2f> vecPoints, std::vector<MapPoint*> vecMPs, std::vector<cv::Point2f>& vecMatchPoints1, std::vector<cv::Point2f>& vecMatchPoints2, std::vector<MapPoint*>& vecMatchMPs, std::vector<bool>& vecInliers, cv::Mat& overlap);
 //////////////////////////////////////////////////////////
-
 		int BagOfWordsMatching(Frame* pF1, Frame* pF2, std::vector<MapPoint*>& vpMatches12);
 		float SuperPointDescriptorDistance(const cv::Mat &a, const cv::Mat &b);
 

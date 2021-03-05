@@ -35,7 +35,7 @@ namespace UVR_SLAM {
 		void ProcessNewKeyFrame();
 		void Run();
 		void RunWithMappingServer();
-		Frame* Relocalization(Frame* pF);
+		bool Relocalization(Frame* pF);
 		bool DetectLoop();
 		bool ComputeSim3();
 		void CorrectLoop();

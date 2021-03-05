@@ -35,6 +35,7 @@ namespace UVR_SLAM {
 	class Visualizer;
 	class FrameVisualizer;
 	class MapOptimizer;
+	class ServerMapOptimizer;
 	class Map;
 	class Database;
 	class LocalBinaryPatternProcessor;
@@ -58,6 +59,7 @@ namespace UVR_SLAM {
 		Map* mpMap;
 		MappingServer* mpMappingServer;
 		ServerMapper* mpServerMapper;
+		ServerMapOptimizer* mpServerMapOptimizer;
 		LocalMapper* mpLocalMapper;
 		DepthFilter* mpDepthFilter;
 		MapOptimizer* mpMapOptimizer;

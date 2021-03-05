@@ -43,6 +43,7 @@ namespace UVR_SLAM {
 	class Frame {
 	public:
 		Frame(System* pSys, int id, int w, int h, cv::Mat K, cv::Mat invK, double ts);
+		Frame(System* pSys, int id, int w, int h, float _fx, float _fy, float _cx, float _cy, double ts);
 		virtual ~Frame();
 		void close();
 

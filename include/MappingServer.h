@@ -23,6 +23,7 @@ namespace UVR_SLAM {
 		virtual ~MappingServer();
 		void Init();
 		void Reset();
+		int KeyframesInQueue();
 		bool CheckNewFrame();
 		void AcquireFrame();
 		void InsertFrame(std::pair<std::string, int> pairInfo);

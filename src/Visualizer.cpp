@@ -260,7 +260,8 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 	while (true) {
 		
 		if (bSaveMap) {
-			
+			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
+
 			auto mmpMap = mpServerMap->GetMapPoints();
 			cv::Mat ids = cv::Mat::zeros(0, 1, CV_32SC1);
 			cv::Mat x3ds = cv::Mat::zeros(0, 1, CV_32FC1);
@@ -300,9 +301,24 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 					temp.at<int>(i) = id;
 				}
 				mps.push_back(temp);
+
+				////키프레임 커넥션 데이터 전송
+				auto vNeigKFs = pKFi->GetConnectedKFsWithWeight();
+				cv::Mat kfData = cv::Mat::zeros(0, 1, CV_32SC1);
+				for (auto jit = vNeigKFs.begin(), jitend = vNeigKFs.end(); jit != jitend; jit++) {
+					auto weight = jit->first;
+					auto id = jit->second->mnFrameID;
+					cv::Mat temp = cv::Mat::zeros(2, 1, CV_32SC1);
+					temp.at<int>(0) = id;
+					temp.at<int>(1) = weight;
+					kfData.push_back(temp);
+				}
+				std::stringstream ss;
+				ss << "/ReceiveData?map=" << mspKFs[0]->mstrMapName << "&id=" << pKFi->mnFrameID << "&key=bconnectedkfs";
+				mpAPI->Send(ss.str(), kfData.data, kfData.rows * sizeof(int));
 			}
 			std::cout << "test::" << kfids .rows<<" "<< poses.rows << " ," << mps.rows <<", "<< ids.rows <<" "<<x3ds.rows<<", "<< x3ds.at<float>(x3ds.rows-1)<< std::endl;
-			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
+			
 			mpAPI->Send("/SaveMap?map="+ mspKFs[0]->mstrMapName, WebAPIDataConverter::ConvertMapDataToJson(ids, x3ds, kfids, poses, mps));
 			//일단 모든 데이터를 전송하기.
 			//1)맵포인트 아이디와 좌표값으로 
@@ -311,8 +327,8 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 		}
 		if (bLoadMap) {
 			////load map test
-			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
-			mpAPI->Send("LoadMap", "");
+			/*WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
+			mpAPI->Send("LoadMap", "");*/
 			bLoadMap = false;
 		}
 		nFrame++;

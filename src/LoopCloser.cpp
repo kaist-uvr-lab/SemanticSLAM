@@ -9,6 +9,7 @@
 #include <Optimization.h>
 #include <Visualizer.h>
 #include "Map.h"
+#include <ServerMap.h>
 #include <future>
 #include <WebAPI.h>
 
@@ -56,8 +57,7 @@ namespace UVR_SLAM {
 		}
 	}
 
-	Frame* LoopCloser::Relocalization(Frame* pF) {
-		std::cout << "Relocalization::Start" << std::endl;
+	bool LoopCloser::Relocalization(Frame* pF) {
 		auto vpCandidateKFs = mpKeyFrameDatabase->DetectPlaceCandidates(pF);
 		int nMax = 0;
 		cv::Mat maxMatch;
@@ -84,83 +84,47 @@ namespace UVR_SLAM {
 				maxMatch = matches.clone();
 				maxFrame = pCandidate;
 			}
-			std::cout <<"ID = "<<pCandidate->mnFrameID<<", "<< nTempMatch <<", "<< nMatch <<" "<< matches .rows<< std::endl;
-			//cv::imshow("candidate", pCandidate->GetOriginalImage()); cv::waitKey(1);
 		}
-		std::cout << "Relocalization::"<< vpCandidateKFs.size()<<"::"<< nMax << std::endl;
-		if (maxFrame)
+		if (nMax < 30 || !maxFrame)
+			return false;
+
+		//Pose Optimization Test
+		cv::Mat R, t;
+		maxFrame->GetPose(R, t);
+
+		std::vector<cv::Point2f> vPTs;
+		std::vector<cv::Point3f> vXws;
+		std::vector<MapPoint*> vMPs;
+		std::vector <bool> vInliers;
+		std::vector<int> vnIDXs;
+		auto vpMPs = maxFrame->GetMapPoints();
+		for (int j = 0, jend = maxMatch.rows; j < jend; j++) {
+			int idx1 = j;
+			int idx2 = maxMatch.at<int>(idx1);
+			if (idx2 == 10000)
+				continue;
+			auto pMP = vpMPs[idx2];
+			if (!pMP || pMP->isDeleted())
+				continue;
+			vPTs.push_back(pF->mvPts[j]);
+			vMPs.push_back(pMP);
+			vInliers.push_back(true);
+			vnIDXs.push_back(j);
+		}
+
+		pF->SetPose(R, t);
+		int nPoseRecovery = Optimization::PoseOptimization(mpMap, pF, vMPs, vPTs, vInliers);
+		if (nPoseRecovery < 20)
+			return false;
+
+		for (size_t i = 0; i < vInliers.size(); i++)
 		{
-			//cv::imshow("candidate", maxFrame->GetOriginalImage()); cv::waitKey(10);
-			//Pose Optimization Test
-			cv::Mat R, t;
-			maxFrame->GetPose(R, t);
-			//pF->SetPose(R, t);
-
-			//현재 이미지 다운받기
-			//cv::Mat targetImg = [](std::string ip, int port, int id, std::string map, int w, int h) {
-			//	WebAPI* mpAPI = new WebAPI(ip, port);
-			//	std::stringstream ss;
-			//	ss << "/SendData?map=" << map << "&id=" << id << "&key=bimage";
-			//	auto res = mpAPI->Send(ss.str(), "");
-			//	int n = res.size();
-			//	cv::Mat temp = cv::Mat::zeros(n, 1, CV_8UC1);
-			//	std::memcpy(temp.data, res.data(), n * sizeof(uchar));
-			//	cv::Mat img = cv::imdecode(temp, cv::IMREAD_COLOR);
-			//	return img;
-			//}(mpSystem->ip, mpSystem->port, pF->mnFrameID, pF->mstrMapName, pF->mnWidth, pF->mnHeight);
-			////가장 가까운 프레임의 이미지
-			//cv::Mat resimg = maxFrame->GetOriginalImage().clone();
-			//현재 이미지 다운받기
-
-			std::vector<cv::Point2f> vPTs;
-			std::vector<cv::Point3f> vXws;
-			std::vector<MapPoint*> vMPs;
-			std::vector <bool> vInliers;
-			std::vector<int> vnIDXs;
-			auto vpMPs = maxFrame->GetMapPoints();
-			for (int j = 0, jend = maxMatch.rows; j < jend; j++) {
-				int idx1 = j;
-				int idx2 = maxMatch.at<int>(idx1);
-				if (idx2 == 10000)
-					continue;
-				auto pMP = vpMPs[idx2];
-				if (!pMP || pMP->isDeleted())
-					continue;
-				vPTs.push_back(pF->mvPts[j]);
-				vMPs.push_back(pMP);
-				vInliers.push_back(true);
-				vnIDXs.push_back(j);
-				/*cv::Mat Xw = pMP->GetWorldPos();
-				vXws.push_back(cv::Point3f(Xw.at<float>(0), Xw.at<float>(1), Xw.at<float>(2)));
-				cv::Mat proj = pF->mK*(R*Xw + t);
-				cv::Point2f projPt(proj.at<float>(0) / proj.at<float>(2), proj.at<float>(1) / proj.at<float>(2));
-				cv::circle(targetImg, pF->mvPts[idx1], 3, cv::Scalar(255, 255, 0), -1);
-				cv::circle(resimg, maxFrame->mvPts[idx2], 3, cv::Scalar(255, 0, 255), -1);
-				cv::circle(resimg, projPt, 3, cv::Scalar(0, 255, 255), -1);*/
+			if (vInliers[i]) {
+				int idx = vnIDXs[i];
+				pF->AddMapPoint(vMPs[i], idx);
 			}
-			////시각화 쓰레드에 등록
-			/*cv::resize(targetImg, targetImg, cv::Size(pF->mnWidth / 2, pF->mnHeight / 2));
-			cv::resize(resimg, resimg, cv::Size(pF->mnWidth / 2, pF->mnHeight / 2));
-			mpSystem->mpVisualizer->SetOutputImage(targetImg, 0);
-			mpSystem->mpVisualizer->SetOutputImage(resimg, 1);*/
-			////시각화 쓰레드에 등록
-
-			/*cv::Mat rvec, tvec;
-			cv::solvePnPRansac(vXws, vPTs, mpSystem->mK, cv::Mat(), rvec, tvec);
-			cv::Rodrigues(rvec, R);*/
-			pF->SetPose(R, t);
-			int nPoseRecovery = Optimization::PoseOptimization(mpMap, pF, vMPs, vPTs, vInliers);
-
-			for (size_t i = 0; i < vInliers.size(); i++)
-			{
-				if (vInliers[i]) {
-					int idx = vnIDXs[i];
-					pF->AddMapPoint(vMPs[i], idx);
-					//vpTempMPs[i]->AddObservation(pTarget, idx);
-				}
-			}
-			std::cout << "Place Recognizer::res::" << "::" << nMax <<"::"<< nPoseRecovery << std::endl;
 		}
+		return true;
 	}
 
 	void LoopCloser::RunWithMappingServer() {
@@ -175,8 +139,14 @@ namespace UVR_SLAM {
 
 			if (mbLoadData) {
 				std::cout << "Load Data" << std::endl;
-				mpMap->LoadMapDataFromServer(mapName, mpMap->mvpMapFrames);
-				ConstructBowDB(mpMap->mvpMapFrames);
+				auto pTargetMap = mpSystem->GetMap(mapName);
+				if (pTargetMap) {
+					pTargetMap->LoadMapDataFromServer(mapName, mpSystem->ip, mpSystem->port);
+					////디비를 공유하게 되면 전혀 다른 맵데이터가 합쳐질 수 있음.ㅁ
+					ConstructBowDB(pTargetMap->GetFrames());
+				}
+				//mpMap->LoadMapDataFromServer(mapName, mpMap->mvpMapFrames);
+				
 				mbLoadData = false;
 			}
 

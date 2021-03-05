@@ -16,11 +16,13 @@ namespace UVR_SLAM {
 	//class Optimizer;
 	//class PlaneEdgeOnlyPoseNMap;
 	class MapOptimizer;
+	class ServerMapOptimizer;
 	class CandidatePoint;
 	class FrameWindow;
 	class System;
 	class Frame;
 	class Map;
+	class ServerMap;
 	class MapPoint;
 	class PlaneProcessInformation;
 	class Optimization {
@@ -38,6 +40,10 @@ namespace UVR_SLAM {
 		static int OptimizeSim3(Frame* pKF1, Frame* pKF2, std::vector<MapPoint *> &vpMatches1,
 			g2o::Sim3 &g2oS12, const float th2, const bool bFixScale);
 		////Loop Closing ฐüทร
+
+		////ServerMap
+		static void OpticalLocalBundleAdjustment(UVR_SLAM::ServerMap* pMap, UVR_SLAM::ServerMapOptimizer* pMapOptimizer, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<UVR_SLAM::Frame*> vpKFs, std::vector<UVR_SLAM::Frame*> vpFixedKFs);
+		static int PoseOptimization(UVR_SLAM::ServerMap* pMap, Frame *pFrame, std::vector<UVR_SLAM::MapPoint*> vpMPs, std::vector<cv::Point2f> vpPts, std::vector<bool>& vbInliers);
 
 		/////////
 		//201225
