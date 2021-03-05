@@ -279,7 +279,7 @@ namespace UVR_SLAM {
 				break;
 			nkf++;
 			auto pKF = vpKFs[k];
-			auto matches = server_kf_match("143.248.96.81", 35005, mpTargetUser->mapName, mpTargetFrame->mnFrameID, pKF->mnFrameID);
+			auto matches = server_kf_match(mpSystem->ip, mpSystem->port, mpTargetUser->mapName, mpTargetFrame->mnFrameID, pKF->mnFrameID);
 
 			std::vector<bool> vecBoolOverlap(pKF->mvPts.size(), false);
 			for (size_t i = 0, iend = matches.rows; i < iend; i++) {
@@ -401,7 +401,7 @@ namespace UVR_SLAM {
 			ss << "/ReceiveData?map=" << mapName << "&id=" << pF->mnFrameID << "&key=btracking";
 			mpAPI->Send(ss.str(), data.data, data.rows*sizeof(float));
 			
-		}, "143.248.96.81", 35005, map, pF);
+		}, mpSystem->ip, mpSystem->port, map, pF);
 
 		auto fpose = std::async(std::launch::async, [](std::string ip, int port, std::string mapName, Frame* pF) {
 			cv::Mat poses = cv::Mat::zeros(0, 3, CV_32FC1);
@@ -413,7 +413,7 @@ namespace UVR_SLAM {
 			std::stringstream ss;
 			ss << "/ReceiveData?map=" << mapName << "&id=" << pF->mnFrameID << "&key=bpose";
 			auto res = mpAPI->Send(ss.str(), poses.data, sizeof(float)*12);
-		}, "143.248.96.81", 35005, map, pF);
+		}, mpSystem->ip, mpSystem->port, map, pF);
 	
 		auto fframeID = std::async(std::launch::async, [](std::string ip, int port, std::string userName, int id) {
 			WebAPI* mpAPI = new WebAPI(ip, port);
@@ -421,7 +421,7 @@ namespace UVR_SLAM {
 			ss << "/ReceiveFrameID?user=" << userName << "&id=" << id;
 			auto res = mpAPI->Send(ss.str(), "");
 			
-		}, "143.248.96.81", 35005, user, pF->mnFrameID);
+		}, mpSystem->ip, mpSystem->port, user, pF->mnFrameID);
 
 	}
 }
