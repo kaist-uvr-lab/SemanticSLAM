@@ -15,6 +15,16 @@ namespace UVR_SLAM {
 		mpPrevKF = pKF1;
 		mpCurrKF = pKF2;
 	}
+	void ServerMap::Reset() {
+		std::unique_lock<std::mutex> lock1(mMutexMapLoad);
+		std::unique_lock<std::mutex> lock2(mMutexKFs);
+		std::unique_lock<std::mutex> lock3(mMutexMPs);
+		mspMapFrames.clear();
+		mspMapMPs.clear();
+		nServerMapPointID = 0;
+		nServerKeyFrameID = 0;
+		this->mbInitialized = false;
+	}
 	void ServerMap::SetMapLoad(bool bLoad) {
 		std::unique_lock<std::mutex> lock(mMutexMapLoad);
 		mbLoad = bLoad;

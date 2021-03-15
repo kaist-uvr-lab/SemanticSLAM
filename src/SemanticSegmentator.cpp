@@ -3,7 +3,6 @@
 #include <User.h>
 #include <Frame.h>
 #include <SegmentationData.h>
-#include <FrameWindow.h>
 #include <PlaneEstimator.h>
 #include <Plane.h>
 #include <LocalMapper.h>
@@ -12,10 +11,7 @@
 #include <MapPoint.h>
 #include <FrameGrid.h>
 #include <Map.h>
-#include <LocalBinaryPatternProcessor.h>
-#include <Database.h>
 #include <future>
-#include <FeatureMatchingWebAPI.h>
 #include <WebAPI.h>
 //#include "lbplibrary.hpp"
 
@@ -80,8 +76,6 @@ void UVR_SLAM::SemanticSegmentator::Init() {
 	mpLocalMapper = mpSystem->mpLocalMapper;
 	mpPlaneEstimator = mpSystem->mpPlaneEstimator;
 	mpVisualizer = mpSystem->mpVisualizer;
-	mpLBPProcessor = mpSystem->mpLBPProcessor;
-	mpDatabase = mpSystem->mpDatabase;
 }
 
 unsigned long long ConvertID(cv::Mat hist, int numPatterns, int numIDs) {
@@ -108,9 +102,6 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 	//Base64Encoder::Init();
 	
 	////LBP param
-	lbplibrary::LBP* lbp = new lbplibrary::SCSLBP(2, 4);
-	mpSystem->mPlaneHist = cv::Mat::zeros(1, lbp->numPatterns, CV_32SC1);
-	cv::Mat mWallHist = cv::Mat::zeros(1, lbp->numPatterns, CV_32SC1);
 	int mnLabel_floor = 4;
 	int mnLabel_wall = 1;
 	int mnLabel_ceil = 6;
@@ -125,7 +116,6 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 	unsigned char maxOverlapCode, maxPlaneCode, maxWallCode;
 	cv::Mat matCandidatePlaneCode, matCandidateWallCode;
 
-	int numPatterns = lbp->numPatterns; //2^N
 	int nHalfPatchSize = 5;
 	int nPatchSize = nHalfPatchSize * 2;
 	int numIDs = nPatchSize;// nHalfPatchSize;// nHalfPatchSize;	   //patch size / n
@@ -392,7 +382,6 @@ void UVR_SLAM::SemanticSegmentator::Run() {
 			//리사이즈 안하면 칼라이미지로
 			int status = 0;
 
-			JSONConverter::RequestPOST(ip, port, resized_color, segmented, mpTargetFrame->mnFrameID, status);
 
 			int nRatio = colorimg.rows / segmented.rows;
 			//ratio 버전이 아닌 다르게

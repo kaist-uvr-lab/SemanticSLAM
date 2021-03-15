@@ -51,6 +51,7 @@ namespace UVR_SLAM {
 //////////////////////
 	public:
 		void Init(int w, int h);
+		cv::Size mSizeOutputImg;
 	private:
 		int mnFontFace;//2
 		double mfFontScale;//1.2

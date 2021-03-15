@@ -17,8 +17,6 @@
 #include <FrameGrid.h>
 #include <MapGrid.h>
 #include <DepthFilter.h>
-#include <ZMSSD.h>
-#include "lbplibrary.hpp"
 
 //std::vector<cv::Vec3b> UVR_SLAM::ObjectColors::mvObjectLabelColors;
 UVR_SLAM::Tracker::Tracker() {}

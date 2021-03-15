@@ -7,7 +7,6 @@
 #include <MapPoint.h>
 #include <CandidatePoint.h>
 #include <MatrixOperator.h>
-#include <gms_matcher.h>
 #include <PlaneEstimator.h>
 #include <Plane.h>
 #include <Visualizer.h>
@@ -98,18 +97,18 @@ namespace UVR_SLAM {
 	////BoW를 이용한 매칭.
 	//mbCheckOrientation는 미구현
 	int Matcher::BagOfWordsMatching(Frame* pF1, Frame* pF2, std::vector<MapPoint*>& vpMatches12) {
-		const vector<cv::Point2f> &vKeysUn1 = pF1->mvPts;
+		const std::vector<cv::Point2f> &vKeysUn1 = pF1->mvPts;
 		const DBoW3::FeatureVector &vFeatVec1 = pF1->mFeatVec;
-		const vector<MapPoint*> vpMapPoints1 = pF1->GetMapPoints();
+		const std::vector<MapPoint*> vpMapPoints1 = pF1->GetMapPoints();
 		const cv::Mat &Descriptors1 = pF1->matDescriptor;
 
-		const vector<cv::Point2f> &vKeysUn2 = pF2->mvPts;
+		const std::vector<cv::Point2f> &vKeysUn2 = pF2->mvPts;
 		const DBoW3::FeatureVector &vFeatVec2 = pF2->mFeatVec;
-		const vector<MapPoint*> vpMapPoints2 = pF2->GetMapPoints();
+		const std::vector<MapPoint*> vpMapPoints2 = pF2->GetMapPoints();
 		const cv::Mat &Descriptors2 = pF2->matDescriptor;
 
-		vpMatches12 = vector<MapPoint*>(vpMapPoints1.size(), static_cast<MapPoint*>(NULL));
-		vector<bool> vbMatched2(vpMapPoints2.size(), false);
+		vpMatches12 = std::vector<MapPoint*>(vpMapPoints1.size(), static_cast<MapPoint*>(NULL));
+		std::vector<bool> vbMatched2(vpMapPoints2.size(), false);
 
 		/*vector<int> rot
 		Hist[HISTO_LENGTH];
@@ -905,7 +904,7 @@ bool  UVR_SLAM::Matcher::OpticalGridMatching(FrameGrid* grid1, cv::Mat src1, cv:
 	std::vector<cv::Point2f> pts1, pts2;
 
 	if (grid1->mvPTs.size() < 1){
-		std:cout << "????????????????" << std::endl;
+		std::cout << "????????????????" << std::endl;
 		return false;
 	}
 	cv::calcOpticalFlowPyrLK(src1, src2, grid1->mvPTs, pts2, status, err, cv::Size(searchSize, searchSize), maxLvl);

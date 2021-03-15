@@ -10,7 +10,6 @@
 #include <FrameGrid.h>
 #include <Plane.h>
 #include <DepthFilter.h>
-#include <LocalBinaryPatternProcessor.h>
 #include <Database.h>
 #include <System.h>
 #include <Map.h>

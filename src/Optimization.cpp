@@ -4,10 +4,6 @@
 #include <map>
 #include <Frame.h>
 #include <opencv2/core/eigen.hpp>
-//#include <Edge.h>
-//#include <Optimizer.h>
-//#include <PlaneBastedOptimization.h>
-#include <PoseGraphOptimization.h>
 #include <MatrixOperator.h>
 #include <CandidatePoint.h>
 #include <PlaneBA.h>
@@ -342,8 +338,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 				e->computeError();
 			}
 			const float chi2 = e->chi2();
-			float depth = e->GetDepth();
-			if (chi2>chi2Mono[it] || depth <= 0.0)// || depth > maxDepth)
+			if (chi2>chi2Mono[it] || !e->isDepthPositive())// || depth > maxDepth)
 			{
 				//vpCPs[idx]->GetMP()->mnTrackingID = -1;
 				vbInliers[idx] = false;
@@ -478,8 +473,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 			}
 
 			const float chi2 = e->chi2();
-			float depth = e->GetDepth();
-			if (chi2>chi2Mono[it] || depth <= 0.0)// || depth > maxDepth)
+			if (chi2>chi2Mono[it] || !e->isDepthPositive())// || depth > maxDepth)
 			{
 				//vpCPs[idx]->GetMP()->mnTrackingID = -1;
 				vbInliers[idx] = false;
@@ -617,8 +611,7 @@ int UVR_SLAM::Optimization::PoseOptimization(Map* pMap, Frame *pFrame, std::vect
 			}
 
 			const float chi2 = e->chi2();
-			float depth = e->GetDepth();
-			if (chi2>chi2Mono[it] || depth <= 0.0 || depth > maxDepth)
+			if (chi2>chi2Mono[it] || !e->isDepthPositive())
 			{
 				vpCPs[idx]->GetMP()->mnTrackingID = -1;
 				vbInliers[idx] = false;
@@ -1859,8 +1852,8 @@ int UVR_SLAM::Optimization::PoseOptimization(UVR_SLAM::ServerMap* pMap, Frame *p
 				e->computeError();
 			}
 			const float chi2 = e->chi2();
-			float depth = e->GetDepth();
-			if (chi2>chi2Mono[it] || depth <= 0.0)// || depth > maxDepth)
+			
+			if (chi2>chi2Mono[it] || !e->isDepthPositive())// || depth > maxDepth)
 			{
 				//vpCPs[idx]->GetMP()->mnTrackingID = -1;
 				vbInliers[idx] = false;

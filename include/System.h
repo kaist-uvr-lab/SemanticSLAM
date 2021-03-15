@@ -7,7 +7,6 @@
 #include <thread>
 
 #include <mutex>
-#include <ConcurrentList.h>
 #include <condition_variable>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
@@ -37,8 +36,6 @@ namespace UVR_SLAM {
 	class MapOptimizer;
 	class ServerMapOptimizer;
 	class Map;
-	class Database;
-	class LocalBinaryPatternProcessor;
 	class KeyframeDatabase;
 	class System {
 	public:
@@ -68,8 +65,6 @@ namespace UVR_SLAM {
 		PlaneEstimator* mpPlaneEstimator;
 		Visualizer* mpVisualizer;
 		FrameVisualizer* mpFrameVisualizer;
-		LocalBinaryPatternProcessor* mpLBPProcessor;
-		Database* mpDatabase;
 		KeyframeDatabase* mpKeyframeDatabase;
 	public:
 		////parameter 파일 관련
@@ -230,6 +225,7 @@ namespace UVR_SLAM {
 		void RemoveUser(std::string id);
 		void AddMap(std::string name, ServerMap* pMap);
 		ServerMap* GetMap(std::string name);
+		void RemoveMap(std::string name);
 	private:
 		std::mutex mMutexUserList, mMutexMapList;
 		std::map<std::string, User*> mmpConnectedUserList;

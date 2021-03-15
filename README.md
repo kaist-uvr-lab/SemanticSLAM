@@ -1,9 +1,8 @@
 # SemanticSLAM
 1. 추가 라이브러리
   - OpenCV
-  - GraphOptimizer
   - Eigen
-  - fbow
+  - dbow3
   - rapidjson
   - happyhttp
 2. 주의 사항

@@ -19,7 +19,6 @@
 #include <Matcher.h>
 #include <Tracker.h>
 #include <MapPoint.h>
-#include <LocalBinaryPatternProcessor.h>
 #include <Database.h>
 #include <Vocabulary.h>
 #include <KeyframeDatabase.h>
@@ -233,10 +232,6 @@ void UVR_SLAM::System::Init() {
 
 	//tracker thread
 	mpTracker = new UVR_SLAM::Tracker(this, mstrFilePath);
-
-	//LBP && DB
-	mpLBPProcessor = new UVR_SLAM::LocalBinaryPatternProcessor(2, 4, 10, 10);
-	mpDatabase = new UVR_SLAM::Database();
 
 	//keyframe database
 	mpKeyframeDatabase = new UVR_SLAM::KeyframeDatabase(this, mpDBoWVoc);
@@ -457,4 +452,8 @@ UVR_SLAM::ServerMap* UVR_SLAM::System::GetMap(std::string name){
 		return mmpMapList[name];
 	}
 	return nullptr;
+}
+void UVR_SLAM::System::RemoveMap(std::string name) {
+	std::unique_lock<std::mutex> lock(mMutexMapList);
+	mmpMapList.erase(name);
 }

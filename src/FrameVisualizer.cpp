@@ -8,7 +8,6 @@
 #include "Map.h"
 #include "FrameGrid.h"
 #include "DepthFilter.h"
-#include "ZMSSD.h"
 
 namespace UVR_SLAM {
 	UVR_SLAM::FrameVisualizer::FrameVisualizer(){}

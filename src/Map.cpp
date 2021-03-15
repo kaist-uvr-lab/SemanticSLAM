@@ -340,8 +340,9 @@ void UVR_SLAM::Map::AddMap(MapPoint* pMP, int label){
 }
 void UVR_SLAM::Map::RemoveMap(MapPoint* pMP){
 	std::unique_lock<std::mutex> lock(mMutexMap);
-	if (mmpMapMPs.find(pMP) != mmpMapMPs.end())
+	if (mmpMapMPs.find(pMP) != mmpMapMPs.end()){
 		mmpMapMPs.erase(pMP);
+	}
 }
 std::map<UVR_SLAM::MapPoint*, int> UVR_SLAM::Map::GetMap() {
 	std::unique_lock<std::mutex> lock(mMutexMap);

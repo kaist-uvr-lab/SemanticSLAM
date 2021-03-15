@@ -318,6 +318,7 @@ namespace UVR_SLAM {
 						GaussianBlur(res, filtered, cv::Size(5, 5), 0.0);
 						cv::Canny(filtered, edge, 50, 200);//150
 						imshow("edge", edge); cv::waitKey(1);
+						cv::resize(res, res, mpSystem->mpVisualizer->mSizeOutputImg);
 						mpSystem->mpVisualizer->SetOutputImage(res, 2);
 					}
 				}
@@ -340,7 +341,7 @@ namespace UVR_SLAM {
 
 							cv::normalize(depth, depth, 0, 255, cv::NORM_MINMAX, CV_8UC1);
 							cv::cvtColor(depth, depth, CV_GRAY2BGR);
-							cv::resize(depth, depth, depth.size() / 2);
+							//cv::resize(depth, depth, depth.size() / 2);
 
 							///////이 아래는 뎁스 추정 과정
 							//std::vector<std::tuple<cv::Point2f, float, int>> vecTuples;
@@ -423,6 +424,7 @@ namespace UVR_SLAM {
 						/*cv::normalize(res, res, 0, 255, cv::NORM_MINMAX, CV_8UC1);
 						cv::cvtColor(res, res, CV_GRAY2BGR);
 						cv::resize(res, res, res.size() / 2);*/
+						cv::resize(res, res, mpSystem->mpVisualizer->mSizeOutputImg);
 						mpSystem->mpVisualizer->SetOutputImage(res, 3);
 
 						////시각화 테스트

@@ -8,7 +8,6 @@
 #include <opencv2/features2d.hpp>
 #include <opencv2/calib3d.hpp>
 #include <mutex>
-#include <JSONConverter.h>
 
 namespace UVR_SLAM {
 
@@ -18,8 +17,6 @@ namespace UVR_SLAM {
 	class LocalMapper;
 	class Visualizer;
 	class Map;
-	class Database;
-	class LocalBinaryPatternProcessor;
 	class SemanticSegmentator {
 	public:
 		SemanticSegmentator();
@@ -55,8 +52,6 @@ namespace UVR_SLAM {
 		Frame* mpTargetFrame, *mpPrevFrame;
 		PlaneEstimator* mpPlaneEstimator;
 		LocalMapper* mpLocalMapper;
-		LocalBinaryPatternProcessor* mpLBPProcessor;
-		Database* mpDatabase;
 		std::string ip;
 		int port;
 	};

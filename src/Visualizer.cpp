@@ -171,7 +171,7 @@ void UVR_SLAM::Visualizer::Init(int w, int h) {
 	cv::Mat leftImg2 = cv::Mat::zeros(mnHeight / 2, mnWidth / 2, CV_8UC3);
 	cv::Mat leftImg3 = cv::Mat::zeros(mnHeight / 2, mnWidth / 2, CV_8UC3);
 	cv::Mat leftImg4 = cv::Mat::zeros(mnHeight / 2, mnWidth / 2, CV_8UC3);
-	
+	mSizeOutputImg = leftImg1.size();
 	//¸Ê
 	cv::Mat mapImage = cv::Mat::zeros(mnHeight * 2, mnWidth * 2, CV_8UC3);
 
@@ -215,6 +215,7 @@ void UVR_SLAM::Visualizer::Init(int w, int h) {
 	int nDisCols = leftImg1.cols + mapImage.cols + kfWindowImg.cols;
 	mOutputImage = cv::Mat::zeros(nDisRows, nDisCols, CV_8UC3);
 	
+
 	/*std::cout << nDisRows << ", " << nDisCols <<"::"<<img1.cols<<", "<<img2.cols<<", "<<img3.cols<< std::endl;
 	std::cout << r1.x << " " << r2.x << ", " << r3.x << "::" << r1.width << ", " << r2.width << ", " << r3.width << std::endl;*/
 
@@ -340,6 +341,7 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 		//////Update Visualizer 
 
 		//if (isDoingProcess()) {
+			
 			cv::Mat tempVis = mVisPoseGraph.clone();
 			auto mmpMap = mpServerMap->GetMapPoints();
 			for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {

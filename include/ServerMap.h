@@ -30,6 +30,7 @@ namespace UVR_SLAM {
 		std::vector<MapPoint*> GetMapPoints();
 		void SetMapLoad(bool bLoad);
 		bool GetMapLoad();
+		void Reset();
 	private:
 		std::mutex mMutexMPs, mMutexKFs;
 		std::set<MapPoint*> mspMapMPs;
