@@ -1,5 +1,6 @@
 #include <ServerMapper.h>
 #include <System.h>
+#include <Matcher.h>
 #include <Frame.h>
 #include <MapPoint.h>
 #include <LoopCloser.h>
@@ -271,6 +272,7 @@ namespace UVR_SLAM {
 		auto vpKFs = mpTargetFrame->GetConnectedKFs(15);
 		mpSystem->mpMap->ClearReinit();
 		mpSystem->mpMap->ClearTempMPs();
+		auto pMatcher = mpSystem->mpMatcher;
 
 		int ncreate = 0;
 		int nkf = 0;
@@ -280,6 +282,9 @@ namespace UVR_SLAM {
 			nkf++;
 			auto pKF = vpKFs[k];
 			auto matches = server_kf_match(mpSystem->ip, mpSystem->port, mpTargetUser->mapName, mpTargetFrame->mnFrameID, pKF->mnFrameID);
+
+			cv::Mat Rrel, Trel;
+			mpTargetFrame->GetRelativePoseFromTargetFrame(pKF, Rrel, Trel);
 
 			std::vector<bool> vecBoolOverlap(pKF->mvPts.size(), false);
 			for (size_t i = 0, iend = matches.rows; i < iend; i++) {
@@ -302,6 +307,20 @@ namespace UVR_SLAM {
 				
 				auto prevPt = pKF->mvPts[idx2];
 				auto currPt = mpTargetFrame->mvPts[idx1];
+
+				/////////check epipolar constraints
+				cv::Mat ray = pKF->mInvK*(cv::Mat_<float>(3, 1) << prevPt.x, prevPt.y, 1.0);
+				float z_min, z_max;
+				z_min = 0.01f;
+				z_max = 1.0f;
+				cv::Point2f XimgMin, XimgMax;
+				pMatcher->ComputeEpiLinePoint(XimgMin, XimgMax, ray, z_min, z_max, Rrel, Trel, mpTargetFrame->mK); //ray,, Rrel, Trel
+				cv::Mat lineEqu = pMatcher->ComputeLineEquation(XimgMin, XimgMax);
+				bool bEpiConstraints = pMatcher->CheckLineDistance(lineEqu, currPt, 1.0);
+				if (!bEpiConstraints) {
+					continue;
+				}
+				/////////check epipolar constraints
 
 				if (!bCurrMP && !bPrevMP) {
 					auto pNewMP = server_create_mp(mpTargetMap, mpTargetFrame, pKF, idx1, idx2, mpTargetFrame->matDescriptor.row(idx1));

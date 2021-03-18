@@ -351,9 +351,10 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 
 		//if (isDoingProcess()) {
 			
+		cv::Mat tempVis = mVisPoseGraph.clone();
 		auto pMap = GetServerMap();
 		if (pMap) {
-			cv::Mat tempVis = mVisPoseGraph.clone();
+			
 			auto mmpMap = pMap->GetMapPoints();
 			for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
 				auto pMPi = *iter;// ->first;
@@ -437,15 +438,10 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 					cv::circle(tempVis, tpt, 4, color, -1);
 				}
 			}
-			SetOutputImage(tempVis, 4);
-			SetBoolDoingProcess(false);
+			
 		}
-
-			
-
-			
-
-			
+		SetOutputImage(tempVis, 4);
+		SetBoolDoingProcess(false);
 		//}//doing process
 
 		////////Update Map Visualizer

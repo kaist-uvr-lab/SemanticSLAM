@@ -802,11 +802,11 @@ namespace UVR_SLAM {
 					std::unique_lock<std::mutex> lock(mpServerMap->mMutexMapUpdate);
 					bTracking = UVR_SLAM::lambda_api_pose_initialization(mpServerMap, user->mpLastFrame, pNewF, matches, vec2Ds, vec3Ds, vecIDXs, vecInliers, vecTargetInliers, nMatch);
 					
-					if (bTracking) {
+					/*if (bTracking) {
 						bTracking = UVR_SLAM::lambda_api_update_local_map(pNewF, vecLocalMaps, vecTargetInliers, vec2Ds, vec3Ds, vecIDXs, vecInliers);
 						fdesc.get();
 						bTracking = UVR_SLAM::lambda_api_pose_estimation(mpSystem, mpServerMap, pNewF, vecLocalMaps, vecTargetInliers, nMatch, vec2Ds, vec3Ds, vecIDXs, vecInliers);
-					}
+					}*/
 					
 				}
 				if (bTracking) {
