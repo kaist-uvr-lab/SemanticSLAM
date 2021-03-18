@@ -72,7 +72,8 @@ namespace UVR_SLAM {
 	//local tracknig results
 	////¼­¹ö¸Ê Ãß°¡
 	public:
-		ServerMap* mpServerMap;
+		void SetServerMap(ServerMap* pMap);
+		ServerMap* GetServerMap();
 		std::vector<std::string> mvServerNames;
 		std::vector<std::string> mvUserNames;
 
@@ -80,9 +81,9 @@ namespace UVR_SLAM {
 		void RemoveUser(User* pUser);
 		std::vector<UVR_SLAM::User*> GetUsers();
 	private:
-		std::mutex mMutexUserList;
+		std::mutex mMutexUserList, mMutexServerMap;
 		std::set<User*> mspUserLists;
-
+		ServerMap* mpServerMap;
 	///////¹Ù´Ú È®ÀÎ¿ë
 	public:
 		void AddPlaneInfo(PlaneProcessInformation* pPlaneInfo);

@@ -38,7 +38,7 @@ namespace UVR_SLAM {
 	};
 
 	LoopCloser::LoopCloser() {}
-	LoopCloser::LoopCloser(System* pSys):mpSystem(pSys), mbLoadData(false), mbFixScale(false), mbProcessing(false), mnCovisibilityConsistencyTh(3){
+	LoopCloser::LoopCloser(System* pSys):mpSystem(pSys), mbLoadData(false), mbSaveData(false), mbFixScale(false), mbProcessing(false), mnCovisibilityConsistencyTh(3){
 	}
 	LoopCloser::~LoopCloser() {}
 	void LoopCloser::Init() {
@@ -51,6 +51,10 @@ namespace UVR_SLAM {
 		mbLoadData = true;
 		mapName = map;
 	}
+	void LoopCloser::SaveMapData(std::string map) {
+		mbSaveData = true;
+		mapName = map;
+	}
 	void LoopCloser::ConstructBowDB(std::vector<Frame*> vpFrames) {
 		for (size_t i = 0, iend = vpFrames.size(); i < iend; i++) {
 			mpKeyFrameDatabase->Add(vpFrames[i]);
@@ -59,6 +63,7 @@ namespace UVR_SLAM {
 
 	bool LoopCloser::Relocalization(Frame* pF) {
 		auto vpCandidateKFs = mpKeyFrameDatabase->DetectPlaceCandidates(pF);
+		std::cout << "candidate : "<<vpCandidateKFs.size() << std::endl;
 		int nMax = 0;
 		cv::Mat maxMatch;
 		Frame* maxFrame = nullptr;
@@ -84,6 +89,7 @@ namespace UVR_SLAM {
 				maxMatch = matches.clone();
 				maxFrame = pCandidate;
 			}
+			std::cout << i << "=" << nTempMatch <<"::"<< nMatch << std::endl;
 		}
 		if (nMax < 30 || !maxFrame)
 			return false;
@@ -148,6 +154,13 @@ namespace UVR_SLAM {
 				//mpMap->LoadMapDataFromServer(mapName, mpMap->mvpMapFrames);
 				
 				mbLoadData = false;
+			}
+			if (mbSaveData) {
+				auto pTargetMap = mpSystem->GetMap(mapName);
+				if (pTargetMap) {
+					pTargetMap->SaveMapDataToServer(mapName, mpSystem->ip, mpSystem->port);
+				}
+				mbSaveData = false;
 			}
 
 			if (CheckNewKeyFrames()) {

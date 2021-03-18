@@ -12,7 +12,7 @@
 #include <User.h>
 
 UVR_SLAM::Visualizer::Visualizer() {}
-UVR_SLAM::Visualizer::Visualizer(System* pSystem) :mpSystem(pSystem), mnFontFace(2), mfFontScale(0.6){
+UVR_SLAM::Visualizer::Visualizer(System* pSystem) :mpSystem(pSystem), mpServerMap(nullptr), mnFontFace(2), mfFontScale(0.6){
 }
 UVR_SLAM::Visualizer::~Visualizer() {}
 
@@ -147,6 +147,15 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 	}
 }
 
+void UVR_SLAM::Visualizer::SetServerMap(ServerMap* pMap) {
+	std::unique_lock<std::mutex> lockTemp(mMutexServerMap);
+	mpServerMap = pMap;
+}
+UVR_SLAM::ServerMap* UVR_SLAM::Visualizer::GetServerMap(){
+	std::unique_lock<std::mutex> lockTemp(mMutexServerMap);
+	return mpServerMap;
+}
+
 void UVR_SLAM::Visualizer::Init(int w, int h) {
 	
 	mpPlaneEstimator = mpSystem->mpPlaneEstimator;
@@ -262,7 +271,7 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 		
 		if (bSaveMap) {
 			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
-
+			
 			auto mmpMap = mpServerMap->GetMapPoints();
 			cv::Mat ids = cv::Mat::zeros(0, 1, CV_32SC1);
 			cv::Mat x3ds = cv::Mat::zeros(0, 1, CV_32FC1);
@@ -342,8 +351,10 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 
 		//if (isDoingProcess()) {
 			
+		auto pMap = GetServerMap();
+		if (pMap) {
 			cv::Mat tempVis = mVisPoseGraph.clone();
-			auto mmpMap = mpServerMap->GetMapPoints();
+			auto mmpMap = pMap->GetMapPoints();
 			for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
 				auto pMPi = *iter;// ->first;
 				if (!pMPi || pMPi->isDeleted())
@@ -357,41 +368,41 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 				cv::circle(tempVis, tpt, 2, color, -1);
 			}
 
-			auto lKFs = mpServerMap->GetFrames();
-			int nMaxID = 0;
-			UVR_SLAM::Frame* lastKF = nullptr;
-			for (auto iter = lKFs.begin(); iter != lKFs.end(); iter++) {
-				auto pKFi = *iter;
-				cv::Mat t1 = pKFi->GetCameraCenter();
-				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
-				pt1 += mVisMidPt;
-				cv::circle(tempVis, pt1, 2, cv::Scalar(0, 155, 248), -1);
-				if (nMaxID < pKFi->mnKeyFrameID) {
-					nMaxID = pKFi->mnKeyFrameID;
-					lastKF = pKFi;
-				}
-			}
-			if (lKFs.size()>0)
-			{
-				auto currKF = lastKF;// lKFs[lKFs.size() - 1];
-				cv::Mat t1 = currKF->GetCameraCenter();
-				cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
-				pt1 += mVisMidPt;
-				cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
+			//auto lKFs = pMap->GetFrames();
+			//int nMaxID = 0;
+			//UVR_SLAM::Frame* lastKF = nullptr;
+			//for (auto iter = lKFs.begin(); iter != lKFs.end(); iter++) {
+			//	auto pKFi = *iter;
+			//	cv::Mat t1 = pKFi->GetCameraCenter();
+			//	cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
+			//	pt1 += mVisMidPt;
+			//	cv::circle(tempVis, pt1, 2, cv::Scalar(0, 155, 248), -1);
+			//	if (nMaxID < pKFi->mnKeyFrameID) {
+			//		nMaxID = pKFi->mnKeyFrameID;
+			//		lastKF = pKFi;
+			//	}
+			//}
+			//if (lKFs.size()>0)
+			//{mp
+			//	auto currKF = lastKF;// lKFs[lKFs.size() - 1];
+			//	cv::Mat t1 = currKF->GetCameraCenter();
+			//	cv::Point2f pt1 = cv::Point2f(t1.at<float>(mnAxis1)* mnVisScale, t1.at<float>(mnAxis2)* mnVisScale);
+			//	pt1 += mVisMidPt;
+			//	cv::circle(tempVis, pt1, 3, cv::Scalar(0, 0, 255), -1);
 
-				cv::Mat directionZ = currKF->GetRotation().row(2);
-				cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(mnAxis1)* mnVisScale / 10.0, directionZ.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
-				cv::line(tempVis, pt1, dirPtZ, cv::Scalar(255, 0, 0), 2);
+			//	cv::Mat directionZ = currKF->GetRotation().row(2);
+			//	cv::Point2f dirPtZ = cv::Point2f(directionZ.at<float>(mnAxis1)* mnVisScale / 10.0, directionZ.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
+			//	cv::line(tempVis, pt1, dirPtZ, cv::Scalar(255, 0, 0), 2);
 
-				cv::Mat directionY = currKF->GetRotation().row(1);
-				cv::Point2f dirPtY = cv::Point2f(directionY.at<float>(mnAxis1)* mnVisScale / 10.0, directionY.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
-				cv::line(tempVis, pt1, dirPtY, cv::Scalar(0, 255, 0), 2);
+			//	cv::Mat directionY = currKF->GetRotation().row(1);
+			//	cv::Point2f dirPtY = cv::Point2f(directionY.at<float>(mnAxis1)* mnVisScale / 10.0, directionY.at<float>(mnAxis2)* mnVisScale / 10.0) + pt1;
+			//	cv::line(tempVis, pt1, dirPtY, cv::Scalar(0, 255, 0), 2);
 
-				cv::Mat directionX = currKF->GetRotation().row(0);
-				cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
-				cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
-				cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
-			}
+			//	cv::Mat directionX = currKF->GetRotation().row(0);
+			//	cv::Point2f dirPtX1 = pt1 + cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
+			//	cv::Point2f dirPtX2 = pt1 - cv::Point2f(directionX.at<float>(mnAxis1)* mnVisScale / 10.0, directionX.at<float>(mnAxis2)* mnVisScale / 10.0);
+			//	cv::line(tempVis, dirPtX1, dirPtX2, cv::Scalar(0, 0, 255), 2);
+			//}
 
 			{
 				////User 위치 시각화
@@ -407,7 +418,6 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 					cv::circle(tempVis, pt1, 5, cv::Scalar(0, 0, 255), -1);
 				}
 			}
-
 			cv::Scalar color = cv::Scalar(0, 255, 255);
 			auto vReinit = mpMap->GetTempMPs();
 			for (int i = 0; i < vReinit.size(); i++) {
@@ -427,9 +437,15 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 					cv::circle(tempVis, tpt, 4, color, -1);
 				}
 			}
-
 			SetOutputImage(tempVis, 4);
 			SetBoolDoingProcess(false);
+		}
+
+			
+
+			
+
+			
 		//}//doing process
 
 		////////Update Map Visualizer

@@ -19,6 +19,7 @@ namespace UVR_SLAM {
 	public:
 		std::vector<CandidatePoint*> mvpCPs;
 		std::vector<cv::Point2f> mvPTs;
+		std::vector<int> mvnIndices;
 		
 		int mnLevel;
 		int mnLabel;

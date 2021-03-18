@@ -137,6 +137,19 @@ namespace UVR_SLAM {
 		std::set<UVR_SLAM::Frame*> GetConnectedKeyFrameSet(int n = 0);
 		std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> GetConnectedKFsWithWeight();
 ////////////////
+////FrameGrid2
+	public:
+		int mnGridSize;
+		int mnMaxGridWidth, mnMaxGridHeight;
+		void SetGrids();
+		std::vector<int> GetPointIndices(cv::Point2f pt);
+		cv::Point2i GetGridIndex(cv::Point2f pt);
+		std::vector<std::vector<FrameGrid*>> mvpFrameGrids;
+	private:
+		
+////FrameGrid
+
+
 ////FrameGrid
 	public:
 		void ComputeGradientImage(cv::Mat src, cv::Mat& dst, int ksize = 1);

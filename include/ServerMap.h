@@ -20,7 +20,8 @@ namespace UVR_SLAM {
 		bool mbInitialized;
 		std::list<MapPoint*> mlpNewMapPoints;
 	public:
-		void LoadMapDataFromServer(std::string mapnam, std::string ip, int port);
+		void LoadMapDataFromServer(std::string mapname, std::string ip, int port);
+		void SaveMapDataToServer(std::string mapname, std::string ip, int port);
 		void SetInitialKeyFrame(UVR_SLAM::Frame* pKF1, UVR_SLAM::Frame* pKF2);
 		void AddFrame(Frame* pF);
 		void RemoveFrame(Frame* pF);

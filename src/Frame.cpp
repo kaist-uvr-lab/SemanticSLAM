@@ -41,7 +41,7 @@ mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), m
 
 ////매핑 서버에서 생성
 UVR_SLAM::Frame::Frame(System* pSys, int id, int w, int h, cv::Mat K, cv::Mat invK, double ts) :mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mInvK(invK), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
-mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMaxDepth(0.0), mfMedianDepth(0.0),
+mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMaxDepth(0.0), mfMedianDepth(0.0), mnGridSize(10),
 mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts) {
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
@@ -685,6 +685,44 @@ float UVR_SLAM::Frame::CalcDiffAngleAxis(UVR_SLAM::Frame* pF) {
 }
 
 ////////////////FrameGrid
+void UVR_SLAM::Frame::SetGrids() {
+	mnMaxGridWidth = mnWidth / mnGridSize;
+	mnMaxGridHeight = mnHeight / mnGridSize;
+	mvpFrameGrids = std::vector<std::vector<FrameGrid*>>(mnMaxGridHeight);
+	for (size_t i = 0; i < mnMaxGridHeight; i++){
+		mvpFrameGrids[i] = std::vector<FrameGrid*>(mnMaxGridWidth);
+		for (size_t j = 0; j < mnMaxGridWidth; j++) {
+			mvpFrameGrids[i][j] = new UVR_SLAM::FrameGrid();
+		}
+	}
+	for (size_t i = 0, iend = this->mvPts.size(); i < iend; i++) {
+		auto base = GetGridIndex(mvPts[i]);
+		mvpFrameGrids[base.y][base.x]->mvnIndices.push_back(i);
+	}
+}
+std::vector<int> UVR_SLAM::Frame::GetPointIndices(cv::Point2f pt){
+	std::vector<int> res;
+	cv::Point2i base = GetGridIndex(pt);
+	for (int dy = -1; dy < 2; dy++) {
+		for (int dx = -1; dx < 2; dx++) {
+			int x = base.x + dx;
+			int y = base.y + dy;
+			if (x < 0 || x >= mnMaxGridWidth || y < 0 || y >= mnMaxGridHeight) {
+				continue;
+			}
+			auto pGrid = mvpFrameGrids[y][x];
+			for (size_t i = 0, iend = pGrid->mvnIndices.size(); i < iend; i++)
+				res.push_back(pGrid->mvnIndices[i]);
+		}
+	}
+	return res;
+}
+cv::Point2i UVR_SLAM::Frame::GetGridIndex(cv::Point2f pt){
+	int a = pt.x / mnGridSize;
+	int b = pt.y / mnGridSize;
+	return cv::Point2f(a, b);
+}
+
 void UVR_SLAM::Frame::ComputeGradientImage(cv::Mat src, cv::Mat& dst, int ksize) {
 	cv::Mat edge;
 	cv::cvtColor(src, edge, CV_BGR2GRAY);

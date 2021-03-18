@@ -65,6 +65,68 @@ namespace UVR_SLAM {
 		std::unique_lock<std::mutex> lock(mMutexMPs);
 		return std::vector<MapPoint*>(mspMapMPs.begin(), mspMapMPs.end());
 	}
+	void ServerMap::SaveMapDataToServer(std::string mapname, std::string ip, int port) {
+		SetMapLoad(true);
+		std::cout << "save map to server : " << mapname << std::endl;
+		WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
+
+		auto mmpMap = GetMapPoints();
+		cv::Mat ids = cv::Mat::zeros(0, 1, CV_32SC1);
+		cv::Mat x3ds = cv::Mat::zeros(0, 1, CV_32FC1);
+		for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
+			auto pMPi = *iter;//->first;
+			if (!pMPi || pMPi->isDeleted())
+				continue;
+			cv::Mat Xw = pMPi->GetWorldPos();
+			cv::Mat temp = cv::Mat::zeros(1, 1, CV_32FC1);
+			temp.at<int>(0) = pMPi->mnMapPointID;
+			ids.push_back(temp);
+			x3ds.push_back(Xw);
+		}
+		int nMP = ids.rows;
+		auto mspKFs = GetFrames();
+		cv::Mat poses = cv::Mat::zeros(0, 3, CV_32FC1);
+		cv::Mat mps = cv::Mat::zeros(0, 1, CV_32SC1);
+		cv::Mat kfids = cv::Mat::zeros(mspKFs.size(), 1, CV_32SC1);
+		int j = 0;
+		for (auto iter = mspKFs.begin(); iter != mspKFs.end(); iter++, j++) {
+			auto pKFi = *iter;
+			kfids.at<int>(j) = pKFi->mnFrameID;
+			cv::Mat R, t;
+			pKFi->GetPose(R, t);
+			poses.push_back(R);
+			poses.push_back(t.t());
+
+			auto vpMPs = pKFi->GetMapPoints();
+			cv::Mat temp = cv::Mat::ones(vpMPs.size(), 1, CV_32SC1)*-1;
+			for (int i = 0; i < vpMPs.size(); i++) {
+				auto pMPi = vpMPs[i];
+				if (!pMPi || pMPi->isDeleted()) {
+					continue;
+				}
+				int id = pMPi->mnMapPointID;
+				temp.at<int>(i) = id;
+			}
+			mps.push_back(temp);
+
+			////키프레임 커넥션 데이터 전송
+			auto vNeigKFs = pKFi->GetConnectedKFsWithWeight();
+			cv::Mat kfData = cv::Mat::zeros(0, 1, CV_32SC1);
+			for (auto jit = vNeigKFs.begin(), jitend = vNeigKFs.end(); jit != jitend; jit++) {
+				auto weight = jit->first;
+				auto id = jit->second->mnFrameID;
+				cv::Mat temp = cv::Mat::zeros(2, 1, CV_32SC1);
+				temp.at<int>(0) = id;
+				temp.at<int>(1) = weight;
+				kfData.push_back(temp);
+			}
+			std::stringstream ss;
+			ss << "/ReceiveData?map=" << mapname << "&id=" << pKFi->mnFrameID << "&key=bconnectedkfs";
+			mpAPI->Send(ss.str(), kfData.data, kfData.rows * sizeof(int));
+		}
+		mpAPI->Send("/SaveMap?map=" + mapname, WebAPIDataConverter::ConvertMapDataToJson(ids, x3ds, kfids, poses, mps));
+		SetMapLoad(false);
+	}
 	void ServerMap::LoadMapDataFromServer(std::string mapname, std::string ip, int port) {
 		SetMapLoad(true);
 		auto f1 = std::async(std::launch::async, [](std::string ip, int port, std::string mapname) {

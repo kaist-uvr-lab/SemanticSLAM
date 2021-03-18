@@ -36,7 +36,7 @@ namespace UVR_SLAM {
 			cv::Point2f pt(seg.at<float>(2 * i), seg.at<float>(2 * i + 1));
 			pTarget->mvPts.push_back(pt);
 		}
-
+		pTarget->SetGrids();
 		//auto strID1 = WebAPIDataConverter::ConvertNumberToString(pTarget->mnFrameID);
 		//WebAPIDataConverter::ConvertStringToPoints(mpAPI->Send("/getPts", strID1).c_str(), pTarget->mvPts);
 		pTarget->SetMapPoints(pTarget->mvPts.size());
@@ -53,7 +53,7 @@ namespace UVR_SLAM {
 			cv::Point2f pt(seg.at<float>(2 * i), seg.at<float>(2 * i + 1));
 			pTarget->mvPts.push_back(pt);
 		}
-		
+		pTarget->SetGrids();
 		pTarget->SetMapPoints(pTarget->mvPts.size());
 		cv::Mat matches = cv::Mat::zeros(pRef->mvPts.size(), 1, CV_32SC1);
 		ss.str("");
@@ -606,17 +606,42 @@ namespace UVR_SLAM {
 
 		/////매칭
 		/////그리드로 탐색 범위를 줄여야 할 수 있음.
+
+		cv::Mat R, t;
+		pTarget->GetPose(R, t);
+
+		float fWidth  = (float)pTarget->mnWidth;
+		float fHeight = (float)pTarget->mnHeight;
+
 		int nLocalmatch = 0;
 		for (size_t i = 0, iend = vpLocalMaps.size(); i < iend; i++) {
 			auto pMPi = vpLocalMaps[i];
 			if (!pMPi || pMPi->isDeleted())
 				continue;
+
+			//////projection
+			cv::Mat temp = pTarget->mK*(R*pMPi->GetWorldPos() + t);
+			float depth = temp.at<float>(2);
+			if (depth <= 0.0)
+				continue;
+			cv::Point2f proj(temp.at<float>(0) / depth, temp.at<float>(1) / depth);
+			if (proj.x < 0.0 || proj.x >= fWidth || proj.y < 0.0 || proj.y >= fHeight) {
+				continue;
+			}
+			
+			auto vIndices = pTarget->GetPointIndices(proj);
+			if (vIndices.size() == 0)
+				continue;
+			//////
+			
 			const cv::Mat &d1 = pMPi->GetDescriptor();
 			float bestDist1 = 256.0;
 			int bestIdx2 = -1;
 			float bestDist2 = 256.0;
 
-			for (size_t i2 = 0, i2end = pTarget->mvPts.size(); i2 < i2end; i2++) {
+			//for (size_t i2 = 0, i2end = pTarget->mvPts.size(); i2 < i2end; i2++) {
+			for (size_t i3 = 0, i3end = vIndices.size(); i3 < i3end; i3++) {
+				int i2 = vIndices[i3];
 				if (vecTargetInliers[i2])
 					continue;
 				const cv::Mat &d2 = pTarget->matDescriptor.row(i2);
@@ -776,19 +801,19 @@ namespace UVR_SLAM {
 				{
 					std::unique_lock<std::mutex> lock(mpServerMap->mMutexMapUpdate);
 					bTracking = UVR_SLAM::lambda_api_pose_initialization(mpServerMap, user->mpLastFrame, pNewF, matches, vec2Ds, vec3Ds, vecIDXs, vecInliers, vecTargetInliers, nMatch);
-					/*
+					
 					if (bTracking) {
 						bTracking = UVR_SLAM::lambda_api_update_local_map(pNewF, vecLocalMaps, vecTargetInliers, vec2Ds, vec3Ds, vecIDXs, vecInliers);
 						fdesc.get();
 						bTracking = UVR_SLAM::lambda_api_pose_estimation(mpSystem, mpServerMap, pNewF, vecLocalMaps, vecTargetInliers, nMatch, vec2Ds, vec3Ds, vecIDXs, vecInliers);
 					}
-					*/
+					
 				}
 				if (bTracking) {
 					UVR_SLAM::lambda_api_update(mpSystem, user, pNewF, nMatch, vec2Ds, vec3Ds, vecIDXs, vecInliers, bNewKF);
 					if (bNewKF && user->mbMapping) {
 						user->mpLastFrame = pNewF;
-						fdesc.get();
+						//fdesc.get();
 						if (user->mbMapping)
 							mpLocalMapper->InsertKeyFrame(std::make_pair(pNewF, strUser));
 					}
