@@ -13,7 +13,7 @@ namespace UVR_SLAM {
 	class Frame;
 	class LoopCloser;
 	class ServerMapOptimizer;
-
+	class Matcher;
 	class User;
 	class ServerMap;
 
@@ -47,6 +47,7 @@ namespace UVR_SLAM {
 			bool mbDoingProcess;
 
 			System* mpSystem;
+			Matcher* mpMatcher;
 			ServerMapOptimizer* mpMapOptimizer;
 			LoopCloser* mpLoopCloser;
 

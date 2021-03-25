@@ -15,6 +15,8 @@ namespace UVR_SLAM {
 	class MapPoint;
 	class KeyframeDatabase;
 	class Matcher;
+	class User;
+	class ServerMap;
 
 	class LoopCloser {
 	public:
@@ -74,6 +76,18 @@ namespace UVR_SLAM {
 		Matcher* mpMatcher;
 		bool mbProcessing;
 		float mfTime;
+
+	//////////Server
+	public:
+		void InsertData(std::pair<Frame*, std::string> pairInfo);
+		bool CheckNewDatas();
+		void ProcessData();
+	private:
+		std::queue<std::pair<Frame*, std::string>> mDataQueue;
+		std::mutex mMutexDataQueue;
+		std::pair<Frame*, std::string> mPairFrameInfo;
+		User* mpTargetUser;
+		ServerMap* mpTargetMap;
 	};
 }
 #endif

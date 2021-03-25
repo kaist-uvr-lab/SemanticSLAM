@@ -47,6 +47,13 @@ namespace UVR_SLAM {
 		////데이터 받고 보내는것도 구현
 		std::mutex mMutexMapLoad;
 		bool mbLoad;
+	public:
+		std::vector<std::pair<cv::Mat, int>> GetPlanarTest();
+		void ClearPlanarTest();
+		void AddPlanarTemp(cv::Mat a, int label);
+	private:
+		std::mutex mMutexTempPlanar;
+		std::vector<std::pair<cv::Mat, int>> mvPairTemps;
 	};
 }
 #endif

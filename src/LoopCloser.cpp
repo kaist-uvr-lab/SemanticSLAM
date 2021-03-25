@@ -9,9 +9,12 @@
 #include <Optimization.h>
 #include <Visualizer.h>
 #include "Map.h"
+#include <User.h>
 #include <ServerMap.h>
-#include <future>
 #include <WebAPI.h>
+#include <future>
+#include <random>
+#include <PlaneEstimator.h>
 
 /*
 프레임의 seterase, setnoterase, setbadflag 관련된 처리가 아직 안되어있음.
@@ -26,17 +29,7 @@ Optimization의 OptimizeEssentialGraph 내부 구현
 */
 
 namespace UVR_SLAM {
-
-	auto lambda_api_kf_match_loop_closing = [](std::string ip, int port, std::string map,int id1, int id2, int n) {
-		WebAPI* mpAPI = new WebAPI(ip, port);
-		std::stringstream ss;
-		ss << "/featurematch?map=" << map << "&id1=" << id1 << "&id2=" << id2;
-		auto res = mpAPI->Send(ss.str(), "");
-		cv::Mat matches = cv::Mat::zeros(res.size() / sizeof(int), 1, CV_32SC1);
-		std::memcpy(matches.data, res.data(), matches.rows * sizeof(int));
-		return matches;
-	};
-
+	
 	LoopCloser::LoopCloser() {}
 	LoopCloser::LoopCloser(System* pSys):mpSystem(pSys), mbLoadData(false), mbSaveData(false), mbFixScale(false), mbProcessing(false), mnCovisibilityConsistencyTh(3){
 	}
@@ -63,13 +56,13 @@ namespace UVR_SLAM {
 
 	bool LoopCloser::Relocalization(Frame* pF) {
 		auto vpCandidateKFs = mpKeyFrameDatabase->DetectPlaceCandidates(pF);
-		std::cout << "candidate : "<<vpCandidateKFs.size() << std::endl;
+		//std::cout << "candidate : "<<vpCandidateKFs.size() << std::endl;
 		int nMax = 0;
 		cv::Mat maxMatch;
 		Frame* maxFrame = nullptr;
 		for (size_t i = 0, iend = vpCandidateKFs.size(); i < iend; i++) {
 			auto pCandidate = vpCandidateKFs[i];
-			cv::Mat matches = lambda_api_kf_match_loop_closing(mpSystem->ip, mpSystem->port, pF->mstrMapName, pF->mnFrameID, pCandidate->mnFrameID, pF->mvPts.size());
+			cv::Mat matches = mpMatcher->KnnMatching(pF, pCandidate);
 			auto vpMPs = pCandidate->GetMapPoints();
 			int nMatch = 0;
 			int nTempMatch = 0;
@@ -89,7 +82,7 @@ namespace UVR_SLAM {
 				maxMatch = matches.clone();
 				maxFrame = pCandidate;
 			}
-			std::cout << i << "=" << nTempMatch <<"::"<< nMatch << std::endl;
+			//std::cout << i << "=" << nTempMatch <<"::"<< nMatch << std::endl;
 		}
 		if (nMax < 30 || !maxFrame)
 			return false;
@@ -132,6 +125,152 @@ namespace UVR_SLAM {
 		}
 		return true;
 	}
+	bool calcTempUnitNormalVector(cv::Mat& X) {
+		float sum = sqrt(X.at<float>(0)*X.at<float>(0) + X.at<float>(1)*X.at<float>(1) + X.at<float>(2)*X.at<float>(2));
+		if (sum != 0) {
+			X.at<float>(0, 0) = X.at<float>(0, 0) / sum;
+			X.at<float>(1, 0) = X.at<float>(1, 0) / sum;
+			X.at<float>(2, 0) = X.at<float>(2, 0) / sum;
+			X.at<float>(3, 0) = X.at<float>(3, 0) / sum;
+			return true;
+		}
+		return false;
+	}
+	int checkTempNormalType(cv::Mat X) {
+		float maxVal = 0.0;
+		int idx;
+		for (int i = 0; i < 3; i++) {
+			float val = abs(X.at<float>(i));
+			if (val > maxVal) {
+				maxVal = val;
+				idx = i;
+			}
+		}
+		return idx;
+	}
+
+	void LoopCloser::InsertData(std::pair<Frame*, std::string> pairInfo){
+		std::unique_lock<std::mutex> lock(mMutexDataQueue);
+		mDataQueue.push(pairInfo);
+	}
+	bool LoopCloser::CheckNewDatas(){
+		std::unique_lock<std::mutex> lock(mMutexDataQueue);
+		return(!mDataQueue.empty());
+	}
+	void LoopCloser::ProcessData(){
+		std::unique_lock<std::mutex> lock(mMutexDataQueue);
+		mPairFrameInfo = mDataQueue.front();
+		mDataQueue.pop();
+
+		std::string user = mPairFrameInfo.second;
+		mpTargetFrame = mPairFrameInfo.first;
+		mpTargetUser = mpSystem->GetUser(user);
+		if (mpTargetUser)
+			mpTargetMap = mpSystem->GetMap(mpTargetUser->mapName);
+
+	}
+
+	auto lambda_plane_init = [](std::vector<cv::Mat> src, PlaneInformation* pPlane, int ransac_trial, float thresh_distance, float thresh_ratio) {
+		//RANSAC
+		int max_num_inlier = 0;
+		cv::Mat best_plane_param;
+		cv::Mat inlier;
+
+		cv::Mat param, paramStatus;
+
+		//초기 매트릭스 생성
+		cv::Mat mMat = cv::Mat::zeros(0, 4, CV_32FC1);
+		std::vector<int> vIdxs;
+		for (int i = 0; i < src.size(); i++) {
+			cv::Mat temp = src[i].clone();
+			temp.push_back(cv::Mat::ones(1, 1, CV_32FC1));
+			mMat.push_back(temp.t());
+			vIdxs.push_back(i);
+		}
+		if (mMat.rows < 10)
+			return false;
+		std::random_device rn;
+		std::mt19937_64 rnd(rn());
+		std::uniform_int_distribution<int> range(0, mMat.rows - 1);
+		
+		for (int n = 0; n < ransac_trial; n++) {
+
+			cv::Mat arandomPts = cv::Mat::zeros(0, 4, CV_32FC1);
+			//select pts
+			for (int k = 0; k < 3; k++) {
+				int randomNum = range(rnd);
+				cv::Mat temp = mMat.row(randomNum).clone();
+				arandomPts.push_back(temp);
+			}//select
+
+			 //SVD
+			cv::Mat X;
+			cv::Mat w, u, vt;
+			cv::SVD::compute(arandomPts, w, u, vt, cv::SVD::FULL_UV);
+			X = vt.row(3).clone();
+			cv::transpose(X, X);
+
+			calcTempUnitNormalVector(X);
+			cv::Mat checkResidual = abs(mMat*X) < thresh_distance;
+			//checkResidual = checkResidual / 255;
+			int temp_inlier = cv::countNonZero(checkResidual);
+
+			if (max_num_inlier < temp_inlier) {
+				max_num_inlier = temp_inlier;
+				param = X.clone();
+				paramStatus = checkResidual.clone();
+			}
+		}//trial
+		
+		float planeRatio = ((float)max_num_inlier / mMat.rows);
+
+		if (planeRatio > thresh_ratio) {
+			cv::Mat tempMat = cv::Mat::zeros(0, 4, CV_32FC1);
+			
+			cv::Mat normal = param.rowRange(0, 3);
+			float dist = param.at<float>(3);
+			pPlane->SetParam(normal, dist);
+			
+			for (int i = 0; i < mMat.rows; i++) {
+				int checkIdx = paramStatus.at<uchar>(i);
+				
+				cv::Mat temp = src[vIdxs[i]];
+				if (checkIdx == 0) {
+					pPlane->mvOutliers.push_back(temp);
+				}
+				else {
+					pPlane->mvInliers.push_back(temp);
+					tempMat.push_back(mMat.row(i));
+				}
+			}
+
+			float ratio = ((float)pPlane->mvOutliers.size()) / pPlane->mvInliers.size();
+			if (ratio > 0.3f)
+				pPlane->mbParallel = true;
+
+			//std::cout << "plane::3::" << planeParam.t() << ", " << inliers.size() <<", "<<outliers.size()<< std::endl;
+			//평면 정보 생성.
+			/*
+			cv::Mat X;
+			cv::Mat w, u, vt;
+			cv::SVD::compute(tempMat, w, u, vt, cv::SVD::FULL_UV);
+			std::cout << "plane::3-1" << std::endl;
+			X = vt.row(3).clone();
+			cv::transpose(X, X);
+			calcTempUnitNormalVector(X);
+			int idx = checkTempNormalType(X);
+			if (X.at<float>(idx) > 0.0)
+				X *= -1.0;
+			planeParam = X.clone();
+			std::cout << "plane::4" << std::endl;*/
+			return true;
+		}
+		else
+		{
+			//std::cout << "failed" << std::endl;
+			return false;
+		}
+	};
 
 	void LoopCloser::RunWithMappingServer() {
 		std::cout << "MappingServer::LoopCloser::Start" << std::endl;
@@ -140,6 +279,17 @@ namespace UVR_SLAM {
 		int nCurrSegFrame;
 		int nPrevDepthFrame = -1;
 		int nCurrDepthFrame;
+
+		const int mnLabel_floor = 4;
+		const int mnLabel_wall = 1;
+		const int mnLabel_ceil = 6;
+
+		cv::FileStorage fSettings(mpSystem->mstrFilePath, cv::FileStorage::READ);
+		int mnRansacTrial = fSettings["Layout.trial"];
+		float mfThreshPlaneDistance = fSettings["Layout.dist"];
+		float mfThreshPlaneRatio = fSettings["Layout.ratio"];
+		float mfThreshNormal = fSettings["Layout.normal"];
+		fSettings.release();
 
 		while (true) {
 
@@ -163,14 +313,314 @@ namespace UVR_SLAM {
 				mbSaveData = false;
 			}
 
-			if (CheckNewKeyFrames()) {
+			if (CheckNewDatas()) {
 				std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
-				ProcessNewKeyFrame();
+				ProcessData();
+
+				if (!mpTargetUser || !mpTargetMap)
+				{
+					continue;
+				}
+
 #ifdef DEBUG_LOOP_CLOSING_LEVEL_1
 				std::cout << "MappingServer::LoopClosing::" << mpTargetFrame->mnFrameID << "::Start" << std::endl;
 #endif
 				mpKeyFrameDatabase->Add(mpTargetFrame);
-				
+
+				if (mpTargetFrame->bSeg && mpTargetFrame->bDepth) {
+					
+					//mask
+					cv::Mat mask_total = cv::Mat::zeros(mpTargetFrame->mnHeight, mpTargetFrame->mnWidth, CV_8UC1);
+					cv::Mat mask_floor = cv::Mat::zeros(mpTargetFrame->mnHeight, mpTargetFrame->mnWidth, CV_8UC1);
+					cv::Mat mask_wall = cv::Mat::zeros(mpTargetFrame->mnHeight, mpTargetFrame->mnWidth, CV_8UC1);
+					cv::Mat mask_ceil = cv::Mat::zeros(mpTargetFrame->mnHeight, mpTargetFrame->mnWidth, CV_8UC1);
+
+					////divide static structure label
+
+					////relative inverse depth
+
+					////depth image
+					cv::Mat depth;
+					cv::normalize(mpTargetFrame->mRawDepth, depth, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+					cv::cvtColor(depth, depth, CV_GRAY2BGR);
+					cv::resize(depth, depth, mpSystem->mpVisualizer->mSizeOutputImg);
+					mpSystem->mpVisualizer->SetOutputImage(depth, 1);
+					////depth image
+
+					////segmentation image
+					mpTargetFrame->mSegImage = cv::Mat::zeros(mpTargetFrame->mSegLabel.size(), CV_8UC3);
+					for (int y = 0; y < mpTargetFrame->mSegLabel.rows; y++) {
+						for (int x = 0; x < mpTargetFrame->mSegLabel.cols; x++) {
+							int label = mpTargetFrame->mSegLabel.at<uchar>(y, x)+1;
+							switch (label) {
+								case mnLabel_floor:
+									mpTargetFrame->mSegImage.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
+									mask_floor.at<uchar>(y, x) = 255;
+									break;
+								case mnLabel_wall:
+									mpTargetFrame->mSegImage.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
+									mask_wall.at<uchar>(y, x) = 255;
+									break;
+								case mnLabel_ceil:
+									mpTargetFrame->mSegImage.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
+									mask_ceil.at<uchar>(y, x) = 255;
+									break;
+							}
+						}
+					}
+					////////new depth module test
+					//////depth reconstruction
+					std::vector<cv::Mat> vTempFloorMPs, vTempWallMPs, vTempCeilMPs;
+					cv::Mat Rinv, Tinv;
+					mpTargetFrame->GetInversePose(Rinv, Tinv);
+					//mpSystem->mpMap->ClearTempMPs();
+					int inc = 3;
+					for (size_t row = inc, rows = mpTargetFrame->mRawDepth.rows; row < rows; row += inc) {
+						for (size_t col = inc, cols = mpTargetFrame->mRawDepth.cols; col < cols; col += inc) {
+							cv::Point2f pt(col, row);
+							float depth = mpTargetFrame->mRawDepth.at<float>(pt);
+							if (depth < 0.0001)
+								continue;
+							cv::Mat a = Rinv*(mpTargetFrame->mInvK*(cv::Mat_<float>(3, 1) << pt.x, pt.y, 1.0)*depth) + Tinv;
+							//mpSystem->mpMap->AddTempMP(a);
+
+							int label = mpTargetFrame->mSegLabel.at<uchar>(row, col) + 1;
+							switch (label) {
+							case mnLabel_floor:
+								vTempFloorMPs.push_back(a);
+								break;
+							case mnLabel_wall:
+								vTempWallMPs.push_back(a);
+								break;
+							case mnLabel_ceil:
+								vTempCeilMPs.push_back(a);
+								break;
+							}
+						}
+					}
+
+					auto tempFloor = new UVR_SLAM::PlaneInformation();
+					auto tempWall1 = new UVR_SLAM::PlaneInformation();
+					auto tempWall2 = new UVR_SLAM::PlaneInformation();
+
+					auto ffloorplane = std::async(std::launch::async, UVR_SLAM::lambda_plane_init, vTempFloorMPs, tempFloor, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+					auto fwallplane1 = std::async(std::launch::async, UVR_SLAM::lambda_plane_init, vTempWallMPs,  tempWall1, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+						
+					//Wall
+					//mpSystem->mpMap->ClearTempMPs();
+					mpTargetMap->ClearPlanarTest();
+					if (ffloorplane.get()) {
+						std::vector<cv::Mat> vfIns = tempFloor->mvInliers;
+						std::vector<cv::Mat> vfOuts = tempFloor->mvOutliers;
+						for (size_t i = 0, iend = vfIns.size(); i < iend; i++) {
+							//mpSystem->mpMap->AddTempMP(vWIns[i]);
+							mpTargetMap->AddPlanarTemp(vfIns[i], 1);
+						}
+						for (size_t i = 0, iend = vfOuts.size(); i < iend; i++) {
+							mpTargetMap->AddPlanarTemp(vfOuts[i], 2);
+						}
+					}
+					if (fwallplane1.get()) {
+						std::future<bool> fwallplane2;
+						/*if (tempWall1->mbParallel) {
+							fwallplane2 = std::async(std::launch::async, UVR_SLAM::lambda_plane_init, tempWall1->mvOutliers, tempWall2, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+						}*/
+
+						std::vector<cv::Mat> vWIns = tempWall1->mvInliers;
+						std::vector<cv::Mat> vWOuts = tempWall1->mvOutliers;
+
+						std::cout << "Wall Test = " << vWIns.size() << " " << vWOuts.size() << ":" << vTempFloorMPs.size() << ", " << vTempWallMPs.size() << std::endl;
+
+						for (size_t i = 0, iend = vWIns.size(); i < iend; i++) {
+							//mpSystem->mpMap->AddTempMP(vWIns[i]);
+							mpTargetMap->AddPlanarTemp(vWIns[i], 3);
+						}
+						for (size_t i = 0, iend = vWOuts.size(); i < iend; i++) {
+							mpTargetMap->AddPlanarTemp(vWOuts[i], 4);
+						}
+						/*if (fwallplane2.get()) {
+							std::vector<cv::Mat> vWIns = tempWall2->mvInliers;
+							for (size_t i = 0, iend = vWIns.size(); i < iend; i++) {
+								mpSystem->mpMap->AddTempMP(vWIns[i]);
+							}
+						}*/
+					}
+
+					////////structure map point
+					//std::vector<std::tuple<cv::Point2f, float, int>> vecTuples;
+					//cv::Mat R, t;
+					//mpTargetFrame->GetPose(R, t);
+					//cv::Mat Rcw2 = R.row(2);
+					//Rcw2 = Rcw2.t();
+					//float zcw = t.at<float>(2);
+					//mask_total = mask_floor + mask_ceil + mask_wall;
+					//auto mvpMPs = mpTargetFrame->GetMapPoints();
+					//
+					//for (size_t i = 0, iend = mvpMPs.size(); i < iend; i++) {
+					//	auto pMPi = mvpMPs[i];
+					//	if (!pMPi || pMPi->isDeleted() || pMPi->isNewMP()) {
+					//		continue;
+					//	}
+					//	auto pt = mpTargetFrame->mvPts[i];
+					//	if (mask_total.at<uchar>(pt)) {
+					//		cv::Mat x3Dw = pMPi->GetWorldPos();
+					//		float z = (float)Rcw2.dot(x3Dw) + zcw;
+					//		std::tuple<cv::Point2f, float, int> data = std::make_tuple(std::move(pt), 1.0 / z, pMPi->GetNumObservations());//cv::Point2f(pt.x / 2, pt.y / 2)
+					//		vecTuples.push_back(data);
+					//	}
+					//}
+					////////depth estimation
+					////////depth 정보 저장 및 포인트와 웨이트 정보를 튜플로 저장
+
+					////////웨이트와 포인트 정보로 정렬
+					/////*std::sort(vecTuples.begin(), vecTuples.end(),
+					////	[](std::tuple<cv::Point2f, float, int> const &t1, std::tuple<cv::Point2f, float, int> const &t2) {
+					////		if (std::get<2>(t1) == std::get<2>(t2)) {
+					////			return std::get<0>(t1).x != std::get<0>(t2).x ? std::get<0>(t1).x > std::get<0>(t2).x : std::get<0>(t1).y > std::get<0>(t2).y;
+					////		}
+					////		else {
+					////			return std::get<2>(t1) > std::get<2>(t2);
+					////		}
+					////	}
+					////);*/
+
+					////////파라메터 검색 및 뎁스 정보 복원
+					//int nTotal = 20;
+					//if (vecTuples.size() > nTotal) {
+					//	int nData = nTotal;
+					//	cv::Mat A = cv::Mat::ones(nData, 2, CV_32FC1);
+					//	cv::Mat B = cv::Mat::zeros(nData, 1, CV_32FC1);
+
+					//	for (size_t i = 0; i < nData; i++) {
+					//		auto data = vecTuples[i];
+					//		auto pt = std::get<0>(data);
+					//		auto invdepth = std::get<1>(data);
+					//		auto nConnected = std::get<2>(data);
+
+					//		float p = mpTargetFrame->mRawDepth.at<float>(pt);
+					//		A.at<float>(i, 0) = p;//invdepth;
+					//		B.at<float>(i) = invdepth;//p;
+					//	}
+
+					//	//cv::Mat X = A.inv(cv::DECOMP_QR)*B;
+					//	cv::Mat S = A.t()*A;
+					//	cv::Mat X = S.inv()*A.t()*B;
+					//	float a = X.at<float>(0);
+					//	float b = X.at<float>(1);
+
+					//	/*cv::Mat C = A*X - B;
+					//	std::cout << "depth val = " << cv::sum(C) / C.rows << std::endl;*/
+
+					//	//depth = a*depth + b; //(depth - b) / a;
+
+					//	mpTargetFrame->mDepthImage = cv::Mat::zeros(mpTargetFrame->mnHeight, mpTargetFrame->mnWidth, CV_32FC1);
+					//	for (int x = 0, cols = mpTargetFrame->mRawDepth.cols; x < cols; x++) {
+					//		for (int y = 0, rows = mpTargetFrame->mRawDepth.rows; y < rows; y++) {
+					//			float val = a*mpTargetFrame->mRawDepth.at<float>(y, x) + b;//1.0 / depth.at<float>(y, x);
+					//			/*if (val < 0.0001)
+					//			val = 0.5;*/
+					//			mpTargetFrame->mDepthImage.at<float>(y, x) = 1.0/val;
+					//		}
+					//	}
+						////////depth reconstruction
+						////////시각화 테스트
+						//std::vector<cv::Mat> vTempFloorMPs, vTempWallMPs, vTempCeilMPs;
+						//cv::Mat Rinv, Tinv;
+						//mpTargetFrame->GetInversePose(Rinv, Tinv);
+						////mpSystem->mpMap->ClearTempMPs();
+						//int inc = 3;
+						//for (size_t row = inc, rows = mpTargetFrame->mDepthImage.rows; row < rows; row += inc) {
+						//	for (size_t col = inc, cols = mpTargetFrame->mDepthImage.cols; col < cols; col += inc) {
+						//		cv::Point2f pt(col, row);
+						//		float depth = mpTargetFrame->mDepthImage.at<float>(pt);
+						//		if (depth < 0.0001)
+						//			continue;
+						//		cv::Mat a = Rinv*(mpTargetFrame->mInvK*(cv::Mat_<float>(3, 1) << pt.x, pt.y, 1.0)*depth) + Tinv;
+						//		//mpSystem->mpMap->AddTempMP(a);
+
+						//		int label = mpTargetFrame->mSegLabel.at<uchar>(row, col) + 1;
+						//		switch (label) {
+						//		case mnLabel_floor:
+						//			vTempFloorMPs.push_back(a);
+						//			break;
+						//		case mnLabel_wall:
+						//			vTempWallMPs.push_back(a);
+						//			break;
+						//		case mnLabel_ceil:
+						//			vTempCeilMPs.push_back(a);
+						//			break;
+						//		}
+						//	}
+						//}
+					//	////Plane Estimation
+					//	////Correlation
+					//	/*cv::Mat fParam, wParam, cParam;
+					//	std::vector<cv::Mat> vFIns, vFOuts;
+					//	std::vector<cv::Mat> vWIns, vWOuts;
+					//	std::vector<cv::Mat> vCIns, vCOuts;*/
+
+					//	auto tempFloor = new UVR_SLAM::PlaneInformation();
+					//	auto tempWall1 = new UVR_SLAM::PlaneInformation();
+					//	auto tempWall2 = new UVR_SLAM::PlaneInformation();
+
+					//	auto ffloorplane = std::async(std::launch::async, UVR_SLAM::lambda_plane_init, vTempFloorMPs, tempFloor, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+					//	auto fwallplane1 = std::async(std::launch::async, UVR_SLAM::lambda_plane_init, vTempWallMPs,  tempWall1, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+					//	
+					//	//Wall
+					//	//mpSystem->mpMap->ClearTempMPs();
+					//	mpTargetMap->ClearPlanarTest();
+					//	if (ffloorplane.get()) {
+					//		std::vector<cv::Mat> vfIns = tempFloor->mvInliers;
+					//		std::vector<cv::Mat> vfOuts = tempFloor->mvOutliers;
+					//		for (size_t i = 0, iend = vfIns.size(); i < iend; i++) {
+					//			//mpSystem->mpMap->AddTempMP(vWIns[i]);
+					//			mpTargetMap->AddPlanarTemp(vfIns[i], 1);
+					//		}
+					//		for (size_t i = 0, iend = vfOuts.size(); i < iend; i++) {
+					//			mpTargetMap->AddPlanarTemp(vfOuts[i], 2);
+					//		}
+					//	}
+					//	if (fwallplane1.get()) {
+					//		std::future<bool> fwallplane2;
+					//		/*if (tempWall1->mbParallel) {
+					//			fwallplane2 = std::async(std::launch::async, UVR_SLAM::lambda_plane_init, tempWall1->mvOutliers, tempWall2, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+					//		}*/
+
+					//		std::vector<cv::Mat> vWIns = tempWall1->mvInliers;
+					//		std::vector<cv::Mat> vWOuts = tempWall1->mvOutliers;
+
+					//		std::cout << "Wall Test = " << vWIns.size() << " " << vWOuts.size() << ":" << vTempFloorMPs.size() << ", " << vTempWallMPs.size() << std::endl;
+
+					//		for (size_t i = 0, iend = vWIns.size(); i < iend; i++) {
+					//			//mpSystem->mpMap->AddTempMP(vWIns[i]);
+					//			mpTargetMap->AddPlanarTemp(vWIns[i], 3);
+					//		}
+					//		for (size_t i = 0, iend = vWOuts.size(); i < iend; i++) {
+					//			mpTargetMap->AddPlanarTemp(vWOuts[i], 4);
+					//		}
+					//		/*if (fwallplane2.get()) {
+					//			std::vector<cv::Mat> vWIns = tempWall2->mvInliers;
+					//			for (size_t i = 0, iend = vWIns.size(); i < iend; i++) {
+					//				mpSystem->mpMap->AddTempMP(vWIns[i]);
+					//			}
+					//		}*/
+					//	}
+					//	
+
+					//	////Estimated Depth image
+					//	/*cv::normalize(mpTargetFrame->mDepthImage, depth, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+					//	cv::cvtColor(depth, depth, CV_GRAY2BGR);
+					//	cv::resize(depth, depth, mpSystem->mpVisualizer->mSizeOutputImg);
+					//	mpSystem->mpVisualizer->SetOutputImage(depth, 1);*/
+					//}
+
+					cv::Mat seg;
+					cv::resize(mpTargetFrame->mSegImage, seg, mpSystem->mpVisualizer->mSizeOutputImg);
+					mpSystem->mpVisualizer->SetOutputImage(seg,2);
+					////segmentation image
+				}
+				continue;
+
 				////////relocaalization
 				//auto vpCandidateKFs = mpKeyFrameDatabase->DetectPlaceCandidates(mpTargetFrame);
 				//std::cout << "Place Recognizer = " << vpCandidateKFs.size() << std::endl;

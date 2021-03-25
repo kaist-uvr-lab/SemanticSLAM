@@ -26,7 +26,7 @@
 ////매핑 서버 로드맵용
 
 UVR_SLAM::Frame::Frame(System* pSys, int id, int w, int h, float _fx, float _fy, float _cx, float _cy, double ts) :mpSystem(pSys), mnWidth(w), mnHeight(h), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
-mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMaxDepth(0.0), mfMedianDepth(0.0), fx(_fx), fy(_fy), cx(_cx), cy(_cy),
+mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMaxDepth(0.0), mfMedianDepth(0.0), fx(_fx), fy(_fy), cx(_cx), cy(_cy), bDepth(false), bSeg(false),
 mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts) {
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);
@@ -41,7 +41,7 @@ mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), m
 
 ////매핑 서버에서 생성
 UVR_SLAM::Frame::Frame(System* pSys, int id, int w, int h, cv::Mat K, cv::Mat invK, double ts) :mpSystem(pSys), mnWidth(w), mnHeight(h), mK(K), mInvK(invK), mnInliers(0), mnKeyFrameID(0), mnFuseFrameID(0), mnLocalBAID(0), mnFixedBAID(0), mnLocalMapFrameID(0), mnTrackingID(-1), mbDeleted(false),
-mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMaxDepth(0.0), mfMedianDepth(0.0), mnGridSize(10),
+mfMeanDepth(0.0), mfMinDepth(FLT_MAX), mfMaxDepth(0.0), mfMedianDepth(0.0), mnGridSize(10), bDepth(false), bSeg(false),
 mpPlaneInformation(nullptr), mvpPlanes(), bSegmented(false), mbMapping(false), mdTimestamp(ts) {
 	R = cv::Mat::eye(3, 3, CV_32FC1);
 	t = cv::Mat::zeros(3, 1, CV_32FC1);

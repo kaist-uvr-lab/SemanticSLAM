@@ -50,6 +50,8 @@ namespace UVR_SLAM {
 		ObjectType mnPlaneType; //바닥, 벽, 천장
 		std::vector<MapPoint*> mvpMPs;
 		std::vector<MapPoint*> tmpMPs, tmpOutlierMPs; //이전에 만들어진 포인트 중에서 여러개 연결된 경우
+		std::vector<cv::Mat> mvInliers, mvOutliers;
+		bool mbParallel;
 
 		void SetParam(cv::Mat m);
 		void SetParam(cv::Mat n, float d);

@@ -138,7 +138,7 @@ namespace UVR_SLAM {
 				////상위 N개의 Fixed KF만 추가
 				for (size_t i = 0, iend = vPairFixedKFs.size(); i < iend; i++) {
 					auto pair = vPairFixedKFs[i];
-					if (vpFixedKFs.size() == 20)
+					if (vpFixedKFs.size() == 40)
 						break;
 					auto pKFi = pair.second;
 					pKFi->mnFixedBAID = nTargetID;

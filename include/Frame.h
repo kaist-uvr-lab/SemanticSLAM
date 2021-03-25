@@ -137,6 +137,10 @@ namespace UVR_SLAM {
 		std::set<UVR_SLAM::Frame*> GetConnectedKeyFrameSet(int n = 0);
 		std::multimap<int, UVR_SLAM::Frame*, std::greater<int>> GetConnectedKFsWithWeight();
 ////////////////
+////Depth & Seg
+	public:
+		cv::Mat mRawDepth, mSegLabel, mSegImage, mDepthImage;
+		bool bDepth, bSeg;
 ////FrameGrid2
 	public:
 		int mnGridSize;

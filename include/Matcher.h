@@ -25,6 +25,9 @@ namespace UVR_SLAM {
 		void Init();
 
 ///////////////////////////////////////////////////////////
+		cv::Mat WebApiMatching(std::string ip, int port, std::string map, Frame* pF1, Frame* pF2);
+		cv::Mat KnnMatching(Frame* pF1, Frame* pF2);
+
 ////201114 Epipolar constraints
 	public:
 		cv::Mat ComputeLineEquation(cv::Point2f pt1, cv::Point2f pt2);

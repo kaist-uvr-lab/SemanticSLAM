@@ -37,6 +37,7 @@ public:
 	static void ConvertMapName(const char* data, std::string& map);
 	static void ConvertDeviceToServer(const char* data, int& id, bool& init);
 	static void ConvertDeviceFrameIDToServer(const char* data, std::string& user, int& id);
+	static void ConvertDeviceFrameIDToServer(const char* data, std::string& user, std::string& map, std::string& keyword, int& id);
 	static std::string ConvertInitializationToJsonString(int id, bool bInit, cv::Mat R, cv::Mat t, cv::Mat keypoints, cv::Mat mappoints);
 };
 #endif

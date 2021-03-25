@@ -11,6 +11,7 @@
 #include <Plane.h>
 #include <Visualizer.h>
 #include <Map.h>
+#include <WebAPI.h>
 #include <DBoW3.h>
 
 UVR_SLAM::Matcher::Matcher():TH_HIGH(100), TH_LOW(50), HISTO_LENGTH(30) {}
@@ -33,6 +34,81 @@ void UVR_SLAM::Matcher::Init() {
 const double nn_match_ratio = 0.7f; // Nearest-neighbour matching ratio
 
 namespace UVR_SLAM {
+	cv::Mat Matcher::WebApiMatching(std::string ip, int port, std::string map, Frame* pF1, Frame* pF2) {
+		WebAPI* mpAPI = new WebAPI(ip, port);
+		std::stringstream ss;
+		ss << "/featurematch?map=" << map << "&id1=" << pF1->mnFrameID << "&id2=" << pF2->mnFrameID;
+		auto res = mpAPI->Send(ss.str(), "");
+		cv::Mat matches = cv::Mat::zeros(res.size() / sizeof(int), 1, CV_32SC1);
+		std::memcpy(matches.data, res.data(), res.size());
+
+		/*int nSuccess = 0;
+		for (size_t i = 0, iend = matches.rows; i < iend; i++)
+			if (matches.at<int>(i) != 10000)
+				nSuccess++;
+		std::cout << "Web match = " << pF1->mnFrameID << ", " << pF2->mnFrameID <<"::"<<nSuccess<< std::endl;*/
+		return matches;
+	}
+	cv::Mat Matcher::KnnMatching(Frame* pF1, Frame* pF2) {
+		cv::Mat res = cv::Mat::ones(pF1->mvPts.size(), 1, CV_32SC1)*10000;
+		/*std::vector< std::vector<DMatch> > knn_matches;
+		auto matcher2 = cv::DescriptorMatcher::create("BruteForce-Hamming");
+		matcher2->knnMatch(pF1->matDescriptor, pF2->matDescriptor, knn_matches, 2);
+		for (size_t i = 0; i < knn_matches.size(); i++)
+		{
+			if (knn_matches[i][0].distance < nn_match_ratio * knn_matches[i][1].distance)
+			{
+				res.at<int>(i) = knn_matches[i][0].trainIdx;
+			}
+			else {
+				res.at<int>(i) = 10000;
+			}
+		}*/
+		int nres = 0;
+		std::vector<bool> vbMatches(pF2->mvPts.size(), false);
+
+		for (size_t i = 0, iend = pF1->matDescriptor.rows; i < iend; i++) {
+
+			cv::Mat d1 = pF1->matDescriptor.row(i);
+			float bestDist1 = 256.0;
+			int bestIdx2 = -1;
+			float bestDist2 = 256.0;
+
+			for (size_t i2 = 0, i2end = pF2->matDescriptor.rows; i2 < i2end; i2++) {
+				if (vbMatches[i2])
+					continue;
+				cv::Mat d2 = pF2->matDescriptor.row(i2);
+
+				float dist = SuperPointDescriptorDistance(d1, d2);
+				
+				if (dist<bestDist1)
+				{
+					bestDist2 = bestDist1;
+					bestDist1 = dist;
+					bestIdx2 = i2;
+				}
+				else if (dist<bestDist2)
+				{
+					bestDist2 = dist;
+				}
+
+			}
+			//std::cout << bestDist1 <<", "<< bestDist2 << std::endl;
+			if (bestDist1<(float)TH_LOW)
+			{
+				if (static_cast<float>(bestDist1)<mfNNratio*static_cast<float>(bestDist2))
+				{
+					////매칭을 위한 정보 추가
+					vbMatches[bestIdx2] = true;
+					res.at<int>(i) = bestIdx2;
+					nres++;
+				}
+			}
+		}
+
+		//std::cout << "knn match = " << pF1->mnFrameID << ", " << pF2->mnFrameID << "::" << nres << std::endl;
+		return res;
+	}
 
 	int Matcher::OpticalFlowMatching(cv::Mat img1, cv::Mat img2, std::vector<cv::Point2f> vecPoints, std::vector<cv::Point2f>& vecMatchPoints1, std::vector<cv::Point2f>& vecMatchPoints2, std::vector<int>& vecIndexes) {
 		int maxLvl = 3;

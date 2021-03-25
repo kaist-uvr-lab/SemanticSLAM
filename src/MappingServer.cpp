@@ -702,7 +702,7 @@ namespace UVR_SLAM {
 		mpVisualizer = mpSystem->mpVisualizer;
 		UVR_SLAM::ObjectColors::Init();
 	}
-	void MappingServer::InsertFrame(std::pair<std::string, int> pairInfo) {
+	void MappingServer::InsertFrame(Data* pairInfo) {
 		std::unique_lock<std::mutex> lock(mMutexQueue);
 		mQueue.push(pairInfo);
 	}
@@ -717,12 +717,92 @@ namespace UVR_SLAM {
 	void MappingServer::AcquireFrame() {
 		{
 			std::unique_lock<std::mutex> lock(mMutexQueue);
-			mPairFrameInfo = mQueue.front();
+			mpData = mQueue.front();
 			mQueue.pop();
 		}
 	}
+	void MappingServer::ProcessNewFrame2() {
+
+		std::string strUser = mpData->_user;
+		auto user = mpSystem->GetUser(strUser);
+		if (!user)
+			return;
+
+		std::string strMap = user->mapName;
+		auto mpServerMap = mpSystem->GetMap(strMap);
+		if (!mpServerMap)
+			return;
+
+		if (mpServerMap->GetMapLoad())
+			return;
+
+		if (!user->mpLastFrame) {
+			if (mpServerMap->mbInitialized) {
+				std::cout << "Relocalization" << std::endl;
+				mpData->pFrame->ComputeBoW();
+				if (mpLoopCloser->Relocalization(mpData->pFrame)) {
+					cv::Mat R, t;
+					mpData->pFrame->GetPose(R, t);
+					user->SetPose(R, t);
+				}
+				else
+					return;
+			}
+			user->mpLastFrame = mpData->pFrame;
+			std::cout << "set user last frame!!" << std::endl;
+		}
+		else {
+			
+			cv::Mat matches = mpMatcher->KnnMatching(user->mpLastFrame, mpData->pFrame);
+			
+			if (mpServerMap->mbInitialized) {
+				bool bNewKF = false;
+				bool bReplace = false;
+				bool bTracking = true;
+				std::vector<cv::Point2f> vec2Ds;
+				std::vector<MapPoint*> vec3Ds, vecLocalMaps;
+				std::vector<int> vecIDXs;
+				std::vector<bool> vecInliers;
+				std::vector<bool> vecTargetInliers(mpData->pFrame->mvPts.size(), false);;
+				int nMatch;
+				
+				bTracking = UVR_SLAM::lambda_api_pose_initialization(mpServerMap, user->mpLastFrame, mpData->pFrame, matches, vec2Ds, vec3Ds, vecIDXs, vecInliers, vecTargetInliers, nMatch);
+				/*if (bTracking) {
+					bTracking = UVR_SLAM::lambda_api_update_local_map(mpData->pFrame, vecLocalMaps, vecTargetInliers, vec2Ds, vec3Ds, vecIDXs, vecInliers);
+					bTracking = UVR_SLAM::lambda_api_pose_estimation(mpSystem, mpServerMap, mpData->pFrame, vecLocalMaps, vecTargetInliers, nMatch, vec2Ds, vec3Ds, vecIDXs, vecInliers);
+				}*/
+
+				if (bTracking) {
+					UVR_SLAM::lambda_api_update(mpSystem, user, mpData->pFrame, nMatch, vec2Ds, vec3Ds, vecIDXs, vecInliers, bNewKF);
+					if (bNewKF && user->mbMapping) {
+						user->mpLastFrame = mpData->pFrame;
+						
+						if (user->mbMapping)
+							mpLocalMapper->InsertKeyFrame(std::make_pair(mpData->pFrame, strUser));
+					}
+					////성공인지 아닌지도 알려주어야 할 듯
+					cv::Mat R, t;
+					mpData->pFrame->GetPose(R, t);
+					user->SetPose(R, t);
+				}
+				else {
+					std::cout << "Tracking Fail::" << nMatch << "::!!!!!!!!" << std::endl;
+					user->mpLastFrame = nullptr;
+					user->mnLastMatch = 0;
+				}
+
+			}
+			else if (user->mbMapping) {
+				bool bReplace = false;
+				mpServerMap->mbInitialized = UVR_SLAM::lambda_api_Initialization(mpSystem->ip, mpSystem->port, mpSystem, mpServerMap, user->mpLastFrame, mpData->pFrame, matches, strMap, bReplace);
+				if (bReplace) {
+					user->mpLastFrame = mpData->pFrame;
+				}
+			}
+		}
+	}
 	void MappingServer::ProcessNewFrame() {
-		std::string strUser = mPairFrameInfo.first;
+		std::string strUser = mpData->_user;
 		auto user = mpSystem->GetUser(strUser);
 		if (!user)
 			return;
@@ -735,7 +815,7 @@ namespace UVR_SLAM {
 		if (mpServerMap->GetMapLoad())
 			return;
 
-		int nID = mPairFrameInfo.second;
+		int nID = mpData->_id;
 		Frame* pNewF = new UVR_SLAM::Frame(mpSystem, nID, user->mnWidth, user->mnHeight, user->K, user->InvK, 0.0);
 		pNewF->mstrMapName = strMap;
 		
@@ -852,7 +932,7 @@ namespace UVR_SLAM {
 				std::cout << "MappingServer::Thread::TargetID = " << mPairFrameInfo.first <<", "<<mnReferenceID<<"::"<< mQueue .size()<<"::Start"<< std::endl;
 #endif
 				////user 마다 다르게
-				ProcessNewFrame();
+				ProcessNewFrame2();
 				
 				std::chrono::high_resolution_clock::time_point end3 = std::chrono::high_resolution_clock::now();
 				auto du_test1 = std::chrono::duration_cast<std::chrono::milliseconds>(end3 - start).count();

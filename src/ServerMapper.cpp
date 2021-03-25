@@ -28,6 +28,7 @@ namespace UVR_SLAM {
 	
 	}
 	void ServerMapper::Init() {
+		mpMatcher = mpSystem->mpMatcher;
 		mpLoopCloser = mpSystem->mpLoopCloser;
 		mpMapOptimizer = mpSystem->mpServerMapOptimizer;
 	}
@@ -63,6 +64,7 @@ namespace UVR_SLAM {
 				continue;
 			pMP->AddObservation(mpTargetFrame, i);
 		}
+		mpTargetFrame->ComputeBoW();
 		mpTargetFrame->ComputeSceneDepth();
 	}
 	bool ServerMapper::isDoingProcess(){
@@ -95,7 +97,7 @@ namespace UVR_SLAM {
 				CreateMapPoints();
 				SendData(mpTargetFrame, mPairFrameInfo.second, mpTargetUser->mapName);
 				mpMapOptimizer->InsertKeyFrame(mPairFrameInfo);
-				mpLoopCloser->InsertKeyFrame(mpTargetFrame);
+				mpLoopCloser->InsertData(mPairFrameInfo);
 				SetDoingProcess(false);
 			}
 		}
@@ -194,7 +196,7 @@ namespace UVR_SLAM {
 		return bDist1;
 	};
 	auto server_create_mp = []
-	(ServerMap* pMap, Frame* pCurr, Frame* pPrev, int idx1, int idx2, cv::Mat desc) {
+	(ServerMap* pMap, Frame* pCurr, Frame* pPrev, int idx1, int idx2, cv::Mat desc, bool& bParallax, bool& bDepth, bool& bProj) {
 		
 		auto prevPt = pPrev->mvPts[idx2];
 		auto currPt = pCurr->mvPts[idx1];
@@ -217,10 +219,10 @@ namespace UVR_SLAM {
 		cv::Mat ray2 = Rtcurr*pCurr->mInvK*xn2;
 		float cosParallaxRays = ray1.dot(ray2) / (cv::norm(ray1)*cv::norm(ray2));
 
-		bool bParallax = cosParallaxRays < 0.9998;
+		bParallax = cosParallaxRays < 0.9998;
 		MapPoint* res = nullptr;
-		if (!bParallax)
-			return res;
+		/*if (!bParallax)
+			return res;*/
 
 		cv::Mat A(4, 4, CV_32F);
 		A.row(0) = prevPt.x*Pprev.row(2) - Pprev.row(0);
@@ -259,7 +261,11 @@ namespace UVR_SLAM {
 			dist2 = diffPt.dot(diffPt);
 			bDist2 = dist2 < thresh;
 		}
-		//std::cout << "test::" << dist2 << ", " << dist1 << ", " << std::endl;
+		if (!bDepth1 || !bDepth2)
+			bDepth = true;
+		if (!bDist1 || !bDist2)
+			bProj = true;
+
 		if (bDist1 && bDepth1 && bDist2 && bDepth2) {
 			//pMap->AddTempMP(x3D);
 			res = new UVR_SLAM::MapPoint(pMap, pCurr, x3D, desc, 0);
@@ -269,9 +275,9 @@ namespace UVR_SLAM {
 
 	void ServerMapper::CreateMapPoints() {
 
-		auto vpKFs = mpTargetFrame->GetConnectedKFs(15);
+		auto vpKFs = mpTargetFrame->GetConnectedKFs(3);
 		mpSystem->mpMap->ClearReinit();
-		mpSystem->mpMap->ClearTempMPs();
+		//mpSystem->mpMap->ClearTempMPs();
 		auto pMatcher = mpSystem->mpMatcher;
 
 		int ncreate = 0;
@@ -281,11 +287,69 @@ namespace UVR_SLAM {
 				break;
 			nkf++;
 			auto pKF = vpKFs[k];
-			auto matches = server_kf_match(mpSystem->ip, mpSystem->port, mpTargetUser->mapName, mpTargetFrame->mnFrameID, pKF->mnFrameID);
+			auto matches = mpMatcher->KnnMatching(mpTargetFrame, pKF);
+			//{
+			//	cv::Rect mergeRect1 = cv::Rect(0, 0, mpTargetFrame->mnWidth, mpTargetFrame->mnHeight);
+			//	cv::Rect mergeRect2 = cv::Rect(0, mpTargetFrame->mnHeight, mpTargetFrame->mnWidth, mpTargetFrame->mnHeight);
+			//	cv::Mat debugMatch = cv::Mat::zeros(mpTargetFrame->mnHeight *2, mpTargetFrame->mnWidth, CV_8UC3);
+			//	cv::Point2f ptBottom = cv::Point2f(0, mpTargetFrame->mnHeight);
+			//	
+			//	cv::Mat img1 = mpTargetFrame->matFrame.clone();
+			//	cv::Mat img2 = pKF->matFrame.clone();
+
+			//	mpTargetFrame->matFrame.clone().copyTo(debugMatch(mergeRect1));
+			//	pKF->matFrame.copyTo(debugMatch(mergeRect2));
+			//	
+			//	for (size_t i = 0, iend = matches.rows; i < iend; i++) {
+			//		int idx1 = i;
+			//		int idx2 = matches.at<int>(i);
+			//		if (idx2 == 10000)
+			//			continue;
+			//		auto pt1 = mpTargetFrame->mvPts[idx1];
+			//		auto pt2 = pKF->mvPts[idx2];
+			//		cv::circle(img1, pt1, 2, cv::Scalar(255, 255, 0));
+			//		cv::circle(img2, pt2, 2, cv::Scalar(255, 255, 0));
+			//	}
+			//	std::stringstream ss;
+			//	ss << "./match_bf_" << mpTargetFrame->mnFrameID << "_" << pKF->mnFrameID << ".jpg";
+			//	//cv::imwrite(ss.str(), debugMatch);
+			//	imshow("1", img1); cv::waitKey(1);
+			//	imshow("2", img2); cv::waitKey(1);
+			//}
+
+			//auto matches2 = mpMatcher->WebApiMatching(mpSystem->ip, mpSystem->port, mpTargetUser->mapName, mpTargetFrame, pKF);
+			//{
+			//	cv::Mat img1 = mpTargetFrame->matFrame.clone();
+			//	cv::Mat img2 = pKF->matFrame.clone();
+
+			//	for (size_t i = 0, iend = matches2.rows; i < iend; i++) {
+			//		int idx1 = i;
+			//		int idx2 = matches2.at<int>(i);
+			//		if (idx2 == 10000)
+			//			continue;
+			//		auto pt1 = mpTargetFrame->mvPts[idx1];
+			//		auto pt2 = pKF->mvPts[idx2];
+			//		cv::circle(img1, pt1, 2, cv::Scalar(255, 255, 0));
+			//		cv::circle(img2, pt2, 2, cv::Scalar(255, 255, 0));
+			//	}
+			//	std::stringstream ss;
+			//	ss << "./match_bf_" << mpTargetFrame->mnFrameID << "_" << pKF->mnFrameID << ".jpg";
+			//	//cv::imwrite(ss.str(), debugMatch);
+			//	imshow("3", img1); cv::waitKey(1);
+			//	imshow("4", img2); cv::waitKey(1);
+			//}
 
 			cv::Mat Rrel, Trel;
 			mpTargetFrame->GetRelativePoseFromTargetFrame(pKF, Rrel, Trel);
 
+			int nKnnMatch = 0;
+			int nEpiMatch = 0;
+			int nSuccess = 0;
+			int nFail = 0;
+			int nConnect = 0;
+			int nDepth = 0;
+			int nProj = 0;
+			int nParallax = 0;
 			std::vector<bool> vecBoolOverlap(pKF->mvPts.size(), false);
 			for (size_t i = 0, iend = matches.rows; i < iend; i++) {
 				int idx1 = i;
@@ -298,6 +362,7 @@ namespace UVR_SLAM {
 					continue; 
 				}
 				vecBoolOverlap[idx2] = true;
+				nKnnMatch++;
 
 				auto pCurrMP = mpTargetFrame->GetMapPoint(idx1);
 				auto pPrevMP = pKF->GetMapPoint(idx2);
@@ -321,11 +386,21 @@ namespace UVR_SLAM {
 					continue;
 				}
 				/////////check epipolar constraints
-
+				nEpiMatch++;
 				if (!bCurrMP && !bPrevMP) {
-					auto pNewMP = server_create_mp(mpTargetMap, mpTargetFrame, pKF, idx1, idx2, mpTargetFrame->matDescriptor.row(idx1));
+					bool bParallax = false;
+					bool bDepth = false;
+					bool bProj = false;
+					auto pNewMP = server_create_mp(mpTargetMap, mpTargetFrame, pKF, idx1, idx2, mpTargetFrame->matDescriptor.row(idx1), bParallax, bDepth, bProj);
+					if (!bParallax)
+						nParallax++;
+					if (bDepth)
+						nDepth++;
+					if (bProj)
+						nProj++;
 					if (pNewMP) {
 						ncreate++;
+						nSuccess++;
 						mpTargetFrame->AddMapPoint(pNewMP, idx1);
 						pNewMP->AddObservation(mpTargetFrame, idx1);
 						pKF->AddMapPoint(pNewMP, idx2);
@@ -335,60 +410,70 @@ namespace UVR_SLAM {
 						mpTargetMap->mlpNewMapPoints.push_back(pNewMP);
 						mpSystem->mpMap->AddReinit(pNewMP->GetWorldPos());
 					}
+					else
+						nFail++;
 				}
 				else if (bCurrMP && !bPrevMP) {
 					//projection test : pCurrMP in prev frame    pPrevMP in curr frame
-					/*cv::Mat R, t;
+					cv::Mat R, t;
 					pKF->GetPose(R, t);
 					if (server_projection_test(pCurrMP->GetWorldPos(), R, t, pKF->mK, pKF->mvPts[idx2], 9.0)) {
-						
-					}*/
-					//if (pKF->isInFrustum(pCurrMP, 0.6f)) {
-						pKF->AddMapPoint(pCurrMP, idx2);
+						nConnect++;
+						/*pKF->AddMapPoint(pCurrMP, idx2);
 						pCurrMP->AddObservation(pKF, idx2);
 						pCurrMP->IncreaseFound();
-						pCurrMP->IncreaseVisible();
-						mpSystem->mpMap->AddTempMP(pCurrMP->GetWorldPos());
-					//}
+						pCurrMP->IncreaseVisible();*/
+					}
+					////if (pKF->isInFrustum(pCurrMP, 0.6f)) {
+					//	pKF->AddMapPoint(pCurrMP, idx2);
+					//	pCurrMP->AddObservation(pKF, idx2);
+					//	pCurrMP->IncreaseFound();
+					//	pCurrMP->IncreaseVisible();
+					//	//mpSystem->mpMap->AddTempMP(pCurrMP->GetWorldPos());
+					////}
 					
 				}
 				else if (!bCurrMP && bPrevMP) {
 					//projection test : pPrevMP in curr frame
-					/*cv::Mat R, t;
+					cv::Mat R, t;
 					mpTargetFrame->GetPose(R, t);
 					if (server_projection_test(pPrevMP->GetWorldPos(), R, t, mpTargetFrame->mK, mpTargetFrame->mvPts[idx1], 9.0)) {
-						
-					}*/
-
-					//if (mpTargetFrame->isInFrustum(pPrevMP, 0.6f)) {
 						mpTargetFrame->AddMapPoint(pPrevMP, idx1);
 						pPrevMP->AddObservation(mpTargetFrame, idx1);
 						pPrevMP->IncreaseFound();
 						pPrevMP->IncreaseVisible();
-						mpSystem->mpMap->AddTempMP(pPrevMP->GetWorldPos());
-					//}
+						nConnect++;
+					}
+
+					////if (mpTargetFrame->isInFrustum(pPrevMP, 0.6f)) {
+					//	mpTargetFrame->AddMapPoint(pPrevMP, idx1);
+					//	pPrevMP->AddObservation(mpTargetFrame, idx1);
+					//	pPrevMP->IncreaseFound();
+					//	pPrevMP->IncreaseVisible();
+					//	//mpSystem->mpMap->AddTempMP(pPrevMP->GetWorldPos());
+					////}
 					
 				}
-				else{
-					if (pCurrMP->mnMapPointID != pPrevMP->mnMapPointID) {
-						////fuse case
-						//projection test : pPrevMP in curr frame
-						cv::Mat R, t;
-						mpTargetFrame->GetPose(R, t);
-						if (!server_projection_test(pPrevMP->GetWorldPos(), R, t, mpTargetFrame->mK, mpTargetFrame->mvPts[idx1], 4.0)) {
-							continue;
-						}
-						if (pCurrMP->GetNumObservations() > pPrevMP->GetNumObservations()) {
-							pPrevMP->Fuse(pCurrMP);
-						}
-						else {
-							pCurrMP->Fuse(pPrevMP);
-						}
-					}//fuse
-				}
+				//else{
+				//	if (pCurrMP->mnMapPointID != pPrevMP->mnMapPointID) {
+				//		////fuse case
+				//		//projection test : pPrevMP in curr frame
+				//		cv::Mat R, t;
+				//		mpTargetFrame->GetPose(R, t);
+				//		if (!server_projection_test(pPrevMP->GetWorldPos(), R, t, mpTargetFrame->mK, mpTargetFrame->mvPts[idx1], 4.0)) {
+				//			continue;
+				//		}
+				//		if (pCurrMP->GetNumObservations() > pPrevMP->GetNumObservations()) {
+				//			pPrevMP->Fuse(pCurrMP);
+				//		}
+				//		else {
+				//			pCurrMP->Fuse(pPrevMP);
+				//		}
+				//	}//fuse
+				//}
 
 			}//for i
-
+			std::cout << "Mapping id  = " << mpTargetFrame->mnFrameID << ", " << pKF->mnFrameID << "::" <<nKnnMatch<<" "<< nEpiMatch << ":" << nSuccess << ", " << nFail <<"::plprde="<<nParallax<<" "<<nProj<<" "<<nDepth<<":"<<nConnect<< std::endl;
 		}// for k
 		std::cout << "ID = "<<mpTargetFrame->mnFrameID<<"::"<<"CreateMP=" <<ncreate<<", "<< nkf <<"::"<< vpKFs.size() << ", " << KeyframesInQueue() << std::endl;
 

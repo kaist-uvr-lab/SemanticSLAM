@@ -12,6 +12,7 @@ namespace UVR_SLAM {
 	class Visualizer;
 	class MapPoint;
 	class System;
+	class Data;
 	class Frame;
 	class Matcher;
 	class Initializer;
@@ -26,8 +27,9 @@ namespace UVR_SLAM {
 		int KeyframesInQueue();
 		bool CheckNewFrame();
 		void AcquireFrame();
-		void InsertFrame(std::pair<std::string, int> pairInfo);
+		void InsertFrame(Data* pData);
 		void ProcessNewFrame();
+		void ProcessNewFrame2();
 		void RunWithMappingServer();
 	private:
 		System* mpSystem;
@@ -39,9 +41,9 @@ namespace UVR_SLAM {
 		Visualizer* mpVisualizer;
 		Initializer* mpInitializer;
 
-		std::queue<std::pair<std::string, int>> mQueue;
+		std::queue<Data*> mQueue;
 		std::mutex mMutexQueue;
-		std::pair<std::string, int> mPairFrameInfo;
+		Data* mpData;
 	};
 }
 #endif

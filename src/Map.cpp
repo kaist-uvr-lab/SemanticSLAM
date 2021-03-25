@@ -542,6 +542,7 @@ void UVR_SLAM::Map::ClearTempMPs() {
 	mvTempMPs.clear();
 }
 void UVR_SLAM::Map::AddTempMP(cv::Mat m) {
+	std::unique_lock<std::mutex> lock(mMutexReinit);
 	mvTempMPs.push_back(m);
 }
 //////////Reinit test code

@@ -288,6 +288,16 @@ void WebAPIDataConverter::ConvertDeviceFrameIDToServer(const char* data, std::st
 	user = document["user"].GetString();
 	id = document["id"].GetInt();
 }
+void WebAPIDataConverter::ConvertDeviceFrameIDToServer(const char* data, std::string& user, std::string& map, std::string& keyword, int& id) {
+	rapidjson::Document document;
+	if (document.Parse(data).HasParseError()) {
+		std::cout << "JSON parsing error::ConvertDeviceFrameIDToServer" << std::endl;
+	}
+	user = document["user"].GetString();
+	map = document["map"].GetString();
+	keyword = document["key"].GetString();
+	id = document["id"].GetInt();
+}
 void WebAPIDataConverter::ConvertDeviceToServer(const char* data, int& id, bool& init) {
 	rapidjson::Document document;
 	if (document.Parse(data).HasParseError()) {

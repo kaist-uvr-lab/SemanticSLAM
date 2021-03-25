@@ -97,7 +97,7 @@ void UVR_SLAM::Visualizer::CallBackFunc(int event, int x, int y, int flags, void
 
 		////button interface
 		if (tempData[2] < 50 && y < 50) {
-			bSaveMap = true;
+			bSaveMap = !bSaveMap;
 		}else if (tempData[2] < 50 && (y >= 50 && y < 100)) {
 			//bShowOnlyTrajectory = !bShowOnlyTrajectory;
 			bLoadMap = true;
@@ -270,70 +270,72 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 	while (true) {
 		
 		if (bSaveMap) {
-			WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
-			
-			auto mmpMap = mpServerMap->GetMapPoints();
-			cv::Mat ids = cv::Mat::zeros(0, 1, CV_32SC1);
-			cv::Mat x3ds = cv::Mat::zeros(0, 1, CV_32FC1);
-			for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
-				auto pMPi = *iter;//->first;
-				if (!pMPi || pMPi->isDeleted())
-					continue;
-				cv::Mat Xw = pMPi->GetWorldPos();
-				cv::Mat temp = cv::Mat::zeros(1, 1, CV_32FC1);
-				temp.at<int>(0) = pMPi->mnMapPointID;
-				ids.push_back(temp);
-				x3ds.push_back(Xw);
-			}
-			int nMP = ids.rows;
-			auto mspKFs = mpServerMap->GetFrames();
-			
-			cv::Mat poses = cv::Mat::zeros(0, 3, CV_32FC1);
-			cv::Mat mps = cv::Mat::zeros(0, 1, CV_32SC1);
-			cv::Mat kfids = cv::Mat::zeros(mspKFs.size(), 1, CV_32SC1);
-			int j = 0;
-			for (auto iter = mspKFs.begin(); iter != mspKFs.end(); iter++, j++) {
-				auto pKFi = *iter;
-				kfids.at<int>(j) = pKFi->mnFrameID;
-				cv::Mat R, t;
-				pKFi->GetPose(R, t);
-				poses.push_back(R);
-				poses.push_back(t.t());
-				
-				auto vpMPs = pKFi->GetMapPoints();
-				cv::Mat temp = cv::Mat::ones(vpMPs.size(), 1, CV_32SC1)*-1;
-				for (int i = 0; i < vpMPs.size(); i++) {
-					auto pMPi = vpMPs[i];
-					if (!pMPi || pMPi->isDeleted()) {
-						continue;
-					}
-					int id = pMPi->mnMapPointID;
-					temp.at<int>(i) = id;
-				}
-				mps.push_back(temp);
+					
+			//WebAPI* mpAPI = new WebAPI(mpSystem->ip, mpSystem->port);
+			//
+			//auto mmpMap = mpServerMap->GetMapPoints();
+			//cv::Mat ids = cv::Mat::zeros(0, 1, CV_32SC1);
+			//cv::Mat x3ds = cv::Mat::zeros(0, 1, CV_32FC1);
+			//for (auto iter = mmpMap.begin(); iter != mmpMap.end(); iter++) {
+			//	auto pMPi = *iter;//->first;
+			//	if (!pMPi || pMPi->isDeleted())
+			//		continue;
+			//	cv::Mat Xw = pMPi->GetWorldPos();
+			//	cv::Mat temp = cv::Mat::zeros(1, 1, CV_32FC1);
+			//	temp.at<int>(0) = pMPi->mnMapPointID;
+			//	ids.push_back(temp);
+			//	x3ds.push_back(Xw);
+			//}
+			//int nMP = ids.rows;
+			//auto mspKFs = mpServerMap->GetFrames();
+			//
+			//cv::Mat poses = cv::Mat::zeros(0, 3, CV_32FC1);
+			//cv::Mat mps = cv::Mat::zeros(0, 1, CV_32SC1);
+			//cv::Mat kfids = cv::Mat::zeros(mspKFs.size(), 1, CV_32SC1);
+			//int j = 0;
+			//for (auto iter = mspKFs.begin(); iter != mspKFs.end(); iter++, j++) {
+			//	auto pKFi = *iter;
+			//	kfids.at<int>(j) = pKFi->mnFrameID;
+			//	cv::Mat R, t;
+			//	pKFi->GetPose(R, t);
+			//	poses.push_back(R);
+			//	poses.push_back(t.t());
+			//	
+			//	auto vpMPs = pKFi->GetMapPoints();
+			//	cv::Mat temp = cv::Mat::ones(vpMPs.size(), 1, CV_32SC1)*-1;
+			//	for (int i = 0; i < vpMPs.size(); i++) {
+			//		auto pMPi = vpMPs[i];
+			//		if (!pMPi || pMPi->isDeleted()) {
+			//			continue;
+			//		}
+			//		int id = pMPi->mnMapPointID;
+			//		temp.at<int>(i) = id;
+			//	}
+			//	mps.push_back(temp);
 
-				////키프레임 커넥션 데이터 전송
-				auto vNeigKFs = pKFi->GetConnectedKFsWithWeight();
-				cv::Mat kfData = cv::Mat::zeros(0, 1, CV_32SC1);
-				for (auto jit = vNeigKFs.begin(), jitend = vNeigKFs.end(); jit != jitend; jit++) {
-					auto weight = jit->first;
-					auto id = jit->second->mnFrameID;
-					cv::Mat temp = cv::Mat::zeros(2, 1, CV_32SC1);
-					temp.at<int>(0) = id;
-					temp.at<int>(1) = weight;
-					kfData.push_back(temp);
-				}
-				std::stringstream ss;
-				ss << "/ReceiveData?map=" << mspKFs[0]->mstrMapName << "&id=" << pKFi->mnFrameID << "&key=bconnectedkfs";
-				mpAPI->Send(ss.str(), kfData.data, kfData.rows * sizeof(int));
-			}
-			std::cout << "test::" << kfids .rows<<" "<< poses.rows << " ," << mps.rows <<", "<< ids.rows <<" "<<x3ds.rows<<", "<< x3ds.at<float>(x3ds.rows-1)<< std::endl;
+			//	////키프레임 커넥션 데이터 전송
+			//	auto vNeigKFs = pKFi->GetConnectedKFsWithWeight();
+			//	cv::Mat kfData = cv::Mat::zeros(0, 1, CV_32SC1);
+			//	for (auto jit = vNeigKFs.begin(), jitend = vNeigKFs.end(); jit != jitend; jit++) {
+			//		auto weight = jit->first;
+			//		auto id = jit->second->mnFrameID;
+			//		cv::Mat temp = cv::Mat::zeros(2, 1, CV_32SC1);
+			//		temp.at<int>(0) = id;
+			//		temp.at<int>(1) = weight;
+			//		kfData.push_back(temp);
+			//	}
+			//	std::stringstream ss;
+			//	ss << "/ReceiveData?map=" << mspKFs[0]->mstrMapName << "&id=" << pKFi->mnFrameID << "&key=bconnectedkfs";
+			//	mpAPI->Send(ss.str(), kfData.data, kfData.rows * sizeof(int));
+			//}
+			//std::cout << "test::" << kfids .rows<<" "<< poses.rows << " ," << mps.rows <<", "<< ids.rows <<" "<<x3ds.rows<<", "<< x3ds.at<float>(x3ds.rows-1)<< std::endl;
+			//
+			//mpAPI->Send("/SaveMap?map="+ mspKFs[0]->mstrMapName, WebAPIDataConverter::ConvertMapDataToJson(ids, x3ds, kfids, poses, mps));
+			////일단 모든 데이터를 전송하기.
+			////1)맵포인트 아이디와 좌표값으로 
+			////2)모든 프레임에 대해 포즈와 맵포인트 아이디로
 			
-			mpAPI->Send("/SaveMap?map="+ mspKFs[0]->mstrMapName, WebAPIDataConverter::ConvertMapDataToJson(ids, x3ds, kfids, poses, mps));
-			//일단 모든 데이터를 전송하기.
-			//1)맵포인트 아이디와 좌표값으로 
-			//2)모든 프레임에 대해 포즈와 맵포인트 아이디로
-			bSaveMap = false;
+			//bSaveMap = false;
 		}
 		if (bLoadMap) {
 			////load map test
@@ -419,18 +421,10 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 					cv::circle(tempVis, pt1, 5, cv::Scalar(0, 0, 255), -1);
 				}
 			}
-			cv::Scalar color = cv::Scalar(0, 255, 255);
-			auto vReinit = mpMap->GetTempMPs();
-			for (int i = 0; i < vReinit.size(); i++) {
-				cv::Mat x3D = vReinit[i];
-				cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
-				tpt += mVisMidPt;
-				cv::circle(tempVis, tpt, 4, color, -1);
-			}
 
 			{
-				cv::Scalar color = cv::Scalar(255, 255, 0);
-				vReinit = mpMap->GetReinit();
+				cv::Scalar color = cv::Scalar(0, 255, 255);
+				auto vReinit = mpMap->GetTempMPs();
 				for (int i = 0; i < vReinit.size(); i++) {
 					cv::Mat x3D = vReinit[i];
 					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
@@ -438,7 +432,41 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 					cv::circle(tempVis, tpt, 4, color, -1);
 				}
 			}
-			
+			{
+				cv::Scalar color = cv::Scalar(255, 255, 0);
+				auto vReinit = mpMap->GetReinit();
+				for (int i = 0; i < vReinit.size(); i++) {
+					cv::Mat x3D = vReinit[i];
+					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
+					tpt += mVisMidPt;
+					cv::circle(tempVis, tpt, 4, color, -1);
+				}
+			}
+			if(bSaveMap)
+			{
+				auto vPlanarTset = pMap->GetPlanarTest();
+				for (size_t i = 0, iend = vPlanarTset.size(); i < iend; i++) {
+					cv::Mat x3D = vPlanarTset[i].first;
+					int label = vPlanarTset[i].second;
+					cv::Point2f tpt = cv::Point2f(x3D.at<float>(mnAxis1) * mnVisScale, x3D.at<float>(mnAxis2) * mnVisScale);
+					tpt += mVisMidPt;
+					switch (label) {
+					case 1:
+						cv::circle(tempVis, tpt, 3, cv::Scalar(255, 0, 0), -1);
+						break;
+					case 2:
+						cv::circle(tempVis, tpt, 3, cv::Scalar(255, 255, 0), -1);
+						break;
+					case 3:
+						cv::circle(tempVis, tpt, 3, cv::Scalar(0, 0, 255), -1);
+						break;
+					case 4:
+						cv::circle(tempVis, tpt, 3, cv::Scalar(255, 0, 255), -1);
+						break;
+					}
+
+				}
+			}
 		}
 		SetOutputImage(tempVis, 4);
 		SetBoolDoingProcess(false);

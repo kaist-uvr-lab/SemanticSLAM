@@ -390,4 +390,18 @@ namespace UVR_SLAM {
 			mmpMPs[id] = pNewMP;
 		}*/
 	}
+
+
+	std::vector<std::pair<cv::Mat, int>> ServerMap::GetPlanarTest() {
+		std::unique_lock<std::mutex> lock(mMutexTempPlanar);
+		return std::vector<std::pair<cv::Mat, int>>(mvPairTemps.begin(), mvPairTemps.end());
+	}
+	void ServerMap::ClearPlanarTest() {
+		std::unique_lock<std::mutex> lock(mMutexTempPlanar);
+		mvPairTemps.clear();
+	}
+	void ServerMap::AddPlanarTemp(cv::Mat m, int label) {
+		std::unique_lock<std::mutex> lock(mMutexTempPlanar);
+		mvPairTemps.push_back(std::make_pair(m, label));
+	}
 }

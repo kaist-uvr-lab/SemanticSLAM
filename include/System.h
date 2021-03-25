@@ -37,6 +37,15 @@ namespace UVR_SLAM {
 	class ServerMapOptimizer;
 	class Map;
 	class KeyframeDatabase;
+	class Data {
+	public:
+		Data();
+		Data(std::string user, std::string map, std::string key, int id);
+		virtual ~Data();
+		std::string _user, _map, _key;
+		int _id;
+		Frame* pFrame;
+	};
 	class System {
 	public:
 

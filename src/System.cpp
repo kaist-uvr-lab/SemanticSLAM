@@ -29,6 +29,12 @@ int UVR_SLAM::System::nKeyFrameID = 1;
 int UVR_SLAM::System::nFrameID = 1;
 int UVR_SLAM::System::nMapGridID = 1;
 
+UVR_SLAM::Data::Data() {}
+UVR_SLAM::Data::Data(std::string user, std::string map, std::string key, int id) :_user(user), _map(map), _key(key), _id(id) {}
+UVR_SLAM::Data::~Data() {
+
+}
+
 UVR_SLAM::System::System(){}
 UVR_SLAM::System::System(std::string strFilePath):mstrFilePath(strFilePath), mbTrackingEnd(true), mbLocalMapOptimizationEnd(true), mbSegmentationEnd(false), mbCreateCP(true), mbCreateMP(true), mbPlaneEstimationEnd(false), mbPlanarMPEnd(false),
 mbSegmentation(false), mbPlaneEstimation(false), mStrSegmentationString("Segmentation"), mStrPlaneString("PE"){

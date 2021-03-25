@@ -40,8 +40,7 @@ void UVR_SLAM::PlaneEstimator::Init() {
 	mpInitializer = mpSystem->mpInitializer;
 	//mK2 = mpSystem->mKforPL.clone();
 }
-UVR_SLAM::PlaneInformation::PlaneInformation() {
-	mbInit = false;
+UVR_SLAM::PlaneInformation::PlaneInformation() :mbInit(false), mbParallel(false) {
 	matPlaneParam = cv::Mat::zeros(4, 1, CV_32FC1);
 	normal = matPlaneParam.rowRange(0, 3);
 	distance = matPlaneParam.at<float>(3);
