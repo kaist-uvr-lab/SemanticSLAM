@@ -519,13 +519,14 @@ namespace UVR_SLAM {
 			auto res = mpAPI->Send(ss.str(), poses.data, sizeof(float)*12);
 		}, mpSystem->ip, mpSystem->port, map, pF);
 	
-		auto fframeID = std::async(std::launch::async, [](std::string ip, int port, std::string userName, int id) {
+		auto fframeID = std::async(std::launch::async, [](std::string ip, int port, std::string mapName, std::string userName, int id) {
+			cv::Mat data = cv::Mat::zeros(1,1, CV_32SC1);
+			data.at<int>(0, 0) = id;
 			WebAPI* mpAPI = new WebAPI(ip, port);
 			std::stringstream ss;
-			ss << "/ReceiveFrameID?user=" << userName << "&id=" << id;
-			auto res = mpAPI->Send(ss.str(), "");
-			
-		}, mpSystem->ip, mpSystem->port, user, pF->mnFrameID);
+			ss << "/ReceiveData?map=" << mapName << "&attr=Users&id=" << userName << "&key=refid";
+			auto res = mpAPI->Send(ss.str(),data.data, sizeof(int));
+		}, mpSystem->ip, mpSystem->port, map, user, pF->mnFrameID);
 
 	}
 }

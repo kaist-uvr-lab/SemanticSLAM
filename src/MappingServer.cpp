@@ -780,6 +780,9 @@ namespace UVR_SLAM {
 						if (user->mbMapping)
 							mpLocalMapper->InsertKeyFrame(std::make_pair(mpData->pFrame, strUser));
 					}
+					else {
+						mpLocalMapper->SendData(mpData->pFrame, strUser, strMap);
+					}
 					////성공인지 아닌지도 알려주어야 할 듯
 					cv::Mat R, t;
 					mpData->pFrame->GetPose(R, t);

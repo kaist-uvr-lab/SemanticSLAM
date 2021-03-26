@@ -433,7 +433,7 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 				}
 			}
 			{
-				cv::Scalar color = cv::Scalar(255, 255, 0);
+				cv::Scalar color = cv::Scalar(255, 0, 153);
 				auto vReinit = mpMap->GetReinit();
 				for (int i = 0; i < vReinit.size(); i++) {
 					cv::Mat x3D = vReinit[i];
@@ -462,6 +462,12 @@ void UVR_SLAM::Visualizer::RunWithMappingServer() {
 						break;
 					case 4:
 						cv::circle(tempVis, tpt, 3, cv::Scalar(255, 0, 255), -1);
+						break;
+					case 5:
+						cv::circle(tempVis, tpt, 3, cv::Scalar(0, 255, 0), -1);
+						break;
+					case 6:
+						cv::circle(tempVis, tpt, 3, cv::Scalar(0, 255, 255), -1);
 						break;
 					}
 

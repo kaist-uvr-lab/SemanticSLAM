@@ -187,7 +187,7 @@ namespace UVR_SLAM {
 			mMat.push_back(temp.t());
 			vIdxs.push_back(i);
 		}
-		if (mMat.rows < 10)
+		if (mMat.rows < 30)
 			return false;
 		std::random_device rn;
 		std::mt19937_64 rnd(rn());
@@ -244,8 +244,8 @@ namespace UVR_SLAM {
 				}
 			}
 
-			float ratio = ((float)pPlane->mvOutliers.size()) / pPlane->mvInliers.size();
-			if (ratio > 0.3f)
+			float ratio2 = ((float)pPlane->mvOutliers.size()) / mMat.rows;
+			if (ratio2 > 0.3f)
 				pPlane->mbParallel = true;
 
 			//std::cout << "plane::3::" << planeParam.t() << ", " << inliers.size() <<", "<<outliers.size()<< std::endl;
@@ -326,6 +326,112 @@ namespace UVR_SLAM {
 				std::cout << "MappingServer::LoopClosing::" << mpTargetFrame->mnFrameID << "::Start" << std::endl;
 #endif
 				mpKeyFrameDatabase->Add(mpTargetFrame);
+
+				if (mpTargetFrame->bSeg){
+					//mask
+					cv::Mat mask_total = cv::Mat::zeros(mpTargetFrame->mnHeight, mpTargetFrame->mnWidth, CV_8UC1);
+					cv::Mat mask_floor = cv::Mat::zeros(mpTargetFrame->mnHeight, mpTargetFrame->mnWidth, CV_8UC1);
+					cv::Mat mask_wall = cv::Mat::zeros(mpTargetFrame->mnHeight, mpTargetFrame->mnWidth, CV_8UC1);
+					cv::Mat mask_ceil = cv::Mat::zeros(mpTargetFrame->mnHeight, mpTargetFrame->mnWidth, CV_8UC1);
+
+					////segmentation image
+					mpTargetFrame->mSegImage = cv::Mat::zeros(mpTargetFrame->mSegLabel.size(), CV_8UC3);
+					for (int y = 0; y < mpTargetFrame->mSegLabel.rows; y++) {
+						for (int x = 0; x < mpTargetFrame->mSegLabel.cols; x++) {
+							int label = mpTargetFrame->mSegLabel.at<uchar>(y, x) + 1;
+							switch (label) {
+							case mnLabel_floor:
+								mpTargetFrame->mSegImage.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
+								mask_floor.at<uchar>(y, x) = 255;
+								break;
+							case mnLabel_wall:
+								mpTargetFrame->mSegImage.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
+								mask_wall.at<uchar>(y, x) = 255;
+								break;
+							case mnLabel_ceil:
+								mpTargetFrame->mSegImage.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
+								mask_ceil.at<uchar>(y, x) = 255;
+								break;
+							}
+						}
+					}
+					std::vector<cv::Mat> vTempFloorMPs, vTempWallMPs, vTempCeilMPs;
+					auto vpMPs = mpTargetFrame->GetMapPoints();
+					for (size_t i = 0, iend = vpMPs.size(); i < iend; i++) {
+						auto pMPi = vpMPs[i];
+						if (!pMPi || pMPi->isDeleted())
+							continue;
+						cv::Mat a = pMPi->GetWorldPos();
+						auto pt = mpTargetFrame->mvPts[i];
+						int label = mpTargetFrame->mSegLabel.at<uchar>(pt.y, pt.x) + 1;
+						switch (label) {
+						case mnLabel_floor:
+							vTempFloorMPs.push_back(a);
+							break;
+						case mnLabel_wall:
+							vTempWallMPs.push_back(a);
+							break;
+						case mnLabel_ceil:
+							vTempCeilMPs.push_back(a);
+							break;
+						}
+					}
+
+					auto tempFloor = new UVR_SLAM::PlaneInformation();
+					auto tempWall1 = new UVR_SLAM::PlaneInformation();
+					auto tempWall2 = new UVR_SLAM::PlaneInformation();
+
+					auto ffloorplane = std::async(std::launch::async, UVR_SLAM::lambda_plane_init, vTempFloorMPs, tempFloor, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+					auto fwallplane1 = std::async(std::launch::async, UVR_SLAM::lambda_plane_init, vTempWallMPs, tempWall1, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+
+					if (ffloorplane.get()) {
+						std::vector<cv::Mat> vfIns = tempFloor->mvInliers;
+						std::vector<cv::Mat> vfOuts = tempFloor->mvOutliers;
+						
+						std::cout << "Plane::Floor::Success::" << tempFloor->GetParam().t()<<"::"<< vfIns.size() << " " << vfOuts.size() << "::" << vTempFloorMPs.size() << std::endl;
+						for (size_t i = 0, iend = vfIns.size(); i < iend; i++) {
+							mpTargetMap->AddPlanarTemp(vfIns[i], 1);
+						}
+						/*for (size_t i = 0, iend = vfOuts.size(); i < iend; i++) {
+							mpTargetMap->AddPlanarTemp(vfOuts[i], 2);
+						}*/
+					}
+					else
+						std::cout << "Plane::Floor::Fail::" << vTempFloorMPs.size() << std::endl;
+					if (fwallplane1.get()) {
+						std::future<bool> fwallplane2;
+						if (tempWall1->mbParallel) {
+							std::cout << "wall2 start" << std::endl;
+							fwallplane2 = std::async(std::launch::async, UVR_SLAM::lambda_plane_init, tempWall1->mvOutliers, tempWall2, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+						}
+						std::vector<cv::Mat> vWIns = tempWall1->mvInliers;
+						std::vector<cv::Mat> vWOuts = tempWall1->mvOutliers;
+						//std::cout << "Wall Test = " << vWIns.size() << " " << vWOuts.size() << ":" << vTempFloorMPs.size() << ", " << vTempWallMPs.size() << std::endl;
+						for (size_t i = 0, iend = vWIns.size(); i < iend; i++) {
+							//mpSystem->mpMap->AddTempMP(vWIns[i]);
+							mpTargetMap->AddPlanarTemp(vWIns[i], 3);
+						}
+						/*for (size_t i = 0, iend = vWOuts.size(); i < iend; i++) {
+							mpTargetMap->AddPlanarTemp(vWOuts[i], 4);
+						}*/
+						if (tempWall1->mbParallel && fwallplane2.get()) {
+							std::cout << "wall2 test::2" << std::endl;
+							std::vector<cv::Mat> vWIns2 = tempWall2->mvInliers;
+							std::vector<cv::Mat> vWOuts2 = tempWall2->mvOutliers;
+							for (size_t i = 0, iend = vWIns2.size(); i < iend; i++) {
+								mpTargetMap->AddPlanarTemp(vWIns2[i], 5);
+							}
+							/*for (size_t i = 0, iend = vWOuts2.size(); i < iend; i++) {
+								mpTargetMap->AddPlanarTemp(vWOuts2[i], 6);
+							}*/
+						}
+					}
+
+					cv::Mat seg;
+					cv::resize(mpTargetFrame->mSegImage, seg, mpSystem->mpVisualizer->mSizeOutputImg);
+					mpSystem->mpVisualizer->SetOutputImage(seg, 2);
+
+				}
 
 				if (mpTargetFrame->bSeg && mpTargetFrame->bDepth) {
 					
