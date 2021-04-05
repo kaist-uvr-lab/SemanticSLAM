@@ -65,6 +65,9 @@ namespace UVR_SLAM {
 		float norm;
 		cv::Mat matPlaneParam;
 	public:
+
+		static bool Ransac_fitting(cv::Mat src, cv::Mat& res, cv::Mat& matInliers, cv::Mat& matOutliers, int ransac_trial, float thresh_distance, float thresh_ratio);
+		static float CalcCosineSimilarity(cv::Mat n1, cv::Mat n2);
 		////
 		//단일 포인트에 대해서 평면을 생성하는 경우
 		//트래킹 도중에 생성이 가능함.
@@ -77,14 +80,13 @@ namespace UVR_SLAM {
 		void Merge(PlaneInformation* p, int nID, float thresh);
 
 		float CalcCosineSimilarity(PlaneInformation* p);
-		float CalcCosineSimilarity(cv::Mat P);
+		
 		float CalcPlaneDistance(PlaneInformation* p);
 		float CalcPlaneDistance(cv::Mat X);
 		//플루커 라인 관련 함수들
 		cv::Mat FlukerLineProjection(PlaneInformation* P, cv::Mat R, cv::Mat t, cv::Mat K, float& m);
 		
 		//테스트
-		static float CalcCosineSimilarity(cv::Mat P1, cv::Mat P2);
 		static float CalcPlaneDistance(cv::Mat X1, cv::Mat X2);
 		static cv::Mat PlaneWallEstimator(cv::Mat s, cv::Mat e, cv::Mat normal1, cv::Mat invP, cv::Mat invT, cv::Mat invK);
 		static cv::Mat PlaneWallEstimator(Line* line, cv::Mat normal1, cv::Mat invP, cv::Mat invT, cv::Mat invK);

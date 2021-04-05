@@ -9,6 +9,7 @@
 namespace UVR_SLAM {
 	class MapPoint;
 	class Frame;
+	class Subspace;
 	class MapGrid;
 	class System;
 	class ServerMap {
@@ -54,6 +55,8 @@ namespace UVR_SLAM {
 	private:
 		std::mutex mMutexTempPlanar;
 		std::vector<std::pair<cv::Mat, int>> mvPairTemps;
+	public:
+		std::vector<Subspace*> mvpSubspaces;
 	};
 }
 #endif

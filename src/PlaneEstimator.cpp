@@ -294,6 +294,81 @@ void UVR_SLAM::PlaneEstimator::Run() {
 	}
 }
 
+bool UVR_SLAM::PlaneInformation::Ransac_fitting(cv::Mat src, cv::Mat& res, cv::Mat& matInliers, cv::Mat& matOutliers, int ransac_trial, float thresh_distance, float thresh_ratio){
+
+	//RANSAC
+	int max_num_inlier = 0;
+	cv::Mat best_plane_param;
+	cv::Mat inlier;
+
+	cv::Mat param, paramStatus;
+
+	//초기 매트릭스 생성
+	if (src.rows < 30)
+		return false;
+	int nDim = src.cols;
+	int nDim2 = src.cols-1;
+		
+	std::random_device rn;
+	std::mt19937_64 rnd(rn());
+	std::uniform_int_distribution<int> range(0, src.rows - 1);
+
+	for (int n = 0; n < ransac_trial; n++) {
+
+		cv::Mat arandomPts = cv::Mat::zeros(0, nDim, CV_32FC1);
+		//select pts
+		for (int k = 0; k < nDim2; k++) {
+			int randomNum = range(rnd);
+			cv::Mat temp = src.row(randomNum).clone();
+			arandomPts.push_back(temp);
+		}//select
+
+		 //SVD
+		cv::Mat X;
+		cv::Mat w, u, vt;
+		cv::SVD::compute(arandomPts, w, u, vt, cv::SVD::FULL_UV);
+		X = vt.row(nDim2).clone();
+		cv::transpose(X, X);
+
+		if (!calcUnitNormalVector(X)) {
+			std::cout << "PE::RANSAC_FITTING::UNIT Vector error" << std::endl;
+		}
+		cv::Mat checkResidual = abs(src*X) < thresh_distance;
+		//checkResidual = checkResidual / 255;
+		int temp_inlier = cv::countNonZero(checkResidual);
+
+		if (max_num_inlier < temp_inlier) {
+			max_num_inlier = temp_inlier;
+			param = X.clone();
+			paramStatus = checkResidual.clone();
+		}
+	}//trial
+
+	float planeRatio = ((float)max_num_inlier / src.rows);
+	std::cout << "max = " << max_num_inlier <<"::"<<src.rows<< std::endl;
+	if (planeRatio > thresh_ratio) {
+
+		for (int i = 0; i < src.rows; i++) {
+			int checkIdx = paramStatus.at<uchar>(i);
+
+			cv::Mat temp = src.row(i).clone();
+			if (checkIdx == 0) {
+				matOutliers.push_back(temp);
+			}
+			else {
+				matInliers.push_back(temp);
+			}
+		}
+		res = param.clone();
+		return true;
+	}
+	else
+	{
+		//std::cout << "failed" << std::endl;
+		return false;
+	}
+};
+
 //////////////////////////////////////////////////////////////////////
 cv::Mat UVR_SLAM::PlaneInformation::PlaneLineEstimator(WallPlane* pWall, PlaneInformation* pFloor) {
 	cv::Mat mat = cv::Mat::zeros(0,3,CV_32FC1);
@@ -776,7 +851,7 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 		cv::transpose(X, X);
 		UVR_SLAM::PlaneInformation::calcUnitNormalVector(X);
 
-		float val = GroundPlane->CalcCosineSimilarity(X);
+		float val = 0.0;// GroundPlane->CalcCosineSimilarity(X);
 		//std::cout << "cos::" << val << std::endl;
 		if (type == 1) {
 			//바닥과 벽	
@@ -841,13 +916,19 @@ bool UVR_SLAM::PlaneEstimator::PlaneInitialization(UVR_SLAM::PlaneInformation* p
 }
 
 bool UVR_SLAM::PlaneInformation::calcUnitNormalVector(cv::Mat& X) {
-	float sum = sqrt(X.at<float>(0)*X.at<float>(0) + X.at<float>(1)*X.at<float>(1) + X.at<float>(2)*X.at<float>(2));
+	float sum = 0.0;
+	for (size_t i = 0; i < X.rows; i++) {
+		sum += (X.at<float>(i)*X.at<float>(i));
+	}
+	sum = sqrt(sum);
+	//float sum = sqrt(X.at<float>(0)*X.at<float>(0) + X.at<float>(1)*X.at<float>(1) + X.at<float>(2)*X.at<float>(2));
 	//cout<<"befor X : "<<X<<endl;
 	if (sum != 0) {
-		X.at<float>(0, 0) = X.at<float>(0, 0) / sum;
+		X /= sum;
+		/*X.at<float>(0, 0) = X.at<float>(0, 0) / sum;
 		X.at<float>(1, 0) = X.at<float>(1, 0) / sum;
 		X.at<float>(2, 0) = X.at<float>(2, 0) / sum;
-		X.at<float>(3, 0) = X.at<float>(3, 0) / sum;
+		X.at<float>(3, 0) = X.at<float>(3, 0) / sum;*/
 		//cout<<"after X : "<<X<<endl;
 		return true;
 	}
@@ -1075,16 +1156,14 @@ float UVR_SLAM::PlaneInformation::CalcCosineSimilarity(PlaneInformation* p) {
 	return abs(normal.dot(p->normal) / (d1*d2));
 }
 
-float UVR_SLAM::PlaneInformation::CalcCosineSimilarity(cv::Mat P) {
+float UVR_SLAM::PlaneInformation::CalcCosineSimilarity(cv::Mat n1, cv::Mat n2) {
 
-	float d1 = this->norm;
-	cv::Mat tempNormal = P.rowRange(0, 3);
-
-	float d2 = sqrt(tempNormal.dot(tempNormal));
+	float d1 = sqrt(n1.dot(n1));
+	float d2 = sqrt(n2.dot(n2));
 	
 	if (CheckZero(d1) || CheckZero(d2))
 		return 0.0;
-	return abs(normal.dot(tempNormal) / (d1*d2));
+	return abs(n1.dot(n2) / (d1*d2));
 }
 
 
@@ -1095,16 +1174,6 @@ float UVR_SLAM::PlaneInformation::CalcPlaneDistance(PlaneInformation* p) {
 
 float UVR_SLAM::PlaneInformation::CalcPlaneDistance(cv::Mat X) {
 	return X.dot(this->normal) + distance;
-}
-
-float UVR_SLAM::PlaneInformation::CalcCosineSimilarity(cv::Mat P1, cv::Mat P2){
-	cv::Mat normal1 = P1.rowRange(0, 3);
-	cv::Mat normal2 = P2.rowRange(0, 3);
-	float d1 = sqrt(normal1.dot(normal1));
-	float d2 = sqrt(normal2.dot(normal2));
-	if (CheckZero(d1) || CheckZero(d2))
-		return 0.0;
-	return abs(normal1.dot(normal2)) / (d1*d2);
 }
 
 //두 평면의 거리를 비교
@@ -1190,15 +1259,14 @@ bool UVR_SLAM::PlaneEstimator::ConnectedComponentLabeling(cv::Mat img, cv::Mat& 
 	return true;
 }
 
-cv::Mat UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(cv::Mat P) {
+cv::Mat UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(cv::Mat normal) {
 	//euler zxy
 	cv::Mat Nidealfloor = cv::Mat::zeros(3, 1, CV_32FC1);
-	cv::Mat normal = P.rowRange(0, 3);
 
 	Nidealfloor.at<float>(1) = -1.0;
-	float nx = P.at<float>(0);
-	float ny = P.at<float>(1);
-	float nz = P.at<float>(2);
+	float nx = normal.at<float>(0);
+	float ny = normal.at<float>(1);
+	float nz = normal.at<float>(2);
 
 	float d1 = atan2(nx, -ny);
 	float d2 = atan2(-nz, sqrt(nx*nx + ny*ny));

@@ -15,6 +15,7 @@
 #include <future>
 #include <random>
 #include <PlaneEstimator.h>
+#include <Subspace.h>
 
 /*
 프레임의 seterase, setnoterase, setbadflag 관련된 처리가 아직 안되어있음.
@@ -126,6 +127,7 @@ namespace UVR_SLAM {
 		return true;
 	}
 	bool calcTempUnitNormalVector(cv::Mat& X) {
+
 		float sum = sqrt(X.at<float>(0)*X.at<float>(0) + X.at<float>(1)*X.at<float>(1) + X.at<float>(2)*X.at<float>(2));
 		if (sum != 0) {
 			X.at<float>(0, 0) = X.at<float>(0, 0) / sum;
@@ -171,6 +173,10 @@ namespace UVR_SLAM {
 	}
 
 	auto lambda_plane_init = [](std::vector<cv::Mat> src, PlaneInformation* pPlane, int ransac_trial, float thresh_distance, float thresh_ratio) {
+		
+		//N
+		//N-1
+		
 		//RANSAC
 		int max_num_inlier = 0;
 		cv::Mat best_plane_param;
@@ -290,6 +296,12 @@ namespace UVR_SLAM {
 		float mfThreshPlaneRatio = fSettings["Layout.ratio"];
 		float mfThreshNormal = fSettings["Layout.normal"];
 		fSettings.release();
+		
+		std::set<MapPoint*>    sTempAllFloorMPs;
+		std::vector<cv::Mat> vTempAllFloorMPs;
+		std::map<std::pair<Frame*, int>, std::vector<MapPoint*>> mapFrameObjectInfos;
+		std::vector<cv::Mat> vecWallParams;
+		
 
 		while (true) {
 
@@ -339,6 +351,7 @@ namespace UVR_SLAM {
 					for (int y = 0; y < mpTargetFrame->mSegLabel.rows; y++) {
 						for (int x = 0; x < mpTargetFrame->mSegLabel.cols; x++) {
 							int label = mpTargetFrame->mSegLabel.at<uchar>(y, x) + 1;
+
 							switch (label) {
 							case mnLabel_floor:
 								mpTargetFrame->mSegImage.at<cv::Vec3b>(y, x) = UVR_SLAM::ObjectColors::mvObjectLabelColors[label];
@@ -367,6 +380,10 @@ namespace UVR_SLAM {
 						switch (label) {
 						case mnLabel_floor:
 							vTempFloorMPs.push_back(a);
+							if (!sTempAllFloorMPs.count(pMPi)) {
+								sTempAllFloorMPs.insert(pMPi);
+								vTempAllFloorMPs.push_back(a);
+							}
 							break;
 						case mnLabel_wall:
 							vTempWallMPs.push_back(a);
@@ -374,17 +391,60 @@ namespace UVR_SLAM {
 						case mnLabel_ceil:
 							vTempCeilMPs.push_back(a);
 							break;
-						}
+						}//switch
+						auto key = std::make_pair(mpTargetFrame, label);
+						mapFrameObjectInfos[key].push_back(pMPi);
 					}
 
 					auto tempFloor = new UVR_SLAM::PlaneInformation();
 					auto tempWall1 = new UVR_SLAM::PlaneInformation();
 					auto tempWall2 = new UVR_SLAM::PlaneInformation();
 
-					auto ffloorplane = std::async(std::launch::async, UVR_SLAM::lambda_plane_init, vTempFloorMPs, tempFloor, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+					auto ffloorplane = std::async(std::launch::async, UVR_SLAM::lambda_plane_init, vTempAllFloorMPs, tempFloor, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
 					auto fwallplane1 = std::async(std::launch::async, UVR_SLAM::lambda_plane_init, vTempWallMPs, tempWall1, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
 
+					mpTargetMap->ClearPlanarTest();
 					if (ffloorplane.get()) {
+
+						////plane param
+						std::async(std::launch::async, [](std::string ip, int port, std::string mapName, cv::Mat param) {
+							WebAPI* mpAPI = new WebAPI(ip, port);
+							////xz, 5, 5
+							float x = 20.0;
+							float z = 20.0;
+							float y1 = -( x*param.at<float>(0) + z*param.at<float>(2) + param.at<float>(3)) / param.at<float>(1);
+							float y2 = -( x*param.at<float>(0) - z*param.at<float>(2) + param.at<float>(3)) / param.at<float>(1);
+							float y3 = -(-x*param.at<float>(0) - z*param.at<float>(2) + param.at<float>(3)) / param.at<float>(1);
+							float y4 = -(-x*param.at<float>(0) + z*param.at<float>(2) + param.at<float>(3)) / param.at<float>(1);
+							cv::Mat data = cv::Mat::zeros(12, 1, CV_32FC1);
+							int idx = 0;
+							data.at<float>(idx++) = x;
+							data.at<float>(idx++) = y1;
+							data.at<float>(idx++) = z;
+							data.at<float>(idx++) = x;
+							data.at<float>(idx++) = y2;
+							data.at<float>(idx++) = -z;
+							data.at<float>(idx++) = -x;
+							data.at<float>(idx++) = y3;
+							data.at<float>(idx++) = -z;
+							data.at<float>(idx++) = -x;
+							data.at<float>(idx++) = y4;
+							data.at<float>(idx++) = z;
+
+							std::stringstream ss;
+							ss << "/ReceiveData?map=" << mapName << "&attr=Models&id=1&key=bregion";
+							mpAPI->Send(ss.str(), data.data, data.rows * sizeof(float));
+						}, mpSystem->ip, mpSystem->port, mpTargetUser->mapName, tempFloor->GetParam());
+						////plane param
+
+						std::async(std::launch::async, [](std::string ip, int port, std::string mapName, cv::Mat data) {
+							WebAPI* mpAPI = new WebAPI(ip, port);
+							std::stringstream ss;
+							ss << "/ReceiveData?map=" << mapName <<"&attr=Models&id=1&key=bparam";
+							mpAPI->Send(ss.str(), data.data, data.rows * sizeof(float));
+						},mpSystem->ip, mpSystem->port, mpTargetUser->mapName, tempFloor->GetParam());
+						
+
 						std::vector<cv::Mat> vfIns = tempFloor->mvInliers;
 						std::vector<cv::Mat> vfOuts = tempFloor->mvOutliers;
 						
@@ -395,15 +455,19 @@ namespace UVR_SLAM {
 						/*for (size_t i = 0, iend = vfOuts.size(); i < iend; i++) {
 							mpTargetMap->AddPlanarTemp(vfOuts[i], 2);
 						}*/
+
+						
+
 					}
 					else
 						std::cout << "Plane::Floor::Fail::" << vTempFloorMPs.size() << std::endl;
 					if (fwallplane1.get()) {
 						std::future<bool> fwallplane2;
-						if (tempWall1->mbParallel) {
+						/*if (tempWall1->mbParallel) {
 							std::cout << "wall2 start" << std::endl;
 							fwallplane2 = std::async(std::launch::async, UVR_SLAM::lambda_plane_init, tempWall1->mvOutliers, tempWall2, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
-						}
+						}*/
+
 						std::vector<cv::Mat> vWIns = tempWall1->mvInliers;
 						std::vector<cv::Mat> vWOuts = tempWall1->mvOutliers;
 						//std::cout << "Wall Test = " << vWIns.size() << " " << vWOuts.size() << ":" << vTempFloorMPs.size() << ", " << vTempWallMPs.size() << std::endl;
@@ -414,17 +478,305 @@ namespace UVR_SLAM {
 						/*for (size_t i = 0, iend = vWOuts.size(); i < iend; i++) {
 							mpTargetMap->AddPlanarTemp(vWOuts[i], 4);
 						}*/
-						if (tempWall1->mbParallel && fwallplane2.get()) {
-							std::cout << "wall2 test::2" << std::endl;
-							std::vector<cv::Mat> vWIns2 = tempWall2->mvInliers;
-							std::vector<cv::Mat> vWOuts2 = tempWall2->mvOutliers;
-							for (size_t i = 0, iend = vWIns2.size(); i < iend; i++) {
-								mpTargetMap->AddPlanarTemp(vWIns2[i], 5);
-							}
-							/*for (size_t i = 0, iend = vWOuts2.size(); i < iend; i++) {
-								mpTargetMap->AddPlanarTemp(vWOuts2[i], 6);
-							}*/
+
+						//if (tempWall1->mbParallel && fwallplane2.get()) {
+						//	std::cout << "wall2 test::2" << std::endl;
+						//	std::vector<cv::Mat> vWIns2 = tempWall2->mvInliers;
+						//	std::vector<cv::Mat> vWOuts2 = tempWall2->mvOutliers;
+						//	for (size_t i = 0, iend = vWIns2.size(); i < iend; i++) {
+						//		mpTargetMap->AddPlanarTemp(vWIns2[i], 5);
+						//	}
+						//	/*for (size_t i = 0, iend = vWOuts2.size(); i < iend; i++) {
+						//		mpTargetMap->AddPlanarTemp(vWOuts2[i], 6);
+						//	}*/
+						//}
+					}
+
+					{
+						cv::Mat vis = cv::Mat::zeros(1000, 1000, CV_8UC3);
+						////acquire subspace
+						Subspace* pSub = nullptr;
+						if (mpTargetMap->mvpSubspaces.size() > 0) {
+							pSub = mpTargetMap->mvpSubspaces[mpTargetMap->mvpSubspaces.size() - 1];
+							
 						}
+						else if (mpTargetMap->mvpSubspaces.size() == 0)
+						{
+							pSub = new Subspace();
+							pSub->mpStartFrame = mpTargetFrame;
+							mpTargetMap->mvpSubspaces.push_back(pSub);
+						}
+						pSub->mvpSubspaceFrames.push_back(mpTargetFrame);
+						/*else {
+							pSub = mpTargetMap->mvpSubspaces[mpTargetMap->mvpSubspaces.size() - 1];
+						}*/
+
+						//add current frame data
+						auto key = std::make_pair(mpTargetFrame, mnLabel_wall);
+						auto vec = mapFrameObjectInfos[key];
+						for (size_t i = 0, iend = vec.size(); i < iend; i++) {
+							auto pMPi = vec[i];
+							if (!pMPi || pMPi->isDeleted())
+								continue;
+							if (pSub->mspSubspaceMapPoints.count(pMPi)) {
+								continue;
+							}
+							pSub->mspSubspaceMapPoints.insert(pMPi);
+						}
+						//add current frame data
+						
+						
+						cv::Mat data = cv::Mat::zeros(0, 3, CV_32FC1);
+						////new parameter estimation
+						auto vpMPs = pSub->mspSubspaceMapPoints;
+						if (pSub->mspSubspaceMapPoints.size() > 20) {
+							cv::Mat normal;
+							float d;
+							tempFloor->GetParam(normal, d);
+
+							//rotate with floor 
+							cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(normal).clone();
+							cv::Mat Pnew = Rcw.t()*normal;
+							if (Pnew.at<float>(0) < 0.00001)
+								Pnew.at<float>(0) = 0.0;
+							if (Pnew.at<float>(2) < 0.00001)
+								Pnew.at<float>(2) = 0.0;
+
+							cv::Point2f mVisMidPt(500, 500);
+							auto vpSubspaces = mpTargetMap->mvpSubspaces;
+							for (size_t i = 0, iend = vpSubspaces.size(); i < iend; i++) {
+								auto tempSub = vpSubspaces[i];
+								auto spMPs = vpSubspaces[i]->mspSubspaceMapPoints;
+								int nID = vpSubspaces[i]->mnID;
+								bool bSub = pSub == tempSub;
+								for (auto it = spMPs.begin(), itend = spMPs.end(); it != itend; it++)
+								{
+									auto pMPi = *it;
+									if (!pMPi || pMPi->isDeleted())
+										continue;
+									cv::Mat a = pMPi->GetWorldPos();
+									cv::Mat Xnew = Rcw.t()*a;
+									cv::Mat Xproj = Xnew.clone();
+
+									cv::Mat temp = cv::Mat::ones(1, 3, CV_32FC1);
+									temp.at<float>(0) = Xproj.at<float>(0);
+									temp.at<float>(1) = Xproj.at<float>(2);
+									if(bSub)
+										data.push_back(temp);
+									cv::Point2f tpt = cv::Point2f(Xnew.at<float>(0) * 20, Xnew.at<float>(2) * 20);
+									tpt += mVisMidPt;
+									cv::circle(vis, tpt, 2, ObjectColors::mvObjectLabelColors[nID], -1);
+								}
+							}
+							//for (auto it = pSub->mspSubspaceMapPoints.begin(), iend = pSub->mspSubspaceMapPoints.end(); it != iend; it++) {
+							//	auto pMPi = *it;
+							//	cv::Mat a = pMPi->GetWorldPos();
+							//	cv::Mat Xnew = Rcw.t()*a;
+							//	cv::Mat Xproj = Xnew.clone();
+
+							//	cv::Mat temp = cv::Mat::ones(1, 3, CV_32FC1);
+							//	temp.at<float>(0) = Xproj.at<float>(0);
+							//	temp.at<float>(1) = Xproj.at<float>(2);
+							//	data.push_back(temp);
+
+							//	/*Xproj.at<float>(1) = 0.0f;
+							//	cv::Point2f tpt = cv::Point2f(Xnew.at<float>(0) * 20, Xnew.at<float>(2) * 20);
+							//	tpt += mVisMidPt;
+							//	cv::circle(vis, tpt, 2, cv::Scalar(255, 0, 255), -1);*/
+							//}
+
+							//add data in new frame
+							cv::Mat data2 = cv::Mat::zeros(0, 3, CV_32FC1);
+							for (size_t i = 0, iend = vec.size(); i < iend; i++) {
+								auto pMPi = vec[i];
+								if (!pMPi || pMPi->isDeleted())
+									continue;
+								
+								cv::Mat a = pMPi->GetWorldPos();
+								cv::Mat Xnew = Rcw.t()*a;
+								cv::Mat Xproj = Xnew.clone();
+
+								cv::Mat temp = cv::Mat::ones(1, 3, CV_32FC1);
+								temp.at<float>(0) = Xproj.at<float>(0);
+								temp.at<float>(1) = Xproj.at<float>(2);
+								data2.push_back(temp);
+
+								Xproj.at<float>(1) = 0.0f;
+								cv::Point2f tpt = cv::Point2f(Xnew.at<float>(0) * 20, Xnew.at<float>(2) * 20);
+								tpt += mVisMidPt;
+								cv::circle(vis, tpt, 3, cv::Scalar(255, 255, 255), -1);
+							}
+
+							////check need new subspace
+
+
+							////plane estimation
+							cv::Mat param;
+							cv::Mat inliers = cv::Mat::zeros(0, 3, CV_32FC1);
+							cv::Mat outliers = cv::Mat::zeros(0, 3, CV_32FC1);
+							bool bWall = PlaneInformation::Ransac_fitting(data, param, inliers, outliers, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+							
+							if (bWall) {
+
+								////update avg normal vector and store parameter
+								if (pSub->mvParams.size() == 0) {
+									pSub->avgParam = param.clone();
+									pSub->avgParam.at<float>(2) = 0.0f;
+								}
+								else {
+									int nSize = pSub->mvParams.size();
+									pSub->avgParam = (pSub->avgParam*nSize + param)/(nSize+1);
+
+									//check need new subspace
+									cv::Mat prevParam = pSub->mvParams[nSize - 1];
+									cv::Mat paramStat = (abs(data2*prevParam) < mfThreshPlaneDistance) / 255;
+									std::cout << "Prev Param : " << cv::sum(paramStat).val[0] << ", " << data2.rows << std::endl;
+								}
+								pSub->mvParams.push_back(param);
+								////update avg normal vector and store parameter
+
+								auto val = PlaneInformation::CalcCosineSimilarity(param.rowRange(0, 2), pSub->avgParam.rowRange(0, 2));
+								std::cout << "normal : " << val << "::" << param << ", " << pSub->avgParam << std::endl;
+
+								cv::Scalar color = ObjectColors::mvObjectLabelColors[pSub->mnID];
+								int cSize = 2;
+
+								if (val > 0.95) {
+									color.val[0] = 0;
+									color.val[1] = 255;
+									color.val[2] = 255;
+								}
+								else if (val < 0.3) {
+									color.val[0] = 0;
+									color.val[1] = 255;
+									color.val[2] = 0;
+									cSize = 4;
+								}
+
+								for (size_t i = 0, iend = inliers.rows; i < iend; i++) {
+									cv::Mat temp = inliers.row(i);
+									cv::Point2f tpt = cv::Point2f(temp.at<float>(0) * 20, temp.at<float>(1) * 20);
+									tpt += mVisMidPt;
+									cv::circle(vis, tpt, cSize, color, -1);
+								}
+							}
+
+							//if (bWall) {
+							//	//compare with previous wall geomtric parameter
+							//	/*for (size_t i = 0, iend = vecWallParams.size(); i < iend; i++) {
+
+							//	}*/
+							//	cv::Scalar color(255, 255, 0);
+							//	int cSize = 2;
+							//	if (vecWallParams.size() > 0) {
+							//		auto lastParam = vecWallParams[vecWallParams.size() - 1];
+							//		auto val = PlaneInformation::CalcCosineSimilarity(param.rowRange(0, 2), lastParam.rowRange(0, 2));
+							//		std::cout << "normal : " << val << "::" << param << ", " << lastParam << std::endl;
+							//		if (val > 0.95) {
+							//			color.val[0] = 0;
+							//			color.val[1] = 255;
+							//			color.val[2] = 255;
+							//		}
+							//		else if (val < 0.3) {
+							//			color.val[0] = 0;
+							//			color.val[1] = 255;
+							//			color.val[2] = 0;
+							//			cSize = 4;
+							//		}
+							//	}
+							//	vecWallParams.push_back(param);
+							//	for (size_t i = 0, iend = inliers.rows; i < iend; i++) {
+							//		cv::Mat temp = inliers.row(i);
+							//		cv::Point2f tpt = cv::Point2f(temp.at<float>(0) * 20, temp.at<float>(1) * 20);
+							//		tpt += mVisMidPt;
+							//		cv::circle(vis, tpt, cSize, color, -1);
+							//	}
+							//}
+
+							////check to need new subspace
+							bool bNeedNewSubspace = true;
+							if (pSub) {
+								bNeedNewSubspace = pSub->CheckNeedNewSubspace(vec);
+							}
+							if (bNeedNewSubspace) {
+								if (pSub) {
+									pSub->mpEndFrame = pSub->mvpSubspaceFrames[pSub->mvpSubspaceFrames.size() - 1];
+								}
+								pSub = new Subspace();
+								pSub->mpStartFrame = mpTargetFrame;
+								mpTargetMap->mvpSubspaces.push_back(pSub);
+							}
+							
+							////check to need new subspace
+
+							imshow("floor test", vis); cv::waitKey(1);
+						}
+
+						//if (vec.size() > 20) {
+						//	cv::Mat normal;
+						//	float d;
+						//	tempFloor->GetParam(normal, d);
+
+						//	cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(normal).clone();
+						//	cv::Mat Pnew = Rcw.t()*normal;
+						//	if (Pnew.at<float>(0) < 0.00001)
+						//		Pnew.at<float>(0) = 0.0;
+						//	if (Pnew.at<float>(2) < 0.00001)
+						//		Pnew.at<float>(2) = 0.0;
+						//								
+						//	cv::Point2f mVisMidPt(500, 500);
+						//	for (size_t i = 0, iend = vec.size(); i < iend; i++) {
+						//		auto pMPi = vec[i];
+						//		if (!pMPi || pMPi->isDeleted())
+						//			continue;
+						//		cv::Mat a = pMPi->GetWorldPos();
+						//		cv::Mat Xnew = Rcw.t()*a;
+						//		cv::Mat Xproj = Xnew.clone();
+
+						//		cv::Mat temp = cv::Mat::ones(1, 3, CV_32FC1);
+						//		temp.at<float>(0) = Xproj.at<float>(0);
+						//		temp.at<float>(1) = Xproj.at<float>(2);
+						//		data.push_back(temp);
+
+						//		Xproj.at<float>(1) = 0.0f;
+						//		cv::Point2f tpt = cv::Point2f(Xnew.at<float>(0) * 20, Xnew.at<float>(2) * 20);
+						//		tpt += mVisMidPt;
+						//		cv::circle(vis, tpt, 2, cv::Scalar(255,0,255), -1);
+						//	}
+						//	bool bWall = PlaneInformation::Ransac_fitting(data, param, inliers, outliers, mnRansacTrial, mfThreshPlaneDistance, mfThreshPlaneRatio);
+						//	if (bWall) {
+						//		//compare with previous wall geomtric parameter
+						//		/*for (size_t i = 0, iend = vecWallParams.size(); i < iend; i++) {
+
+						//		}*/
+						//		cv::Scalar color(255, 255, 0);
+						//		int cSize = 2;
+						//		if (vecWallParams.size() > 0) {
+						//			auto lastParam = vecWallParams[vecWallParams.size() - 1];
+						//			auto val = PlaneInformation::CalcCosineSimilarity(param.rowRange(0,2), lastParam.rowRange(0,2));
+						//			std::cout << "normal : " << val <<"::"<<param<<", "<<lastParam<< std::endl;
+						//			if (val > 0.95) {
+						//				color.val[0] = 0;
+						//				color.val[1] = 255;
+						//				color.val[2] = 255;
+						//			}else if (val < 0.3) {
+						//				color.val[0] = 0;
+						//				color.val[1] = 255;
+						//				color.val[2] = 0;
+						//				cSize = 4;
+						//			}
+						//		}
+						//		vecWallParams.push_back(param);
+						//		for (size_t i = 0, iend = inliers.rows; i < iend; i++) {
+						//			cv::Mat temp = inliers.row(i);
+						//			cv::Point2f tpt = cv::Point2f(temp.at<float>(0) * 20, temp.at<float>(1) * 20);
+						//			tpt += mVisMidPt;
+						//			cv::circle(vis, tpt, cSize, color, -1);
+						//		}
+						//	}
+						//	imshow("floor test", vis); cv::waitKey(1);
+						//}
+						
 					}
 
 					cv::Mat seg;
@@ -516,6 +868,7 @@ namespace UVR_SLAM {
 					//mpSystem->mpMap->ClearTempMPs();
 					mpTargetMap->ClearPlanarTest();
 					if (ffloorplane.get()) {
+
 						std::vector<cv::Mat> vfIns = tempFloor->mvInliers;
 						std::vector<cv::Mat> vfOuts = tempFloor->mvOutliers;
 						for (size_t i = 0, iend = vfIns.size(); i < iend; i++) {
@@ -525,6 +878,8 @@ namespace UVR_SLAM {
 						for (size_t i = 0, iend = vfOuts.size(); i < iend; i++) {
 							mpTargetMap->AddPlanarTemp(vfOuts[i], 2);
 						}
+
+
 					}
 					if (fwallplane1.get()) {
 						std::future<bool> fwallplane2;
@@ -1544,3 +1899,30 @@ namespace UVR_SLAM {
 
 	}
 }
+
+/////////////////////////////평면 정보를 이용한 alignment
+////cv::Mat Rcw = UVR_SLAM::PlaneInformation::CalcPlaneRotationMatrix(param).clone();
+////cv::Mat normal;
+////float dist;
+////pFloor->GetParam(normal, dist);
+////cv::Mat tempP = Rcw.t()*normal;
+////if (tempP.at<float>(0) < 0.00001)
+////	tempP.at<float>(0) = 0.0;
+////if (tempP.at<float>(2) < 0.00001)
+////	tempP.at<float>(2) = 0.0;
+
+//////전체 맵포인트 변환
+////for (int i = 0; i < tempMPs.size(); i++) {
+////	UVR_SLAM::MapPoint* pMP = tempMPs[i];
+////	/*if (!pMP)
+////		continue;
+////	if (pMP->isDeleted())
+////		continue;*/
+////	cv::Mat tempX = Rcw.t()*pMP->GetWorldPos();
+////	pMP->SetWorldPos(tempX);
+////}
+//////평면 파라메터 변환
+////pFloor->SetParam(tempP, dist);
+
+////
+/////////////////////////////평면 정보를 이용한 alignment

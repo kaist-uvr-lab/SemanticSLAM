@@ -1,6 +1,7 @@
 #include <ServerMap.h>
 #include <MapPoint.h>
 #include <Frame.h>
+#include <Subspace.h>
 #include <WebAPI.h>
 #include <future>
 
